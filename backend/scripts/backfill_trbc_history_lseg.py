@@ -8,6 +8,7 @@ has a point-in-time industry classification.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sqlite3
 import sys
@@ -185,9 +186,12 @@ def _sync_barra_exposures(conn: sqlite3.Connection) -> dict[str, int]:
         filled = grp["resolved"].replace({"": np.nan}).ffill().bfill()
         exact.loc[grp.index, "resolved"] = filled.to_numpy()
 
-    exact["resolved"] = exact["resolved"].fillna("Unmapped").astype(str)
-    exact["current"] = exact["existing"].fillna("Unmapped").astype(str)
-    to_update = exact.loc[exact["resolved"] != exact["current"], ["rowid", "resolved"]]
+    exact["resolved"] = exact["resolved"].replace({"": np.nan}).astype("object")
+    exact["current"] = exact["existing"].replace({"": np.nan}).astype("object")
+    to_update = exact.loc[
+        exact["resolved"].notna() & (exact["resolved"] != exact["current"]),
+        ["rowid", "resolved"],
+    ]
     if to_update.empty:
         return {"updated_rows": 0}
 
@@ -204,6 +208,9 @@ def run_backfill(
     ric_suffix: str,
     start_date: str | None = None,
     end_date: str | None = None,
+    shard_count: int = 1,
+    shard_index: int = 0,
+    skip_sync: bool = False,
 ) -> dict[str, Any]:
     LsegClient = _load_lseg_client()
     conn = sqlite3.connect(str(db_path))
@@ -216,9 +223,27 @@ def run_backfill(
         tickers = _resolve_tickers(conn)
         if not dates or not tickers:
             return {"status": "no-op", "dates": 0, "tickers": 0}
-        ticker_to_ric = load_ric_map(conn)
+        _ = load_ric_map(conn)
     finally:
         conn.close()
+
+    shard_count = max(1, int(shard_count))
+    shard_index = int(shard_index)
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError(f"shard_index must be in [0, {shard_count - 1}]")
+    if shard_count > 1:
+        tickers = [
+            t for t in tickers
+            if int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % shard_count == shard_index
+        ]
+        if not tickers:
+            return {
+                "status": "no-op",
+                "dates": len(dates),
+                "tickers": 0,
+                "shard_index": shard_index,
+                "shard_count": shard_count,
+            }
 
     job_run_id = f"lseg_trbc_backfill_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     updated_at = datetime.now(timezone.utc).isoformat()
@@ -272,7 +297,7 @@ def run_backfill(
                         sector = row.get(sector_col) if sector_col else None
                         trbc_industry_group = None if pd.isna(industry) else str(industry).strip()
                         if trbc_industry_group in {"", "None", "nan"}:
-                            trbc_industry_group = "Unmapped"
+                            trbc_industry_group = None
                         rows.append(
                             {
                                 "ticker": ticker,
@@ -289,8 +314,10 @@ def run_backfill(
                 conn.commit()
                 print(f"  {date_idx:>3}/{len(dates)} {as_of}: upserted {inserted:,} rows")
 
-            sync_stats = _sync_barra_exposures(conn)
-            conn.commit()
+            sync_stats = {"updated_rows": 0}
+            if not skip_sync:
+                sync_stats = _sync_barra_exposures(conn)
+                conn.commit()
             ric_map_size = conn.execute("SELECT COUNT(*) FROM ticker_ric_map").fetchone()[0]
         finally:
             conn.close()
@@ -304,6 +331,9 @@ def run_backfill(
         "ticker_ric_map_size": int(ric_map_size or 0),
         "db_path": str(db_path),
         "job_run_id": job_run_id,
+        "shard_index": int(shard_index),
+        "shard_count": int(shard_count),
+        "skip_sync": bool(skip_sync),
     }
     print(out)
     return out
@@ -315,6 +345,9 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--ric-suffix", default=".O", help="Suffix when converting plain tickers to RICs")
     p.add_argument("--start-date", default=None, help="Optional YYYY-MM-DD lower bound for as_of_date")
     p.add_argument("--end-date", default=None, help="Optional YYYY-MM-DD upper bound for as_of_date")
+    p.add_argument("--shard-count", type=int, default=1, help="Total number of ticker shards")
+    p.add_argument("--shard-index", type=int, default=0, help="Zero-based shard index to process")
+    p.add_argument("--skip-sync", action="store_true", help="Skip syncing barra_exposures from history after backfill")
     return p.parse_args()
 
 
@@ -325,4 +358,7 @@ if __name__ == "__main__":
         ric_suffix=args.ric_suffix,
         start_date=args.start_date,
         end_date=args.end_date,
+        shard_count=args.shard_count,
+        shard_index=args.shard_index,
+        skip_sync=bool(args.skip_sync),
     )

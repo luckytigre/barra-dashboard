@@ -39,7 +39,12 @@ def build_specific_risk_from_cache(
 
     resid_df["ticker"] = resid_df["ticker"].astype(str).str.upper()
     resid_df["residual"] = pd.to_numeric(resid_df["residual"], errors="coerce")
-    resid_df["trbc_industry_group"] = resid_df["trbc_industry_group"].fillna("Unmapped").astype(str)
+    resid_df["trbc_industry_group"] = (
+        resid_df["trbc_industry_group"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
     resid_df = resid_df.dropna(subset=["ticker", "residual"])
     if resid_df.empty:
         return {}
@@ -56,7 +61,7 @@ def build_specific_risk_from_cache(
         industry = (
             str(g["trbc_industry_group"].dropna().iloc[-1])
             if not g["trbc_industry_group"].dropna().empty
-            else "Unmapped"
+            else ""
         )
         rows.append({
             "ticker": str(ticker),

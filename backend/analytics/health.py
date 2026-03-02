@@ -12,9 +12,9 @@ import pandas as pd
 
 from barra.daily_factor_returns import load_specific_residuals
 from barra.descriptors import FULL_STYLE_FACTORS, FULL_STYLE_ORTH_RULES, canonicalize_style_scores
+from barra.eligibility import build_eligibility_context, structural_eligibility_for_date
 from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
 from db.sqlite import cache_get
-from db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
 
 ANNUALIZATION = 252.0
 
@@ -195,7 +195,12 @@ def _compute_incremental_r2_by_block(
     residuals["ticker"] = residuals["ticker"].astype(str).str.upper()
     residuals["residual"] = pd.to_numeric(residuals["residual"], errors="coerce")
     residuals["market_cap"] = pd.to_numeric(residuals["market_cap"], errors="coerce")
-    residuals["trbc_industry_group"] = residuals["trbc_industry_group"].fillna("Unmapped").astype(str)
+    residuals["trbc_industry_group"] = (
+        residuals["trbc_industry_group"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
 
     exposure_dates, exposure_snaps = _load_style_exposure_snapshots(data_db)
     if not exposure_dates or not exposure_snaps:
@@ -215,7 +220,7 @@ def _compute_incremental_r2_by_block(
             continue
 
         tickers = g["ticker"].astype(str)
-        raw_style = snap.reindex(tickers).fillna(0.0)
+        raw_style = snap.reindex(tickers)
         if raw_style.empty:
             continue
         caps = pd.to_numeric(g["market_cap"], errors="coerce").astype(float)
@@ -228,12 +233,30 @@ def _compute_incremental_r2_by_block(
         valid_tickers = tickers.loc[valid_idx]
         caps_valid = caps.loc[valid_idx]
         resid_full_valid = resid_full.loc[valid_idx].to_numpy(dtype=float)
-        inds = g.loc[valid_idx, "trbc_industry_group"].fillna("Unmapped").astype(str)
+        inds = g.loc[valid_idx, "trbc_industry_group"].fillna("").astype(str).str.strip()
+        non_empty_ind = inds.str.len() > 0
+        if int(non_empty_ind.sum()) < 20:
+            continue
+        valid_idx = valid_idx[non_empty_ind.to_numpy(dtype=bool)]
+        valid_tickers = tickers.loc[valid_idx]
+        caps_valid = caps.loc[valid_idx]
+        resid_full_valid = resid_full.loc[valid_idx].to_numpy(dtype=float)
+        inds = inds.loc[valid_idx]
         ind_dummies = pd.get_dummies(inds, dtype=float)
 
         style_scores = raw_style.loc[valid_tickers].copy()
         style_scores.index = valid_idx
-        style_scores = style_scores.fillna(0.0)
+        style_scores = style_scores.replace([np.inf, -np.inf], np.nan)
+        style_valid = style_scores.notna().all(axis=1)
+        if int(style_valid.sum()) < 20:
+            continue
+        style_scores = style_scores.loc[style_valid]
+        valid_idx = style_scores.index
+        valid_tickers = valid_tickers.loc[valid_idx]
+        caps_valid = caps_valid.loc[valid_idx]
+        resid_full_valid = resid_full.loc[valid_idx].to_numpy(dtype=float)
+        inds = inds.loc[valid_idx]
+        ind_dummies = pd.get_dummies(inds, dtype=float)
         canonical = canonicalize_style_scores(
             style_scores=style_scores,
             market_caps=pd.Series(caps_valid.to_numpy(dtype=float), index=valid_idx, dtype=float),
@@ -296,156 +319,86 @@ def _compute_incremental_r2_by_block(
     return rows
 
 
-def _load_latest_exposure_snapshot(data_db: Path) -> tuple[str | None, pd.DataFrame]:
-    conn = sqlite3.connect(str(data_db))
-    try:
-        ensure_trbc_naming(conn)
-        latest_row = conn.execute("SELECT MAX(as_of_date) FROM barra_exposures").fetchone()
-        as_of = str(latest_row[0]) if latest_row and latest_row[0] else None
-        if as_of is None:
-            return None, pd.DataFrame()
-        cols = [str(r[1]) for r in conn.execute("PRAGMA table_info(barra_exposures)").fetchall()]
-        industry_col = pick_trbc_industry_column(cols) or "trbc_industry_group"
-        style_cols = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in cols]
-        select_cols = ["ticker", "as_of_date", industry_col, *style_cols]
-        sql = f"""
-        SELECT {", ".join(select_cols)}
-        FROM barra_exposures
-        WHERE as_of_date = ?
-        ORDER BY ticker
-        """
-        df = pd.read_sql_query(sql, conn, params=(as_of,))
-        if industry_col != "trbc_industry_group" and industry_col in df.columns:
-            df = df.rename(columns={industry_col: "trbc_industry_group"})
-    finally:
-        conn.close()
-    return as_of, df
-
-
-def _load_market_caps_for_snapshot_dates(
-    data_db: Path,
-    snapshot_dates: list[str],
-) -> dict[str, pd.Series]:
-    dates = sorted({str(d) for d in snapshot_dates if str(d).strip()})
-    if not dates:
-        return {}
-
-    conn = sqlite3.connect(str(data_db))
-    try:
-        mcap_df = pd.read_sql_query(
-            """
-            SELECT ticker, fetch_date, market_cap
-            FROM fundamental_snapshots
-            WHERE fetch_date <= ?
-            ORDER BY fetch_date, ticker
-            """,
-            conn,
-            params=(dates[-1],),
-        )
-    finally:
-        conn.close()
-    if mcap_df.empty:
-        return {}
-
-    mcap_df["ticker"] = mcap_df["ticker"].astype(str).str.upper()
-    mcap_df["fetch_date"] = mcap_df["fetch_date"].astype(str)
-    mcap_df["market_cap"] = pd.to_numeric(mcap_df["market_cap"], errors="coerce")
-
-    panel = (
-        mcap_df.dropna(subset=["ticker", "fetch_date"])
-        .drop_duplicates(subset=["ticker", "fetch_date"], keep="last")
-        .pivot(index="fetch_date", columns="ticker", values="market_cap")
-        .sort_index()
-    )
-    if panel.empty:
-        return {}
-
-    panel = panel.reindex(dates).ffill()
-    out: dict[str, pd.Series] = {}
-    for d in dates:
-        if d not in panel.index:
-            continue
-        out[d] = pd.to_numeric(panel.loc[d], errors="coerce").dropna().astype(float)
-    return out
-
-
 def _build_factor_exposure_matrix(
     snapshot_df: pd.DataFrame,
     *,
-    market_caps: pd.Series | None = None,
-    canonicalize_style: bool = False,
+    eligibility: pd.DataFrame,
 ) -> pd.DataFrame:
-    if snapshot_df.empty:
+    if snapshot_df.empty or eligibility.empty:
         return pd.DataFrame()
     df = snapshot_df.copy()
     df["ticker"] = df["ticker"].astype(str).str.upper()
     style_cols = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in df.columns]
+    if not style_cols:
+        return pd.DataFrame()
+
+    eligible = eligibility[eligibility["is_structural_eligible"].astype(bool)].copy()
+    if eligible.empty:
+        return pd.DataFrame()
+    eligible_idx = eligible.index.astype(str).str.upper()
+
     style = df[["ticker", *style_cols]].copy()
     style = style.drop_duplicates(subset=["ticker"], keep="last").set_index("ticker")
-    style = style.apply(pd.to_numeric, errors="coerce").fillna(0.0)
+    style = style.reindex(eligible_idx)
+    style = style.apply(pd.to_numeric, errors="coerce")
     style = style.rename(columns=STYLE_COLUMN_TO_LABEL)
-
-    industry_series = (
-        df[["ticker", "trbc_industry_group"]]
-        .copy()
-        .drop_duplicates(subset=["ticker"], keep="last")
-        .set_index("ticker")["trbc_industry_group"]
-        .fillna("Unmapped")
+    caps = pd.to_numeric(eligible.reindex(style.index)["market_cap"], errors="coerce")
+    industries = (
+        eligible.reindex(style.index)["trbc_industry_group"]
+        .fillna("")
         .astype(str)
+        .str.strip()
     )
-    industry = pd.get_dummies(industry_series, dtype=float)
+    valid = (
+        np.isfinite(caps.to_numpy(dtype=float))
+        & (caps.to_numpy(dtype=float) > 0.0)
+        & style.notna().all(axis=1).to_numpy(dtype=bool)
+        & (industries.str.len().to_numpy(dtype=float) > 0)
+    )
+    if int(valid.sum()) < 2:
+        return pd.DataFrame()
+    valid_idx = style.index[valid]
+    style = style.loc[valid_idx]
+    caps = caps.loc[valid_idx]
+    industries = industries.loc[valid_idx]
 
-    if canonicalize_style and not style.empty:
-        caps = pd.to_numeric(market_caps, errors="coerce") if market_caps is not None else pd.Series(dtype=float)
-        caps = caps.reindex(style.index)
-        cap_vals = caps.to_numpy(dtype=float)
-        finite_pos = cap_vals[np.isfinite(cap_vals) & (cap_vals > 0)]
-        cap_fallback = float(np.nanmedian(finite_pos)) if finite_pos.size > 0 else 1.0
-        if not np.isfinite(cap_fallback) or cap_fallback <= 0:
-            cap_fallback = 1.0
-        caps = caps.where(np.isfinite(caps) & (caps > 0), cap_fallback).astype(float)
-        style = canonicalize_style_scores(
-            style_scores=style,
-            market_caps=caps,
-            orth_rules=FULL_STYLE_ORTH_RULES,
-            industry_exposures=industry,
-        ).reindex(columns=style.columns, fill_value=0.0)
+    industry = pd.get_dummies(industries, dtype=float)
+    if industry.empty:
+        return pd.DataFrame()
+    style = canonicalize_style_scores(
+        style_scores=style,
+        market_caps=caps,
+        orth_rules=FULL_STYLE_ORTH_RULES,
+        industry_exposures=industry,
+    ).reindex(columns=style.columns, fill_value=0.0)
 
     return pd.concat([industry, style], axis=1).fillna(0.0)
 
 
-def _compute_exposure_turnover(data_db: Path, factor_cols: list[str]) -> list[dict[str, float | str]]:
+def _compute_exposure_turnover(
+    data_db: Path,
+    factor_cols: list[str],
+    *,
+    eligibility_ctx=None,
+) -> list[dict[str, float | str]]:
     if not factor_cols:
         return []
-    conn = sqlite3.connect(str(data_db))
-    try:
-        ensure_trbc_naming(conn)
-        cols = [str(r[1]) for r in conn.execute("PRAGMA table_info(barra_exposures)").fetchall()]
-        industry_col = pick_trbc_industry_column(cols) or "trbc_industry_group"
-        style_cols = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in cols]
-        df = pd.read_sql_query(
-            f"""
-            SELECT ticker, as_of_date, {industry_col} AS trbc_industry_group, {", ".join(style_cols)}
-            FROM barra_exposures
-            ORDER BY as_of_date, ticker
-            """,
-            conn,
-        )
-    finally:
-        conn.close()
-    if df.empty:
+    ctx = eligibility_ctx or build_eligibility_context(data_db)
+    if not ctx.exposure_dates:
         return []
 
-    snapshot_dates = sorted(df["as_of_date"].astype(str).unique().tolist())
-    caps_by_date = _load_market_caps_for_snapshot_dates(data_db, snapshot_dates)
-
     per_date: dict[str, pd.DataFrame] = {}
-    for as_of, g in df.groupby("as_of_date", sort=True):
-        d = str(as_of)
+    for d in sorted(ctx.exposure_dates):
+        snap = ctx.exposure_snapshots.get(d)
+        if snap is None or snap.empty:
+            continue
+        exp_date, eligibility = structural_eligibility_for_date(ctx, d)
+        if exp_date is None or eligibility.empty:
+            continue
+        snap_with_ticker = snap.reset_index().rename(columns={"index": "ticker"})
         m = _build_factor_exposure_matrix(
-            g,
-            market_caps=caps_by_date.get(d),
-            canonicalize_style=True,
+            snap_with_ticker,
+            eligibility=eligibility,
         )
         if m.empty:
             continue
@@ -647,13 +600,18 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
     }
 
     # SECTION 2 — Exposure diagnostics (latest cross-section)
-    exp_as_of, snap = _load_latest_exposure_snapshot(data_db)
-    exp_caps = _load_market_caps_for_snapshot_dates(data_db, [exp_as_of] if exp_as_of else [])
-    exp_matrix = _build_factor_exposure_matrix(
-        snap,
-        market_caps=exp_caps.get(str(exp_as_of)) if exp_as_of else None,
-        canonicalize_style=True,
-    )
+    elig_ctx = build_eligibility_context(data_db)
+    exp_as_of = max(elig_ctx.exposure_dates) if elig_ctx.exposure_dates else None
+    exp_matrix = pd.DataFrame()
+    if exp_as_of is not None:
+        exp_date, exp_elig = structural_eligibility_for_date(elig_ctx, exp_as_of)
+        snap = elig_ctx.exposure_snapshots.get(exp_date or "")
+        if snap is not None and not snap.empty and not exp_elig.empty:
+            snap_df = snap.reset_index().rename(columns={"index": "ticker"})
+            exp_matrix = _build_factor_exposure_matrix(
+                snap_df,
+                eligibility=exp_elig,
+            )
     factor_stats: list[dict[str, Any]] = []
     factor_hists: dict[str, dict[str, list[float | int]]] = {}
     exp_corr = {"factors": [], "correlation": []}
@@ -680,7 +638,11 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
             "factors": [str(c) for c in corr_df.columns],
             "correlation": [[float(v) for v in row] for row in corr_df.to_numpy(dtype=float)],
         }
-        turnover_series = _compute_exposure_turnover(data_db, list(exp_matrix.columns))
+        turnover_series = _compute_exposure_turnover(
+            data_db,
+            list(exp_matrix.columns),
+            eligibility_ctx=elig_ctx,
+        )
 
     # SECTION 3 — Factor return health
     piv = (
@@ -799,6 +761,7 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
             "Incremental block R² is reconstructed from cached full residuals plus canonicalized style-fitted returns.",
             "Computationally intensive Section 1 time-series are sampled at week-end over 10 years.",
             "Exposure turnover is normalized by elapsed calendar days between snapshots, then smoothed with a 60-observation rolling mean.",
+            "Section 2 uses strict structural eligibility only (no cap fill-ins, no unmapped industry bucket).",
         ],
         "section1": {
             "sampling": "weekly_week_end",

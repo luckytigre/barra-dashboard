@@ -19,7 +19,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
+from db.trbc_schema import pick_trbc_industry_column
+from barra.eligibility import (
+    build_eligibility_context,
+    structural_eligibility_for_date,
+)
 from barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
 from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
 from barra.wls_regression import estimate_factor_returns_two_phase
@@ -28,11 +32,10 @@ logger = logging.getLogger(__name__)
 
 # Style score columns in the barra_exposures table
 STYLE_SCORE_COLS = list(STYLE_COLUMN_TO_LABEL.keys())
-STYLE_FACTOR_NAMES = list(STYLE_COLUMN_TO_LABEL.values())
 RETURNS_WINSOR_PCT = 0.05
 MIN_CROSS_SECTION_SIZE = 30
 MIN_ELIGIBLE_COVERAGE = 0.60
-CACHE_METHOD_VERSION = "v7_trbc_naming_2026_03_01"
+CACHE_METHOD_VERSION = "v8_strict_eligibility_2026_03_02"
 
 _DAILY_FR_SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_factor_returns (
@@ -66,8 +69,25 @@ CREATE TABLE IF NOT EXISTS daily_specific_residuals (
 );
 """
 
-_TRBC_HISTORY_TABLE = "trbc_industry_history"
-
+_DAILY_ELIGIBILITY_SUMMARY_SCHEMA = """
+CREATE TABLE IF NOT EXISTS daily_universe_eligibility_summary (
+    date TEXT PRIMARY KEY,
+    exp_date TEXT,
+    exposure_n INTEGER NOT NULL DEFAULT 0,
+    structural_eligible_n INTEGER NOT NULL DEFAULT 0,
+    regression_member_n INTEGER NOT NULL DEFAULT 0,
+    structural_coverage REAL NOT NULL DEFAULT 0.0,
+    regression_coverage REAL NOT NULL DEFAULT 0.0,
+    drop_pct_from_prev REAL NOT NULL DEFAULT 0.0,
+    alert_level TEXT NOT NULL DEFAULT '',
+    missing_style_n INTEGER NOT NULL DEFAULT 0,
+    missing_market_cap_n INTEGER NOT NULL DEFAULT 0,
+    missing_trbc_sector_n INTEGER NOT NULL DEFAULT 0,
+    missing_trbc_industry_n INTEGER NOT NULL DEFAULT 0,
+    non_equity_n INTEGER NOT NULL DEFAULT 0,
+    missing_return_n INTEGER NOT NULL DEFAULT 0
+);
+"""
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
@@ -88,78 +108,6 @@ def _winsorize_cross_section(values: np.ndarray, pct: float) -> np.ndarray:
     return out
 
 
-def _load_exposures(data_db: Path) -> pd.DataFrame:
-    """Load all barra_exposures snapshots, sorted by date."""
-    conn = sqlite3.connect(str(data_db))
-    try:
-        ensure_trbc_naming(conn)
-        cols = _table_columns(conn, "barra_exposures")
-        industry_col = pick_trbc_industry_column(cols)
-        industry_select = f"{industry_col} AS trbc_industry_group" if industry_col else "'Unmapped' AS trbc_industry_group"
-        df = pd.read_sql_query(
-            f"""SELECT ticker, as_of_date,
-                      beta_score, momentum_score, size_score, nonlinear_size_score,
-                      short_term_reversal_score, resid_vol_score, liquidity_score,
-                      book_to_price_score, earnings_yield_score, value_score,
-                      leverage_score, growth_score, profitability_score,
-                      investment_score, dividend_yield_score,
-                      {industry_select}
-               FROM barra_exposures
-               ORDER BY as_of_date, ticker""",
-            conn,
-        )
-    finally:
-        conn.close()
-    # Cast score columns to float
-    for col in STYLE_SCORE_COLS:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    return df
-
-
-def _load_industry_history(data_db: Path) -> pd.DataFrame:
-    """Load historical industry-group classifications if table exists."""
-    conn = sqlite3.connect(str(data_db))
-    try:
-        ensure_trbc_naming(conn)
-        row = conn.execute(
-            """
-            SELECT name
-            FROM sqlite_master
-            WHERE type='table' AND name=?
-            """,
-            (_TRBC_HISTORY_TABLE,),
-        ).fetchone()
-        if not row:
-            return pd.DataFrame(columns=["ticker", "as_of_date", "trbc_industry_group"])
-        cols = _table_columns(conn, _TRBC_HISTORY_TABLE)
-        industry_col = pick_trbc_industry_column(cols)
-        if industry_col is None:
-            return pd.DataFrame(columns=["ticker", "as_of_date", "trbc_industry_group"])
-        df = pd.read_sql_query(
-            f"""
-            SELECT ticker, as_of_date, {industry_col} AS trbc_industry_group
-            FROM {_TRBC_HISTORY_TABLE}
-            ORDER BY as_of_date, ticker
-            """,
-            conn,
-        )
-    finally:
-        conn.close()
-
-    if df.empty:
-        return pd.DataFrame(columns=["ticker", "as_of_date", "trbc_industry_group"])
-    df["ticker"] = df["ticker"].astype(str).str.upper()
-    df["as_of_date"] = df["as_of_date"].astype(str)
-    df["trbc_industry_group"] = (
-        df["trbc_industry_group"]
-        .astype(str)
-        .str.strip()
-        .replace({"": "Unmapped", "None": "Unmapped", "nan": "Unmapped"})
-    )
-    return df
-
-
 def _load_prices(data_db: Path) -> pd.DataFrame:
     """Load all daily close prices."""
     conn = sqlite3.connect(str(data_db))
@@ -168,20 +116,10 @@ def _load_prices(data_db: Path) -> pd.DataFrame:
         conn,
     )
     conn.close()
+    df["ticker"] = df["ticker"].astype(str).str.upper()
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date.astype("string")
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
-    return df
-
-
-def _load_market_caps(data_db: Path) -> pd.DataFrame:
-    """Load all fundamental snapshots (ticker, fetch_date, market_cap)."""
-    conn = sqlite3.connect(str(data_db))
-    df = pd.read_sql_query(
-        "SELECT ticker, fetch_date, market_cap FROM fundamental_snapshots ORDER BY ticker, fetch_date",
-        conn,
-    )
-    conn.close()
-    df["market_cap"] = pd.to_numeric(df["market_cap"], errors="coerce")
-    return df
+    return df.dropna(subset=["ticker", "date", "close"])
 
 
 def _load_cached_dates(cache_db: Path) -> set[str]:
@@ -190,6 +128,7 @@ def _load_cached_dates(cache_db: Path) -> set[str]:
     conn.execute(_DAILY_FR_SCHEMA)
     conn.execute(_DAILY_FR_META_SCHEMA)
     conn.execute(_DAILY_RESIDUALS_SCHEMA)
+    conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
     conn.commit()
     cur = conn.execute("SELECT DISTINCT date FROM daily_factor_returns")
     dates = {row[0] for row in cur.fetchall()}
@@ -203,6 +142,7 @@ def _ensure_cache_version(cache_db: Path):
     conn.execute(_DAILY_FR_SCHEMA)
     conn.execute(_DAILY_FR_META_SCHEMA)
     conn.execute(_DAILY_RESIDUALS_SCHEMA)
+    conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
     row = conn.execute(
         "SELECT value FROM daily_factor_returns_meta WHERE key = ?",
         ("method_version",),
@@ -211,8 +151,10 @@ def _ensure_cache_version(cache_db: Path):
     if current_version != CACHE_METHOD_VERSION:
         conn.execute("DROP TABLE IF EXISTS daily_factor_returns")
         conn.execute("DROP TABLE IF EXISTS daily_specific_residuals")
+        conn.execute("DROP TABLE IF EXISTS daily_universe_eligibility_summary")
         conn.execute(_DAILY_FR_SCHEMA)
         conn.execute(_DAILY_RESIDUALS_SCHEMA)
+        conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
         conn.execute(
             """
             INSERT INTO daily_factor_returns_meta(key, value)
@@ -259,6 +201,67 @@ def _save_daily_results(cache_db: Path, results: list[dict]):
     conn.close()
 
 
+def _save_daily_eligibility_summary(cache_db: Path, rows: list[dict]) -> None:
+    if not rows:
+        return
+    conn = sqlite3.connect(str(cache_db))
+    conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
+    conn.executemany(
+        """
+        INSERT OR REPLACE INTO daily_universe_eligibility_summary (
+            date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
+            structural_coverage, regression_coverage, drop_pct_from_prev, alert_level,
+            missing_style_n, missing_market_cap_n, missing_trbc_sector_n,
+            missing_trbc_industry_n, non_equity_n, missing_return_n
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                r["date"],
+                r.get("exp_date"),
+                int(r.get("exposure_n", 0)),
+                int(r.get("structural_eligible_n", 0)),
+                int(r.get("regression_member_n", 0)),
+                float(r.get("structural_coverage", 0.0)),
+                float(r.get("regression_coverage", 0.0)),
+                float(r.get("drop_pct_from_prev", 0.0)),
+                str(r.get("alert_level") or ""),
+                int(r.get("missing_style_n", 0)),
+                int(r.get("missing_market_cap_n", 0)),
+                int(r.get("missing_trbc_sector_n", 0)),
+                int(r.get("missing_trbc_industry_n", 0)),
+                int(r.get("non_equity_n", 0)),
+                int(r.get("missing_return_n", 0)),
+            )
+            for r in rows
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+
+def _load_latest_structural_count(cache_db: Path) -> int | None:
+    conn = sqlite3.connect(str(cache_db))
+    try:
+        conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
+        row = conn.execute(
+            """
+            SELECT structural_eligible_n
+            FROM daily_universe_eligibility_summary
+            ORDER BY date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def _save_daily_residuals(cache_db: Path, rows: list[dict]):
     """Batch-insert stock residual rows into cache."""
     if not rows:
@@ -303,41 +306,21 @@ def compute_daily_factor_returns(
     logger.info("Loading data for daily factor returns...")
 
     # Load source data
-    exposures_df = _load_exposures(data_db)
-    industry_hist_df = _load_industry_history(data_db)
     prices_df = _load_prices(data_db)
-    mcap_df = _load_market_caps(data_db)
-
-    if exposures_df.empty or prices_df.empty:
-        logger.warning("No exposures or prices data — cannot compute daily factor returns")
+    if prices_df.empty:
+        logger.warning("No prices data — cannot compute daily factor returns")
         return pd.DataFrame(columns=["date", "factor_name", "factor_return", "r_squared", "residual_vol"])
-
-    # Build exposure snapshots keyed by as_of_date
-    exposure_dates = sorted(exposures_df["as_of_date"].unique())
 
     # Build daily returns: pivot prices to wide, then compute pct_change
     prices_wide = prices_df.pivot(index="date", columns="ticker", values="close")
     prices_wide = prices_wide.sort_index()
     daily_returns = prices_wide.pct_change(fill_method=None)  # r_i(t) = close(t)/close(t-1) - 1
     daily_returns = daily_returns.iloc[1:]  # drop first NaN row
-    trading_dates = sorted(daily_returns.index.tolist())
+    trading_dates = sorted(str(d) for d in daily_returns.index.tolist())
+    daily_returns.index = daily_returns.index.astype(str)
 
     if lookback_days > 0:
         trading_dates = trading_dates[-lookback_days:]
-
-    # Build per-ticker carry-forward market-cap panel on trading dates.
-    # This avoids shrinking the universe on dates where only a partial
-    # fundamentals snapshot was ingested.
-    if not mcap_df.empty:
-        mcap_wide = (
-            mcap_df.dropna(subset=["ticker", "fetch_date"])
-            .drop_duplicates(subset=["ticker", "fetch_date"], keep="last")
-            .pivot(index="fetch_date", columns="ticker", values="market_cap")
-            .sort_index()
-        )
-        mcap_wide = mcap_wide.reindex(trading_dates).ffill()
-    else:
-        mcap_wide = pd.DataFrame(index=trading_dates)
 
     # Invalidate stale cache rows if methodology changed, then check cached dates.
     _ensure_cache_version(cache_db)
@@ -353,107 +336,137 @@ def compute_daily_factor_returns(
         f"({len(cached_dates)} already cached)"
     )
 
-    # Pre-build exposure lookup: for each exposure date, a DataFrame indexed by ticker
-    exposure_snapshots: dict[str, pd.DataFrame] = {}
-    industry_hist_by_date: dict[str, pd.Series] = {}
-    if not industry_hist_df.empty:
-        for as_of, grp in industry_hist_df.groupby("as_of_date", sort=False):
-            s = (
-                grp.drop_duplicates(subset=["ticker"], keep="last")
-                .set_index("ticker")["trbc_industry_group"]
-                .astype(str)
-            )
-            industry_hist_by_date[str(as_of)] = s
-
-    for as_of in exposure_dates:
-        snap = exposures_df[exposures_df["as_of_date"] == as_of].copy()
-        snap = snap.drop_duplicates(subset=["ticker"], keep="last")
-        snap = snap.set_index("ticker")
-        hist_groups = industry_hist_by_date.get(str(as_of))
-        if hist_groups is not None:
-            merged_group = (
-                hist_groups.reindex(snap.index)
-                .combine_first(snap.get("trbc_industry_group"))
-                .fillna("Unmapped")
-            )
-            snap["trbc_industry_group"] = merged_group.astype(str)
-        elif "trbc_industry_group" in snap.columns:
-            snap["trbc_industry_group"] = snap["trbc_industry_group"].fillna("Unmapped").astype(str)
-        else:
-            snap["trbc_industry_group"] = "Unmapped"
-        exposure_snapshots[as_of] = snap
+    # Centralized structural-eligibility context for all daily cross-sections.
+    eligibility_ctx = build_eligibility_context(data_db, dates=trading_dates)
+    if not eligibility_ctx.exposure_dates:
+        logger.warning("No exposure snapshots available — cannot compute daily factor returns")
+        return pd.DataFrame(columns=["date", "factor_name", "factor_return", "r_squared", "residual_vol"])
 
     # Process each trading day
     batch_results: list[dict] = []
     batch_residuals: list[dict] = []
+    batch_eligibility: list[dict] = []
     n_computed = 0
-    for i, date in enumerate(dates_to_compute):
-        # 1. Carry-forward exposures: find most recent snapshot <= date
-        exp_date = _find_most_recent(exposure_dates, date)
-        if exp_date is None:
-            continue
-        exp_snap = exposure_snapshots[exp_date]
+    prev_structural_n = _load_latest_structural_count(cache_db)
 
-        # 2. Daily stock returns for this date
+    for i, date in enumerate(dates_to_compute):
+        # 1. Daily stock returns for this date
         if date not in daily_returns.index:
             continue
-        ret_row = daily_returns.loc[date].dropna()
+        ret_row = daily_returns.loc[date]
+        ret_row = pd.to_numeric(ret_row, errors="coerce")
+        ret_row = ret_row[np.isfinite(ret_row.to_numpy(dtype=float))]
 
-        # 3. Carry-forward market caps per ticker
-        if date in mcap_wide.index:
-            mcap_series = mcap_wide.loc[date].dropna()
+        # 2. Structural eligibility for this date from centralized context.
+        exp_date, eligibility = structural_eligibility_for_date(eligibility_ctx, date)
+        if exp_date is None or eligibility.empty:
+            batch_eligibility.append({
+                "date": date,
+                "exp_date": exp_date,
+                "exposure_n": 0,
+                "structural_eligible_n": 0,
+                "regression_member_n": 0,
+                "structural_coverage": 0.0,
+                "regression_coverage": 0.0,
+                "drop_pct_from_prev": 0.0,
+                "alert_level": "",
+                "missing_style_n": 0,
+                "missing_market_cap_n": 0,
+                "missing_trbc_sector_n": 0,
+                "missing_trbc_industry_n": 0,
+                "non_equity_n": 0,
+                "missing_return_n": 0,
+            })
+            continue
+
+        exp_snap = eligibility_ctx.exposure_snapshots[exp_date]
+        exposure_n = int(len(eligibility))
+        structural_mask = eligibility["is_structural_eligible"].astype(bool)
+        structural_n = int(structural_mask.sum())
+        has_return = eligibility.index.isin(ret_row.index)
+        regression_mask = structural_mask & has_return
+        regression_n = int(regression_mask.sum())
+
+        no_struct = eligibility.loc[~structural_mask, "exclusion_reason"].astype(str)
+        exploded = no_struct.str.split("|").explode()
+        missing_style_n = int((exploded == "missing_style").sum())
+        missing_market_cap_n = int((exploded == "missing_market_cap").sum())
+        missing_trbc_sector_n = int((exploded == "missing_trbc_sector").sum())
+        missing_trbc_industry_n = int((exploded == "missing_trbc_industry").sum())
+        non_equity_n = int((exploded == "non_equity").sum())
+        missing_return_n = int((structural_mask & ~has_return).sum())
+
+        structural_coverage = float(structural_n / max(1, exposure_n))
+        regression_coverage = float(regression_n / max(1, structural_n))
+        if prev_structural_n is None or prev_structural_n <= 0:
+            drop_pct_from_prev = 0.0
         else:
-            mcap_series = pd.Series(dtype=float)
+            drop_pct_from_prev = float((prev_structural_n - structural_n) / prev_structural_n)
+        alert_level = ""
+        if drop_pct_from_prev > 0.20:
+            alert_level = "critical"
+        elif drop_pct_from_prev > 0.10:
+            alert_level = "warn"
+        if alert_level:
+            logger.warning(
+                "Eligibility drop on %s: structural %s -> %s (%.2f%%)",
+                date,
+                prev_structural_n,
+                structural_n,
+                drop_pct_from_prev * 100.0,
+            )
+        prev_structural_n = structural_n
+        batch_eligibility.append({
+            "date": date,
+            "exp_date": exp_date,
+            "exposure_n": exposure_n,
+            "structural_eligible_n": structural_n,
+            "regression_member_n": regression_n,
+            "structural_coverage": structural_coverage,
+            "regression_coverage": regression_coverage,
+            "drop_pct_from_prev": drop_pct_from_prev,
+            "alert_level": alert_level,
+            "missing_style_n": missing_style_n,
+            "missing_market_cap_n": missing_market_cap_n,
+            "missing_trbc_sector_n": missing_trbc_sector_n,
+            "missing_trbc_industry_n": missing_trbc_industry_n,
+            "non_equity_n": non_equity_n,
+            "missing_return_n": missing_return_n,
+        })
 
-        # 4. Eligible universe for this date:
-        #    all names with fundamentals + exposures; returns are intersected from prices.
-        eligible = exp_snap.index.intersection(mcap_series.index)
-        if len(eligible) < MIN_CROSS_SECTION_SIZE:
+        if structural_n < MIN_CROSS_SECTION_SIZE or regression_n < MIN_CROSS_SECTION_SIZE:
             continue
-        common = ret_row.index.intersection(eligible)
-        if len(common) < MIN_CROSS_SECTION_SIZE:
-            # Need a reasonable cross-section for regression.
+        if regression_coverage < MIN_ELIGIBLE_COVERAGE:
             continue
 
-        returns_series = ret_row.loc[common].astype(float)
-        market_cap_series = pd.to_numeric(mcap_series.loc[common], errors="coerce").astype(float)
-
-        # 5. Prepare valid cross-section (finite returns + positive finite caps)
-        valid = (
-            np.isfinite(returns_series.to_numpy(dtype=float))
-            & np.isfinite(market_cap_series.to_numpy(dtype=float))
-            & (market_cap_series.to_numpy(dtype=float) > 0)
+        valid_idx = eligibility.index[regression_mask]
+        returns_series = ret_row.loc[valid_idx].astype(float)
+        market_cap_series = pd.to_numeric(eligibility.loc[valid_idx, "market_cap"], errors="coerce").astype(float)
+        industry_series = (
+            eligibility.loc[valid_idx, "trbc_industry_group"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
         )
-        valid_n = int(valid.sum())
-        if valid_n < MIN_CROSS_SECTION_SIZE:
-            continue
-        coverage = valid_n / max(1, len(eligible))
-        if coverage < MIN_ELIGIBLE_COVERAGE:
-            # Skip sparse days to keep factor returns representative of the eligible universe.
+        if industry_series.eq("").all():
             continue
 
-        valid_idx = returns_series.index[valid]
-        returns = returns_series.loc[valid_idx].to_numpy(dtype=float)
+        returns = returns_series.to_numpy(dtype=float)
         returns = _winsorize_cross_section(returns, RETURNS_WINSOR_PCT)
-        market_caps = market_cap_series.loc[valid_idx].to_numpy(dtype=float)
+        market_caps = market_cap_series.to_numpy(dtype=float)
 
-        # Style exposures (canonicalized cross-sectionally to keep model inputs consistent)
+        # Style exposures (canonicalized cross-sectionally using only structurally eligible names)
         style_cols_present = [c for c in STYLE_SCORE_COLS if c in exp_snap.columns]
         style_names = [STYLE_COLUMN_TO_LABEL[c] for c in style_cols_present]
         style_scores = exp_snap.loc[valid_idx, style_cols_present].copy()
         style_scores.columns = style_names
 
-        # Industry exposures (one-hot from trbc_industry_group)
-        industry_series = pd.Series("Unmapped", index=valid_idx, dtype="object")
-        if "trbc_industry_group" in exp_snap.columns:
-            industry_series = exp_snap.loc[valid_idx, "trbc_industry_group"].fillna("Unmapped")
-            industry_dummies = pd.get_dummies(industry_series, dtype=float)
-            ind_x = industry_dummies.to_numpy(dtype=float)
-            ind_names = list(industry_dummies.columns)
-        else:
-            industry_dummies = pd.DataFrame(index=valid_idx)
-            ind_x = None
-            ind_names = []
+        # Industry exposures (one-hot from mapped TRBC industry groups only).
+        industry_dummies = pd.get_dummies(industry_series, dtype=float)
+        if industry_dummies.empty:
+            continue
+        ind_x = industry_dummies.to_numpy(dtype=float)
+        ind_names = list(industry_dummies.columns)
 
         style_canonical = canonicalize_style_scores(
             style_scores=style_scores,
@@ -483,9 +496,9 @@ def compute_daily_factor_returns(
                 "factor_return": factor_return,
                 "r_squared": result.r_squared if np.isfinite(result.r_squared) else 0.0,
                 "residual_vol": result.residual_vol if np.isfinite(result.residual_vol) else 0.0,
-                "cross_section_n": int(valid_n),
-                "eligible_n": int(len(eligible)),
-                "coverage": float(coverage) if np.isfinite(coverage) else 0.0,
+                "cross_section_n": int(regression_n),
+                "eligible_n": int(structural_n),
+                "coverage": float(regression_coverage) if np.isfinite(regression_coverage) else 0.0,
             })
 
         # 8. Store per-stock residual history for specific risk forecasting
@@ -498,8 +511,8 @@ def compute_daily_factor_returns(
                 continue
             mcap_val = float(market_cap_series.loc[ticker])
             if not np.isfinite(mcap_val) or mcap_val <= 0:
-                mcap_val = 0.0
-            industry = str(industry_series.loc[ticker]) if ticker in industry_series.index else "Unmapped"
+                continue
+            industry = str(industry_series.loc[ticker]) if ticker in industry_series.index else ""
             batch_residuals.append({
                 "date": date,
                 "ticker": str(ticker),
@@ -517,6 +530,9 @@ def compute_daily_factor_returns(
         if len(batch_residuals) > 25000:
             _save_daily_residuals(cache_db, batch_residuals)
             batch_residuals = []
+        if len(batch_eligibility) > 500:
+            _save_daily_eligibility_summary(cache_db, batch_eligibility)
+            batch_eligibility = []
 
         if (i + 1) % 200 == 0:
             elapsed = time.time() - t0
@@ -526,27 +542,12 @@ def compute_daily_factor_returns(
     # Save remaining
     _save_daily_results(cache_db, batch_results)
     _save_daily_residuals(cache_db, batch_residuals)
+    _save_daily_eligibility_summary(cache_db, batch_eligibility)
 
     elapsed = time.time() - t0
     logger.info(f"Computed {n_computed} daily cross-sections in {elapsed:.1f}s")
 
     return _load_all_from_cache(cache_db, lookback_days)
-
-
-def _find_most_recent(sorted_dates: list[str], target: str) -> str | None:
-    """Binary search for the most recent date <= target in a sorted list."""
-    if not sorted_dates:
-        return None
-    lo, hi = 0, len(sorted_dates) - 1
-    result = None
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        if sorted_dates[mid] <= target:
-            result = sorted_dates[mid]
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    return result
 
 
 def _load_all_from_cache(cache_db: Path, lookback_days: int = 0) -> pd.DataFrame:

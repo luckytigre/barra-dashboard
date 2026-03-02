@@ -264,7 +264,7 @@ def download_from_lseg(
 
         trbc_industry_group = None if pd.isna(trbc_industry) else str(trbc_industry).strip()
         if trbc_industry_group in {"", "None", "nan"}:
-            trbc_industry_group = "Unmapped"
+            trbc_industry_group = None
 
         fundamentals_rows.append(
             {

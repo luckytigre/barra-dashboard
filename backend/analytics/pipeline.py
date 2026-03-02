@@ -15,6 +15,7 @@ from analytics.health import compute_health_diagnostics
 from barra.covariance import build_factor_covariance_from_cache
 from barra.daily_factor_returns import compute_daily_factor_returns
 from barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
+from barra.eligibility import build_eligibility_context, structural_eligibility_for_date
 from barra.risk_attribution import (
     STYLE_COLUMN_TO_LABEL,
     portfolio_factor_exposure,
@@ -23,7 +24,6 @@ from barra.risk_attribution import (
 from barra.specific_risk import build_specific_risk_from_cache
 from analytics.trbc_sector import abbreviate_trbc_sector
 from db import postgres, sqlite
-from db.trbc_schema import pick_trbc_industry_column
 from portfolio.mock_portfolio import get_position_meta, get_shares, get_tickers
 
 logger = logging.getLogger(__name__)
@@ -48,9 +48,20 @@ def _build_universe_ticker_loadings(
     specific_risk_by_ticker: dict[str, dict[str, float | int | str]] | None = None,
 ) -> dict[str, Any]:
     """Build full-universe cached loadings/risk context keyed by ticker."""
+    exposures_df = exposures_df.copy() if exposures_df is not None else pd.DataFrame()
+    fundamentals_df = fundamentals_df.copy() if fundamentals_df is not None else pd.DataFrame()
+    prices_df = prices_df.copy() if prices_df is not None else pd.DataFrame()
+
+    if not exposures_df.empty:
+        exposures_df["ticker"] = exposures_df["ticker"].astype(str).str.upper()
+    if not fundamentals_df.empty:
+        fundamentals_df["ticker"] = fundamentals_df["ticker"].astype(str).str.upper()
+    if not prices_df.empty:
+        prices_df["ticker"] = prices_df["ticker"].astype(str).str.upper()
+
     # Latest price map for whole universe
     price_map: dict[str, float] = {}
-    if prices_df is not None and not prices_df.empty:
+    if not prices_df.empty:
         for _, row in prices_df.iterrows():
             ticker = str(row.get("ticker", "")).upper()
             if ticker:
@@ -59,8 +70,9 @@ def _build_universe_ticker_loadings(
     # Fundamentals maps for whole universe
     mcap_map: dict[str, float] = {}
     trbc_sector_map: dict[str, str] = {}
+    trbc_industry_map: dict[str, str] = {}
     name_map: dict[str, str] = {}
-    if fundamentals_df is not None and not fundamentals_df.empty:
+    if not fundamentals_df.empty:
         name_col = None
         for col in ("company_name", "common_name", "name", "Company Common Name"):
             if col in fundamentals_df.columns:
@@ -77,6 +89,9 @@ def _build_universe_ticker_loadings(
             trbc_sector = str(row.get("trbc_sector") or "").strip()
             if trbc_sector:
                 trbc_sector_map[ticker] = trbc_sector
+            trbc_industry = str(row.get("trbc_industry_group") or "").strip()
+            if trbc_industry:
+                trbc_industry_map[ticker] = trbc_industry
             if name_col:
                 raw_name = row.get(name_col)
                 if raw_name is not None:
@@ -84,50 +99,79 @@ def _build_universe_ticker_loadings(
                     if s and s.lower() != "nan":
                         name_map[ticker] = s
 
-    cap_vals = np.array([v for v in mcap_map.values() if np.isfinite(v) and v > 0], dtype=float)
-    cap_fallback = float(np.nanmedian(cap_vals)) if cap_vals.size > 0 else 1.0
-    if not np.isfinite(cap_fallback) or cap_fallback <= 0:
-        cap_fallback = 1.0
+    latest_asof = ""
+    if "as_of_date" in exposures_df.columns and not exposures_df.empty:
+        latest_asof = str(exposures_df["as_of_date"].astype(str).max())
 
-    # Canonicalize style scores on the full universe cross-section
+    eligibility_df = pd.DataFrame()
+    if latest_asof:
+        elig_ctx = build_eligibility_context(DATA_DB, dates=[latest_asof])
+        _, eligibility_df = structural_eligibility_for_date(elig_ctx, latest_asof)
+    if eligibility_df.empty and not exposures_df.empty:
+        # If eligibility context has no dates yet, treat everyone as ineligible.
+        fallback_idx = pd.Index(exposures_df["ticker"].astype(str).str.upper().unique(), name="ticker")
+        eligibility_df = pd.DataFrame(
+            {
+                "is_structural_eligible": False,
+                "exclusion_reason": "eligibility_unavailable",
+                "market_cap": np.nan,
+                "trbc_sector": "",
+                "trbc_industry_group": "",
+            },
+            index=fallback_idx,
+        )
+
+    eligible_mask = eligibility_df.get("is_structural_eligible", pd.Series(dtype=bool)).astype(bool)
+    eligible_tickers = set(eligibility_df.index[eligible_mask].astype(str))
+    ineligible_reason = {
+        str(t): str(eligibility_df.loc[t, "exclusion_reason"] or "")
+        for t in eligibility_df.index
+    }
+
+    # Canonicalize style scores on the structurally eligible cross-section only.
     canonical_style_map: dict[str, dict[str, float]] = {}
-    style_cols_present = [c for c in STYLE_COLUMN_TO_LABEL if c in exposures_df.columns]
-    if exposures_df is not None and not exposures_df.empty and style_cols_present:
+    style_cols_present = [c for c in STYLE_COLUMN_TO_LABEL if c in exposures_df.columns] if not exposures_df.empty else []
+    if not exposures_df.empty and style_cols_present and eligible_tickers:
         style_names = [STYLE_COLUMN_TO_LABEL[c] for c in style_cols_present]
         style_scores = exposures_df[["ticker", *style_cols_present]].copy()
         style_scores["ticker"] = style_scores["ticker"].astype(str).str.upper()
+        style_scores = style_scores[style_scores["ticker"].isin(eligible_tickers)]
         style_scores = style_scores.drop_duplicates(subset=["ticker"], keep="last").set_index("ticker")
         style_scores.columns = style_names
-        cap_series = pd.Series(
-            {t: float(mcap_map.get(t, cap_fallback)) for t in style_scores.index},
-            dtype=float,
-        )
-        industry_col = pick_trbc_industry_column(exposures_df.columns)
-        if industry_col:
-            industry_series = (
-                exposures_df[["ticker", industry_col]]
-                .copy()
-                .assign(ticker=lambda d: d["ticker"].astype(str).str.upper())
-                .drop_duplicates(subset=["ticker"], keep="last")
-                .set_index("ticker")[industry_col]
-                .reindex(style_scores.index)
-                .fillna("Unmapped")
+        if not style_scores.empty:
+            caps_from_elig = pd.to_numeric(
+                eligibility_df.reindex(style_scores.index)["market_cap"],
+                errors="coerce",
             )
-            industry_dummies = pd.get_dummies(industry_series, dtype=float)
-        else:
-            industry_dummies = pd.DataFrame(index=style_scores.index)
-
-        canonical_scores = canonicalize_style_scores(
-            style_scores=style_scores,
-            market_caps=cap_series,
-            orth_rules=FULL_STYLE_ORTH_RULES,
-            industry_exposures=industry_dummies,
-        )
-        for ticker, row in canonical_scores.iterrows():
-            canonical_style_map[str(ticker).upper()] = {
-                factor: _finite_float(row.get(factor), 0.0)
-                for factor in canonical_scores.columns
-            }
+            industries_from_elig = (
+                eligibility_df.reindex(style_scores.index)["trbc_industry_group"]
+                .fillna("")
+                .astype(str)
+            )
+            valid = (
+                style_scores.notna().all(axis=1).to_numpy(dtype=bool)
+                & np.isfinite(style_scores.to_numpy(dtype=float)).all(axis=1)
+                & np.isfinite(caps_from_elig.to_numpy(dtype=float))
+                & (caps_from_elig.to_numpy(dtype=float) > 0.0)
+                & (industries_from_elig.str.len().to_numpy(dtype=float) > 0)
+            )
+            if int(valid.sum()) > 0:
+                valid_idx = style_scores.index[valid]
+                style_scores = style_scores.loc[valid_idx]
+                caps_from_elig = caps_from_elig.loc[valid_idx]
+                industries_from_elig = industries_from_elig.loc[valid_idx]
+                industry_dummies = pd.get_dummies(industries_from_elig, dtype=float)
+                canonical_scores = canonicalize_style_scores(
+                    style_scores=style_scores,
+                    market_caps=caps_from_elig,
+                    orth_rules=FULL_STYLE_ORTH_RULES,
+                    industry_exposures=industry_dummies,
+                )
+                for ticker, row in canonical_scores.iterrows():
+                    canonical_style_map[str(ticker).upper()] = {
+                        factor: _finite_float(row.get(factor), 0.0)
+                        for factor in canonical_scores.columns
+                    }
 
     # Factor vol map from full-universe covariance
     factor_vol_map: dict[str, float] = {}
@@ -135,52 +179,64 @@ def _build_universe_ticker_loadings(
         for factor in cov.columns:
             factor_vol_map[str(factor)] = float(np.sqrt(max(0.0, _finite_float(cov.loc[factor, factor], 0.0))))
 
+    all_tickers = sorted(
+        {
+            *exposures_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
+            *fundamentals_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
+            *prices_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
+        }
+    )
     universe_by_ticker: dict[str, dict[str, Any]] = {}
-    industry_col = pick_trbc_industry_column(exposures_df.columns)
-    for _, row in exposures_df.iterrows():
-        ticker = str(row.get("ticker", "")).upper()
+    for ticker in all_tickers:
         if not ticker:
             continue
 
-        exposures: dict[str, float] = {}
-        for col, label in STYLE_COLUMN_TO_LABEL.items():
-            if col not in exposures_df.columns:
-                continue
-            canon = canonical_style_map.get(ticker, {}).get(label)
-            if canon is not None:
-                exposures[label] = _finite_float(canon, 0.0)
-            else:
-                exposures[label] = _finite_float(row.get(col), 0.0)
+        eligible = bool(ticker in eligible_tickers)
+        trbc_sector = str(
+            (eligibility_df.loc[ticker, "trbc_sector"] if ticker in eligibility_df.index else "")
+            or trbc_sector_map.get(ticker, "")
+        )
+        trbc_industry_group = str(
+            (eligibility_df.loc[ticker, "trbc_industry_group"] if ticker in eligibility_df.index else "")
+            or trbc_industry_map.get(ticker, "")
+        )
+        market_cap = _finite_float(
+            eligibility_df.loc[ticker, "market_cap"] if ticker in eligibility_df.index else mcap_map.get(ticker),
+            np.nan,
+        )
 
-        trbc_industry_group = ""
-        if industry_col:
-            ig = str(row.get(industry_col) or "").strip()
-            if ig and ig.lower() not in {"", "nan", "none"}:
-                trbc_industry_group = ig
-                exposures[ig] = 1.0
+        exposures: dict[str, float] = {}
+        if eligible and ticker in canonical_style_map:
+            exposures.update(canonical_style_map[ticker])
+            if trbc_industry_group:
+                exposures[trbc_industry_group] = 1.0
 
         sensitivities = {
             factor: round(_finite_float(exposures.get(factor), 0.0) * _finite_float(vol, 0.0), 6)
             for factor, vol in factor_vol_map.items()
         }
-        risk_loading = round(float(sum(abs(v) for v in sensitivities.values())), 6)
+        risk_loading = round(float(sum(abs(v) for v in sensitivities.values())), 6) if eligible else None
         spec = (specific_risk_by_ticker or {}).get(ticker, {})
-        spec_var = _finite_float(spec.get("specific_var"), 0.0)
-        spec_vol = _finite_float(spec.get("specific_vol"), 0.0)
+        spec_var = _finite_float(spec.get("specific_var"), np.nan) if eligible else np.nan
+        spec_vol = _finite_float(spec.get("specific_vol"), np.nan) if eligible else np.nan
 
         universe_by_ticker[ticker] = {
             "ticker": ticker,
             "name": name_map.get(ticker, ticker),
-            "trbc_sector": trbc_sector_map.get(ticker, ""),
-            "trbc_sector_abbr": abbreviate_trbc_sector(trbc_sector_map.get(ticker, "")),
+            "trbc_sector": trbc_sector,
+            "trbc_sector_abbr": abbreviate_trbc_sector(trbc_sector),
             "trbc_industry_group": trbc_industry_group,
-            "market_cap": round(_finite_float(mcap_map.get(ticker), 0.0), 2),
+            "market_cap": round(float(market_cap), 2) if np.isfinite(market_cap) else None,
             "price": round(_finite_float(price_map.get(ticker), 0.0), 4),
             "exposures": exposures,
             "sensitivities": sensitivities,
             "risk_loading": risk_loading,
-            "specific_var": round(spec_var, 8),
-            "specific_vol": round(spec_vol, 6),
+            "specific_var": round(spec_var, 8) if np.isfinite(spec_var) else None,
+            "specific_vol": round(spec_vol, 6) if np.isfinite(spec_vol) else None,
+            "eligible_for_model": eligible,
+            "eligibility_reason": "" if eligible else ineligible_reason.get(ticker, "ineligible"),
+            "model_warning": "" if eligible else "Ticker is ineligible for strict equity model; analytics shown as N/A.",
+            "as_of_date": latest_asof,
         }
 
     # Lightweight search index for instant lookup
@@ -191,14 +247,18 @@ def _build_universe_ticker_loadings(
             "trbc_sector": d.get("trbc_sector", ""),
             "trbc_sector_abbr": d.get("trbc_sector_abbr", ""),
             "risk_loading": d.get("risk_loading", 0.0),
-            "specific_vol": d.get("specific_vol", 0.0),
+            "specific_vol": d.get("specific_vol", None),
+            "eligible_for_model": bool(d.get("eligible_for_model", False)),
+            "eligibility_reason": str(d.get("eligibility_reason") or ""),
         }
         for t, d in universe_by_ticker.items()
     ]
     search_index.sort(key=lambda x: str(x["ticker"]))
 
+    eligible_count = int(sum(1 for d in universe_by_ticker.values() if bool(d.get("eligible_for_model", False))))
     return {
         "ticker_count": len(universe_by_ticker),
+        "eligible_ticker_count": eligible_count,
         "factor_count": len(factor_vol_map),
         "factors": sorted(factor_vol_map.keys()),
         "factor_vols": {k: round(v, 6) for k, v in factor_vol_map.items()},
@@ -237,9 +297,19 @@ def _build_positions_from_universe(universe_by_ticker: dict[str, dict[str, Any]]
             "source": meta["source"],
             "trbc_industry_group": str(base.get("trbc_industry_group") or ""),
             "exposures": dict(base.get("exposures") or {}),
-            "specific_var": _finite_float(base.get("specific_var"), 0.0),
-            "specific_vol": _finite_float(base.get("specific_vol"), 0.0),
+            "specific_var": (
+                _finite_float(base.get("specific_var"), 0.0)
+                if np.isfinite(_finite_float(base.get("specific_var"), np.nan))
+                else None
+            ),
+            "specific_vol": (
+                _finite_float(base.get("specific_vol"), 0.0)
+                if np.isfinite(_finite_float(base.get("specific_vol"), np.nan))
+                else None
+            ),
             "risk_contrib_pct": 0.0,
+            "eligible_for_model": bool(base.get("eligible_for_model", False)),
+            "eligibility_reason": str(base.get("eligibility_reason") or ""),
         })
 
     for pos in positions:
@@ -279,6 +349,38 @@ def _load_latest_factor_coverage(cache_db: Path) -> tuple[str | None, dict[str, 
             "coverage_pct": float(coverage or 0.0),
         }
     return latest, out
+
+
+def _load_latest_eligibility_summary(cache_db: Path) -> dict[str, Any]:
+    conn = sqlite3.connect(str(cache_db))
+    try:
+        row = conn.execute(
+            """
+            SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
+                   structural_coverage, regression_coverage, drop_pct_from_prev, alert_level
+            FROM daily_universe_eligibility_summary
+            ORDER BY date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    finally:
+        conn.close()
+    if not row:
+        return {"status": "no-data"}
+    return {
+        "status": "ok",
+        "date": str(row[0]),
+        "exp_date": str(row[1]) if row[1] is not None else None,
+        "exposure_n": int(row[2] or 0),
+        "structural_eligible_n": int(row[3] or 0),
+        "regression_member_n": int(row[4] or 0),
+        "structural_coverage": float(row[5] or 0.0),
+        "regression_coverage": float(row[6] or 0.0),
+        "drop_pct_from_prev": float(row[7] or 0.0),
+        "alert_level": str(row[8] or ""),
+    }
 
 
 def _compute_exposures_modes(
@@ -662,9 +764,11 @@ def run_refresh() -> dict[str, Any]:
             "r_squared": round(latest_r2, 4),
             "condition_number": round(condition_number, 2),
             "ticker_count": universe_loadings.get("ticker_count", 0),
+            "eligible_ticker_count": universe_loadings.get("eligible_ticker_count", 0),
         },
     )
     sqlite.cache_set("exposures", exposure_modes)
+    sqlite.cache_set("eligibility", _load_latest_eligibility_summary(CACHE_DB))
     sqlite.cache_set("health_diagnostics", compute_health_diagnostics(DATA_DB, CACHE_DB))
 
     logger.info("Refresh complete.")

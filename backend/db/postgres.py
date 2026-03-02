@@ -22,7 +22,11 @@ def _coalesce_series(df: pd.DataFrame, *cols: str, default: str = "") -> pd.Seri
     out: pd.Series | None = None
     for col in cols:
         if col in df.columns:
-            cur = df[col]
+            cur = (
+                df[col]
+                .astype("object")
+                .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA, "Unmapped": pd.NA, "unmapped": pd.NA})
+            )
             out = cur if out is None else out.combine_first(cur)
     if out is None:
         out = pd.Series([default] * len(df), index=df.index, dtype="object")

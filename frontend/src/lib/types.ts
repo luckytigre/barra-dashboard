@@ -14,6 +14,8 @@ export interface Position {
   trbc_industry_group: string;
   exposures: Record<string, number>;
   risk_contrib_pct: number;
+  eligible_for_model?: boolean;
+  eligibility_reason?: string;
   risk_mix?: {
     industry: number;
     style: number;
@@ -103,11 +105,17 @@ export interface UniverseTickerItem {
   trbc_sector: string;
   trbc_sector_abbr: string;
   trbc_industry_group: string;
-  market_cap: number;
+  market_cap: number | null;
   price: number;
   exposures: Record<string, number>;
   sensitivities: Record<string, number>;
-  risk_loading: number;
+  risk_loading: number | null;
+  specific_var?: number | null;
+  specific_vol?: number | null;
+  eligible_for_model?: boolean;
+  eligibility_reason?: string;
+  model_warning?: string;
+  as_of_date?: string;
 }
 
 export interface UniverseTickerData {
@@ -120,7 +128,10 @@ export interface UniverseSearchItem {
   name: string;
   trbc_sector: string;
   trbc_sector_abbr: string;
-  risk_loading: number;
+  risk_loading: number | null;
+  specific_vol?: number | null;
+  eligible_for_model?: boolean;
+  eligibility_reason?: string;
 }
 
 export interface UniverseSearchData {
@@ -136,6 +147,7 @@ export interface UniverseFactorsData {
   r_squared?: number;
   condition_number?: number;
   ticker_count?: number;
+  eligible_ticker_count?: number;
   _cached: boolean;
 }
 
