@@ -210,7 +210,9 @@ export default function ExplorePage() {
                   <span className="explore-badge" style={{ flexShrink: 0 }}>
                     {r.trbc_sector_abbr || r.trbc_sector || "—"}
                   </span>
-                  <span className="risk">{r.risk_loading.toFixed(4)}</span>
+                  <span className="risk">
+                    {typeof r.risk_loading === "number" ? r.risk_loading.toFixed(4) : "N/A"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -254,70 +256,96 @@ export default function ExplorePage() {
                 </div>
                 <div className="explore-hero-stat">
                   <span className="label">Risk Loading</span>
-                  <span className="value">{item.risk_loading.toFixed(4)}</span>
+                  <span className="value">
+                    {typeof item.risk_loading === "number" ? item.risk_loading.toFixed(4) : "N/A"}
+                  </span>
                 </div>
               </div>
             </div>
+            {item.eligible_for_model === false && (
+              <div
+                style={{
+                  marginTop: "10px",
+                  padding: "10px 12px",
+                  border: "1px solid rgba(180,180,180,0.35)",
+                  background: "rgba(120,120,120,0.08)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                {item.model_warning || "Ticker is not eligible for strict equity-model analytics."}
+              </div>
+            )}
           </div>
 
           {/* Two-column: Radar + Table */}
-          <div className="explore-detail-grid">
-            {/* Left: Radar Chart */}
-            <div className="chart-card">
-              <h3>Style Factor Profile</h3>
-              <FactorRadarChart exposures={item.exposures ?? {}} />
-            </div>
+          {item.eligible_for_model !== false ? (
+            <div className="explore-detail-grid">
+              {/* Left: Radar Chart */}
+              <div className="chart-card">
+                <h3>Style Factor Profile</h3>
+                <FactorRadarChart exposures={item.exposures ?? {}} />
+              </div>
 
-            {/* Right: Factor Loadings Table */}
-            <div className="chart-card">
-              <h3>Factor Loadings</h3>
-              <div className="dash-table" style={{ maxHeight: 360, overflowY: "auto" }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Factor</th>
-                      <th className="text-right">Loading</th>
-                      <th className="text-right">Factor Vol</th>
-                      <th className="text-right">Sensitivity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {groupedRows.map((group) => (
-                      <Fragment key={`tier-${group.tier}`}>
-                        <tr className="explore-tier-header">
-                          <td colSpan={4}>{TIER_NAMES[group.tier] ?? "Other"}</td>
-                        </tr>
-                        {group.rows.map((row) => (
-                          <tr key={row.factor}>
-                            <td>{shortFactorLabel(row.factor)}</td>
-                            <td
-                              className={`text-right ${row.loading >= 0 ? "positive" : "negative"}`}
-                            >
-                              {row.loading >= 0 ? "+" : ""}
-                              {row.loading.toFixed(4)}
-                            </td>
-                            <td className="text-right">{fmtPct(row.factorVol)}</td>
-                            <td
-                              className={`text-right ${row.sensitivity >= 0 ? "positive" : "negative"}`}
-                            >
-                              {row.sensitivity >= 0 ? "+" : ""}
-                              {row.sensitivity.toFixed(4)}
-                            </td>
+              {/* Right: Factor Loadings Table */}
+              <div className="chart-card">
+                <h3>Factor Loadings</h3>
+                <div className="dash-table" style={{ maxHeight: 360, overflowY: "auto" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Factor</th>
+                        <th className="text-right">Loading</th>
+                        <th className="text-right">Factor Vol</th>
+                        <th className="text-right">Sensitivity</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupedRows.map((group) => (
+                        <Fragment key={`tier-${group.tier}`}>
+                          <tr className="explore-tier-header">
+                            <td colSpan={4}>{TIER_NAMES[group.tier] ?? "Other"}</td>
                           </tr>
-                        ))}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
+                          {group.rows.map((row) => (
+                            <tr key={row.factor}>
+                              <td>{shortFactorLabel(row.factor)}</td>
+                              <td
+                                className={`text-right ${row.loading >= 0 ? "positive" : "negative"}`}
+                              >
+                                {row.loading >= 0 ? "+" : ""}
+                                {row.loading.toFixed(4)}
+                              </td>
+                              <td className="text-right">{fmtPct(row.factorVol)}</td>
+                              <td
+                                className={`text-right ${row.sensitivity >= 0 ? "positive" : "negative"}`}
+                              >
+                                {row.sensitivity >= 0 ? "+" : ""}
+                                {row.sensitivity.toFixed(4)}
+                              </td>
+                            </tr>
+                          ))}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="chart-card mb-4">
+              <h3>Model Analytics</h3>
+              <div style={{ color: "var(--text-secondary)" }}>
+                N/A for this ticker under strict equity eligibility rules.
+              </div>
+            </div>
+          )}
 
           {/* Full exposure bar chart */}
-          <div className="chart-card mb-4">
-            <h3>{item.ticker} Factor Profile</h3>
-            <ExposureBarChart factors={chartFactors} />
-          </div>
+          {item.eligible_for_model !== false && (
+            <div className="chart-card mb-4">
+              <h3>{item.ticker} Factor Profile</h3>
+              <ExposureBarChart factors={chartFactors} />
+            </div>
+          )}
         </>
       )}
     </div>
