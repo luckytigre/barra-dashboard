@@ -10,9 +10,11 @@ It does NOT overwrite `barra_exposures`. Factor exposures are handled separately
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,6 +30,10 @@ from portfolio.mock_portfolio import get_tickers
 
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "data.db"
 LSEG_BATCH_SIZE = 500
+SQLITE_TIMEOUT_SECONDS = 120
+SQLITE_BUSY_TIMEOUT_MS = 120000
+SQLITE_MAX_RETRIES = 6
+SQLITE_RETRY_SLEEP_SECONDS = 2.0
 
 
 def _to_local_ticker(ric: str) -> str:
@@ -44,6 +50,13 @@ def _pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
         if got:
             return got
     return None
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = {str(c).lower() for c in _existing_cols(conn, table)}
+    if column.lower() in cols:
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def _ensure_tables(conn: sqlite3.Connection) -> None:
@@ -64,6 +77,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    _ensure_column(conn, "fundamental_snapshots", "common_name", "TEXT")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS prices_daily (
@@ -119,8 +133,60 @@ def _insert_rows(
     placeholders = ",".join("?" for _ in use_cols)
     insert_kw = "INSERT OR REPLACE" if replace else "INSERT"
     sql = f'{insert_kw} INTO {table} ({",".join(use_cols)}) VALUES ({placeholders})'
-    conn.executemany(sql, [tuple(r.get(c) for c in use_cols) for r in rows])
+    payload = [tuple(r.get(c) for c in use_cols) for r in rows]
+    for attempt in range(SQLITE_MAX_RETRIES):
+        try:
+            conn.executemany(sql, payload)
+            break
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt + 1 >= SQLITE_MAX_RETRIES:
+                raise
+            time.sleep(SQLITE_RETRY_SLEEP_SECONDS * (attempt + 1))
     return len(rows)
+
+
+def _connect_db(db_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    return conn
+
+
+def _backfill_common_names(conn: sqlite3.Connection) -> int:
+    cols = {str(c).lower() for c in _existing_cols(conn, "fundamental_snapshots")}
+    if "common_name" not in cols:
+        return 0
+    before = conn.total_changes
+    conn.execute(
+        """
+        WITH latest_name AS (
+            SELECT ticker, common_name
+            FROM (
+                SELECT
+                    ticker,
+                    common_name,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY ticker
+                        ORDER BY fetch_date DESC, updated_at DESC
+                    ) AS rn
+                FROM fundamental_snapshots
+                WHERE common_name IS NOT NULL
+                  AND TRIM(common_name) <> ''
+            )
+            WHERE rn = 1
+        )
+        UPDATE fundamental_snapshots
+        SET common_name = (
+            SELECT l.common_name
+            FROM latest_name l
+            WHERE l.ticker = fundamental_snapshots.ticker
+        )
+        WHERE (common_name IS NULL OR TRIM(common_name) = '')
+          AND ticker IN (SELECT ticker FROM latest_name)
+        """
+    )
+    return int(conn.total_changes - before)
 
 
 def _resolve_universe(
@@ -172,10 +238,14 @@ def download_from_lseg(
     index: str | None = None,
     tickers_csv: str | None = None,
     ric_suffix: str = ".O",
+    as_of_date: str | None = None,
+    shard_count: int = 1,
+    shard_index: int = 0,
+    skip_common_name_backfill: bool = False,
 ) -> dict[str, Any]:
     LsegClient = _load_lseg_client()
 
-    as_of = datetime.now(timezone.utc).date().isoformat()
+    as_of = str(as_of_date or datetime.now(timezone.utc).date().isoformat())
     updated_at = datetime.now(timezone.utc).isoformat()
     universe = _resolve_universe(
         db_path=db_path,
@@ -183,12 +253,25 @@ def download_from_lseg(
         tickers_csv=tickers_csv,
         _ric_suffix=ric_suffix,
     )
+    shard_count = max(1, int(shard_count))
+    shard_index = int(shard_index)
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError(f"shard_index must be in [0, {shard_count - 1}]")
+    if shard_count > 1:
+        universe = [
+            t
+            for t in universe
+            if int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % shard_count == shard_index
+        ]
     if not universe:
-        return {"status": "no-universe", "as_of": as_of}
+        return {
+            "status": "no-universe",
+            "as_of": as_of,
+            "shard_index": int(shard_index),
+            "shard_count": int(shard_count),
+        }
 
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
+    conn = _connect_db(db_path)
     _ensure_tables(conn)
     ensure_ric_map_table(conn)
 
@@ -240,6 +323,7 @@ def download_from_lseg(
     mcap_col = _pick_col(company, ["Company Market Cap"])
     sector_col = _pick_col(company, ["TRBC Economic Sector Name", "TRBC Economic Sector"])
     industry_col = _pick_col(company, ["TRBC Industry Group Name", "TRBC Industry Group"])
+    common_name_col = _pick_col(company, ["Company Common Name", "Common Name", "TR.CommonName"])
     shares_col = _pick_col(company, ["Shares Outstanding", "Shares Outstanding - Common Stock"])
     divy_col = _pick_col(company, ["Dividend Yield"])
     if not instrument_col:
@@ -259,6 +343,7 @@ def download_from_lseg(
         market_cap = row.get(mcap_col) if mcap_col else None
         trbc_sector = row.get(sector_col) if sector_col else None
         trbc_industry = row.get(industry_col) if industry_col else None
+        common_name = row.get(common_name_col) if common_name_col else None
         shares_outstanding = row.get(shares_col) if shares_col else None
         dividend_yield = row.get(divy_col) if divy_col else None
 
@@ -273,6 +358,7 @@ def download_from_lseg(
                 "market_cap": None if pd.isna(market_cap) else str(market_cap),
                 "shares_outstanding": None if pd.isna(shares_outstanding) else str(shares_outstanding),
                 "dividend_yield": None if pd.isna(dividend_yield) else str(dividend_yield),
+                "common_name": None if pd.isna(common_name) else str(common_name).strip(),
                 "trbc_sector": None if pd.isna(trbc_sector) else str(trbc_sector),
                 "trbc_industry_group": None if pd.isna(trbc_industry) else str(trbc_industry),
                 "source": "lseg_toolkit",
@@ -313,6 +399,9 @@ def download_from_lseg(
         n_f = _insert_rows(conn, "fundamental_snapshots", fundamentals_rows)
         n_p = _insert_rows(conn, "prices_daily", prices_rows)
         n_g = _insert_rows(conn, "trbc_industry_history", trbc_history_rows, replace=True)
+        n_name_backfill = 0
+        if not skip_common_name_backfill:
+            n_name_backfill = _backfill_common_names(conn)
         n_ric = conn.execute("SELECT COUNT(*) FROM ticker_ric_map").fetchone()[0]
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_ticker ON fundamental_snapshots(ticker)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_date ON fundamental_snapshots(fetch_date)")
@@ -332,8 +421,12 @@ def download_from_lseg(
         "fundamental_rows_inserted": n_f,
         "price_rows_inserted": n_p,
         "trbc_rows_inserted": n_g,
+        "common_name_rows_backfilled": int(n_name_backfill),
         "ticker_ric_map_size": int(n_ric or 0),
         "db_path": str(db_path),
+        "shard_index": int(shard_index),
+        "shard_count": int(shard_count),
+        "skip_common_name_backfill": bool(skip_common_name_backfill),
     }
     print(out)
     return out
@@ -345,6 +438,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--index", default=None, help="Index code (e.g. SPX, NDX). If set, uses index constituents")
     p.add_argument("--tickers", default=None, help="Comma-separated plain tickers to fetch")
     p.add_argument("--ric-suffix", default=".O", help="Suffix when converting plain tickers to RICs")
+    p.add_argument("--as-of-date", default=None, help="Override as-of date (YYYY-MM-DD)")
+    p.add_argument("--shard-count", type=int, default=1, help="Total number of ticker shards")
+    p.add_argument("--shard-index", type=int, default=0, help="Zero-based shard index to process")
+    p.add_argument("--skip-common-name-backfill", action="store_true", help="Skip common_name carry-forward pass")
     return p.parse_args()
 
 
@@ -355,4 +452,8 @@ if __name__ == "__main__":
         index=args.index,
         tickers_csv=args.tickers,
         ric_suffix=args.ric_suffix,
+        as_of_date=args.as_of_date,
+        shard_count=args.shard_count,
+        shard_index=args.shard_index,
+        skip_common_name_backfill=bool(args.skip_common_name_backfill),
     )

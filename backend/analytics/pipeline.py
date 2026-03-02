@@ -326,7 +326,7 @@ def _build_universe_ticker_loadings(
 
         universe_by_ticker[ticker] = {
             "ticker": ticker,
-            "name": name_map.get(ticker, ticker),
+            "name": name_map.get(ticker, ""),
             "trbc_sector": trbc_sector,
             "trbc_sector_abbr": abbreviate_trbc_sector(trbc_sector),
             "trbc_industry_group": trbc_industry_group,
@@ -347,9 +347,10 @@ def _build_universe_ticker_loadings(
     search_index = [
         {
             "ticker": t,
-            "name": d.get("name", t),
+            "name": d.get("name", ""),
             "trbc_sector": d.get("trbc_sector", ""),
             "trbc_sector_abbr": d.get("trbc_sector_abbr", ""),
+            "trbc_industry_group": d.get("trbc_industry_group", ""),
             "risk_loading": d.get("risk_loading", 0.0),
             "specific_vol": d.get("specific_vol", None),
             "eligible_for_model": bool(d.get("eligible_for_model", False)),
@@ -388,7 +389,7 @@ def _build_positions_from_universe(universe_by_ticker: dict[str, dict[str, Any]]
         meta = get_position_meta(t)
         positions.append({
             "ticker": t,
-            "name": str(base.get("name") or t),
+            "name": str(base.get("name") or ""),
             "long_short": "LONG" if shares >= 0 else "SHORT",
             "shares": shares,
             "price": round(price, 2),

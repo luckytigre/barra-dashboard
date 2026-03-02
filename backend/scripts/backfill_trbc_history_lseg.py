@@ -12,6 +12,7 @@ import hashlib
 import os
 import sqlite3
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,10 @@ from db.trbc_schema import ensure_trbc_naming
 DEFAULT_DB = Path(__file__).resolve().parent.parent / "data.db"
 LSEG_BATCH_SIZE = 500
 TABLE = "trbc_industry_history"
+SQLITE_TIMEOUT_SECONDS = 120
+SQLITE_BUSY_TIMEOUT_MS = 120000
+SQLITE_MAX_RETRIES = 6
+SQLITE_RETRY_SLEEP_SECONDS = 2.0
 
 
 def _load_lseg_client():
@@ -100,26 +105,42 @@ def _resolve_tickers(conn: sqlite3.Connection) -> list[str]:
 def _insert_history_rows(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> int:
     if not rows:
         return 0
-    conn.executemany(
-        f"""
-        INSERT OR REPLACE INTO {TABLE}
-        (ticker, as_of_date, trbc_industry_group, trbc_economic_sector, source, job_run_id, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        [
-            (
-                r["ticker"],
-                r["as_of_date"],
-                r["trbc_industry_group"],
-                r["trbc_economic_sector"],
-                r["source"],
-                r["job_run_id"],
-                r["updated_at"],
+    payload = [
+        (
+            r["ticker"],
+            r["as_of_date"],
+            r["trbc_industry_group"],
+            r["trbc_economic_sector"],
+            r["source"],
+            r["job_run_id"],
+            r["updated_at"],
+        )
+        for r in rows
+    ]
+    for attempt in range(SQLITE_MAX_RETRIES):
+        try:
+            conn.executemany(
+                f"""
+                INSERT OR REPLACE INTO {TABLE}
+                (ticker, as_of_date, trbc_industry_group, trbc_economic_sector, source, job_run_id, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                payload,
             )
-            for r in rows
-        ],
-    )
+            break
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() or attempt + 1 >= SQLITE_MAX_RETRIES:
+                raise
+            time.sleep(SQLITE_RETRY_SLEEP_SECONDS * (attempt + 1))
     return len(rows)
+
+
+def _connect_db(db_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    return conn
 
 
 def _sync_barra_exposures(conn: sqlite3.Connection) -> dict[str, int]:
@@ -213,9 +234,7 @@ def run_backfill(
     skip_sync: bool = False,
 ) -> dict[str, Any]:
     LsegClient = _load_lseg_client()
-    conn = sqlite3.connect(str(db_path))
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
+    conn = _connect_db(db_path)
     try:
         _ensure_table(conn)
         ensure_ric_map_table(conn)
@@ -251,7 +270,7 @@ def run_backfill(
     total_rows = 0
     print(f"Backfilling historical industry groups for {len(tickers)} tickers across {len(dates)} dates...")
     with LsegClient() as client:
-        conn = sqlite3.connect(str(db_path))
+        conn = _connect_db(db_path)
         try:
             _ensure_table(conn)
             ensure_ric_map_table(conn)

@@ -145,6 +145,7 @@ export interface UniverseSearchItem {
   name: string;
   trbc_sector: string;
   trbc_sector_abbr: string;
+  trbc_industry_group?: string;
   risk_loading: number | null;
   specific_vol?: number | null;
   eligible_for_model?: boolean;

@@ -53,16 +53,18 @@ function noiseField(x: number, y: number) {
   );
 }
 
+const SCALE = 0.875;
+
 function drawField(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  const spacing = 9;
-  const baseR = 0.55;
+  const spacing = 9 * SCALE;
+  const baseR = 0.55 * SCALE;
 
   for (let y = spacing / 2; y < h; y += spacing) {
     for (let x = spacing / 2; x < w; x += spacing) {
-      const n = noiseField(x, y);
+      const n = noiseField(x / SCALE, y / SCALE);
       const norm = (n + 1.4) / 2.8;
       const alpha = 0.06 + norm * norm * 0.22;
-      const r = baseR + norm * 0.25;
+      const r = baseR + norm * 0.25 * SCALE;
       const [cr, cg, cb] = tintColor(x, y, w, h);
 
       ctx.fillStyle = `rgba(${cr | 0},${cg | 0},${cb | 0},${alpha.toFixed(3)})`;
@@ -92,15 +94,15 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const cxS = w * 0.5;
   const cyS = h * 0.52;
   const invZoom = 1 / sceneZoom;
-  const step = 4.2;
+  const step = 4.2 * SCALE;
   const isoStep = 0.32;
   const bandTol = 0.048;
-  const e = 8;
+  const e = 8 * SCALE;
 
   const sf = (sx: number, sy: number) => {
-    const pX = cxS + (sx - cxS) * invZoom + scenePanX;
-    const pY = cyS + (sy - cyS) * invZoom;
-    const d = clamp((pY + 12) / (h + 24), 0, 1);
+    const pX = cxS + (sx - cxS) * invZoom / SCALE + scenePanX;
+    const pY = cyS + (sy - cyS) * invZoom / SCALE;
+    const d = clamp((pY + 12) / (h / SCALE + 24), 0, 1);
     return terrainHeight((pX - cxS) * (0.95 + d * 0.28), (pY - cyS) * (1.05 + d * 0.35));
   };
 
@@ -121,7 +123,7 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
       if (sx < -24 || sx > w + 24 || sy < -24 || sy > h + 24) continue;
 
       const alpha = clamp(0.24 + (bandTol - band) * 0.35, 0.18, 0.52);
-      const size = 1.3 * sceneZoom * 0.85;
+      const size = 1.3 * sceneZoom * 0.85 * SCALE;
       ctx.fillStyle = `rgba(176,176,176,${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(sx, sy, size, 0, Math.PI * 2);
