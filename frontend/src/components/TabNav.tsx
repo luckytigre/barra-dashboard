@@ -32,11 +32,8 @@ export default function TabNav() {
       if (!navRef.current) return;
       const y = window.scrollY;
       const t = Math.min(1, y / 120);
-      const opacity = 1 - t * 0.25;
-      const r = Math.round(22 + t * 16);
-      const g = Math.round(22 + t * 16);
-      const b = Math.round(25 + t * 17);
-      navRef.current.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      const opacity = 1 - t * 0.35;
+      navRef.current.style.backgroundColor = `rgba(16, 16, 19, ${opacity})`;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);

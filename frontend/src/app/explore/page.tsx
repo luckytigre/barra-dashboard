@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import ExposureBarChart from "@/components/ExposureBarChart";
 import FactorRadarChart from "@/components/FactorRadarChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
-import { useUniverseFactors, useUniverseSearch, useUniverseTicker } from "@/hooks/useApi";
+import { usePortfolio, useUniverseFactors, useUniverseSearch, useUniverseTicker } from "@/hooks/useApi";
 import { shortFactorLabel, factorTier } from "@/lib/factorLabels";
 import type { FactorExposure } from "@/lib/types";
 
@@ -47,10 +47,27 @@ export default function ExplorePage() {
   const { data: searchData } = useUniverseSearch(query, 10);
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
   const { data: factorsData } = useUniverseFactors();
+  const { data: portfolioData } = usePortfolio();
 
   const item = tickerData?.item;
   const factorVols = factorsData?.factor_vols ?? {};
   const results = searchData?.results ?? [];
+
+  // Build a quick lookup of held positions by ticker
+  const positionMap = useMemo(() => {
+    const map = new Map<string, { shares: number; weight: number; market_value: number; long_short: string }>();
+    for (const p of portfolioData?.positions ?? []) {
+      map.set(p.ticker.toUpperCase(), {
+        shares: p.shares,
+        weight: p.weight,
+        market_value: p.market_value,
+        long_short: p.long_short,
+      });
+    }
+    return map;
+  }, [portfolioData]);
+
+  const selectedPosition = selectedTicker ? positionMap.get(selectedTicker.toUpperCase()) : undefined;
 
   // Show dropdown when there's a query with results
   useEffect(() => {
@@ -198,23 +215,35 @@ export default function ExplorePage() {
 
           {dropdownOpen && results.length > 0 && (
             <div className="explore-typeahead">
-              {results.map((r, i) => (
-                <button
-                  key={r.ticker}
-                  className={`explore-typeahead-item${i === activeIndex ? " active" : ""}`}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => selectTicker(r.ticker)}
-                >
-                  <span className="ticker">{highlightMatch(r.ticker, query)}</span>
-                  <span className="name">{highlightMatch(r.name, query)}</span>
-                  <span className="explore-badge" style={{ flexShrink: 0 }}>
-                    {r.trbc_sector_abbr || r.trbc_sector || "—"}
-                  </span>
-                  <span className="risk">
-                    {typeof r.risk_loading === "number" ? r.risk_loading.toFixed(4) : "N/A"}
-                  </span>
-                </button>
-              ))}
+              {results.map((r, i) => {
+                const pos = positionMap.get(r.ticker.toUpperCase());
+                return (
+                  <button
+                    key={r.ticker}
+                    className={`explore-typeahead-item${i === activeIndex ? " active" : ""}${pos ? " held" : ""}`}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => selectTicker(r.ticker)}
+                  >
+                    <span className="ticker">{highlightMatch(r.ticker, query)}</span>
+                    <span className="name">{highlightMatch(r.name, query)}</span>
+                    <span className="explore-typeahead-classifications">
+                      <span>{r.trbc_sector_abbr || r.trbc_sector || "—"}</span>
+                      {r.trbc_industry_group && r.trbc_industry_group !== r.trbc_sector && (
+                        <span className="explore-typeahead-ig">{r.trbc_industry_group}</span>
+                      )}
+                    </span>
+                    {pos && (
+                      <span className="explore-typeahead-held">
+                        <span>{pos.shares.toLocaleString()} qty</span>
+                        <span>{(pos.weight * 100).toFixed(1)}% wt</span>
+                      </span>
+                    )}
+                    <span className="risk">
+                      {typeof r.risk_loading === "number" ? r.risk_loading.toFixed(4) : "N/A"}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -249,10 +278,20 @@ export default function ExplorePage() {
                   <span className="value">${item.price.toFixed(2)}</span>
                 </div>
                 <div className="explore-hero-stat">
-                  <span className="label">Market Cap</span>
+                  <span className="label">Mkt Cap</span>
                   <span className="value">
                     {item.market_cap ? `$${(item.market_cap / 1e9).toFixed(2)}B` : "—"}
                   </span>
+                </div>
+                <div className="explore-hero-stat">
+                  <span className="label">Beta</span>
+                  <span className="value">
+                    {typeof item.exposures?.Beta === "number" ? item.exposures.Beta.toFixed(2) : "—"}
+                  </span>
+                </div>
+                <div className="explore-hero-stat">
+                  <span className="label">P/E</span>
+                  <span className="value">—</span>
                 </div>
                 <div className="explore-hero-stat">
                   <span className="label">Risk Loading</span>
@@ -261,6 +300,33 @@ export default function ExplorePage() {
                   </span>
                 </div>
               </div>
+              {selectedPosition && (
+                <div className="explore-hero-position">
+                  <span className="explore-hero-position-label">Portfolio Position</span>
+                  <div className="explore-hero-stats">
+                    <div className="explore-hero-stat">
+                      <span className="label">Shares</span>
+                      <span className="value">{selectedPosition.shares.toLocaleString()}</span>
+                    </div>
+                    <div className="explore-hero-stat">
+                      <span className="label">Mkt Val</span>
+                      <span className="value">
+                        ${selectedPosition.market_value >= 1e6
+                          ? `${(selectedPosition.market_value / 1e6).toFixed(2)}M`
+                          : selectedPosition.market_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                    <div className="explore-hero-stat">
+                      <span className="label">Weight</span>
+                      <span className="value">{(selectedPosition.weight * 100).toFixed(2)}%</span>
+                    </div>
+                    <div className="explore-hero-stat">
+                      <span className="label">Side</span>
+                      <span className="value">{selectedPosition.long_short}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {item.eligible_for_model === false && (
               <div

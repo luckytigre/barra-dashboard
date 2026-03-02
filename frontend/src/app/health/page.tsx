@@ -516,7 +516,7 @@ export default function HealthPage() {
             }}
           />
         </div>
-        <div className="health-grid-2">
+        <div className="health-grid-2-half">
           <div>
             <h4>
               <HelpLabel
@@ -673,7 +673,7 @@ export default function HealthPage() {
             }}
           />
         </h3>
-        <div className="health-grid-2">
+        <div className="health-grid-2-half">
           <div>
             <h4>
               <HelpLabel
@@ -898,7 +898,7 @@ export default function HealthPage() {
             ))}
           </select>
         </div>
-        <div className="health-grid-2">
+        <div className="health-grid-2-half">
           <div>
             <h4>
               <HelpLabel
@@ -1015,7 +1015,7 @@ export default function HealthPage() {
             }}
           />
         </h3>
-        <div className="health-grid-2">
+        <div className="health-grid-2-half">
           <div>
             <h4>
               <HelpLabel
