@@ -39,6 +39,7 @@ LSEG_FIELDS = [
     "TR.TRBCIndustryGroup",
     "TR.TRBCIndustry",
     "TR.TRBCActivity",
+    "TR.HQCountryCode",
     "TR.PriceClose",
     "TR.CompanyMarketCap",
     "TR.SharesOutstanding",
@@ -122,7 +123,7 @@ def _ensure_tables(conn: sqlite3.Connection) -> None:
         )
         """
     )
-    for col in ["trbc_business_sector", "trbc_industry", "trbc_activity"]:
+    for col in ["trbc_business_sector", "trbc_industry", "trbc_activity", "hq_country_code"]:
         _ensure_column(conn, "trbc_industry_history", col, "TEXT")
 
 
@@ -172,7 +173,7 @@ def _backfill_common_names(conn: sqlite3.Connection) -> int:
                 SELECT
                     UPPER(f.ticker) AS ticker,
                     TRIM(f.common_name) AS common_name
-                FROM fundamental_snapshots
+                FROM fundamental_snapshots f
                 JOIN ticker_ric_map m
                   ON UPPER(f.ticker) = UPPER(m.ticker)
                 WHERE f.common_name IS NOT NULL
@@ -215,40 +216,35 @@ def _resolve_universe(
         tables = {
             str(r[0]) for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
-        if "universe_eligibility_summary" in tables and as_of_date:
-            latest_current = conn.execute(
-                """
-                SELECT MAX(current_snapshot_date)
-                FROM universe_eligibility_summary
-                WHERE current_snapshot_date IS NOT NULL
-                  AND TRIM(current_snapshot_date) <> ''
-                """
-            ).fetchone()
-            latest_current_date = str(latest_current[0]) if latest_current and latest_current[0] else None
-            if latest_current_date and str(as_of_date) >= latest_current_date:
+        if "universe_eligibility_summary" in tables:
+            if as_of_date:
                 rows = conn.execute(
                     """
                     SELECT DISTINCT UPPER(ticker) AS ticker
                     FROM universe_eligibility_summary
                     WHERE ticker IS NOT NULL
                       AND TRIM(ticker) <> ''
-                      AND in_current_snapshot = 1
-                    ORDER BY ticker
-                    """
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT DISTINCT UPPER(ticker) AS ticker
-                    FROM universe_eligibility_summary
-                    WHERE ticker IS NOT NULL
-                      AND TRIM(ticker) <> ''
+                      AND COALESCE(start_date, '') <> ''
+                      AND COALESCE(end_date, '') <> ''
                       AND start_date <= ?
                       AND end_date >= ?
                     ORDER BY ticker
                     """,
                     (str(as_of_date), str(as_of_date)),
                 ).fetchall()
+                tickers = [str(r[0]).strip().upper() for r in rows if r and str(r[0]).strip()]
+                if tickers:
+                    return tickers
+
+            rows = conn.execute(
+                """
+                SELECT DISTINCT UPPER(ticker) AS ticker
+                FROM universe_eligibility_summary
+                WHERE ticker IS NOT NULL
+                  AND TRIM(ticker) <> ''
+                ORDER BY ticker
+                """
+            ).fetchall()
             tickers = [str(r[0]).strip().upper() for r in rows if r and str(r[0]).strip()]
             if tickers:
                 return tickers
@@ -439,6 +435,15 @@ def download_from_lseg(
         "trbc_industry_group": _pick_col(company, ["TRBC Industry Group Name", "TRBC Industry Group"]),
         "trbc_industry": _pick_col(company, ["TRBC Industry Name", "TRBC Industry"]),
         "trbc_activity": _pick_col(company, ["TRBC Activity Name", "TRBC Activity"]),
+        "hq_country_code": _pick_col(
+            company,
+            [
+                "Country ISO Code of Headquarters",
+                "Headquarters Country Code",
+                "HQ Country Code",
+                "Country Code",
+            ],
+        ),
         "book_value": _pick_col(company, ["Book Value Per Share"]),
         "forward_eps": _pick_col(company, ["Earnings Per Share - Mean"]),
         "trailing_eps": _pick_col(company, ["Earnings Per Share - Actual"]),
@@ -482,6 +487,7 @@ def download_from_lseg(
         trbc_industry_group = row.get(col["trbc_industry_group"]) if col["trbc_industry_group"] else None
         trbc_industry = row.get(col["trbc_industry"]) if col["trbc_industry"] else None
         trbc_activity = row.get(col["trbc_activity"]) if col["trbc_activity"] else None
+        hq_country_code = row.get(col["hq_country_code"]) if col["hq_country_code"] else None
         fiscal_year, _, period_type = _parse_fiscal_period(
             row.get(col["financial_period_abs"]) if col["financial_period_abs"] else None
         )
@@ -553,6 +559,7 @@ def download_from_lseg(
                 "trbc_industry_group": _txt(trbc_industry_group),
                 "trbc_industry": _txt(trbc_industry),
                 "trbc_activity": _txt(trbc_activity),
+                "hq_country_code": (_txt(hq_country_code) or "").upper() or None,
                 "source": "lseg_toolkit",
                 "job_run_id": job_run_id,
                 "updated_at": updated_at,

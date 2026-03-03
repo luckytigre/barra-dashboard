@@ -97,3 +97,22 @@
   - `backend/db/universe_schema.py`
   - `backend/universe_eligibility_summary_sanity.csv`
 - Removed Makefile targets and playbook references tied to universe creation/rebuild flows.
+
+### Entry 08 - RIC Source Alignment + HQ Country Backfill
+- Verified current RIC source path and corrected mapping authority:
+  - Reseeded `ticker_ric_map` directly from `universe_candidate_holdings` (deterministic canonical pick per ticker by latest `as_of_date`, then largest absolute weight).
+  - Synced `universe_eligibility_summary.current_ric` to match reseeded map.
+- Patched LSEG ingest to request and store headquarters country code:
+  - Added `TR.HQCountryCode` to pull fields in `backend/scripts/download_data_lseg.py`.
+  - Added country label resolution for LSEG response (`Country ISO Code of Headquarters`).
+  - Added `hq_country_code` persistence to `trbc_industry_history`.
+- Re-ran multi-date full backfill for universe scope (2,871 names) through:
+  - `2016-12-30`, `2021-12-31`, `2024-12-31`, `2026-02-27`.
+  - Skipped `2026-03-03` per user instruction.
+- Rebuilt canonical cUSE4 source tables after backfill:
+  - `security_master`
+  - `fundamentals_history`
+  - `trbc_industry_country_history`
+- Validation highlights after fix:
+  - `trbc_industry_country_history` now has strong country fill (`hq_country_code` present on 2,743 / 2,871 names at each refreshed snapshot date).
+  - ESTU drop reason `missing_trbc` is eliminated on latest refreshed date (`2026-02-27`), confirming the country-field fix propagated correctly.
