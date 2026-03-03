@@ -19,9 +19,11 @@ import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import CovarianceHeatmap from "@/components/CovarianceHeatmap";
 import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
+import ApiErrorState from "@/components/ApiErrorState";
 import { useHealthDiagnostics } from "@/hooks/useApi";
 import { shortFactorLabel, STYLE_FACTORS } from "@/lib/factorLabels";
 import type {
+  HealthCoverageFieldRow,
   HealthDiagnosticsData,
   HealthExposureStats,
   HealthFactorPctRow,
@@ -39,6 +41,10 @@ function fmtPct(v: number, digits = 2): string {
 
 function fmtNum(v: number, digits = 3): string {
   return Number(v).toFixed(digits);
+}
+
+function fmtInt(v: number): string {
+  return Number(v || 0).toLocaleString();
 }
 
 function compactDateLabel(s: string): string {
@@ -191,13 +197,34 @@ function sortNumber<T>(rows: T[], getter: (r: T) => number, asc: boolean): T[] {
   return [...rows].sort((a, b) => (asc ? getter(a) - getter(b) : getter(b) - getter(a)));
 }
 
+type CoverageSortKey =
+  | "field"
+  | "coverage_score_pct"
+  | "row_coverage_pct"
+  | "avg_ticker_lifecycle_coverage_pct"
+  | "p10_ticker_lifecycle_coverage_pct"
+  | "avg_date_coverage_pct";
+
+function sortCoverageRows(rows: HealthCoverageFieldRow[], key: CoverageSortKey, asc: boolean): HealthCoverageFieldRow[] {
+  if (key === "field") {
+    return [...rows].sort((a, b) => (asc ? a.field.localeCompare(b.field) : b.field.localeCompare(a.field)));
+  }
+  return sortNumber(rows, (r) => Number(r[key]) || 0, asc);
+}
+
 export default function HealthPage() {
-  const { data, isLoading } = useHealthDiagnostics();
+  const { data, isLoading, error } = useHealthDiagnostics();
   const [showAllTStatRows, setShowAllTStatRows] = useState(false);
   const [showAllExposureRows, setShowAllExposureRows] = useState(false);
+  const [showAllFundCoverageRows, setShowAllFundCoverageRows] = useState(false);
+  const [showAllTrbcCoverageRows, setShowAllTrbcCoverageRows] = useState(false);
   const [tSortAsc, setTSortAsc] = useState(false);
   const [expSortKey, setExpSortKey] = useState<keyof HealthExposureStats>("max_abs");
   const [expSortAsc, setExpSortAsc] = useState(false);
+  const [fundCovSortKey, setFundCovSortKey] = useState<CoverageSortKey>("coverage_score_pct");
+  const [fundCovSortAsc, setFundCovSortAsc] = useState(false);
+  const [trbcCovSortKey, setTrbcCovSortKey] = useState<CoverageSortKey>("coverage_score_pct");
+  const [trbcCovSortAsc, setTrbcCovSortAsc] = useState(false);
   const [selectedExposureFactor, setSelectedExposureFactor] = useState<string>("");
   const [selectedReturnFactor, setSelectedReturnFactor] = useState<string>("");
 
@@ -231,10 +258,23 @@ export default function HealthPage() {
     return sortNumber(rows, (r: HealthExposureStats) => Number(r[expSortKey]) || 0, expSortAsc);
   }, [data, expSortKey, expSortAsc]);
 
+  const sortedFundCoverageRows = useMemo(() => {
+    const rows = data?.section5?.fundamentals?.fields ?? [];
+    return sortCoverageRows(rows, fundCovSortKey, fundCovSortAsc);
+  }, [data, fundCovSortKey, fundCovSortAsc]);
+
+  const sortedTrbcCoverageRows = useMemo(() => {
+    const rows = data?.section5?.trbc_history?.fields ?? [];
+    return sortCoverageRows(rows, trbcCovSortKey, trbcCovSortAsc);
+  }, [data, trbcCovSortKey, trbcCovSortAsc]);
+
   const blockChartRef = useRef<ChartJS<"line"> | null>(null);
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading model health..." />;
+  }
+  if (error) {
+    return <ApiErrorState title="Health Diagnostics Not Ready" error={error} />;
   }
 
   if (!data || data.status !== "ok") {
@@ -393,6 +433,18 @@ export default function HealthPage() {
 
   const showTStatRows = showAllTStatRows ? sortedTStatRows : sortedTStatRows.slice(0, COLLAPSED_ROWS);
   const showExposureRows = showAllExposureRows ? sortedExposureRows : sortedExposureRows.slice(0, COLLAPSED_ROWS);
+  const showFundCoverageRows = showAllFundCoverageRows ? sortedFundCoverageRows : sortedFundCoverageRows.slice(0, COLLAPSED_ROWS);
+  const showTrbcCoverageRows = showAllTrbcCoverageRows ? sortedTrbcCoverageRows : sortedTrbcCoverageRows.slice(0, COLLAPSED_ROWS);
+  const fundCoverage = data.section5?.fundamentals ?? {
+    row_count: 0,
+    date_count: 0,
+    low_coverage_field_count: 0,
+  };
+  const trbcCoverage = data.section5?.trbc_history ?? {
+    row_count: 0,
+    date_count: 0,
+    low_coverage_field_count: 0,
+  };
 
   return (
     <div className="health-wrap">
@@ -1160,6 +1212,206 @@ export default function HealthPage() {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="chart-card">
+        <h3>
+          <HelpLabel
+            label="Section 5 — Source Data Coverage"
+            plain="Coverage audit for source-of-truth historical fundamentals and historical TRBC fields."
+            math="Coverage score = 0.4×row coverage + 0.4×avg ticker lifecycle coverage + 0.2×p10 ticker lifecycle coverage"
+            interpret={{
+              lookFor: "Fields with low score, low p10 lifecycle coverage, or many weak tickers/dates.",
+              good: "High score with strong row and lifecycle coverage across both tables.",
+              distribution: "Scores concentrated near 100 indicate stable data completeness.",
+            }}
+          />
+        </h3>
+
+        <div className="health-kpi-strip" style={{ marginBottom: 10 }}>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Historical Fundamentals</div>
+            <div className="health-kpi-subrow">
+              <span>Rows</span><strong>{fmtInt(fundCoverage.row_count)}</strong>
+            </div>
+            <div className="health-kpi-subrow">
+              <span>Dates</span><strong>{fmtInt(fundCoverage.date_count)}</strong>
+            </div>
+            <div className="health-kpi-subrow">
+              <span>Low-Coverage Fields (&lt;80)</span><strong>{fmtInt(fundCoverage.low_coverage_field_count)}</strong>
+            </div>
+          </div>
+          <div className="health-kpi">
+            <div className="health-kpi-label">Historical TRBC</div>
+            <div className="health-kpi-subrow">
+              <span>Rows</span><strong>{fmtInt(trbcCoverage.row_count)}</strong>
+            </div>
+            <div className="health-kpi-subrow">
+              <span>Dates</span><strong>{fmtInt(trbcCoverage.date_count)}</strong>
+            </div>
+            <div className="health-kpi-subrow">
+              <span>Low-Coverage Fields (&lt;80)</span><strong>{fmtInt(trbcCoverage.low_coverage_field_count)}</strong>
+            </div>
+          </div>
+        </div>
+
+        <h4 style={{ marginTop: 0 }}>Historical Fundamentals Coverage</h4>
+        <div className="dash-table health-table">
+          <table>
+            <thead>
+              <tr>
+                <th onClick={() => {
+                  if (fundCovSortKey === "field") setFundCovSortAsc((s) => !s);
+                  else { setFundCovSortKey("field"); setFundCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Field" plain="Tracked fundamental variable." math="Column in source-of-truth history table" />
+                    {fundCovSortKey === "field" ? (fundCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (fundCovSortKey === "coverage_score_pct") setFundCovSortAsc((s) => !s);
+                  else { setFundCovSortKey("coverage_score_pct"); setFundCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Coverage Score" plain="Composite data-health score for this field." math="0.4×row% + 0.4×avg lifecycle% + 0.2×p10 lifecycle%" />
+                    {fundCovSortKey === "coverage_score_pct" ? (fundCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (fundCovSortKey === "row_coverage_pct") setFundCovSortAsc((s) => !s);
+                  else { setFundCovSortKey("row_coverage_pct"); setFundCovSortAsc(false); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Row %" plain="Percent of all rows where this field is populated." math="row% = non-null rows / total rows" />
+                    {fundCovSortKey === "row_coverage_pct" ? (fundCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (fundCovSortKey === "avg_ticker_lifecycle_coverage_pct") setFundCovSortAsc((s) => !s);
+                  else { setFundCovSortKey("avg_ticker_lifecycle_coverage_pct"); setFundCovSortAsc(false); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Avg Lifecycle %" plain="Average per-ticker coverage over each ticker's own history." math="mean_ticker(non-null dates / active dates)" />
+                    {fundCovSortKey === "avg_ticker_lifecycle_coverage_pct" ? (fundCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (fundCovSortKey === "p10_ticker_lifecycle_coverage_pct") setFundCovSortAsc((s) => !s);
+                  else { setFundCovSortKey("p10_ticker_lifecycle_coverage_pct"); setFundCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="P10 Lifecycle %" plain="10th percentile ticker lifecycle coverage (weak-tail coverage)." math="p10_ticker(non-null dates / active dates)" />
+                    {fundCovSortKey === "p10_ticker_lifecycle_coverage_pct" ? (fundCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right">
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Worst Date %" plain="Lowest single-date coverage for this field." math="min_date(non-null tickers / active tickers)" />
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {showFundCoverageRows.map((row) => (
+                <tr key={`fund-${row.field}`}>
+                  <td>{row.field}</td>
+                  <td className="text-right">{fmtNum(row.coverage_score_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.row_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.avg_ticker_lifecycle_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.p10_ticker_lifecycle_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.worst_date_coverage_pct, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <TableRowToggle
+            totalRows={sortedFundCoverageRows.length}
+            collapsedRows={COLLAPSED_ROWS}
+            expanded={showAllFundCoverageRows}
+            onToggle={() => setShowAllFundCoverageRows((p) => !p)}
+            label="fields"
+          />
+        </div>
+
+        <h4 style={{ marginTop: 12 }}>Historical TRBC Coverage</h4>
+        <div className="dash-table health-table">
+          <table>
+            <thead>
+              <tr>
+                <th onClick={() => {
+                  if (trbcCovSortKey === "field") setTrbcCovSortAsc((s) => !s);
+                  else { setTrbcCovSortKey("field"); setTrbcCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Field" plain="Tracked TRBC variable." math="Column in TRBC history source table" />
+                    {trbcCovSortKey === "field" ? (trbcCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (trbcCovSortKey === "coverage_score_pct") setTrbcCovSortAsc((s) => !s);
+                  else { setTrbcCovSortKey("coverage_score_pct"); setTrbcCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Coverage Score" plain="Composite data-health score for this field." math="0.4×row% + 0.4×avg lifecycle% + 0.2×p10 lifecycle%" />
+                    {trbcCovSortKey === "coverage_score_pct" ? (trbcCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (trbcCovSortKey === "row_coverage_pct") setTrbcCovSortAsc((s) => !s);
+                  else { setTrbcCovSortKey("row_coverage_pct"); setTrbcCovSortAsc(false); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Row %" plain="Percent of all rows where this field is populated." math="row% = non-null rows / total rows" />
+                    {trbcCovSortKey === "row_coverage_pct" ? (trbcCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (trbcCovSortKey === "avg_ticker_lifecycle_coverage_pct") setTrbcCovSortAsc((s) => !s);
+                  else { setTrbcCovSortKey("avg_ticker_lifecycle_coverage_pct"); setTrbcCovSortAsc(false); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Avg Lifecycle %" plain="Average per-ticker coverage over each ticker's own history." math="mean_ticker(non-null dates / active dates)" />
+                    {trbcCovSortKey === "avg_ticker_lifecycle_coverage_pct" ? (trbcCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right" onClick={() => {
+                  if (trbcCovSortKey === "p10_ticker_lifecycle_coverage_pct") setTrbcCovSortAsc((s) => !s);
+                  else { setTrbcCovSortKey("p10_ticker_lifecycle_coverage_pct"); setTrbcCovSortAsc(true); }
+                }}>
+                  <span className="col-help-wrap">
+                    <HelpLabel label="P10 Lifecycle %" plain="10th percentile ticker lifecycle coverage (weak-tail coverage)." math="p10_ticker(non-null dates / active dates)" />
+                    {trbcCovSortKey === "p10_ticker_lifecycle_coverage_pct" ? (trbcCovSortAsc ? " ↑" : " ↓") : ""}
+                  </span>
+                </th>
+                <th className="text-right">
+                  <span className="col-help-wrap">
+                    <HelpLabel label="Worst Date %" plain="Lowest single-date coverage for this field." math="min_date(non-null tickers / active tickers)" />
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {showTrbcCoverageRows.map((row) => (
+                <tr key={`trbc-${row.field}`}>
+                  <td>{row.field}</td>
+                  <td className="text-right">{fmtNum(row.coverage_score_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.row_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.avg_ticker_lifecycle_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.p10_ticker_lifecycle_coverage_pct, 1)}%</td>
+                  <td className="text-right">{fmtNum(row.worst_date_coverage_pct, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <TableRowToggle
+            totalRows={sortedTrbcCoverageRows.length}
+            collapsedRows={COLLAPSED_ROWS}
+            expanded={showAllTrbcCoverageRows}
+            onToggle={() => setShowAllTrbcCoverageRows((p) => !p)}
+            label="fields"
+          />
         </div>
       </div>
     </div>

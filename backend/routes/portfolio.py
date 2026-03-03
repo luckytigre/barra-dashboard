@@ -2,8 +2,9 @@
 
 from fastapi import APIRouter
 
-from analytics.trbc_sector import abbreviate_trbc_sector
+from analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
 from db.sqlite import cache_get
+from routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 
@@ -12,15 +13,28 @@ router = APIRouter()
 async def get_portfolio():
     data = cache_get("portfolio")
     if data is None:
-        return {"positions": [], "total_value": 0.0, "position_count": 0, "_cached": False}
+        raise_cache_not_ready(
+            cache_key="portfolio",
+            message="Portfolio cache is empty. Run refresh to build positions.",
+            refresh_mode="light",
+        )
     positions = []
     for raw in data.get("positions", []):
-        trbc_sector = str(raw.get("trbc_sector") or raw.get("sector") or "")
+        trbc_economic_sector_short = str(
+            raw.get("trbc_economic_sector_short")
+            or raw.get("trbc_sector")
+            or raw.get("sector")
+            or ""
+        )
         positions.append(
             {
                 **raw,
-                "trbc_sector": trbc_sector,
-                "trbc_sector_abbr": str(raw.get("trbc_sector_abbr") or abbreviate_trbc_sector(trbc_sector)),
+                "trbc_economic_sector_short": trbc_economic_sector_short,
+                "trbc_economic_sector_short_abbr": str(
+                    raw.get("trbc_economic_sector_short_abbr")
+                    or raw.get("trbc_sector_abbr")
+                    or abbreviate_trbc_economic_sector_short(trbc_economic_sector_short)
+                ),
             }
         )
     return {**data, "positions": positions, "_cached": True}

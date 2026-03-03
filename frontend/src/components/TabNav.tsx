@@ -99,6 +99,14 @@ export default function TabNav() {
 
         {menuOpen && (
           <div className="dash-dropdown">
+            <div className="dash-dropdown-section">Settings</div>
+            <Link
+              href="/data"
+              className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              Data
+            </Link>
             <div className="dash-dropdown-section">Background</div>
             {BG_OPTIONS.map((opt) => (
               <button

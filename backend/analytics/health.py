@@ -106,14 +106,14 @@ def _find_most_recent(sorted_dates: list[str], target: str) -> str | None:
 def _load_style_exposure_snapshots(data_db: Path) -> tuple[list[str], dict[str, pd.DataFrame]]:
     conn = sqlite3.connect(str(data_db))
     try:
-        cols = [str(r[1]) for r in conn.execute("PRAGMA table_info(barra_exposures)").fetchall()]
+        cols = [str(r[1]) for r in conn.execute("PRAGMA table_info(barra_raw_cross_section_history)").fetchall()]
         style_cols_present = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in cols]
         if not style_cols_present:
             return [], {}
         df = pd.read_sql_query(
             f"""
             SELECT ticker, as_of_date, {", ".join(style_cols_present)}
-            FROM barra_exposures
+            FROM barra_raw_cross_section_history
             ORDER BY as_of_date, ticker
             """,
             conn,
@@ -522,6 +522,221 @@ def _portfolio_forecast_vol(
     return float(np.sqrt(var))
 
 
+def _is_textish_type(col_type: str) -> bool:
+    ctype = str(col_type or "").upper()
+    return ("CHAR" in ctype) or ("TEXT" in ctype) or ("CLOB" in ctype)
+
+
+def _valid_field_mask(values: pd.Series, col_type: str) -> pd.Series:
+    if _is_textish_type(col_type):
+        return values.notna() & values.astype(str).str.strip().ne("")
+    return values.notna()
+
+
+def _compute_table_field_coverage(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    ticker_col: str,
+    excluded_cols: set[str],
+    label: str,
+    base_df: pd.DataFrame | None = None,
+    use_field_expected_tickers: bool = False,
+    scope_note: str | None = None,
+) -> dict[str, Any]:
+    schema = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    if not schema:
+        return {
+            "label": label,
+            "table": table,
+            "scope_note": scope_note or "",
+            "row_count": 0,
+            "date_count": 0,
+            "ticker_count": 0,
+            "field_count": 0,
+            "low_coverage_field_count": 0,
+            "fields": [],
+        }
+
+    field_defs = [(str(r[1]), str(r[2] or "")) for r in schema if str(r[1]) not in excluded_cols]
+    col_types = {str(r[1]): str(r[2] or "") for r in schema}
+    if base_df is None:
+        base_df = pd.read_sql_query(f"SELECT * FROM {table}", conn)
+    df = base_df.copy()
+    if df.empty:
+        row_count = 0
+    else:
+        if ticker_col in df.columns:
+            df[ticker_col] = df[ticker_col].astype(str).str.upper()
+        if date_col in df.columns:
+            df[date_col] = pd.to_datetime(df[date_col], errors="coerce").dt.date.astype(str)
+            df = df[df[date_col].ne("NaT")]
+        row_count = int(len(df))
+
+    if row_count <= 0 or not field_defs:
+        return {
+            "label": label,
+            "table": table,
+            "scope_note": scope_note or "",
+            "row_count": row_count,
+            "date_count": 0,
+            "ticker_count": 0,
+            "field_count": len(field_defs),
+            "low_coverage_field_count": 0,
+            "fields": [],
+        }
+
+    date_den_all = df.groupby(date_col).size()
+    ticker_den_all = df.groupby(ticker_col).size()
+    all_dates = [str(d) for d in date_den_all.index.tolist()]
+    all_tickers = [str(t) for t in ticker_den_all.index.tolist()]
+
+    fields_out: list[dict[str, Any]] = []
+    for field, _ in field_defs:
+        col_type = col_types.get(field, "")
+        values = df[field] if field in df.columns else pd.Series(index=df.index, dtype=object)
+        valid_mask = _valid_field_mask(values, col_type)
+
+        if use_field_expected_tickers:
+            expected_tickers = set(df.loc[valid_mask, ticker_col].dropna().astype(str).str.upper().tolist())
+            denom_mask = df[ticker_col].isin(expected_tickers)
+        else:
+            expected_tickers = set(all_tickers)
+            denom_mask = pd.Series(True, index=df.index)
+
+        denom_row_count = int(denom_mask.sum())
+        valid_denom_mask = valid_mask & denom_mask
+        non_null_rows = int(valid_denom_mask.sum())
+        row_cov = (100.0 * non_null_rows / denom_row_count) if denom_row_count else 0.0
+
+        date_den = df.loc[denom_mask].groupby(date_col).size()
+        valid_by_date = df.loc[valid_denom_mask].groupby(date_col).size()
+        date_cov_vals = []
+        worst_date = None
+        worst_date_cov = 100.0
+        dates_below_80 = 0
+        for d, denom_raw in date_den.items():
+            denom = max(1, int(denom_raw))
+            pct = 100.0 * float(valid_by_date.get(d, 0)) / float(denom)
+            date_cov_vals.append(pct)
+            if pct < worst_date_cov:
+                worst_date_cov = pct
+                worst_date = str(d)
+            if pct < 80.0:
+                dates_below_80 += 1
+        avg_date_cov = float(np.mean(date_cov_vals)) if date_cov_vals else 0.0
+
+        ticker_den = df.loc[denom_mask].groupby(ticker_col).size()
+        valid_by_ticker = df.loc[valid_denom_mask].groupby(ticker_col).size()
+        ticker_cov_vals = []
+        tickers_below_80 = 0
+        for t, denom_raw in ticker_den.items():
+            denom = max(1, int(denom_raw))
+            pct = 100.0 * float(valid_by_ticker.get(t, 0)) / float(denom)
+            ticker_cov_vals.append(pct)
+            if pct < 80.0:
+                tickers_below_80 += 1
+        avg_ticker_cov = float(np.mean(ticker_cov_vals)) if ticker_cov_vals else 0.0
+        p10_ticker_cov = float(np.percentile(ticker_cov_vals, 10)) if ticker_cov_vals else 0.0
+
+        coverage_score = (0.4 * row_cov) + (0.4 * avg_ticker_cov) + (0.2 * p10_ticker_cov)
+        fields_out.append({
+            "field": field,
+            "data_type": col_type,
+            "non_null_rows": non_null_rows,
+            "total_rows": denom_row_count,
+            "row_coverage_pct": row_cov,
+            "avg_date_coverage_pct": avg_date_cov,
+            "worst_date": worst_date,
+            "worst_date_coverage_pct": float(worst_date_cov if np.isfinite(worst_date_cov) else 0.0),
+            "dates_below_80_pct_count": int(dates_below_80),
+            "avg_ticker_lifecycle_coverage_pct": avg_ticker_cov,
+            "p10_ticker_lifecycle_coverage_pct": p10_ticker_cov,
+            "tickers_below_80_pct_count": int(tickers_below_80),
+            "expected_ticker_count": int(len(expected_tickers)),
+            "coverage_score_pct": float(coverage_score),
+        })
+
+    fields_out = sorted(fields_out, key=lambda r: (float(r.get("coverage_score_pct", 0.0)), str(r.get("field", ""))))
+    low_cov_count = sum(1 for r in fields_out if float(r.get("coverage_score_pct", 0.0)) < 80.0)
+
+    return {
+        "label": label,
+        "table": table,
+        "scope_note": scope_note or "",
+        "row_count": row_count,
+        "date_count": int(df[date_col].nunique()),
+        "ticker_count": int(df[ticker_col].nunique()),
+        "field_count": len(fields_out),
+        "low_coverage_field_count": int(low_cov_count),
+        "fields": fields_out,
+    }
+
+
+def _load_equity_price_bounds(conn: sqlite3.Connection) -> pd.DataFrame:
+    try:
+        bounds = pd.read_sql_query(
+            """
+            SELECT UPPER(ticker) AS ticker, MIN(date) AS min_date, MAX(date) AS max_date
+            FROM prices_daily
+            GROUP BY UPPER(ticker)
+            """,
+            conn,
+        )
+    except Exception:
+        return pd.DataFrame(columns=["ticker", "min_date", "max_date"])
+    if bounds.empty:
+        return bounds
+    bounds["ticker"] = bounds["ticker"].astype(str).str.upper()
+    bounds["min_date"] = pd.to_datetime(bounds["min_date"], errors="coerce").dt.date.astype(str)
+    bounds["max_date"] = pd.to_datetime(bounds["max_date"], errors="coerce").dt.date.astype(str)
+    return bounds.dropna(subset=["ticker", "min_date", "max_date"])
+
+
+def _load_equity_tickers(conn: sqlite3.Connection) -> set[str]:
+    try:
+        rows = conn.execute(
+            "SELECT UPPER(ticker) FROM ticker_ric_map WHERE COALESCE(classification_ok, 0) = 1"
+        ).fetchall()
+    except Exception:
+        return set()
+    return {str(r[0]).upper() for r in rows if r and r[0]}
+
+
+def _filter_active_equity_rows(
+    df: pd.DataFrame,
+    *,
+    ticker_col: str,
+    date_col: str,
+    equity_tickers: set[str],
+    price_bounds: pd.DataFrame,
+) -> pd.DataFrame:
+    if df.empty or ticker_col not in df.columns or date_col not in df.columns:
+        return df.iloc[0:0].copy()
+
+    out = df.copy()
+    out[ticker_col] = out[ticker_col].astype(str).str.upper()
+    out[date_col] = pd.to_datetime(out[date_col], errors="coerce").dt.date.astype(str)
+    out = out[out[date_col].ne("NaT")].copy()
+
+    if equity_tickers:
+        out = out[out[ticker_col].isin(equity_tickers)].copy()
+    if out.empty:
+        return out
+
+    if price_bounds.empty:
+        return out.iloc[0:0].copy()
+
+    bounds = price_bounds.rename(columns={"ticker": "__ticker", "min_date": "__min_date", "max_date": "__max_date"})
+    out = out.merge(bounds, left_on=ticker_col, right_on="__ticker", how="inner")
+    out = out[
+        (out[date_col] >= out["__min_date"])
+        & (out[date_col] <= out["__max_date"])
+    ].copy()
+    return out.drop(columns=["__ticker", "__min_date", "__max_date"], errors="ignore")
+
+
 def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
     """Compute and return diagnostics payload for the Health tab."""
     df_ret = _load_daily_factor_returns(cache_db, years=10)
@@ -753,6 +968,61 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
         avg = rv.mean(axis=1)
         avg_factor_vol_series = [{"date": _to_date_str(d), "value": float(v if np.isfinite(v) else 0.0)} for d, v in avg.items()]
 
+    # SECTION 5 — Source-of-truth data coverage (historical fundamentals + TRBC history)
+    conn = sqlite3.connect(str(data_db))
+    try:
+        equity_tickers = _load_equity_tickers(conn)
+        price_bounds = _load_equity_price_bounds(conn)
+
+        fundamentals_df = pd.read_sql_query("SELECT * FROM fundamental_snapshots", conn)
+        fundamentals_df = _filter_active_equity_rows(
+            fundamentals_df,
+            ticker_col="ticker",
+            date_col="fetch_date",
+            equity_tickers=equity_tickers,
+            price_bounds=price_bounds,
+        )
+        fundamentals_coverage = _compute_table_field_coverage(
+            conn,
+            table="fundamental_snapshots",
+            date_col="fetch_date",
+            ticker_col="ticker",
+            excluded_cols={"ticker", "fetch_date", "source", "job_run_id", "updated_at"},
+            label="Historical Fundamentals",
+            base_df=fundamentals_df,
+            use_field_expected_tickers=True,
+            scope_note=(
+                "Denominator uses active mapped equities only (classification_ok=1 and within each ticker's "
+                "price-history date range). Field coverage is scored against tickers that report the field "
+                "at least once, so structural N/A does not count as missing."
+            ),
+        )
+
+        trbc_df = pd.read_sql_query("SELECT * FROM trbc_industry_history", conn)
+        trbc_df = _filter_active_equity_rows(
+            trbc_df,
+            ticker_col="ticker",
+            date_col="as_of_date",
+            equity_tickers=equity_tickers,
+            price_bounds=price_bounds,
+        )
+        trbc_coverage = _compute_table_field_coverage(
+            conn,
+            table="trbc_industry_history",
+            date_col="as_of_date",
+            ticker_col="ticker",
+            excluded_cols={"ticker", "as_of_date", "source", "job_run_id", "updated_at"},
+            label="Historical TRBC",
+            base_df=trbc_df,
+            use_field_expected_tickers=False,
+            scope_note=(
+                "Denominator uses active mapped equities only (classification_ok=1 and within each ticker's "
+                "price-history date range)."
+            ),
+        )
+    finally:
+        conn.close()
+
     return {
         "status": "ok",
         "as_of": _to_date_str(df_ret["date"].max()),
@@ -804,5 +1074,9 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
             "condition_number": float(risk_cache.get("condition_number", 0.0) or 0.0),
             "forecast_vs_realized": fv,
             "rolling_avg_factor_vol": avg_factor_vol_series,
+        },
+        "section5": {
+            "fundamentals": fundamentals_coverage,
+            "trbc_history": trbc_coverage,
         },
     }

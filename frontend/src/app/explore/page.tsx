@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import ExposureBarChart from "@/components/ExposureBarChart";
 import FactorRadarChart from "@/components/FactorRadarChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
+import ApiErrorState from "@/components/ApiErrorState";
 import { usePortfolio, useUniverseFactors, useUniverseSearch, useUniverseTicker } from "@/hooks/useApi";
 import { shortFactorLabel, factorTier } from "@/lib/factorLabels";
 import type { FactorExposure } from "@/lib/types";
@@ -44,10 +45,10 @@ export default function ExplorePage() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const { data: searchData } = useUniverseSearch(query, 10);
+  const { data: searchData, error: searchError } = useUniverseSearch(query, 10);
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
-  const { data: factorsData } = useUniverseFactors();
-  const { data: portfolioData } = usePortfolio();
+  const { data: factorsData, error: factorsError } = useUniverseFactors();
+  const { data: portfolioData, error: portfolioError } = usePortfolio();
 
   const item = tickerData?.item;
   const factorVols = factorsData?.factor_vols ?? {};
@@ -184,6 +185,10 @@ export default function ExplorePage() {
     return groups;
   }, [rows]);
 
+  if (factorsError || portfolioError) {
+    return <ApiErrorState title="Universe Data Not Ready" error={factorsError || portfolioError} />;
+  }
+
   return (
     <div>
       {/* Search */}
@@ -227,8 +232,8 @@ export default function ExplorePage() {
                     <span className="ticker">{highlightMatch(r.ticker, query)}</span>
                     <span className="name">{highlightMatch(r.name, query)}</span>
                     <span className="explore-typeahead-classifications">
-                      <span>{r.trbc_sector_abbr || r.trbc_sector || "—"}</span>
-                      {r.trbc_industry_group && r.trbc_industry_group !== r.trbc_sector && (
+                      <span>{r.trbc_economic_sector_short_abbr || r.trbc_economic_sector_short || "—"}</span>
+                      {r.trbc_industry_group && r.trbc_industry_group !== r.trbc_economic_sector_short && (
                         <span className="explore-typeahead-ig">{r.trbc_industry_group}</span>
                       )}
                     </span>
@@ -250,7 +255,12 @@ export default function ExplorePage() {
 
         {!isLoading && selectedTicker && tickerError && (
           <div className="explore-error">
-            No cached universe loadings found for {selectedTicker}.
+            Unable to load {selectedTicker}. Check universe cache and try refresh.
+          </div>
+        )}
+        {searchError && query.trim().length > 0 && (
+          <div className="explore-error">
+            Universe search is temporarily unavailable.
           </div>
         )}
       </div>
@@ -267,8 +277,8 @@ export default function ExplorePage() {
                 <span className="name">{item.name}</span>
               </div>
               <div className="explore-hero-badges">
-                <span className="explore-badge">{item.trbc_sector || "Unclassified"}</span>
-                {item.trbc_industry_group && item.trbc_industry_group !== item.trbc_sector && (
+                <span className="explore-badge">{item.trbc_economic_sector_short || "Unclassified"}</span>
+                {item.trbc_industry_group && item.trbc_industry_group !== item.trbc_economic_sector_short && (
                   <span className="explore-badge">{item.trbc_industry_group}</span>
                 )}
               </div>

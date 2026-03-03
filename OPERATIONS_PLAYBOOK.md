@@ -12,6 +12,10 @@
   - `curl -X POST "http://localhost:8000/api/refresh?force_risk_recompute=true"`
 - Refresh data from LSEG:
   - `python backend/scripts/download_data_lseg.py --db-path backend/data.db`
+- Build canonical universe eligibility (PermID keyed):
+  - `python backend/scripts/build_universe_eligibility_lseg.py --db-path backend/data.db`
+- Reset universe + source tables and rebuild current source-of-truth snapshot:
+  - `python backend/scripts/reset_and_rebuild_source_of_truth.py --db-path backend/data.db --current-chain-ric .dMIUS000I0PUS --historical-index-ric .dMIUS000I0PUS --historical-date 2019-03-02`
 - TRBC historical backfill in 4 shards:
   - `python backend/scripts/backfill_trbc_history_lseg.py --db-path backend/data.db --shard-count 4 --shard-index 0 --skip-sync`
   - `python backend/scripts/backfill_trbc_history_lseg.py --db-path backend/data.db --shard-count 4 --shard-index 1 --skip-sync`

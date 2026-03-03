@@ -10,8 +10,8 @@ class Position(BaseModel):
     name: str = ""
     long_short: str = "LONG"
     shares: float
-    trbc_sector: str = ""
-    trbc_sector_abbr: str = ""
+    trbc_economic_sector_short: str = ""
+    trbc_economic_sector_short_abbr: str = ""
     account: str = ""
     sleeve: str = ""
     source: str = ""

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-_TRBC_SECTOR_ABBR = {
+_TRBC_ECONOMIC_SECTOR_SHORT_ABBR = {
     "BASIC MATERIALS": "Matls",
     "CONSUMER CYCLICALS": "ConsCyc",
     "CONSUMER NON-CYCLICALS": "ConsDef",
@@ -22,13 +22,13 @@ def _normalize_sector(value: str) -> str:
     return " ".join(str(value or "").strip().upper().replace("&", " AND ").split())
 
 
-def abbreviate_trbc_sector(sector: str | None) -> str:
+def abbreviate_trbc_economic_sector_short(sector: str | None) -> str:
     """Return a compact TRBC sector label for dense outputs."""
     raw = str(sector or "").strip()
     if not raw:
         return ""
     key = _normalize_sector(raw)
-    abbr = _TRBC_SECTOR_ABBR.get(key)
+    abbr = _TRBC_ECONOMIC_SECTOR_SHORT_ABBR.get(key)
     if abbr:
         return abbr
     tokens = [t for t in raw.replace("&", " ").split() if t]

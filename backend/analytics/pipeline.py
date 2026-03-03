@@ -23,13 +23,15 @@ from barra.risk_attribution import (
     risk_decomposition,
 )
 from barra.specific_risk import build_specific_risk_from_cache
-from analytics.trbc_sector import abbreviate_trbc_sector
+from analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
 from db import postgres, sqlite
-from portfolio.mock_portfolio import get_position_meta, get_shares, get_tickers
+from db.cross_section_snapshot import rebuild_cross_section_snapshot
+from portfolio.positions_store import get_position_meta, get_shares, get_tickers
+from trading_calendar import previous_or_same_xnys_session
 
 logger = logging.getLogger(__name__)
 
-DATA_DB = Path(__file__).resolve().parent.parent / "data.db"
+DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
 RISK_ENGINE_METHOD_VERSION = "v1_weekly_recompute_lagged_cross_section_2026_03_02"
 
@@ -186,7 +188,7 @@ def _build_universe_ticker_loadings(
 
     # Fundamentals maps for whole universe
     mcap_map: dict[str, float] = {}
-    trbc_sector_map: dict[str, str] = {}
+    trbc_economic_sector_short_map: dict[str, str] = {}
     trbc_industry_map: dict[str, str] = {}
     name_map: dict[str, str] = {}
     if not fundamentals_df.empty:
@@ -203,9 +205,13 @@ def _build_universe_ticker_loadings(
             mcap = _finite_float(row.get("market_cap"), np.nan)
             if np.isfinite(mcap) and mcap > 0:
                 mcap_map[ticker] = mcap
-            trbc_sector = str(row.get("trbc_sector") or "").strip()
-            if trbc_sector:
-                trbc_sector_map[ticker] = trbc_sector
+            trbc_economic_sector_short = str(
+                row.get("trbc_economic_sector_short")
+                or row.get("trbc_sector")
+                or ""
+            ).strip()
+            if trbc_economic_sector_short:
+                trbc_economic_sector_short_map[ticker] = trbc_economic_sector_short
             trbc_industry = str(row.get("trbc_industry_group") or "").strip()
             if trbc_industry:
                 trbc_industry_map[ticker] = trbc_industry
@@ -296,9 +302,17 @@ def _build_universe_ticker_loadings(
             continue
 
         eligible = bool(ticker in eligible_tickers)
-        trbc_sector = str(
-            (eligibility_df.loc[ticker, "trbc_sector"] if ticker in eligibility_df.index else "")
-            or trbc_sector_map.get(ticker, "")
+        trbc_economic_sector_short = str(
+            (
+                eligibility_df.loc[ticker, "trbc_economic_sector_short"]
+                if ticker in eligibility_df.index and "trbc_economic_sector_short" in eligibility_df.columns
+                else (
+                    eligibility_df.loc[ticker, "trbc_sector"]
+                    if ticker in eligibility_df.index and "trbc_sector" in eligibility_df.columns
+                    else ""
+                )
+            )
+            or trbc_economic_sector_short_map.get(ticker, "")
         )
         trbc_industry_group = str(
             (eligibility_df.loc[ticker, "trbc_industry_group"] if ticker in eligibility_df.index else "")
@@ -327,8 +341,8 @@ def _build_universe_ticker_loadings(
         universe_by_ticker[ticker] = {
             "ticker": ticker,
             "name": name_map.get(ticker, ""),
-            "trbc_sector": trbc_sector,
-            "trbc_sector_abbr": abbreviate_trbc_sector(trbc_sector),
+            "trbc_economic_sector_short": trbc_economic_sector_short,
+            "trbc_economic_sector_short_abbr": abbreviate_trbc_economic_sector_short(trbc_economic_sector_short),
             "trbc_industry_group": trbc_industry_group,
             "market_cap": round(float(market_cap), 2) if np.isfinite(market_cap) else None,
             "price": round(_finite_float(price_map.get(ticker), 0.0), 4),
@@ -348,8 +362,11 @@ def _build_universe_ticker_loadings(
         {
             "ticker": t,
             "name": d.get("name", ""),
-            "trbc_sector": d.get("trbc_sector", ""),
-            "trbc_sector_abbr": d.get("trbc_sector_abbr", ""),
+            "trbc_economic_sector_short": d.get("trbc_economic_sector_short", ""),
+            "trbc_economic_sector_short_abbr": d.get(
+                "trbc_economic_sector_short_abbr",
+                d.get("trbc_sector_abbr", ""),
+            ),
             "trbc_industry_group": d.get("trbc_industry_group", ""),
             "risk_loading": d.get("risk_loading", 0.0),
             "specific_vol": d.get("specific_vol", None),
@@ -395,8 +412,16 @@ def _build_positions_from_universe(universe_by_ticker: dict[str, dict[str, Any]]
             "price": round(price, 2),
             "market_value": round(mv, 2),
             "weight": 0.0,
-            "trbc_sector": str(base.get("trbc_sector") or ""),
-            "trbc_sector_abbr": str(base.get("trbc_sector_abbr") or ""),
+            "trbc_economic_sector_short": str(
+                base.get("trbc_economic_sector_short")
+                or base.get("trbc_sector")
+                or ""
+            ),
+            "trbc_economic_sector_short_abbr": str(
+                base.get("trbc_economic_sector_short_abbr")
+                or base.get("trbc_sector_abbr")
+                or ""
+            ),
             "account": meta["account"],
             "sleeve": meta["sleeve"],
             "source": meta["source"],
@@ -742,7 +767,12 @@ def run_refresh(
     light_mode = refresh_mode == "light"
 
     refresh_started_at = datetime.now(timezone.utc).isoformat()
-    today_utc = datetime.now(timezone.utc).date()
+    today_utc = datetime.fromisoformat(
+        previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
+    ).date()
+
+    logger.info("Rebuilding canonical cross-section snapshot...")
+    snapshot_build = rebuild_cross_section_snapshot(DATA_DB)
 
     # 1. Fetch full-universe data from local data.db
     logger.info("Fetching data from local database...")
@@ -752,7 +782,7 @@ def run_refresh(
     fundamentals_universe_df = postgres.load_fundamental_snapshots(
         as_of_date=str(fundamentals_asof) if fundamentals_asof else None,
     )
-    exposures_universe_df = postgres.load_barra_exposures()
+    exposures_universe_df = postgres.load_raw_cross_section_latest()
 
     # 2. Weekly risk-engine recompute gate.
     risk_engine_meta = sqlite.cache_get("risk_engine_meta") or {}
@@ -975,7 +1005,19 @@ def run_refresh(
     )
     sqlite.cache_set("model_sanity", sanity)
     health_refreshed = False
-    if not light_mode:
+    existing_health = sqlite.cache_get("health_diagnostics")
+    light_mode_health_missing = (
+        light_mode
+        and (
+            not isinstance(existing_health, dict)
+            or not isinstance(existing_health.get("section5"), dict)
+            or not isinstance(existing_health.get("section5", {}).get("fundamentals"), dict)
+            or not isinstance(existing_health.get("section5", {}).get("trbc_history"), dict)
+            or not isinstance(existing_health.get("section5", {}).get("fundamentals", {}).get("fields"), list)
+            or not isinstance(existing_health.get("section5", {}).get("trbc_history", {}).get("fields"), list)
+        )
+    )
+    if (not light_mode) or light_mode_health_missing:
         sqlite.cache_set("health_diagnostics", compute_health_diagnostics(DATA_DB, CACHE_DB))
         health_refreshed = True
     sqlite.cache_set(
@@ -985,6 +1027,7 @@ def run_refresh(
             "mode": refresh_mode,
             "refresh_started_at": refresh_started_at,
             "source_dates": source_dates,
+            "cross_section_snapshot": snapshot_build,
             "risk_engine": risk_engine_state,
             "model_sanity_status": sanity.get("status"),
             "health_refreshed": bool(health_refreshed),
@@ -997,6 +1040,7 @@ def run_refresh(
         "positions": len(positions),
         "total_value": round(total_value, 2),
         "mode": refresh_mode,
+        "cross_section_snapshot": snapshot_build,
         "risk_engine": risk_engine_state,
         "model_sanity": sanity,
         "health_refreshed": bool(health_refreshed),

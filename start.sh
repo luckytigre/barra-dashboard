@@ -1,11 +1,15 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND_PORT=8001
-FRONTEND_PORT=3002
+BACKEND_PORT=8000
+FRONTEND_PORT=3000
 BACKEND_PID=""
 FRONTEND_PID=""
+FORCE_KILL_PORTS="${FORCE_KILL_PORTS:-0}"
+
+# Keep app storage in one explicit location unless caller overrides.
+export APP_DATA_DIR="${APP_DATA_DIR:-$DIR/backend}"
 
 cleanup() {
   echo ""
@@ -17,20 +21,40 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-kill_port_listener() {
+print_port_listener() {
+  local port="$1"
+  lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+}
+
+ensure_port_available() {
   local port="$1"
   local pids
   pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+
+  echo "Port $port is already in use:"
+  print_port_listener "$port"
+
+  if [ "$FORCE_KILL_PORTS" != "1" ]; then
+    echo "Refusing to kill external processes by default."
+    echo "Free the port manually, or re-run with FORCE_KILL_PORTS=1."
+    exit 1
+  fi
+
+  echo "FORCE_KILL_PORTS=1 set. Stopping listener(s) on $port..."
+  kill $pids 2>/dev/null || true
+  sleep 1
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
   if [ -n "$pids" ]; then
-    echo "Port $port in use by PID(s): $pids. Stopping stale listener(s)..."
-    kill $pids 2>/dev/null || true
+    echo "Process still bound to $port. Force-stopping: $pids"
+    kill -9 $pids 2>/dev/null || true
     sleep 1
-    pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true)"
-    if [ -n "$pids" ]; then
-      echo "Force stopping PID(s) on port $port: $pids"
-      kill -9 $pids 2>/dev/null || true
-      sleep 1
-    fi
+  fi
+  if lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "ERROR: Failed to free port $port."
+    exit 1
   fi
 }
 
@@ -47,19 +71,27 @@ if [ ! -f "$DIR/backend/.env" ]; then
 fi
 
 # --- Install deps if needed ---
-if [ ! -d "$DIR/frontend/node_modules" ]; then
+if [ ! -d "$DIR/frontend/node_modules" ] || [ ! -e "$DIR/frontend/node_modules/.bin/next" ]; then
   echo "Installing frontend dependencies..."
   (cd "$DIR/frontend" && npm install --silent)
 fi
+chmod +x "$DIR/frontend/node_modules/.bin/"* 2>/dev/null || true
 
 if ! python3 -c "import fastapi; import psycopg; import pydantic" 2>/dev/null; then
   echo "Installing backend dependencies..."
-  (cd "$DIR/backend" && pip install -e ".[dev]" -q)
+  if ! (cd "$DIR/backend" && pip install -e ".[dev]" -q); then
+    python3 -m pip install -q fastapi "uvicorn[standard]" "psycopg[binary]" pydantic pandas numpy scipy python-dotenv
+  fi
 fi
 
-# --- Clear stale listeners on target ports ---
-kill_port_listener "$BACKEND_PORT"
-kill_port_listener "$FRONTEND_PORT"
+if ! python3 -c "import exchange_calendars" 2>/dev/null; then
+  echo "Installing trading-calendar dependency..."
+  python3 -m pip install -q exchange-calendars
+fi
+
+# --- Ensure target ports are available ---
+ensure_port_available "$BACKEND_PORT"
+ensure_port_available "$FRONTEND_PORT"
 
 # --- Start backend ---
 echo "Starting backend on :$BACKEND_PORT..."
@@ -68,20 +100,15 @@ BACKEND_PID=$!
 
 # --- Start frontend ---
 echo "Starting frontend on :$FRONTEND_PORT..."
-(cd "$DIR/frontend" && npx next dev --port "$FRONTEND_PORT") &
+(cd "$DIR/frontend" && npm run dev -- --port "$FRONTEND_PORT") &
 FRONTEND_PID=$!
 
-# --- Wait for backend, then refresh ---
+# --- Wait for backend ---
 echo "Waiting for backend..."
 BACKEND_READY=0
 for i in $(seq 1 30); do
-  if curl -s "http://localhost:$BACKEND_PORT/api/health" >/dev/null 2>&1; then
+  if curl -sf "http://localhost:$BACKEND_PORT/api/health" >/dev/null 2>&1; then
     BACKEND_READY=1
-    echo "Backend ready. Triggering light refresh..."
-    if ! curl -sf -X POST "http://localhost:$BACKEND_PORT/api/refresh?mode=light" | python3 -m json.tool 2>/dev/null; then
-      echo "ERROR: Light refresh failed."
-      exit 1
-    fi
     break
   fi
   sleep 1
@@ -92,16 +119,31 @@ if [ "$BACKEND_READY" -ne 1 ]; then
   exit 1
 fi
 
-# --- Validate refresh/cache state ---
-echo "Checking cached portfolio payload..."
-if ! curl -sf "http://localhost:$BACKEND_PORT/api/portfolio" >/dev/null; then
-  echo "ERROR: Portfolio endpoint unavailable after refresh."
+# --- Wait for frontend ---
+echo "Waiting for frontend..."
+FRONTEND_READY=0
+for i in $(seq 1 30); do
+  if curl -sfI "http://localhost:$FRONTEND_PORT" >/dev/null 2>&1; then
+    FRONTEND_READY=1
+    break
+  fi
+  sleep 1
+done
+if [ "$FRONTEND_READY" -ne 1 ]; then
+  echo "ERROR: Frontend did not become ready on :$FRONTEND_PORT"
   exit 1
+fi
+
+# --- Trigger non-blocking light refresh ---
+echo "Triggering background light refresh..."
+if ! curl -sf -X POST "http://localhost:$BACKEND_PORT/api/refresh?mode=light" >/dev/null; then
+  echo "WARNING: Could not trigger background refresh. App is running, but data may be stale."
 fi
 
 echo ""
 echo "==================================="
 echo "  Open http://localhost:$FRONTEND_PORT"
+echo "  Refresh status: http://localhost:$BACKEND_PORT/api/refresh/status"
 echo "  Ctrl+C to stop"
 echo "==================================="
 

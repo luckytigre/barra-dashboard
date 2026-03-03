@@ -4,27 +4,46 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from analytics.trbc_sector import abbreviate_trbc_sector
+from analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
 from db.sqlite import cache_get
+from routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 
 
 def _normalize_universe_item(item: dict) -> dict:
-    trbc_sector = str(item.get("trbc_sector") or item.get("sector") or "")
+    trbc_economic_sector_short = str(
+        item.get("trbc_economic_sector_short")
+        or item.get("trbc_sector")
+        or item.get("sector")
+        or ""
+    )
     return {
         **item,
-        "trbc_sector": trbc_sector,
-        "trbc_sector_abbr": str(item.get("trbc_sector_abbr") or abbreviate_trbc_sector(trbc_sector)),
+        "trbc_economic_sector_short": trbc_economic_sector_short,
+        "trbc_economic_sector_short_abbr": str(
+            item.get("trbc_economic_sector_short_abbr")
+            or item.get("trbc_sector_abbr")
+            or abbreviate_trbc_economic_sector_short(trbc_economic_sector_short)
+        ),
     }
 
 
 def _normalize_search_row(row: dict) -> dict:
-    trbc_sector = str(row.get("trbc_sector") or row.get("sector") or "")
+    trbc_economic_sector_short = str(
+        row.get("trbc_economic_sector_short")
+        or row.get("trbc_sector")
+        or row.get("sector")
+        or ""
+    )
     return {
         **row,
-        "trbc_sector": trbc_sector,
-        "trbc_sector_abbr": str(row.get("trbc_sector_abbr") or abbreviate_trbc_sector(trbc_sector)),
+        "trbc_economic_sector_short": trbc_economic_sector_short,
+        "trbc_economic_sector_short_abbr": str(
+            row.get("trbc_economic_sector_short_abbr")
+            or row.get("trbc_sector_abbr")
+            or abbreviate_trbc_economic_sector_short(trbc_economic_sector_short)
+        ),
     }
 
 
@@ -32,7 +51,11 @@ def _normalize_search_row(row: dict) -> dict:
 async def get_universe_ticker(ticker: str):
     data = cache_get("universe_loadings")
     if data is None:
-        raise HTTPException(status_code=503, detail="Universe cache not ready")
+        raise_cache_not_ready(
+            cache_key="universe_loadings",
+            message="Universe cache is not ready yet. Run refresh and try again.",
+            refresh_mode="light",
+        )
     by_ticker = data.get("by_ticker") or {}
     item = by_ticker.get(str(ticker).upper().strip())
     if item is None:
@@ -47,7 +70,11 @@ async def search_universe(
 ):
     data = cache_get("universe_loadings")
     if data is None:
-        return {"query": q, "results": [], "total": 0, "_cached": False}
+        raise_cache_not_ready(
+            cache_key="universe_loadings",
+            message="Universe search is unavailable until cache is built.",
+            refresh_mode="light",
+        )
 
     needle = q.strip().upper()
     if not needle:
@@ -69,5 +96,9 @@ async def search_universe(
 async def get_universe_factors():
     data = cache_get("universe_factors")
     if data is None:
-        return {"factors": [], "factor_vols": {}, "_cached": False}
+        raise_cache_not_ready(
+            cache_key="universe_factors",
+            message="Universe factor cache is not ready yet.",
+            refresh_mode="light",
+        )
     return {**data, "_cached": True}

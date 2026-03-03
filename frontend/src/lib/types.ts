@@ -2,8 +2,8 @@ export interface Position {
   ticker: string;
   name: string;
   long_short: string;
-  trbc_sector: string;
-  trbc_sector_abbr: string;
+  trbc_economic_sector_short: string;
+  trbc_economic_sector_short_abbr: string;
   shares: number;
   price: number;
   market_value: number;
@@ -119,8 +119,8 @@ export interface RiskData {
 export interface UniverseTickerItem {
   ticker: string;
   name: string;
-  trbc_sector: string;
-  trbc_sector_abbr: string;
+  trbc_economic_sector_short: string;
+  trbc_economic_sector_short_abbr: string;
   trbc_industry_group: string;
   market_cap: number | null;
   price: number;
@@ -143,8 +143,8 @@ export interface UniverseTickerData {
 export interface UniverseSearchItem {
   ticker: string;
   name: string;
-  trbc_sector: string;
-  trbc_sector_abbr: string;
+  trbc_economic_sector_short: string;
+  trbc_economic_sector_short_abbr: string;
   trbc_industry_group?: string;
   risk_loading: number | null;
   specific_vol?: number | null;
@@ -246,6 +246,33 @@ export interface HealthForecastRealizedRow {
   realized_vol_60d: number;
 }
 
+export interface HealthCoverageFieldRow {
+  field: string;
+  data_type: string;
+  non_null_rows: number;
+  total_rows: number;
+  row_coverage_pct: number;
+  avg_date_coverage_pct: number;
+  worst_date: string | null;
+  worst_date_coverage_pct: number;
+  dates_below_80_pct_count: number;
+  avg_ticker_lifecycle_coverage_pct: number;
+  p10_ticker_lifecycle_coverage_pct: number;
+  tickers_below_80_pct_count: number;
+  coverage_score_pct: number;
+}
+
+export interface HealthCoverageTable {
+  label: string;
+  table: string;
+  row_count: number;
+  date_count: number;
+  ticker_count: number;
+  field_count: number;
+  low_coverage_field_count: number;
+  fields: HealthCoverageFieldRow[];
+}
+
 export interface HealthDiagnosticsData {
   status: string;
   as_of: string | null;
@@ -280,5 +307,82 @@ export interface HealthDiagnosticsData {
     forecast_vs_realized: HealthForecastRealizedRow[];
     rolling_avg_factor_vol: SeriesPoint[];
   };
+  section5: {
+    fundamentals: HealthCoverageTable;
+    trbc_history: HealthCoverageTable;
+  };
   _cached: boolean;
+}
+
+export interface DataTableStats {
+  table: string;
+  exists: boolean;
+  row_count?: number;
+  ticker_count?: number | null;
+  date_column?: string | null;
+  min_date?: string | null;
+  max_date?: string | null;
+  last_updated_at?: string | null;
+  last_job_run_id?: string | null;
+}
+
+export interface DataDiagnosticsData {
+  status: string;
+  database_path: string;
+  cache_db_path: string;
+  exposure_source_table: string;
+  source_tables: {
+    fundamental_history: DataTableStats;
+    trbc_history: DataTableStats;
+    price_history: DataTableStats;
+    pit_cross_section_snapshot?: DataTableStats | null;
+    barra_raw_cross_section_history?: DataTableStats | null;
+  };
+  exposure_duplicates: {
+    active_exposure_source: {
+      table: string;
+      exists: boolean;
+      duplicate_groups: number;
+      duplicate_extra_rows: number;
+    };
+  };
+  cross_section_usage: {
+    eligibility_summary: {
+      available: boolean;
+      latest?: {
+        date: string;
+        exp_date: string | null;
+        exposure_n: number;
+        structural_eligible_n: number;
+        regression_member_n: number;
+        structural_coverage_pct: number;
+        regression_coverage_pct: number;
+        alert_level: string;
+      } | null;
+      min_structural_eligible_n?: number | null;
+      max_structural_eligible_n?: number | null;
+      min_regression_member_n?: number | null;
+      max_regression_member_n?: number | null;
+    };
+    factor_cross_section: {
+      available: boolean;
+      latest?: {
+        date: string | null;
+        cross_section_n_min: number;
+        cross_section_n_max: number;
+        eligible_n_min: number;
+        eligible_n_max: number;
+      } | null;
+      min_cross_section_n?: number | null;
+      max_cross_section_n?: number | null;
+      min_eligible_n?: number | null;
+      max_eligible_n?: number | null;
+    };
+  };
+  risk_engine_meta: Record<string, unknown>;
+  cache_outputs: Array<{
+    key: string;
+    updated_at_unix: number | null;
+    updated_at_utc: string | null;
+  }>;
 }

@@ -6,19 +6,23 @@ import CovarianceHeatmap from "@/components/CovarianceHeatmap";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import TableRowToggle from "@/components/TableRowToggle";
 import HelpLabel from "@/components/HelpLabel";
+import ApiErrorState from "@/components/ApiErrorState";
 import type { FactorDetail } from "@/lib/types";
 
 type SortKey = keyof FactorDetail;
 const COLLAPSED_ROWS = 14;
 
 export default function RiskPage() {
-  const { data, isLoading } = useRisk();
+  const { data, isLoading, error } = useRisk();
   const [sortKey, setSortKey] = useState<SortKey>("pct_of_total");
   const [sortAsc, setSortAsc] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading risk data..." />;
+  }
+  if (error) {
+    return <ApiErrorState title="Risk Data Not Ready" error={error} />;
   }
 
   const details = data?.factor_details ?? [];

@@ -163,6 +163,7 @@ main {
 .dash-dropdown-item {
   display: block;
   width: 100%;
+  text-decoration: none;
   padding: 5px 10px;
   border: none;
   background: transparent;
