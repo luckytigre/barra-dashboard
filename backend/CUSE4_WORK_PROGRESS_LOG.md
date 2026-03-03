@@ -116,3 +116,10 @@
 - Validation highlights after fix:
   - `trbc_industry_country_history` now has strong country fill (`hq_country_code` present on 2,743 / 2,871 names at each refreshed snapshot date).
   - ESTU drop reason `missing_trbc` is eliminated on latest refreshed date (`2026-02-27`), confirming the country-field fix propagated correctly.
+
+### Entry 09 - Canonical TRBC Direct Sync + Sample Test Discipline
+- Updated `download_data_lseg.py` to sync TRBC rows directly into canonical `trbc_industry_country_history` during ingest (in addition to legacy staging), keyed by `sid`.
+- Scoped canonical sync to current ingest `job_run_id` so sample tests only touch sampled names.
+- Added HQ country label compatibility for LSEG response (`Country ISO Code of Headquarters`).
+- Confirmed with sample run (`AAPL, MSFT`) that canonical sync reports `trbc_rows_synced_canonical = 2` and no universe expansion occurred.
+- Re-confirmed `ticker_ric_map` remains constrained to holdings universe (`2,871` rows/tickers/RICs).
