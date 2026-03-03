@@ -6,6 +6,7 @@ import ExposureBarChart from "@/components/ExposureBarChart";
 import FactorDrilldown from "@/components/FactorDrilldown";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ExposurePositionsTable from "@/components/ExposurePositionsTable";
+import ApiErrorState from "@/components/ApiErrorState";
 
 const MODES = [
   { key: "raw", label: "Exposure" },
@@ -16,8 +17,8 @@ const MODES = [
 export default function ExposuresPage() {
   const [mode, setMode] = useState<string>("raw");
   const [selectedFactor, setSelectedFactor] = useState<string | null>(null);
-  const { data, isLoading } = useExposures(mode);
-  const { data: portfolioData, isLoading: portfolioLoading } = usePortfolio();
+  const { data, isLoading, error } = useExposures(mode);
+  const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = usePortfolio();
   const factors = data?.factors ?? [];
   const positions = portfolioData?.positions ?? [];
 
@@ -35,6 +36,9 @@ export default function ExposuresPage() {
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading exposures..." />;
+  }
+  if (error || portfolioError) {
+    return <ApiErrorState title="Exposure Data Not Ready" error={error || portfolioError} />;
   }
 
   const selected = selectedFactor

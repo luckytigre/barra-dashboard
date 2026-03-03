@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 RIC_MAP_TABLE = "ticker_ric_map"
-DEFAULT_RIC_SUFFIXES = [".O", ".N", ".A", ".K", ".P", ".PK", ""]
+DEFAULT_RIC_SUFFIXES = [".O", ".N", ".A", ".K", ".P", ".PK"]
 
 
 def ensure_ric_map_table(conn: sqlite3.Connection) -> None:
@@ -76,6 +76,16 @@ def _upsert_ric_map(conn: sqlite3.Connection, rows: list[tuple[str, str, str, in
     )
 
 
+def _is_ambiguous_plain_mapping(ticker: str, ric: str, method: str | None) -> bool:
+    """Flag mappings like QQQ->QQQ from plain probing, which are often cross-list collisions."""
+    t = str(ticker or "").strip().upper()
+    r = str(ric or "").strip().upper()
+    m = str(method or "").strip().lower()
+    if not t or not r:
+        return False
+    return ("." not in t) and ("." not in r) and m.startswith("suffix_probe:plain")
+
+
 def resolve_ric_map(
     *,
     client,
@@ -92,8 +102,32 @@ def resolve_ric_map(
     if not ticker_list:
         return {}
 
-    cached = load_ric_map(conn)
-    resolved: dict[str, str] = {t: cached[t] for t in ticker_list if t in cached}
+    cached_rows = conn.execute(
+        f"SELECT ticker, ric, resolution_method FROM {RIC_MAP_TABLE}"
+    ).fetchall()
+    cached: dict[str, tuple[str, str]] = {}
+    invalid_plain: set[str] = set()
+    for t_raw, r_raw, m_raw in cached_rows:
+        if not t_raw or not r_raw:
+            continue
+        t = str(t_raw).strip().upper()
+        r = str(r_raw).strip().upper()
+        m = str(m_raw or "")
+        if _is_ambiguous_plain_mapping(t, r, m):
+            invalid_plain.add(t)
+            continue
+        cached[t] = (r, m)
+
+    if invalid_plain:
+        updated_at = datetime.now(timezone.utc).isoformat()
+        bad_rows = [
+            (t, t, "invalid_plain_mapping", 0, as_of_date, source, updated_at)
+            for t in sorted(invalid_plain)
+        ]
+        _upsert_ric_map(conn, bad_rows)
+        conn.commit()
+
+    resolved: dict[str, str] = {t: cached[t][0] for t in ticker_list if t in cached}
     unresolved = [t for t in ticker_list if t not in resolved]
     if not unresolved:
         return resolved

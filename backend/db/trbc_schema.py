@@ -39,9 +39,66 @@ def _index_exists(conn: sqlite3.Connection, index_name: str) -> bool:
     return row is not None
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = _table_columns(conn, table)
+    if column in cols:
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
+def _rename_column_if_exists(
+    conn: sqlite3.Connection,
+    table: str,
+    old_column: str,
+    new_column: str,
+) -> None:
+    cols = _table_columns(conn, table)
+    if old_column not in cols or new_column in cols:
+        return
+    try:
+        conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old_column} TO {new_column}")
+    except sqlite3.OperationalError as exc:
+        msg = str(exc).lower()
+        if "no such column" in msg or "duplicate column name" in msg:
+            return
+        raise
+
+
 def pick_trbc_industry_column(columns: Iterable[str]) -> str | None:
     cols = set(columns)
     for col in ("trbc_industry_group", "gics_industry_group", "industry_group"):
+        if col in cols:
+            return col
+    return None
+
+
+def pick_trbc_economic_sector_short_column(columns: Iterable[str]) -> str | None:
+    cols = set(columns)
+    for col in ("trbc_economic_sector_short", "trbc_sector", "trbc_economic_sector", "sector"):
+        if col in cols:
+            return col
+    return None
+
+
+def pick_trbc_business_sector_column(columns: Iterable[str]) -> str | None:
+    cols = set(columns)
+    for col in ("trbc_business_sector", "business_sector"):
+        if col in cols:
+            return col
+    return None
+
+
+def pick_trbc_industry_name_column(columns: Iterable[str]) -> str | None:
+    cols = set(columns)
+    for col in ("trbc_industry", "industry_name"):
+        if col in cols:
+            return col
+    return None
+
+
+def pick_trbc_activity_column(columns: Iterable[str]) -> str | None:
+    cols = set(columns)
+    for col in ("trbc_activity", "activity_name"):
         if col in cols:
             return col
     return None
@@ -54,37 +111,40 @@ def ensure_trbc_naming(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE gics_industry_history RENAME TO trbc_industry_history")
 
     # Rename history column.
-    hist_cols = _table_columns(conn, "trbc_industry_history")
-    if "gics_industry_group" in hist_cols and "trbc_industry_group" not in hist_cols:
-        conn.execute(
-            "ALTER TABLE trbc_industry_history "
-            "RENAME COLUMN gics_industry_group TO trbc_industry_group"
-        )
-
-    # Rename exposure column.
-    exp_cols = _table_columns(conn, "barra_exposures")
-    if "gics_industry_group" in exp_cols and "trbc_industry_group" not in exp_cols:
-        conn.execute(
-            "ALTER TABLE barra_exposures "
-            "RENAME COLUMN gics_industry_group TO trbc_industry_group"
-        )
+    _rename_column_if_exists(
+        conn,
+        "trbc_industry_history",
+        "gics_industry_group",
+        "trbc_industry_group",
+    )
 
     # Normalize fundamental snapshots naming.
-    fund_cols = _table_columns(conn, "fundamental_snapshots")
-    if "sector" in fund_cols and "trbc_sector" not in fund_cols:
-        conn.execute(
-            "ALTER TABLE fundamental_snapshots "
-            "RENAME COLUMN sector TO trbc_sector"
-        )
-        fund_cols = _table_columns(conn, "fundamental_snapshots")
-    if "industry" in fund_cols and "trbc_industry_group" not in fund_cols:
-        conn.execute(
-            "ALTER TABLE fundamental_snapshots "
-            "RENAME COLUMN industry TO trbc_industry_group"
-        )
+    _rename_column_if_exists(
+        conn,
+        "fundamental_snapshots",
+        "sector",
+        "trbc_economic_sector_short",
+    )
+    _rename_column_if_exists(
+        conn,
+        "fundamental_snapshots",
+        "trbc_sector",
+        "trbc_economic_sector_short",
+    )
+    _rename_column_if_exists(
+        conn,
+        "fundamental_snapshots",
+        "industry",
+        "trbc_industry_group",
+    )
 
     # Normalize historical index names.
     if _table_exists(conn, "trbc_industry_history"):
+        _ensure_column(conn, "trbc_industry_history", "trbc_economic_sector", "TEXT")
+        _ensure_column(conn, "trbc_industry_history", "trbc_business_sector", "TEXT")
+        _ensure_column(conn, "trbc_industry_history", "trbc_industry_group", "TEXT")
+        _ensure_column(conn, "trbc_industry_history", "trbc_industry", "TEXT")
+        _ensure_column(conn, "trbc_industry_history", "trbc_activity", "TEXT")
         if _index_exists(conn, "idx_gics_industry_history_date"):
             conn.execute("DROP INDEX idx_gics_industry_history_date")
         if _index_exists(conn, "idx_gics_industry_history_ticker"):
@@ -97,3 +157,6 @@ def ensure_trbc_naming(conn: sqlite3.Connection) -> None:
             "CREATE INDEX IF NOT EXISTS idx_trbc_industry_history_ticker "
             "ON trbc_industry_history(ticker)"
         )
+
+    # fundamental_snapshots is intentionally TRBC-free; TRBC source of truth
+    # lives in trbc_industry_history and is PIT-joined downstream.

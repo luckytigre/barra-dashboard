@@ -1,6 +1,7 @@
 """Environment variable loading for Barra Dashboard backend."""
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,8 +14,27 @@ PG_DB = os.getenv("PG_DB", "portfolio_cold_dev")
 PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "")
 
-# SQLite cache
-SQLITE_PATH = os.getenv("SQLITE_CACHE_PATH", "cache.db")
+# Storage paths
+BASE_DIR = Path(__file__).resolve().parent
+APP_DATA_DIR = Path(os.getenv("APP_DATA_DIR", str(BASE_DIR))).expanduser()
+if not APP_DATA_DIR.is_absolute():
+    APP_DATA_DIR = (BASE_DIR / APP_DATA_DIR).resolve()
+APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_data_path(env_name: str, default_filename: str) -> str:
+    raw = os.getenv(env_name, "").strip()
+    if raw:
+        p = Path(raw).expanduser()
+        if not p.is_absolute():
+            p = (APP_DATA_DIR / p).resolve()
+        return str(p)
+    return str((APP_DATA_DIR / default_filename).resolve())
+
+
+# SQLite/cache + analytics source DB
+SQLITE_PATH = _resolve_data_path("SQLITE_CACHE_PATH", "cache.db")
+DATA_DB_PATH = _resolve_data_path("DATA_DB_PATH", "data.db")
 
 # Analytics
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "504"))  # ~2 years trading days

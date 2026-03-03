@@ -9,7 +9,7 @@ import pandas as pd
 
 from barra.descriptors import FULL_STYLE_FACTORS
 
-# Column name → human label for style factors from barra_exposures table
+# Column name -> human label for style factors from raw cross-section history
 STYLE_COLUMN_TO_LABEL: dict[str, str] = {
     "beta_score": "Beta",
     "momentum_score": "Momentum",

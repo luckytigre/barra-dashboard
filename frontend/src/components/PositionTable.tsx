@@ -12,7 +12,7 @@ type SortKey =
   | "ticker"
   | "name"
   | "long_short"
-  | "trbc_sector"
+  | "trbc_economic_sector_short"
   | "shares"
   | "price"
   | "market_value"
@@ -64,7 +64,7 @@ export default function PositionTable({ positions }: PositionTableProps) {
             <th onClick={() => handleSort("ticker")}>Ticker{arrow("ticker")}</th>
             <th onClick={() => handleSort("name")}>Name{arrow("name")}</th>
             <th onClick={() => handleSort("long_short")}>Long/Short{arrow("long_short")}</th>
-            <th onClick={() => handleSort("trbc_sector")}>TRBC Sector{arrow("trbc_sector")}</th>
+            <th onClick={() => handleSort("trbc_economic_sector_short")}>TRBC Sector{arrow("trbc_economic_sector_short")}</th>
             <th className="text-right" onClick={() => handleSort("shares")}>Share Count{arrow("shares")}</th>
             <th className="text-right" onClick={() => handleSort("price")}>Share Price{arrow("price")}</th>
             <th className="text-right" onClick={() => handleSort("market_value")}>Value{arrow("market_value")}</th>
@@ -77,13 +77,13 @@ export default function PositionTable({ positions }: PositionTableProps) {
           {visibleRows.map((pos) => (
             <tr key={pos.ticker}>
               <td>{pos.ticker}</td>
-              <td>{pos.name || pos.ticker}</td>
+              <td>{pos.name && pos.name.trim().length > 0 ? pos.name : "—"}</td>
               <td>
                 <span className={pos.long_short === "SHORT" ? "negative" : "positive"}>
                   {pos.long_short}
                 </span>
               </td>
-              <td>{pos.trbc_sector || "—"}</td>
+              <td>{pos.trbc_economic_sector_short || "—"}</td>
               <td className="text-right">{fmtShares(pos.shares)}</td>
               <td className="text-right">{fmt(pos.price)}</td>
               <td className="text-right">{fmt(pos.market_value)}</td>

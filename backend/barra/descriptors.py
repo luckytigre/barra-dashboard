@@ -204,7 +204,7 @@ def canonicalize_style_scores(
     """Clean and canonicalize already-constructed style scores cross-sectionally.
 
     This is useful when style scores are loaded from storage (for example
-    `barra_exposures`) and we want a consistent preprocessing/orthogonalization
+    `barra_raw_cross_section_history`) and we want a consistent preprocessing/orthogonalization
     pass before factor-return estimation.
     """
     if style_scores is None or style_scores.empty:

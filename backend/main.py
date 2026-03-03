@@ -9,6 +9,7 @@ from routes.health import router as health_router
 from routes.risk import router as risk_router
 from routes.refresh import router as refresh_router
 from routes.universe import router as universe_router
+from routes.data import router as data_router
 
 app = FastAPI(title="Barra Factor Risk Dashboard", version="0.1.0")
 
@@ -25,9 +26,17 @@ app.include_router(health_router, prefix="/api")
 app.include_router(risk_router, prefix="/api")
 app.include_router(refresh_router, prefix="/api")
 app.include_router(universe_router, prefix="/api")
+app.include_router(data_router, prefix="/api")
 
 
 @app.get("/api/health")
 async def health():
     from db.sqlite import get_cache_age
-    return {"status": "ok", "cache_age_seconds": get_cache_age()}
+    try:
+        return {"status": "ok", "cache_age_seconds": get_cache_age()}
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "status": "degraded",
+            "cache_age_seconds": None,
+            "error": {"type": type(exc).__name__, "message": str(exc)},
+        }

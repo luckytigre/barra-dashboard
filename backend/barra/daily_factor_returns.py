@@ -27,15 +27,16 @@ from barra.eligibility import (
 from barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
 from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
 from barra.wls_regression import estimate_factor_returns_two_phase
+from trading_calendar import filter_xnys_sessions, non_xnys_dates, previous_or_same_xnys_session
 
 logger = logging.getLogger(__name__)
 
-# Style score columns in the barra_exposures table
+# Style score columns in the raw cross-section table
 STYLE_SCORE_COLS = list(STYLE_COLUMN_TO_LABEL.keys())
 RETURNS_WINSOR_PCT = 0.05
 MIN_CROSS_SECTION_SIZE = 30
 MIN_ELIGIBLE_COVERAGE = 0.60
-CACHE_METHOD_VERSION = "v9_strict_eligibility_weekly_lagged_2026_03_02"
+CACHE_METHOD_VERSION = "v10_trbc_economic_sector_short_rename_2026_03_02"
 
 _DAILY_FR_SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_factor_returns (
@@ -82,7 +83,7 @@ CREATE TABLE IF NOT EXISTS daily_universe_eligibility_summary (
     alert_level TEXT NOT NULL DEFAULT '',
     missing_style_n INTEGER NOT NULL DEFAULT 0,
     missing_market_cap_n INTEGER NOT NULL DEFAULT 0,
-    missing_trbc_sector_n INTEGER NOT NULL DEFAULT 0,
+    missing_trbc_economic_sector_short_n INTEGER NOT NULL DEFAULT 0,
     missing_trbc_industry_n INTEGER NOT NULL DEFAULT 0,
     non_equity_n INTEGER NOT NULL DEFAULT 0,
     missing_return_n INTEGER NOT NULL DEFAULT 0
@@ -110,26 +111,59 @@ def _winsorize_cross_section(values: np.ndarray, pct: float) -> np.ndarray:
 
 def _shift_date_by_days(date_key: str, days: int) -> str:
     shift = max(0, int(days))
-    if shift <= 0:
-        return str(date_key)
     ts = pd.to_datetime(str(date_key), errors="coerce")
     if pd.isna(ts):
         return str(date_key)
-    return str((ts - pd.Timedelta(days=shift)).date())
+    shifted = ts if shift <= 0 else (ts - pd.Timedelta(days=shift))
+    return previous_or_same_xnys_session(shifted)
+
+
+def _purge_non_session_rows(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+) -> int:
+    rows = conn.execute(
+        f"SELECT DISTINCT {date_col} FROM {table} WHERE {date_col} IS NOT NULL"
+    ).fetchall()
+    dates = [str(r[0]) for r in rows if r and r[0] is not None]
+    invalid = non_xnys_dates(dates)
+    if not invalid:
+        return 0
+
+    deleted = 0
+    chunk = 500
+    for i in range(0, len(invalid), chunk):
+        part = invalid[i : i + chunk]
+        placeholders = ",".join("?" for _ in part)
+        cur = conn.execute(
+            f"DELETE FROM {table} WHERE {date_col} IN ({placeholders})",
+            part,
+        )
+        deleted += int(cur.rowcount or 0)
+    return deleted
 
 
 def _load_prices(data_db: Path) -> pd.DataFrame:
     """Load all daily close prices."""
     conn = sqlite3.connect(str(data_db))
     df = pd.read_sql_query(
-        "SELECT ticker, date, close FROM prices_daily ORDER BY ticker, date",
+        "SELECT ticker, date, close, source, updated_at FROM prices_daily ORDER BY ticker, date",
         conn,
     )
     conn.close()
     df["ticker"] = df["ticker"].astype(str).str.upper()
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date.astype("string")
     df["close"] = pd.to_numeric(df["close"], errors="coerce")
-    return df.dropna(subset=["ticker", "date", "close"])
+    df["source"] = df.get("source", pd.Series(index=df.index, dtype="string")).astype("string")
+    df["updated_at"] = pd.to_datetime(df.get("updated_at"), errors="coerce")
+    df = df.dropna(subset=["ticker", "date", "close"])
+    # Deduplicate repeated ingests by taking preferred source + latest update per (ticker, date).
+    df["source_priority"] = np.where(df["source"].str.lower() == "lseg_toolkit", 1, 0)
+    df = df.sort_values(["ticker", "date", "source_priority", "updated_at"], ascending=[True, True, False, False])
+    df = df.drop_duplicates(subset=["ticker", "date"], keep="first")
+    return df[["ticker", "date", "close"]]
 
 
 def _load_cached_dates(cache_db: Path) -> set[str]:
@@ -179,6 +213,25 @@ def _ensure_cache_version(cache_db: Path):
             current_version,
             CACHE_METHOD_VERSION,
         )
+    pruned = {
+        "daily_factor_returns": _purge_non_session_rows(
+            conn, table="daily_factor_returns", date_col="date"
+        ),
+        "daily_specific_residuals": _purge_non_session_rows(
+            conn, table="daily_specific_residuals", date_col="date"
+        ),
+        "daily_universe_eligibility_summary": _purge_non_session_rows(
+            conn, table="daily_universe_eligibility_summary", date_col="date"
+        ),
+    }
+    if any(pruned.values()):
+        conn.commit()
+        logger.info(
+            "Pruned non-session rows from cache: factor_returns=%s residuals=%s eligibility=%s",
+            pruned["daily_factor_returns"],
+            pruned["daily_specific_residuals"],
+            pruned["daily_universe_eligibility_summary"],
+        )
     conn.close()
 
 
@@ -221,7 +274,7 @@ def _save_daily_eligibility_summary(cache_db: Path, rows: list[dict]) -> None:
         INSERT OR REPLACE INTO daily_universe_eligibility_summary (
             date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
             structural_coverage, regression_coverage, drop_pct_from_prev, alert_level,
-            missing_style_n, missing_market_cap_n, missing_trbc_sector_n,
+            missing_style_n, missing_market_cap_n, missing_trbc_economic_sector_short_n,
             missing_trbc_industry_n, non_equity_n, missing_return_n
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
@@ -238,7 +291,7 @@ def _save_daily_eligibility_summary(cache_db: Path, rows: list[dict]) -> None:
                 str(r.get("alert_level") or ""),
                 int(r.get("missing_style_n", 0)),
                 int(r.get("missing_market_cap_n", 0)),
-                int(r.get("missing_trbc_sector_n", 0)),
+                int(r.get("missing_trbc_economic_sector_short_n", 0)),
                 int(r.get("missing_trbc_industry_n", 0)),
                 int(r.get("non_equity_n", 0)),
                 int(r.get("missing_return_n", 0)),
@@ -331,6 +384,7 @@ def compute_daily_factor_returns(
     daily_returns = prices_wide.pct_change(fill_method=None)  # r_i(t) = close(t)/close(t-1) - 1
     daily_returns = daily_returns.iloc[1:]  # drop first NaN row
     trading_dates = sorted(str(d) for d in daily_returns.index.tolist())
+    trading_dates = filter_xnys_sessions(trading_dates)
     daily_returns.index = daily_returns.index.astype(str)
 
     if lookback_days > 0:
@@ -390,7 +444,7 @@ def compute_daily_factor_returns(
                 "alert_level": "",
                 "missing_style_n": 0,
                 "missing_market_cap_n": 0,
-                "missing_trbc_sector_n": 0,
+                "missing_trbc_economic_sector_short_n": 0,
                 "missing_trbc_industry_n": 0,
                 "non_equity_n": 0,
                 "missing_return_n": 0,
@@ -409,7 +463,7 @@ def compute_daily_factor_returns(
         exploded = no_struct.str.split("|").explode()
         missing_style_n = int((exploded == "missing_style").sum())
         missing_market_cap_n = int((exploded == "missing_market_cap").sum())
-        missing_trbc_sector_n = int((exploded == "missing_trbc_sector").sum())
+        missing_trbc_economic_sector_short_n = int((exploded == "missing_trbc_economic_sector_short").sum())
         missing_trbc_industry_n = int((exploded == "missing_trbc_industry").sum())
         non_equity_n = int((exploded == "non_equity").sum())
         missing_return_n = int((structural_mask & ~has_return).sum())
@@ -446,7 +500,7 @@ def compute_daily_factor_returns(
             "alert_level": alert_level,
             "missing_style_n": missing_style_n,
             "missing_market_cap_n": missing_market_cap_n,
-            "missing_trbc_sector_n": missing_trbc_sector_n,
+            "missing_trbc_economic_sector_short_n": missing_trbc_economic_sector_short_n,
             "missing_trbc_industry_n": missing_trbc_industry_n,
             "non_equity_n": non_equity_n,
             "missing_return_n": missing_return_n,

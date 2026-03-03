@@ -1,15 +1,11 @@
-"""Backfill historical TRBC industry groups from LSEG for all exposure dates.
-
-This script creates and populates `trbc_industry_history` and then syncs
-`barra_exposures.trbc_industry_group` so each (ticker, as_of_date) cross-section
-has a point-in-time industry classification.
-"""
+"""Backfill historical TRBC classifications from LSEG for raw cross-section dates."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import os
+import random
 import sqlite3
 import sys
 import time
@@ -17,22 +13,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 
-from lseg_ric_resolver import ensure_ric_map_table, load_ric_map, resolve_ric_map
 from db.trbc_schema import ensure_trbc_naming
+from lseg_ric_resolver import ensure_ric_map_table, load_ric_map, resolve_ric_map
+from trading_calendar import filter_xnys_sessions, previous_or_same_xnys_session
 
-DEFAULT_DB = Path(__file__).resolve().parent.parent / "data.db"
+_DB_RAW = Path(os.getenv("DATA_DB_PATH", "data.db")).expanduser()
+DEFAULT_DB = _DB_RAW if _DB_RAW.is_absolute() else (Path(__file__).resolve().parent.parent / _DB_RAW)
 LSEG_BATCH_SIZE = 500
 TABLE = "trbc_industry_history"
 SQLITE_TIMEOUT_SECONDS = 120
-SQLITE_BUSY_TIMEOUT_MS = 120000
-SQLITE_MAX_RETRIES = 6
-SQLITE_RETRY_SLEEP_SECONDS = 2.0
+SQLITE_BUSY_TIMEOUT_MS = 300000
+SQLITE_MAX_RETRIES = 60
+SQLITE_RETRY_SLEEP_SECONDS = 0.5
 
 
 def _load_lseg_client():
@@ -60,6 +57,30 @@ def _to_local_ticker(ric: str) -> str:
     return base.split(".", 1)[0] if base else ""
 
 
+def _connect_db(db_path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    return conn
+
+
+def _existing_cols(conn: sqlite3.Connection, table: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return {str(r[1]) for r in rows}
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
+    cols = _existing_cols(conn, table)
+    if column in cols:
+        return
+    try:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
+
+
 def _ensure_table(conn: sqlite3.Connection) -> None:
     ensure_trbc_naming(conn)
     conn.execute(
@@ -76,12 +97,14 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    for col in ["trbc_business_sector", "trbc_industry", "trbc_activity"]:
+        _ensure_column(conn, TABLE, col, "TEXT")
     conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{TABLE}_date ON {TABLE}(as_of_date)")
     conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{TABLE}_ticker ON {TABLE}(ticker)")
 
 
 def _resolve_dates(conn: sqlite3.Connection, start_date: str | None, end_date: str | None) -> list[str]:
-    sql = "SELECT DISTINCT as_of_date FROM barra_exposures"
+    sql = "SELECT DISTINCT as_of_date FROM barra_raw_cross_section_history"
     clauses: list[str] = []
     params: list[Any] = []
     if start_date:
@@ -94,11 +117,12 @@ def _resolve_dates(conn: sqlite3.Connection, start_date: str | None, end_date: s
         sql += " WHERE " + " AND ".join(clauses)
     sql += " ORDER BY as_of_date"
     rows = conn.execute(sql, params).fetchall()
-    return [str(r[0]) for r in rows if r and r[0]]
+    out = [str(r[0]) for r in rows if r and r[0]]
+    return filter_xnys_sessions(out)
 
 
 def _resolve_tickers(conn: sqlite3.Connection) -> list[str]:
-    rows = conn.execute("SELECT DISTINCT ticker FROM barra_exposures ORDER BY ticker").fetchall()
+    rows = conn.execute("SELECT DISTINCT ticker FROM barra_raw_cross_section_history ORDER BY ticker").fetchall()
     return [str(r[0]).strip().upper() for r in rows if r and str(r[0]).strip()]
 
 
@@ -109,118 +133,32 @@ def _insert_history_rows(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -
         (
             r["ticker"],
             r["as_of_date"],
-            r["trbc_industry_group"],
-            r["trbc_economic_sector"],
+            r.get("trbc_economic_sector"),
+            r.get("trbc_business_sector"),
+            r.get("trbc_industry_group"),
+            r.get("trbc_industry"),
+            r.get("trbc_activity"),
             r["source"],
             r["job_run_id"],
             r["updated_at"],
         )
         for r in rows
     ]
+    sql = f"""
+        INSERT OR REPLACE INTO {TABLE}
+        (ticker, as_of_date, trbc_economic_sector, trbc_business_sector, trbc_industry_group, trbc_industry, trbc_activity, source, job_run_id, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
     for attempt in range(SQLITE_MAX_RETRIES):
         try:
-            conn.executemany(
-                f"""
-                INSERT OR REPLACE INTO {TABLE}
-                (ticker, as_of_date, trbc_industry_group, trbc_economic_sector, source, job_run_id, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                payload,
-            )
+            conn.executemany(sql, payload)
             break
         except sqlite3.OperationalError as exc:
             if "locked" not in str(exc).lower() or attempt + 1 >= SQLITE_MAX_RETRIES:
                 raise
-            time.sleep(SQLITE_RETRY_SLEEP_SECONDS * (attempt + 1))
+            backoff = SQLITE_RETRY_SLEEP_SECONDS * (1 + (attempt % 6))
+            time.sleep(backoff + random.uniform(0.0, 0.25))
     return len(rows)
-
-
-def _connect_db(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path), timeout=SQLITE_TIMEOUT_SECONDS)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
-    return conn
-
-
-def _sync_barra_exposures(conn: sqlite3.Connection) -> dict[str, int]:
-    """Update barra_exposures.trbc_industry_group from history with robust fill."""
-    ensure_trbc_naming(conn)
-    exp_df = pd.read_sql_query(
-        """
-        SELECT rowid, ticker, as_of_date, trbc_industry_group
-        FROM barra_exposures
-        ORDER BY ticker, as_of_date
-        """,
-        conn,
-    )
-    if exp_df.empty:
-        return {"updated_rows": 0}
-
-    hist_df = pd.read_sql_query(
-        f"""
-        SELECT ticker, as_of_date, trbc_industry_group
-        FROM {TABLE}
-        WHERE trbc_industry_group IS NOT NULL
-          AND TRIM(trbc_industry_group) <> ''
-        ORDER BY ticker, as_of_date
-        """,
-        conn,
-    )
-    if hist_df.empty:
-        return {"updated_rows": 0}
-
-    exp_df["ticker"] = exp_df["ticker"].astype(str).str.upper()
-    exp_df["as_of_date"] = exp_df["as_of_date"].astype(str)
-    exp_df["existing"] = (
-        exp_df["trbc_industry_group"]
-        .astype(str)
-        .str.strip()
-        .replace({"": np.nan, "None": np.nan, "nan": np.nan})
-    )
-    hist_df["ticker"] = hist_df["ticker"].astype(str).str.upper()
-    hist_df["as_of_date"] = hist_df["as_of_date"].astype(str)
-    hist_df["trbc_industry_group"] = (
-        hist_df["trbc_industry_group"]
-        .astype(str)
-        .str.strip()
-        .replace({"": np.nan, "None": np.nan, "nan": np.nan})
-    )
-    hist_df = hist_df.dropna(subset=["trbc_industry_group"])
-
-    exact = exp_df.merge(
-        hist_df,
-        on=["ticker", "as_of_date"],
-        how="left",
-        suffixes=("", "_hist"),
-    )
-    exact["resolved"] = exact["trbc_industry_group_hist"].where(
-        exact["trbc_industry_group_hist"].notna(),
-        exact["existing"],
-    )
-    exact["resolved"] = exact["resolved"].astype("object")
-
-    # Fill unresolved points by nearest available history within ticker chronology.
-    for ticker, idx in exact.groupby("ticker", sort=False).groups.items():
-        loc = list(idx)
-        grp = exact.loc[loc].sort_values("as_of_date")
-        filled = grp["resolved"].replace({"": np.nan}).ffill().bfill()
-        exact.loc[grp.index, "resolved"] = filled.to_numpy()
-
-    exact["resolved"] = exact["resolved"].replace({"": np.nan}).astype("object")
-    exact["current"] = exact["existing"].replace({"": np.nan}).astype("object")
-    to_update = exact.loc[
-        exact["resolved"].notna() & (exact["resolved"] != exact["current"]),
-        ["rowid", "resolved"],
-    ]
-    if to_update.empty:
-        return {"updated_rows": 0}
-
-    conn.executemany(
-        "UPDATE barra_exposures SET trbc_industry_group = ? WHERE rowid = ?",
-        [(str(r["resolved"]), int(r["rowid"])) for _, r in to_update.iterrows()],
-    )
-    return {"updated_rows": int(len(to_update))}
 
 
 def run_backfill(
@@ -234,11 +172,14 @@ def run_backfill(
     skip_sync: bool = False,
 ) -> dict[str, Any]:
     LsegClient = _load_lseg_client()
+
     conn = _connect_db(db_path)
     try:
         _ensure_table(conn)
         ensure_ric_map_table(conn)
-        dates = _resolve_dates(conn, start_date=start_date, end_date=end_date)
+        norm_start = previous_or_same_xnys_session(start_date) if start_date else None
+        norm_end = previous_or_same_xnys_session(end_date) if end_date else None
+        dates = _resolve_dates(conn, start_date=norm_start, end_date=norm_end)
         tickers = _resolve_tickers(conn)
         if not dates or not tickers:
             return {"status": "no-op", "dates": 0, "tickers": 0}
@@ -268,7 +209,7 @@ def run_backfill(
     updated_at = datetime.now(timezone.utc).isoformat()
 
     total_rows = 0
-    print(f"Backfilling historical industry groups for {len(tickers)} tickers across {len(dates)} dates...")
+    print(f"Backfilling historical TRBC for {len(tickers)} tickers across {len(dates)} dates...")
     with LsegClient() as client:
         conn = _connect_db(db_path)
         try:
@@ -281,7 +222,7 @@ def run_backfill(
                 tickers=tickers,
                 as_of_date=probe_date,
                 source="lseg_backfill",
-                suffixes=[ric_suffix, ".N", ".O", ".A", ".K", ".P", ".PK", ""],
+                suffixes=[ric_suffix, ".N", ".O", ".A", ".K", ".P", ".PK"],
                 batch_size=LSEG_BATCH_SIZE,
             )
             universe = [ticker_to_ric[t] for t in tickers if t in ticker_to_ric]
@@ -295,7 +236,10 @@ def run_backfill(
                         batch,
                         fields=[
                             "TR.TRBCEconomicSector",
+                            "TR.TRBCBusinessSector",
                             "TR.TRBCIndustryGroup",
+                            "TR.TRBCIndustry",
+                            "TR.TRBCActivity",
                         ],
                         as_of_date=as_of,
                     )
@@ -304,39 +248,47 @@ def run_backfill(
 
                     instrument_col = _pick_col(part, ["Instrument"])
                     sector_col = _pick_col(part, ["TRBC Economic Sector Name", "TRBC Economic Sector"])
-                    industry_col = _pick_col(part, ["TRBC Industry Group Name", "TRBC Industry Group"])
+                    biz_col = _pick_col(part, ["TRBC Business Sector Name", "TRBC Business Sector"])
+                    group_col = _pick_col(part, ["TRBC Industry Group Name", "TRBC Industry Group"])
+                    industry_col = _pick_col(part, ["TRBC Industry Name", "TRBC Industry"])
+                    activity_col = _pick_col(part, ["TRBC Activity Name", "TRBC Activity"])
                     if not instrument_col:
                         continue
+
                     for _, row in part.iterrows():
                         instrument = str(row.get(instrument_col) or "").strip().upper()
                         ticker = ric_to_ticker.get(instrument) or _to_local_ticker(instrument)
                         if not ticker:
                             continue
-                        industry = row.get(industry_col) if industry_col else None
-                        sector = row.get(sector_col) if sector_col else None
-                        trbc_industry_group = None if pd.isna(industry) else str(industry).strip()
-                        if trbc_industry_group in {"", "None", "nan"}:
-                            trbc_industry_group = None
+
+                        def _txt(v: Any) -> str | None:
+                            if v is None or pd.isna(v):
+                                return None
+                            s = str(v).strip()
+                            if not s or s.lower() in {"nan", "none"}:
+                                return None
+                            return s
+
                         rows.append(
                             {
                                 "ticker": ticker,
                                 "as_of_date": as_of,
-                                "trbc_industry_group": trbc_industry_group,
-                                "trbc_economic_sector": None if pd.isna(sector) else str(sector),
+                                "trbc_economic_sector": _txt(row.get(sector_col) if sector_col else None),
+                                "trbc_business_sector": _txt(row.get(biz_col) if biz_col else None),
+                                "trbc_industry_group": _txt(row.get(group_col) if group_col else None),
+                                "trbc_industry": _txt(row.get(industry_col) if industry_col else None),
+                                "trbc_activity": _txt(row.get(activity_col) if activity_col else None),
                                 "source": "lseg_toolkit_backfill",
                                 "job_run_id": job_run_id,
                                 "updated_at": updated_at,
                             }
                         )
+
                 inserted = _insert_history_rows(conn, rows)
                 total_rows += inserted
                 conn.commit()
                 print(f"  {date_idx:>3}/{len(dates)} {as_of}: upserted {inserted:,} rows")
 
-            sync_stats = {"updated_rows": 0}
-            if not skip_sync:
-                sync_stats = _sync_barra_exposures(conn)
-                conn.commit()
             ric_map_size = conn.execute("SELECT COUNT(*) FROM ticker_ric_map").fetchone()[0]
         finally:
             conn.close()
@@ -346,7 +298,6 @@ def run_backfill(
         "dates": len(dates),
         "tickers": len(tickers),
         "history_rows_upserted": total_rows,
-        "barra_exposures_updates": int(sync_stats.get("updated_rows", 0)),
         "ticker_ric_map_size": int(ric_map_size or 0),
         "db_path": str(db_path),
         "job_run_id": job_run_id,
@@ -359,14 +310,14 @@ def run_backfill(
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Backfill historical TRBC industry groups from LSEG.")
+    p = argparse.ArgumentParser(description="Backfill historical TRBC from LSEG.")
     p.add_argument("--db-path", default=str(DEFAULT_DB), help="Path to target SQLite DB")
     p.add_argument("--ric-suffix", default=".O", help="Suffix when converting plain tickers to RICs")
     p.add_argument("--start-date", default=None, help="Optional YYYY-MM-DD lower bound for as_of_date")
     p.add_argument("--end-date", default=None, help="Optional YYYY-MM-DD upper bound for as_of_date")
     p.add_argument("--shard-count", type=int, default=1, help="Total number of ticker shards")
     p.add_argument("--shard-index", type=int, default=0, help="Zero-based shard index to process")
-    p.add_argument("--skip-sync", action="store_true", help="Skip syncing barra_exposures from history after backfill")
+    p.add_argument("--skip-sync", action="store_true", help="Deprecated no-op (kept for backward CLI compatibility).")
     return p.parse_args()
 
 

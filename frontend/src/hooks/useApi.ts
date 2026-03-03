@@ -10,9 +10,39 @@ import type {
   UniverseSearchData,
   UniverseFactorsData,
   HealthDiagnosticsData,
+  DataDiagnosticsData,
 } from "@/lib/types";
 
 const REQUEST_TIMEOUT_MS = 30000;
+
+export class ApiError extends Error {
+  status: number;
+  url: string;
+  detail: unknown;
+
+  constructor(status: number, url: string, detail: unknown) {
+    const message =
+      typeof detail === "string"
+        ? detail
+        : (detail as { message?: string } | null)?.message || `Request failed (${status}) for ${url}`;
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.url = url;
+    this.detail = detail;
+  }
+}
+
+async function parseErrorDetail(res: Response): Promise<unknown> {
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    const payload = JSON.parse(text) as { detail?: unknown };
+    return payload?.detail ?? payload;
+  } catch {
+    return text;
+  }
+}
 
 const fetcher = async (url: string) => {
   const controller = new AbortController();
@@ -20,7 +50,8 @@ const fetcher = async (url: string) => {
   try {
     const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) {
-      throw new Error(`Request failed (${res.status}) for ${url}`);
+      const detail = await parseErrorDetail(res);
+      throw new ApiError(res.status, url, detail);
     }
     return res.json();
   } finally {
@@ -77,7 +108,15 @@ export function useHealthDiagnostics() {
   return useSWR<HealthDiagnosticsData>("/api/health/diagnostics", fetcher, SWR_OPTS);
 }
 
+export function useDataDiagnostics() {
+  return useSWR<DataDiagnosticsData>("/api/data/diagnostics", fetcher, SWR_OPTS);
+}
+
 export async function triggerRefresh(mode: "full" | "light" = "full"): Promise<{ status: string }> {
   const res = await fetch(`/api/refresh?mode=${mode}`, { method: "POST" });
+  if (!res.ok) {
+    const detail = await parseErrorDetail(res);
+    throw new ApiError(res.status, `/api/refresh?mode=${mode}`, detail);
+  }
   return res.json();
 }

@@ -14,8 +14,11 @@ from typing import Any
 import pandas as pd
 
 from db.trbc_schema import ensure_trbc_naming
+from trading_calendar import previous_or_same_xnys_session
 
-DATA_DB = Path(__file__).resolve().parent.parent / "data.db"
+import config
+
+DATA_DB = Path(config.DATA_DB_PATH)
 
 
 def _coalesce_series(df: pd.DataFrame, *cols: str, default: str = "") -> pd.Series:
@@ -58,10 +61,11 @@ def _table_exists(table: str) -> bool:
 
 
 def _resolve_latest_barra_tuple() -> dict[str, str] | None:
+    table = _exposure_source_table_required()
     rows = _fetch_rows(
-        """
+        f"""
         SELECT as_of_date, barra_model_version, descriptor_schema_version, assumption_set_version
-        FROM barra_exposures
+        FROM {table}
         ORDER BY as_of_date DESC, updated_at DESC
         LIMIT 1
         """,
@@ -77,7 +81,18 @@ def _resolve_latest_barra_tuple() -> dict[str, str] | None:
     }
 
 
-def load_barra_exposures(tickers: list[str] | None = None) -> pd.DataFrame:
+def _exposure_source_table_required() -> str:
+    table = "barra_raw_cross_section_history"
+    if not _table_exists(table):
+        raise RuntimeError(
+            "Required exposure table missing: barra_raw_cross_section_history. "
+            "Build it via backend/scripts/build_barra_raw_cross_section_history.py."
+        )
+    return table
+
+
+def load_raw_cross_section_latest(tickers: list[str] | None = None) -> pd.DataFrame:
+    table = _exposure_source_table_required()
     params: list[Any] = []
     ticker_clause = ""
     if tickers:
@@ -96,7 +111,7 @@ def load_barra_exposures(tickers: list[str] | None = None) -> pd.DataFrame:
                     PARTITION BY e.ticker
                     ORDER BY e.as_of_date DESC, e.updated_at DESC
                 ) AS rn
-            FROM barra_exposures e
+            FROM {table} e
             {ticker_clause}
         )
         SELECT *
@@ -116,7 +131,49 @@ def load_fundamental_snapshots(
     as_of_date: str | None = None,
 ) -> pd.DataFrame:
     clean = [t.upper() for t in (tickers or []) if t.strip()]
-    as_of = str(as_of_date or datetime.now(timezone.utc).date().isoformat())
+    as_of = previous_or_same_xnys_session(
+        str(as_of_date or datetime.now(timezone.utc).date().isoformat())
+    )
+
+    # Canonical point-in-time source keyed by (ticker, as_of_date).
+    if _table_exists("universe_cross_section_snapshot"):
+        ticker_filter = ""
+        params: list[Any] = [as_of]
+        if clean:
+            placeholders = ",".join("?" for _ in clean)
+            ticker_filter = f" AND ticker IN ({placeholders})"
+            params.extend(clean)
+        rows = _fetch_rows(
+            f"""
+            WITH latest AS (
+                SELECT ticker, MAX(as_of_date) AS as_of_date
+                FROM universe_cross_section_snapshot
+                WHERE as_of_date <= ?
+                  {ticker_filter}
+                GROUP BY ticker
+            )
+            SELECT s.*
+            FROM universe_cross_section_snapshot s
+            JOIN latest l
+              ON s.ticker = l.ticker
+             AND s.as_of_date = l.as_of_date
+            ORDER BY s.ticker ASC
+            """,
+            params,
+        )
+        if rows:
+            out = pd.DataFrame(rows)
+            if "trbc_economic_sector_short" not in out.columns:
+                out["trbc_economic_sector_short"] = ""
+            out["trbc_economic_sector_short"] = _coalesce_series(
+                out,
+                "trbc_economic_sector_short",
+                "trbc_sector",
+                "trbc_economic_sector",
+                default="",
+            )
+            return out
+
     ticker_filter = ""
     params: list[Any] = [as_of]
     if clean:
@@ -180,9 +237,15 @@ def load_fundamental_snapshots(
     hist_df = pd.DataFrame(hist_rows).drop_duplicates(subset=["ticker"], keep="last")
     merged = fundamentals_df.merge(hist_df, on="ticker", how="left")
 
-    if "trbc_sector" not in merged.columns:
-        merged["trbc_sector"] = ""
-    merged["trbc_sector"] = _coalesce_series(merged, "trbc_economic_sector", "trbc_sector", default="")
+    if "trbc_economic_sector_short" not in merged.columns:
+        merged["trbc_economic_sector_short"] = ""
+    merged["trbc_economic_sector_short"] = _coalesce_series(
+        merged,
+        "trbc_economic_sector_short",
+        "trbc_sector",
+        "trbc_economic_sector",
+        default="",
+    )
 
     if "trbc_industry_group" not in merged.columns:
         merged["trbc_industry_group"] = ""
@@ -236,7 +299,15 @@ def load_source_dates() -> dict[str, str | None]:
         val = rows[0].get("latest")
         return str(val) if val else None
 
+    fundamentals_asof = None
+    if _table_exists("universe_cross_section_snapshot"):
+        fundamentals_asof = _max_val("SELECT MAX(as_of_date) AS latest FROM universe_cross_section_snapshot")
+    if not fundamentals_asof:
+        fundamentals_asof = _max_val("SELECT MAX(fetch_date) AS latest FROM fundamental_snapshots")
+
     return {
-        "fundamentals_asof": _max_val("SELECT MAX(fetch_date) AS latest FROM fundamental_snapshots"),
-        "exposures_asof": _max_val("SELECT MAX(as_of_date) AS latest FROM barra_exposures"),
+        "fundamentals_asof": fundamentals_asof,
+        "exposures_asof": _max_val(
+            f"SELECT MAX(as_of_date) AS latest FROM {_exposure_source_table_required()}"
+        ),
     }

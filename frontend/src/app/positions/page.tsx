@@ -3,12 +3,16 @@
 import { usePortfolio } from "@/hooks/useApi";
 import PositionTable from "@/components/PositionTable";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
+import ApiErrorState from "@/components/ApiErrorState";
 
 export default function PositionsPage() {
-  const { data, isLoading } = usePortfolio();
+  const { data, isLoading, error } = usePortfolio();
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading positions..." />;
+  }
+  if (error) {
+    return <ApiErrorState title="Positions Not Ready" error={error} />;
   }
 
   const positions = data?.positions ?? [];

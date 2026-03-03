@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query
 
 import config
 from db.sqlite import cache_get
+from routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 
@@ -18,7 +19,11 @@ router = APIRouter()
 async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk_contribution)$")):
     data = cache_get("exposures")
     if data is None:
-        return {"mode": mode, "factors": [], "_cached": False}
+        raise_cache_not_ready(
+            cache_key="exposures",
+            message="Exposure cache is not ready yet. Run refresh and try again.",
+            refresh_mode="light",
+        )
     factors = data.get(mode, [])
     return {"mode": mode, "factors": factors, "_cached": True}
 
@@ -33,7 +38,11 @@ async def get_exposure_history(
         latest_row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
         latest = latest_row[0] if latest_row and latest_row[0] else None
         if latest is None:
-            return {"factor": factor, "years": years, "points": [], "_cached": False}
+            raise_cache_not_ready(
+                cache_key="daily_factor_returns",
+                message="Historical factor returns are not available yet.",
+                refresh_mode="full",
+            )
 
         latest_dt = date.fromisoformat(str(latest))
         start_dt = latest_dt - timedelta(days=365 * years)

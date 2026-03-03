@@ -6,6 +6,7 @@ import KpiCard from "@/components/KpiCard";
 import RiskDecompChart from "@/components/RiskDecompChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import TableRowToggle from "@/components/TableRowToggle";
+import ApiErrorState from "@/components/ApiErrorState";
 
 const COLLAPSED_ROWS = 10;
 
@@ -23,12 +24,15 @@ function fmtAsOfDate(isoDate?: string): string {
 }
 
 export default function OverviewPage() {
-  const { data: portfolio, isLoading: pLoading } = usePortfolio();
-  const { data: risk, isLoading: rLoading } = useRisk();
+  const { data: portfolio, isLoading: pLoading, error: pError } = usePortfolio();
+  const { data: risk, isLoading: rLoading, error: rError } = useRisk();
   const [showAllHoldings, setShowAllHoldings] = useState(false);
 
   if (pLoading || rLoading) {
     return <AnalyticsLoadingViz message="Loading overview..." />;
+  }
+  if (pError || rError) {
+    return <ApiErrorState title="Overview Data Not Ready" error={pError || rError} />;
   }
 
   const positions = portfolio?.positions ?? [];
@@ -89,7 +93,7 @@ export default function OverviewPage() {
                   <td><strong>{pos.ticker}</strong></td>
                   <td className="text-right">{fmt(pos.market_value)}</td>
                   <td className="text-right">{(pos.weight * 100).toFixed(2)}%</td>
-                  <td>{pos.trbc_sector || "—"}</td>
+                  <td>{pos.trbc_economic_sector_short || "—"}</td>
                   <td className="text-right">{pos.risk_contrib_pct.toFixed(2)}%</td>
                 </tr>
               ))}

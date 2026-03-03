@@ -13,7 +13,7 @@ import pandas as pd
 from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
 from db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
 
-NON_EQUITY_TRBC_SECTORS = {
+NON_EQUITY_ECONOMIC_SECTORS = {
     "Exchange Traded Fund",
     "Digital Asset",
 }
@@ -24,7 +24,7 @@ class EligibilityContext:
     exposure_dates: list[str]
     exposure_snapshots: dict[str, pd.DataFrame]
     market_cap_panel: pd.DataFrame
-    trbc_sector_panel: pd.DataFrame
+    trbc_economic_sector_short_panel: pd.DataFrame
     trbc_industry_panel: pd.DataFrame
     dates: list[str]
 
@@ -58,9 +58,9 @@ def _normalize_text_series(series: pd.Series) -> pd.Series:
     )
 
 
-def _pick_trbc_sector_column(columns: Iterable[str]) -> str | None:
+def _pick_trbc_economic_sector_short_column(columns: Iterable[str]) -> str | None:
     cols = set(columns)
-    for col in ("trbc_sector", "trbc_economic_sector", "sector"):
+    for col in ("trbc_economic_sector_short", "trbc_sector", "trbc_economic_sector", "sector"):
         if col in cols:
             return col
     return None
@@ -104,14 +104,17 @@ def load_exposure_snapshots(data_db: Path) -> tuple[list[str], dict[str, pd.Data
     conn = sqlite3.connect(str(data_db))
     try:
         ensure_trbc_naming(conn)
-        cols = _table_columns(conn, "barra_exposures")
+        source_table = "barra_raw_cross_section_history"
+        cols = _table_columns(conn, source_table)
+        if not {"ticker", "as_of_date"}.issubset(cols):
+            return [], {}
         style_cols = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in cols]
         industry_col = pick_trbc_industry_column(cols)
         industry_select = f"{industry_col} AS trbc_industry_group" if industry_col else "NULL AS trbc_industry_group"
         df = pd.read_sql_query(
             f"""
             SELECT ticker, as_of_date, {", ".join(style_cols)}, {industry_select}
-            FROM barra_exposures
+            FROM {source_table}
             ORDER BY as_of_date, ticker
             """,
             conn,
@@ -180,17 +183,17 @@ def _load_trbc_classification_panel(data_db: Path, dates: list[str]) -> tuple[pd
         ensure_trbc_naming(conn)
         parts: list[pd.DataFrame] = []
 
-        # Historical TRBC table (preferred source for point-in-time classes).
+        # Historical TRBC table (single source of truth for point-in-time classes).
         if _table_exists(conn, "trbc_industry_history"):
             hcols = _table_columns(conn, "trbc_industry_history")
             h_ind_col = pick_trbc_industry_column(hcols)
-            h_sec_col = _pick_trbc_sector_column(hcols)
+            h_sec_col = _pick_trbc_economic_sector_short_column(hcols)
             if h_ind_col and h_sec_col:
                 hist = pd.read_sql_query(
                     f"""
                     SELECT ticker,
                            as_of_date AS ref_date,
-                           {h_sec_col} AS trbc_sector,
+                           {h_sec_col} AS trbc_economic_sector_short,
                            {h_ind_col} AS trbc_industry_group
                     FROM trbc_industry_history
                     WHERE as_of_date <= ?
@@ -201,27 +204,6 @@ def _load_trbc_classification_panel(data_db: Path, dates: list[str]) -> tuple[pd
                 if not hist.empty:
                     hist["priority"] = 2
                     parts.append(hist)
-
-        # Fundamental snapshots as secondary classification records.
-        fcols = _table_columns(conn, "fundamental_snapshots")
-        f_ind_col = pick_trbc_industry_column(fcols)
-        f_sec_col = _pick_trbc_sector_column(fcols)
-        if f_ind_col and f_sec_col:
-            fund = pd.read_sql_query(
-                f"""
-                SELECT ticker,
-                       fetch_date AS ref_date,
-                       {f_sec_col} AS trbc_sector,
-                       {f_ind_col} AS trbc_industry_group
-                FROM fundamental_snapshots
-                WHERE fetch_date <= ?
-                """,
-                conn,
-                params=(dates[-1],),
-            )
-            if not fund.empty:
-                fund["priority"] = 1
-                parts.append(fund)
     finally:
         conn.close()
 
@@ -232,9 +214,9 @@ def _load_trbc_classification_panel(data_db: Path, dates: list[str]) -> tuple[pd
     df = pd.concat(parts, ignore_index=True)
     df["ticker"] = df["ticker"].astype(str).str.upper()
     df["ref_date"] = df["ref_date"].astype(str)
-    df["trbc_sector"] = _normalize_text_series(df["trbc_sector"])
+    df["trbc_economic_sector_short"] = _normalize_text_series(df["trbc_economic_sector_short"])
     df["trbc_industry_group"] = _normalize_text_series(df["trbc_industry_group"])
-    df["trbc_sector"] = df["trbc_sector"].replace({"": np.nan})
+    df["trbc_economic_sector_short"] = df["trbc_economic_sector_short"].replace({"": np.nan})
     df["trbc_industry_group"] = df["trbc_industry_group"].replace({"": np.nan})
     df = df.dropna(subset=["ticker", "ref_date"])
     df = (
@@ -243,7 +225,7 @@ def _load_trbc_classification_panel(data_db: Path, dates: list[str]) -> tuple[pd
     )
 
     sec = (
-        df.pivot(index="ref_date", columns="ticker", values="trbc_sector")
+        df.pivot(index="ref_date", columns="ticker", values="trbc_economic_sector_short")
         .sort_index()
     )
     ind = (
@@ -253,10 +235,81 @@ def _load_trbc_classification_panel(data_db: Path, dates: list[str]) -> tuple[pd
     sec = sec.astype("string")
     ind = ind.astype("string")
     full_index = sorted(set(sec.index.astype(str)).union(set(dates)))
-    sec = sec.reindex(full_index).ffill().reindex(dates)
+    with pd.option_context("future.no_silent_downcasting", True):
+        sec = sec.reindex(full_index).ffill().reindex(dates)
     full_index = sorted(set(ind.index.astype(str)).union(set(dates)))
-    ind = ind.reindex(full_index).ffill().reindex(dates)
+    with pd.option_context("future.no_silent_downcasting", True):
+        ind = ind.reindex(full_index).ffill().reindex(dates)
     return sec, ind
+
+
+def _load_panels_from_cross_section_snapshot(
+    data_db: Path,
+    dates: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if not dates:
+        empty = pd.DataFrame()
+        return empty, empty, empty
+    conn = sqlite3.connect(str(data_db))
+    try:
+        if not _table_exists(conn, "universe_cross_section_snapshot"):
+            empty = pd.DataFrame()
+            return empty, empty, empty
+        cols = _table_columns(conn, "universe_cross_section_snapshot")
+        sector_expr_parts: list[str] = []
+        if "trbc_economic_sector_short" in cols:
+            sector_expr_parts.append("NULLIF(trbc_economic_sector_short, '')")
+        if "trbc_sector" in cols:
+            sector_expr_parts.append("NULLIF(trbc_sector, '')")
+        if "trbc_economic_sector" in cols:
+            sector_expr_parts.append("NULLIF(trbc_economic_sector, '')")
+        sector_expr = (
+            f"COALESCE({', '.join(sector_expr_parts)}, '') AS trbc_economic_sector_short"
+            if sector_expr_parts
+            else "'' AS trbc_economic_sector_short"
+        )
+        df = pd.read_sql_query(
+            f"""
+            SELECT
+                ticker,
+                as_of_date AS ref_date,
+                market_cap,
+                {sector_expr},
+                trbc_industry_group
+            FROM universe_cross_section_snapshot
+            WHERE as_of_date <= ?
+            ORDER BY as_of_date, ticker
+            """,
+            conn,
+            params=(dates[-1],),
+        )
+    finally:
+        conn.close()
+    if df.empty:
+        empty = pd.DataFrame()
+        return empty, empty, empty
+
+    df["ticker"] = df["ticker"].astype(str).str.upper()
+    df["ref_date"] = df["ref_date"].astype(str)
+    df["market_cap"] = pd.to_numeric(df["market_cap"], errors="coerce")
+    df["trbc_economic_sector_short"] = _normalize_text_series(df["trbc_economic_sector_short"]).replace({"": np.nan})
+    df["trbc_industry_group"] = _normalize_text_series(df["trbc_industry_group"]).replace({"": np.nan})
+
+    market = df.pivot(index="ref_date", columns="ticker", values="market_cap").sort_index()
+    sec = df.pivot(index="ref_date", columns="ticker", values="trbc_economic_sector_short").sort_index()
+    ind = df.pivot(index="ref_date", columns="ticker", values="trbc_industry_group").sort_index()
+
+    def _ffill_to_dates(panel: pd.DataFrame) -> pd.DataFrame:
+        full_index = sorted(set(panel.index.astype(str)).union(set(dates)))
+        # Opt into pandas' future behavior now to avoid silent downcasting warnings.
+        with pd.option_context("future.no_silent_downcasting", True):
+            filled = panel.reindex(full_index).ffill()
+        return filled.reindex(dates)
+
+    market = _ffill_to_dates(market)
+    sec = _ffill_to_dates(sec)
+    ind = _ffill_to_dates(ind)
+    return market, sec, ind
 
 
 def build_eligibility_context(
@@ -272,13 +325,19 @@ def build_eligibility_context(
     else:
         merged_dates = sorted(set(str(d) for d in dates).union(exposure_dates))
 
-    market_cap_panel = _load_market_cap_panel(data_db, merged_dates)
-    sector_panel, industry_panel = _load_trbc_classification_panel(data_db, merged_dates)
+    market_cap_panel, sector_panel, industry_panel = _load_panels_from_cross_section_snapshot(
+        data_db,
+        merged_dates,
+    )
+    if market_cap_panel.empty:
+        market_cap_panel = _load_market_cap_panel(data_db, merged_dates)
+    if sector_panel.empty or industry_panel.empty:
+        sector_panel, industry_panel = _load_trbc_classification_panel(data_db, merged_dates)
     return EligibilityContext(
         exposure_dates=exposure_dates,
         exposure_snapshots=snapshots,
         market_cap_panel=market_cap_panel,
-        trbc_sector_panel=sector_panel,
+        trbc_economic_sector_short_panel=sector_panel,
         trbc_industry_panel=industry_panel,
         dates=merged_dates,
     )
@@ -299,7 +358,7 @@ def structural_eligibility_for_snapshot(
     *,
     exposure_snapshot: pd.DataFrame,
     market_caps: pd.Series,
-    trbc_sectors: pd.Series,
+    trbc_economic_sector_shorts: pd.Series,
     trbc_industries: pd.Series,
     required_style_cols: list[str] | None = None,
     non_equity_sectors: set[str] | None = None,
@@ -308,7 +367,7 @@ def structural_eligibility_for_snapshot(
     if exposure_snapshot is None or exposure_snapshot.empty:
         return pd.DataFrame()
 
-    non_equity = set(non_equity_sectors or NON_EQUITY_TRBC_SECTORS)
+    non_equity = set(non_equity_sectors or NON_EQUITY_ECONOMIC_SECTORS)
     style_cols = required_style_cols or list(STYLE_COLUMN_TO_LABEL.keys())
     idx = pd.Index(exposure_snapshot.index.astype(str).str.upper(), name="ticker")
     frame = pd.DataFrame(index=idx)
@@ -323,18 +382,18 @@ def structural_eligibility_for_snapshot(
     caps = pd.to_numeric(market_caps, errors="coerce").reindex(idx)
     frame["has_market_cap"] = caps.notna() & np.isfinite(caps) & (caps > 0.0)
 
-    sec = _normalize_text_series(pd.Series(trbc_sectors, index=trbc_sectors.index)).reindex(idx)
+    sec = _normalize_text_series(pd.Series(trbc_economic_sector_shorts, index=trbc_economic_sector_shorts.index)).reindex(idx)
     ind = _normalize_text_series(pd.Series(trbc_industries, index=trbc_industries.index)).reindex(idx)
-    frame["trbc_sector"] = sec.fillna("")
+    frame["trbc_economic_sector_short"] = sec.fillna("")
     frame["trbc_industry_group"] = ind.fillna("")
-    frame["has_trbc_sector"] = frame["trbc_sector"].str.len() > 0
+    frame["has_trbc_economic_sector_short"] = frame["trbc_economic_sector_short"].str.len() > 0
     frame["has_trbc_industry"] = frame["trbc_industry_group"].str.len() > 0
-    frame["is_non_equity"] = frame["trbc_sector"].isin(non_equity)
+    frame["is_non_equity"] = frame["trbc_economic_sector_short"].isin(non_equity)
 
     frame["is_structural_eligible"] = (
         frame["has_all_style"]
         & frame["has_market_cap"]
-        & frame["has_trbc_sector"]
+        & frame["has_trbc_economic_sector_short"]
         & frame["has_trbc_industry"]
         & ~frame["is_non_equity"]
     )
@@ -345,8 +404,8 @@ def structural_eligibility_for_snapshot(
             out.append("missing_style")
         if not bool(row.get("has_market_cap", False)):
             out.append("missing_market_cap")
-        if not bool(row.get("has_trbc_sector", False)):
-            out.append("missing_trbc_sector")
+        if not bool(row.get("has_trbc_economic_sector_short", False)):
+            out.append("missing_trbc_economic_sector_short")
         if not bool(row.get("has_trbc_industry", False)):
             out.append("missing_trbc_industry")
         if bool(row.get("is_non_equity", False)):
@@ -373,12 +432,12 @@ def structural_eligibility_for_date(
         return exp_date, pd.DataFrame()
 
     mcap_row = _panel_row(context.market_cap_panel, str(date_key))
-    sector_row = _panel_row(context.trbc_sector_panel, str(date_key))
+    sector_row = _panel_row(context.trbc_economic_sector_short_panel, str(date_key))
     industry_row = _panel_row(context.trbc_industry_panel, str(date_key))
     elig = structural_eligibility_for_snapshot(
         exposure_snapshot=snap,
         market_caps=mcap_row,
-        trbc_sectors=sector_row,
+        trbc_economic_sector_shorts=sector_row,
         trbc_industries=industry_row,
     )
     return exp_date, elig
