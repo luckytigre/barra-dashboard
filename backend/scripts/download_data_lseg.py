@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 from db.fundamental_schema import ensure_fundamental_snapshots_schema
 from db.prices_schema import ensure_prices_daily_schema
 from db.trbc_schema import ensure_trbc_naming
+from cuse4.schema import TRBC_HISTORY_TABLE, ensure_cuse4_schema
 from lseg_ric_resolver import ensure_ric_map_table, load_ric_map, resolve_ric_map
 from trading_calendar import previous_or_same_xnys_session
 
@@ -135,6 +136,19 @@ def _connect_db(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type='table' AND name=?
+        LIMIT 1
+        """,
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
 def _insert_rows(
     conn: sqlite3.Connection,
     table: str,
@@ -161,6 +175,50 @@ def _insert_rows(
                 raise
             time.sleep(SQLITE_RETRY_SLEEP_SECONDS * (attempt + 1))
     return len(rows)
+
+
+def _sync_trbc_to_canonical(
+    conn: sqlite3.Connection,
+    *,
+    as_of_date: str,
+    job_run_id: str,
+    updated_at: str,
+) -> int:
+    """Copy current TRBC snapshot into canonical cUSE4 table keyed by SID."""
+    if not _table_exists(conn, "security_master"):
+        return 0
+    ensure_cuse4_schema(conn)
+    if not _table_exists(conn, "trbc_industry_history"):
+        return 0
+    before = conn.total_changes
+    conn.execute(
+        f"""
+        INSERT OR REPLACE INTO {TRBC_HISTORY_TABLE} (
+            sid, as_of_date, trbc_economic_sector, trbc_business_sector,
+            trbc_industry_group, trbc_industry, trbc_activity, hq_country_code,
+            source, job_run_id, updated_at
+        )
+        SELECT
+            sm.sid,
+            h.as_of_date,
+            NULLIF(TRIM(h.trbc_economic_sector), ''),
+            NULLIF(TRIM(h.trbc_business_sector), ''),
+            NULLIF(TRIM(h.trbc_industry_group), ''),
+            NULLIF(TRIM(h.trbc_industry), ''),
+            NULLIF(TRIM(h.trbc_activity), ''),
+            NULLIF(UPPER(TRIM(h.hq_country_code)), ''),
+            COALESCE(NULLIF(TRIM(h.source), ''), 'lseg_toolkit'),
+            COALESCE(NULLIF(TRIM(h.job_run_id), ''), 'lseg_sync'),
+            COALESCE(NULLIF(TRIM(h.updated_at), ''), ?)
+        FROM trbc_industry_history h
+        JOIN security_master sm
+          ON UPPER(TRIM(h.ticker)) = sm.ticker
+        WHERE h.as_of_date = ?
+          AND h.job_run_id = ?
+        """,
+        (updated_at, str(as_of_date), str(job_run_id)),
+    )
+    return int(conn.total_changes - before)
 
 
 def _backfill_common_names(conn: sqlite3.Connection) -> int:
@@ -597,6 +655,13 @@ def download_from_lseg(
         conn.commit()
         n_g = _insert_rows(conn, "trbc_industry_history", trbc_history_rows, replace=True)
         conn.commit()
+        n_g_canonical = _sync_trbc_to_canonical(
+            conn,
+            as_of_date=as_of,
+            job_run_id=job_run_id,
+            updated_at=updated_at,
+        )
+        conn.commit()
         n_name_backfill = 0
         if do_common_name_backfill:
             n_name_backfill = _backfill_common_names(conn)
@@ -622,6 +687,7 @@ def download_from_lseg(
         "price_rows_inserted": n_p,
         "price_rows_deleted": int(deleted_p),
         "trbc_rows_inserted": n_g,
+        "trbc_rows_synced_canonical": int(n_g_canonical),
         "common_name_rows_backfilled": int(n_name_backfill),
         "ticker_ric_map_size": int(n_ric or 0),
         "db_path": str(db_path),
