@@ -7,7 +7,10 @@ import argparse
 import os
 import sys
 import time
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -26,6 +29,172 @@ def _pit_dates(start_date: str, end_date: str, *, frequency: str) -> list[str]:
     return out
 
 
+def _eligible_universe_count(db_path: Path) -> int:
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM security_master
+            WHERE COALESCE(classification_ok, 0) = 1
+              AND COALESCE(is_equity_eligible, 0) = 1
+            """
+        ).fetchone()
+        return int(row[0] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def _sid_count_for_date(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    as_of_date: str,
+) -> int:
+    row = conn.execute(
+        f"""
+        SELECT COUNT(DISTINCT sid)
+        FROM {table}
+        WHERE {date_col} = ?
+        """,
+        (as_of_date,),
+    ).fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _is_date_complete(
+    conn: sqlite3.Connection,
+    *,
+    as_of_date: str,
+    universe_n: int,
+    write_fundamentals: bool,
+    write_prices: bool,
+    write_classification: bool,
+) -> bool:
+    checks: list[bool] = []
+    if write_fundamentals:
+        checks.append(
+            _sid_count_for_date(
+                conn,
+                table="security_fundamentals_pit",
+                date_col="as_of_date",
+                as_of_date=as_of_date,
+            )
+            >= universe_n
+        )
+    if write_prices:
+        checks.append(
+            _sid_count_for_date(
+                conn,
+                table="security_prices_eod",
+                date_col="date",
+                as_of_date=as_of_date,
+            )
+            >= universe_n
+        )
+    if write_classification:
+        checks.append(
+            _sid_count_for_date(
+                conn,
+                table="security_classification_pit",
+                date_col="as_of_date",
+                as_of_date=as_of_date,
+            )
+            >= universe_n
+        )
+    return bool(checks) and all(checks)
+
+
+def _filter_incomplete_dates(
+    *,
+    db_path: Path,
+    dates: list[str],
+    write_fundamentals: bool,
+    write_prices: bool,
+    write_classification: bool,
+    skip_complete_dates: bool,
+) -> tuple[list[str], int]:
+    if not skip_complete_dates:
+        return dates, 0
+    universe_n = _eligible_universe_count(db_path)
+    if universe_n <= 0:
+        return dates, 0
+    conn = sqlite3.connect(str(db_path))
+    skipped = 0
+    try:
+        out: list[str] = []
+        for d in dates:
+            if _is_date_complete(
+                conn,
+                as_of_date=str(d),
+                universe_n=universe_n,
+                write_fundamentals=bool(write_fundamentals),
+                write_prices=bool(write_prices),
+                write_classification=bool(write_classification),
+            ):
+                skipped += 1
+            else:
+                out.append(str(d))
+        return out, skipped
+    finally:
+        conn.close()
+
+
+def _run_shard_with_retries(
+    *,
+    db_path: Path,
+    date: str,
+    shard_count: int,
+    shard_idx: int,
+    max_retries: int,
+    sleep_seconds: float,
+    rics_csv: str | None,
+    write_fundamentals: bool,
+    write_prices: bool,
+    write_classification: bool,
+) -> tuple[bool, dict[str, Any]]:
+    for attempt in range(max(1, int(max_retries)) + 1):
+        try:
+            out = download_from_lseg(
+                db_path=db_path,
+                as_of_date=date,
+                rics_csv=rics_csv,
+                shard_count=int(shard_count),
+                shard_index=int(shard_idx),
+                skip_common_name_backfill=True,
+                write_fundamentals=bool(write_fundamentals),
+                write_prices=bool(write_prices),
+                write_classification=bool(write_classification),
+            )
+            payload = {
+                "date": str(date),
+                "shard_index": int(shard_idx),
+                "attempt": int(attempt + 1),
+                "status": out.get("status"),
+                "fundamental_rows_inserted": out.get("fundamental_rows_inserted"),
+                "classification_rows_inserted": out.get("classification_rows_inserted"),
+                "price_rows_inserted": out.get("price_rows_inserted"),
+            }
+            return True, payload
+        except Exception as exc:
+            payload = {
+                "date": str(date),
+                "shard_index": int(shard_idx),
+                "attempt": int(attempt + 1),
+                "error": str(exc),
+            }
+            if attempt < int(max_retries):
+                time.sleep(float(sleep_seconds))
+            else:
+                return False, payload
+    return False, {
+        "date": str(date),
+        "shard_index": int(shard_idx),
+        "error": "unknown_failure",
+    }
+
+
 def run_backfill(
     *,
     db_path: Path,
@@ -39,10 +208,26 @@ def run_backfill(
     write_fundamentals: bool = True,
     write_prices: bool = True,
     write_classification: bool = True,
+    parallel_shards: bool = False,
+    max_workers: int = 4,
+    skip_complete_dates: bool = True,
 ) -> dict[str, int | str]:
     dates = _pit_dates(start_date, end_date, frequency=frequency)
+    dates, skipped_dates = _filter_incomplete_dates(
+        db_path=db_path,
+        dates=dates,
+        write_fundamentals=bool(write_fundamentals),
+        write_prices=bool(write_prices),
+        write_classification=bool(write_classification),
+        skip_complete_dates=bool(skip_complete_dates),
+    )
     if not dates:
-        return {"status": "no-dates", "start_date": start_date, "end_date": end_date}
+        return {
+            "status": "no-dates",
+            "start_date": start_date,
+            "end_date": end_date,
+            "dates_skipped_as_complete": int(skipped_dates),
+        }
 
     dates_done = 0
     shards_done = 0
@@ -51,53 +236,54 @@ def run_backfill(
     for d in dates:
         print(f"=== PIT DATE {d} ===", flush=True)
         date_ok = True
-        for shard_idx in range(max(1, int(shard_count))):
-            ok = False
-            for attempt in range(max(1, int(max_retries)) + 1):
-                try:
-                    out = download_from_lseg(
+        shard_indices = list(range(max(1, int(shard_count))))
+        if bool(parallel_shards) and len(shard_indices) > 1:
+            workers = max(1, min(int(max_workers), len(shard_indices)))
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                fut_map = {
+                    ex.submit(
+                        _run_shard_with_retries,
                         db_path=db_path,
-                        as_of_date=d,
-                        rics_csv=rics_csv,
+                        date=str(d),
                         shard_count=int(shard_count),
-                        shard_index=int(shard_idx),
-                        skip_common_name_backfill=True,
+                        shard_idx=int(shard_idx),
+                        max_retries=int(max_retries),
+                        sleep_seconds=float(sleep_seconds),
+                        rics_csv=rics_csv,
                         write_fundamentals=bool(write_fundamentals),
                         write_prices=bool(write_prices),
                         write_classification=bool(write_classification),
-                    )
-                    print(
-                        {
-                            "date": d,
-                            "shard_index": int(shard_idx),
-                            "attempt": int(attempt + 1),
-                            "status": out.get("status"),
-                            "fundamental_rows_inserted": out.get("fundamental_rows_inserted"),
-                            "classification_rows_inserted": out.get("classification_rows_inserted"),
-                            "price_rows_inserted": out.get("price_rows_inserted"),
-                        },
-                        flush=True,
-                    )
+                    ): shard_idx
+                    for shard_idx in shard_indices
+                }
+                for fut in as_completed(fut_map):
+                    ok, payload = fut.result()
+                    print(payload, flush=True)
+                    if ok:
+                        shards_done += 1
+                    else:
+                        failed += 1
+                        date_ok = False
+        else:
+            for shard_idx in shard_indices:
+                ok, payload = _run_shard_with_retries(
+                    db_path=db_path,
+                    date=str(d),
+                    shard_count=int(shard_count),
+                    shard_idx=int(shard_idx),
+                    max_retries=int(max_retries),
+                    sleep_seconds=float(sleep_seconds),
+                    rics_csv=rics_csv,
+                    write_fundamentals=bool(write_fundamentals),
+                    write_prices=bool(write_prices),
+                    write_classification=bool(write_classification),
+                )
+                print(payload, flush=True)
+                if ok:
                     shards_done += 1
-                    ok = True
-                    break
-                except Exception as exc:
-                    print(
-                        {
-                            "date": d,
-                            "shard_index": int(shard_idx),
-                            "attempt": int(attempt + 1),
-                            "error": str(exc),
-                        },
-                        flush=True,
-                    )
-                    if attempt < int(max_retries):
-                        time.sleep(float(sleep_seconds))
-            if not ok:
-                failed += 1
-                date_ok = False
-                # Continue with next shard/date to avoid one stuck failure blocking full run.
-                continue
+                else:
+                    failed += 1
+                    date_ok = False
         if date_ok:
             dates_done += 1
 
@@ -107,6 +293,9 @@ def run_backfill(
         "dates_completed": int(dates_done),
         "shards_completed": int(shards_done),
         "shard_failures": int(failed),
+        "dates_skipped_as_complete": int(skipped_dates),
+        "parallel_shards": bool(parallel_shards),
+        "max_workers": int(max_workers),
         "frequency": str(frequency),
         "start_date": start_date,
         "end_date": end_date,
@@ -126,6 +315,14 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--skip-fundamentals", action="store_true", help="Skip fundamentals writes")
     p.add_argument("--skip-prices", action="store_true", help="Skip prices writes")
     p.add_argument("--skip-classification", action="store_true", help="Skip classification writes")
+    p.add_argument("--parallel-shards", action="store_true", help="Run shards concurrently per PIT date")
+    p.add_argument("--max-workers", type=int, default=4, help="Max concurrent shard workers when --parallel-shards is set")
+    p.add_argument(
+        "--skip-complete-dates",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Skip PIT dates already complete for selected write targets (default: true)",
+    )
     return p.parse_args()
 
 
@@ -143,5 +340,8 @@ if __name__ == "__main__":
         write_fundamentals=not bool(args.skip_fundamentals),
         write_prices=not bool(args.skip_prices),
         write_classification=not bool(args.skip_classification),
+        parallel_shards=bool(args.parallel_shards),
+        max_workers=max(1, int(args.max_workers)),
+        skip_complete_dates=bool(args.skip_complete_dates),
     )
     print(result)

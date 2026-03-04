@@ -29,13 +29,13 @@ from trading_calendar import previous_or_same_xnys_session
 
 _DB_RAW = Path(os.getenv("DATA_DB_PATH", "data.db")).expanduser()
 DEFAULT_DB = _DB_RAW if _DB_RAW.is_absolute() else (Path(__file__).resolve().parent.parent / _DB_RAW)
-LSEG_BATCH_SIZE = 500
+LSEG_BATCH_SIZE = max(1, int(os.getenv("LSEG_BATCH_SIZE", "500")))
 SQLITE_TIMEOUT_SECONDS = 120
 SQLITE_BUSY_TIMEOUT_MS = 120000
 SQLITE_MAX_RETRIES = 6
 SQLITE_RETRY_SLEEP_SECONDS = 2.0
 
-LSEG_FIELDS = [
+LSEG_FIELDS_ALL = [
     "TR.CommonName",
     "TR.TRBCEconomicSector",
     "TR.TRBCBusinessSector",
@@ -73,6 +73,59 @@ LSEG_FIELDS = [
     "TR.ROEPercent",
     "TR.OperatingMarginPercent",
 ]
+
+FUNDAMENTALS_FIELD_SET = {
+    "TR.CommonName",
+    "TR.CompanyMarketCap",
+    "TR.SharesOutstanding",
+    "TR.DividendYield",
+    "TR.BookValuePerShare",
+    "TR.EPSMean",
+    "TR.EPSActValue",
+    "TR.TotalDebt",
+    "TR.CashAndEquivalents",
+    "TR.LongTermDebt",
+    "TR.CashFromOperatingActivities",
+    "TR.CapitalExpenditures",
+    "TR.Revenue",
+    "TR.Revenue.fperiod",
+    "TR.Revenue.currency",
+    "TR.Revenue.periodenddate",
+    "TR.EBITDA",
+    "TR.EBIT",
+    "TR.TotalAssets",
+    "TR.ROEPercent",
+    "TR.OperatingMarginPercent",
+}
+
+CLASSIFICATION_FIELD_SET = {
+    "TR.TRBCEconomicSector",
+    "TR.TRBCBusinessSector",
+    "TR.TRBCIndustryGroup",
+    "TR.TRBCIndustry",
+    "TR.TRBCActivity",
+    "TR.HQCountryCode",
+}
+
+PRICE_FIELD_SET = {"TR.PriceClose"}
+
+
+def _select_lseg_fields(
+    *,
+    write_fundamentals: bool,
+    write_prices: bool,
+    write_classification: bool,
+) -> list[str]:
+    wanted: set[str] = set()
+    if write_fundamentals:
+        wanted.update(FUNDAMENTALS_FIELD_SET)
+    if write_prices:
+        wanted.update(PRICE_FIELD_SET)
+    if write_classification:
+        wanted.update(CLASSIFICATION_FIELD_SET)
+    if not wanted:
+        return []
+    return [f for f in LSEG_FIELDS_ALL if f in wanted]
 
 
 def _load_lseg_client():
@@ -259,6 +312,19 @@ def download_from_lseg(
     raw_as_of = str(as_of_date or datetime.now(timezone.utc).date().isoformat())
     as_of = previous_or_same_xnys_session(raw_as_of)
     updated_at = datetime.now(timezone.utc).isoformat()
+    selected_fields = _select_lseg_fields(
+        write_fundamentals=bool(write_fundamentals),
+        write_prices=bool(write_prices),
+        write_classification=bool(write_classification),
+    )
+    if not selected_fields:
+        return {
+            "status": "no-op",
+            "as_of": as_of,
+            "reason": "all_write_targets_skipped",
+            "shard_index": int(shard_index),
+            "shard_count": int(shard_count),
+        }
 
     conn = _connect_db(db_path)
     ensure_cuse4_schema(conn)
@@ -308,7 +374,7 @@ def download_from_lseg(
             if not batch:
                 return pd.DataFrame(), 0
             try:
-                part = client.get_company_data(batch, fields=LSEG_FIELDS, as_of_date=as_of)
+                part = client.get_company_data(batch, fields=selected_fields, as_of_date=as_of)
                 return (part if part is not None else pd.DataFrame(), 0)
             except Exception as exc:
                 if len(batch) <= 1:
