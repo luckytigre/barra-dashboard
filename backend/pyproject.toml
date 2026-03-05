@@ -27,3 +27,42 @@ lseg = [
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
+packages = [
+    "backend",
+    "backend.analytics",
+    "backend.barra",
+    "backend.cuse4",
+    "backend.db",
+    "backend.jobs",
+    "backend.portfolio",
+    "backend.routes",
+    "backend.scripts",
+    "backend.services",
+    "backend.vendor",
+    "backend.vendor.lseg_toolkit",
+    "backend.vendor.lseg_toolkit.client",
+    "backend.vendor.lseg_toolkit.earnings",
+    "backend.vendor.lseg_toolkit.equity_screener",
+    "backend.vendor.lseg_toolkit.shared",
+]
+
+[tool.setuptools.package-dir]
+backend = "."
+"backend.analytics" = "analytics"
+"backend.barra" = "barra"
+"backend.cuse4" = "cuse4"
+"backend.db" = "db"
+"backend.jobs" = "jobs"
+"backend.portfolio" = "portfolio"
+"backend.routes" = "routes"
+"backend.scripts" = "scripts"
+"backend.services" = "services"
+"backend.vendor" = "vendor"
+"backend.vendor.lseg_toolkit" = "vendor/lseg_toolkit"
+"backend.vendor.lseg_toolkit.client" = "vendor/lseg_toolkit/client"
+"backend.vendor.lseg_toolkit.earnings" = "vendor/lseg_toolkit/earnings"
+"backend.vendor.lseg_toolkit.equity_screener" = "vendor/lseg_toolkit/equity_screener"
+"backend.vendor.lseg_toolkit.shared" = "vendor/lseg_toolkit/shared"
