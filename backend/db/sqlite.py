@@ -7,7 +7,7 @@ import sqlite3
 import time
 from typing import Any
 
-import config
+from backend import config
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cache (

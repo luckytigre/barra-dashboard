@@ -3,12 +3,9 @@
 
 from __future__ import annotations
 
-import os
-import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from jobs.run_model_pipeline import _parse_args, run_model_pipeline
+from backend.jobs.run_model_pipeline import _parse_args, run_model_pipeline
 
 
 if __name__ == "__main__":

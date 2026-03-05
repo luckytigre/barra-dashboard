@@ -4,16 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cuse4.schema import (
+from backend.cuse4.schema import (
     FUNDAMENTALS_HISTORY_TABLE,
     PRICES_TABLE,
     SECURITY_MASTER_TABLE,

@@ -11,10 +11,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from barra.descriptors import assemble_full_style_scores
-from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
-from db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
-from trading_calendar import filter_xnys_sessions
+from backend.barra.descriptors import assemble_full_style_scores
+from backend.barra.risk_attribution import STYLE_COLUMN_TO_LABEL
+from backend.db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
+from backend.trading_calendar import filter_xnys_sessions
 
 logger = logging.getLogger(__name__)
 

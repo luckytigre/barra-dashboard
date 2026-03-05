@@ -7,7 +7,6 @@ import hashlib
 import os
 import random
 import sqlite3
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,12 +14,10 @@ from typing import Any
 
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 
-from db.trbc_schema import ensure_trbc_naming
+from backend.db.trbc_schema import ensure_trbc_naming
 from lseg_ric_resolver import ensure_ric_map_table, load_ric_map, resolve_ric_map
-from trading_calendar import filter_xnys_sessions, previous_or_same_xnys_session
+from backend.trading_calendar import filter_xnys_sessions, previous_or_same_xnys_session
 
 _DB_RAW = Path(os.getenv("DATA_DB_PATH", "data.db")).expanduser()
 DEFAULT_DB = _DB_RAW if _DB_RAW.is_absolute() else (Path(__file__).resolve().parent.parent / _DB_RAW)
@@ -34,7 +31,7 @@ SQLITE_RETRY_SLEEP_SECONDS = 0.5
 
 def _load_lseg_client():
     try:
-        from lseg_toolkit import LsegClient
+        from backend.vendor.lseg_toolkit import LsegClient
     except Exception as exc:
         raise RuntimeError(
             "Unable to import lseg_toolkit/LSEG runtime. "

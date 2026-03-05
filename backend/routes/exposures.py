@@ -8,9 +8,9 @@ import sqlite3
 
 from fastapi import APIRouter, Query
 
-import config
-from db.sqlite import cache_get
-from routes.readiness import raise_cache_not_ready
+from backend import config
+from backend.db.sqlite import cache_get
+from backend.routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 

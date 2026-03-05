@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 import time
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,10 +12,9 @@ from typing import Any
 
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from scripts.download_data_lseg import download_from_lseg
-from trading_calendar import previous_or_same_xnys_session
+from backend.scripts.download_data_lseg import download_from_lseg
+from backend.trading_calendar import previous_or_same_xnys_session
 
 
 def _pit_dates(start_date: str, end_date: str, *, frequency: str) -> list[str]:

@@ -4,9 +4,7 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
-import sys
 import time
 import warnings
 from datetime import datetime, timezone
@@ -15,13 +13,11 @@ from typing import Any
 
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 
 import lseg.data as rd
 
-from cuse4.schema import PRICES_TABLE, SECURITY_MASTER_TABLE, ensure_cuse4_schema
-from trading_calendar import filter_xnys_sessions, previous_or_same_xnys_session
+from backend.cuse4.schema import PRICES_TABLE, SECURITY_MASTER_TABLE, ensure_cuse4_schema
+from backend.trading_calendar import filter_xnys_sessions, previous_or_same_xnys_session
 
 warnings.filterwarnings(
     "ignore",

@@ -4,18 +4,16 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from cuse4.schema import (
+from backend.cuse4.schema import (
     FUNDAMENTALS_HISTORY_TABLE,
     PRICES_TABLE,
     TRBC_HISTORY_TABLE,
     ensure_cuse4_schema,
 )
-from db.trbc_schema import ensure_trbc_naming
+from backend.db.trbc_schema import ensure_trbc_naming
 
 
 def _dup_count(conn: sqlite3.Connection, table: str, key_cols: list[str]) -> int:

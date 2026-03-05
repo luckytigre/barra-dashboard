@@ -7,7 +7,6 @@ import hashlib
 import os
 import re
 import sqlite3
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,17 +14,15 @@ from typing import Any
 
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 
-from cuse4.schema import (
+from backend.cuse4.schema import (
     FUNDAMENTALS_HISTORY_TABLE,
     PRICES_TABLE,
     SECURITY_MASTER_TABLE,
     TRBC_HISTORY_TABLE,
     ensure_cuse4_schema,
 )
-from trading_calendar import previous_or_same_xnys_session
+from backend.trading_calendar import previous_or_same_xnys_session
 
 _DB_RAW = Path(os.getenv("DATA_DB_PATH", "data.db")).expanduser()
 DEFAULT_DB = _DB_RAW if _DB_RAW.is_absolute() else (Path(__file__).resolve().parent.parent / _DB_RAW)
@@ -142,7 +139,7 @@ def _select_lseg_fields(
 
 def _load_lseg_client():
     try:
-        from lseg_toolkit import LsegClient
+        from backend.vendor.lseg_toolkit import LsegClient
     except Exception as exc:
         raise RuntimeError(
             "Unable to import lseg_toolkit/LSEG runtime. "

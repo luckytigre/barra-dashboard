@@ -10,8 +10,8 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
-from db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
+from backend.barra.risk_attribution import STYLE_COLUMN_TO_LABEL
+from backend.db.trbc_schema import ensure_trbc_naming, pick_trbc_industry_column
 
 NON_EQUITY_ECONOMIC_SECTORS = {
     "Exchange Traded Fund",

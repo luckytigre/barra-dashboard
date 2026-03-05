@@ -19,15 +19,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from db.trbc_schema import pick_trbc_industry_column
-from barra.eligibility import (
+from backend.db.trbc_schema import pick_trbc_industry_column
+from backend.barra.eligibility import (
     build_eligibility_context,
     structural_eligibility_for_date,
 )
-from barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
-from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
-from barra.wls_regression import estimate_factor_returns_two_phase
-from trading_calendar import filter_xnys_sessions, non_xnys_dates, previous_or_same_xnys_session
+from backend.barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
+from backend.barra.risk_attribution import STYLE_COLUMN_TO_LABEL
+from backend.barra.wls_regression import estimate_factor_returns_two_phase
+from backend.trading_calendar import filter_xnys_sessions, non_xnys_dates, previous_or_same_xnys_session
 
 logger = logging.getLogger(__name__)
 

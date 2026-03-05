@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sqlite3
-import sys
 from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from trading_calendar import non_xnys_dates
+from backend.trading_calendar import non_xnys_dates
 
 DATA_TABLE_SPECS = [
     ("security_prices_eod", "date"),

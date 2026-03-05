@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from db.sqlite import cache_get
+from backend.db.sqlite import cache_get
 
 
 def cache_not_ready_payload(

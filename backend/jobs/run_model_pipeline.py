@@ -11,17 +11,17 @@ from typing import Any
 
 import numpy as np
 
-import config
-from analytics.pipeline import RISK_ENGINE_METHOD_VERSION, run_refresh
-from barra.covariance import build_factor_covariance_from_cache
-from barra.daily_factor_returns import compute_daily_factor_returns
-from barra.specific_risk import build_specific_risk_from_cache
-from cuse4.bootstrap import bootstrap_cuse4_source_tables
-from cuse4.estu import build_and_persist_estu_membership
-from db import job_runs, postgres, sqlite
-from db.cross_section_snapshot import rebuild_cross_section_snapshot
-from scripts.download_data_lseg import download_from_lseg
-from trading_calendar import previous_or_same_xnys_session
+from backend import config
+from backend.analytics.pipeline import RISK_ENGINE_METHOD_VERSION, run_refresh
+from backend.barra.covariance import build_factor_covariance_from_cache
+from backend.barra.daily_factor_returns import compute_daily_factor_returns
+from backend.barra.specific_risk import build_specific_risk_from_cache
+from backend.cuse4.bootstrap import bootstrap_cuse4_source_tables
+from backend.cuse4.estu import build_and_persist_estu_membership
+from backend.db import job_runs, postgres, sqlite
+from backend.db.cross_section_snapshot import rebuild_cross_section_snapshot
+from backend.scripts.download_data_lseg import download_from_lseg
+from backend.trading_calendar import previous_or_same_xnys_session
 
 
 DATA_DB = Path(config.DATA_DB_PATH)

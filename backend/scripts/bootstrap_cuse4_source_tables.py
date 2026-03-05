@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cuse4.bootstrap import bootstrap_cuse4_source_tables
+from backend.cuse4.bootstrap import bootstrap_cuse4_source_tables
 
 
 def _parse_args() -> argparse.Namespace:

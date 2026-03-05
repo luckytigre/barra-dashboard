@@ -11,25 +11,25 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-import config
-from analytics.health import compute_health_diagnostics
-from barra.covariance import build_factor_covariance_from_cache
-from barra.daily_factor_returns import compute_daily_factor_returns
-from barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
-from barra.eligibility import build_eligibility_context, structural_eligibility_for_date
-from barra.risk_attribution import (
+from backend import config
+from backend.analytics.health import compute_health_diagnostics
+from backend.barra.covariance import build_factor_covariance_from_cache
+from backend.barra.daily_factor_returns import compute_daily_factor_returns
+from backend.barra.descriptors import FULL_STYLE_ORTH_RULES, canonicalize_style_scores
+from backend.barra.eligibility import build_eligibility_context, structural_eligibility_for_date
+from backend.barra.risk_attribution import (
     STYLE_COLUMN_TO_LABEL,
     portfolio_factor_exposure,
     risk_decomposition,
 )
-from barra.specific_risk import build_specific_risk_from_cache
-from analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
-from cuse4.bootstrap import bootstrap_cuse4_source_tables
-from cuse4.estu import build_and_persist_estu_membership
-from db import model_outputs, postgres, sqlite
-from db.cross_section_snapshot import rebuild_cross_section_snapshot
-from portfolio.positions_store import get_position_meta, get_shares, get_tickers
-from trading_calendar import previous_or_same_xnys_session
+from backend.barra.specific_risk import build_specific_risk_from_cache
+from backend.analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
+from backend.cuse4.bootstrap import bootstrap_cuse4_source_tables
+from backend.cuse4.estu import build_and_persist_estu_membership
+from backend.db import model_outputs, postgres, sqlite
+from backend.db.cross_section_snapshot import rebuild_cross_section_snapshot
+from backend.portfolio.positions_store import get_position_meta, get_shares, get_tickers
+from backend.trading_calendar import previous_or_same_xnys_session
 
 logger = logging.getLogger(__name__)
 
