@@ -91,7 +91,7 @@ async def get_universe_ticker(ticker: str):
 
 
 @router.get("/universe/ticker/{ticker}/history")
-async def get_universe_ticker_history(
+def get_universe_ticker_history(
     ticker: str,
     years: int = Query(5, ge=1, le=20),
 ):
@@ -106,7 +106,7 @@ async def get_universe_ticker_history(
     item = (data.get("by_ticker") or {}).get(clean_ticker)
     if item is None:
         raise HTTPException(status_code=404, detail="Ticker not found in cached universe")
-    ric = str(item.get("ric") or "").upper().strip()
+    ric = str(item.get("ric") or "").strip()
     if not ric:
         raise HTTPException(status_code=404, detail="RIC mapping unavailable for ticker")
 
@@ -116,7 +116,7 @@ async def get_universe_ticker_history(
             """
             SELECT MAX(date)
             FROM security_prices_eod
-            WHERE UPPER(ric) = ?
+            WHERE ric = ?
             """,
             (ric,),
         ).fetchone()
@@ -130,7 +130,7 @@ async def get_universe_ticker_history(
             """
             SELECT date, CAST(close AS REAL) AS close
             FROM security_prices_eod
-            WHERE UPPER(ric) = ?
+            WHERE ric = ?
               AND date >= ?
               AND date <= ?
               AND close IS NOT NULL
