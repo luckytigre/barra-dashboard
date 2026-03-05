@@ -7,6 +7,7 @@ import type {
   RiskData,
   FactorHistoryData,
   UniverseTickerData,
+  UniverseTickerHistoryData,
   UniverseSearchData,
   UniverseFactorsData,
   HealthDiagnosticsData,
@@ -90,6 +91,14 @@ export function useUniverseTicker(ticker: string | null) {
   const clean = ticker?.trim().toUpperCase() || null;
   const key = clean ? `/api/universe/ticker/${encodeURIComponent(clean)}` : null;
   return useSWR<UniverseTickerData>(key, fetcher, SWR_OPTS);
+}
+
+export function useUniverseTickerHistory(ticker: string | null, years = 5) {
+  const clean = ticker?.trim().toUpperCase() || null;
+  const key = clean
+    ? `/api/universe/ticker/${encodeURIComponent(clean)}/history?years=${years}`
+    : null;
+  return useSWR<UniverseTickerHistoryData>(key, fetcher, SWR_OPTS);
 }
 
 export function useUniverseSearch(query: string, limit = 8) {

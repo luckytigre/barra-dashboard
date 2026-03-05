@@ -3,9 +3,16 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ExposureBarChart from "@/components/ExposureBarChart";
 import FactorRadarChart from "@/components/FactorRadarChart";
+import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
-import { usePortfolio, useUniverseFactors, useUniverseSearch, useUniverseTicker } from "@/hooks/useApi";
+import {
+  usePortfolio,
+  useUniverseFactors,
+  useUniverseSearch,
+  useUniverseTicker,
+  useUniverseTickerHistory,
+} from "@/hooks/useApi";
 import { shortFactorLabel, factorTier } from "@/lib/factorLabels";
 import type { FactorExposure } from "@/lib/types";
 
@@ -47,12 +54,30 @@ export default function ExplorePage() {
 
   const { data: searchData, error: searchError } = useUniverseSearch(query, 10);
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    error: historyError,
+  } = useUniverseTickerHistory(selectedTicker, 5);
   const { data: factorsData, error: factorsError } = useUniverseFactors();
   const { data: portfolioData, error: portfolioError } = usePortfolio();
 
   const item = tickerData?.item;
   const factorVols = factorsData?.factor_vols ?? {};
   const results = searchData?.results ?? [];
+  const historyPoints = historyData?.points ?? [];
+
+  const historySummary = useMemo(() => {
+    if (historyPoints.length === 0) return null;
+    const first = Number(historyPoints[0]?.close ?? 0);
+    const latest = Number(historyPoints[historyPoints.length - 1]?.close ?? 0);
+    const totalReturnPct = first > 0 ? ((latest / first) - 1) * 100 : null;
+    return {
+      latest,
+      totalReturnPct,
+      isPositive: (totalReturnPct ?? 0) >= 0,
+    };
+  }, [historyPoints]);
 
   // Build a quick lookup of held positions by ticker
   const positionMap = useMemo(() => {
@@ -351,6 +376,43 @@ export default function ExplorePage() {
                 {item.model_warning || "Ticker is not eligible for strict equity-model analytics."}
               </div>
             )}
+          </div>
+
+          <div className="chart-card mb-4">
+            <div className="detail-history" style={{ marginTop: 0, marginBottom: 0 }}>
+              <div className="detail-history-header">
+                <h5>5Y Weekly Close — {item.ticker}</h5>
+                {!historyLoading && !historyError && historySummary && (
+                  <div className="detail-history-stats">
+                    {historySummary.totalReturnPct != null && (
+                      <span
+                        className="detail-history-stat"
+                        style={{
+                          color: historySummary.isPositive
+                            ? "rgba(107, 207, 154, 0.85)"
+                            : "rgba(224, 87, 127, 0.85)",
+                        }}
+                      >
+                        {historySummary.totalReturnPct >= 0 ? "+" : ""}
+                        {historySummary.totalReturnPct.toFixed(1)}%
+                      </span>
+                    )}
+                    <span className="detail-history-stat muted">
+                      ${historySummary.latest.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {historyLoading
+                ? <div className="detail-history-empty loading-pulse">Loading weekly history...</div>
+                : historyError
+                  ? (
+                    <div className="detail-history-empty">
+                      Weekly history is temporarily unavailable for {item.ticker}.
+                    </div>
+                  )
+                  : <TickerWeeklyPriceChart ticker={item.ticker} points={historyPoints} />}
+            </div>
           </div>
 
           {/* Two-column: Radar + Table */}

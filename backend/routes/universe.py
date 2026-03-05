@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import sqlite3
+from datetime import date, datetime, timedelta
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
+from backend import config
 from backend.db.sqlite import cache_get
 from backend.routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
+DATA_DB = Path(config.DATA_DB_PATH)
 
 
 def _normalize_universe_item(item: dict) -> dict:
@@ -63,6 +69,11 @@ def _search_rank(row: dict, needle: str) -> tuple[int, int, str]:
     return (4, name.find(needle), ticker)  # company contains
 
 
+def _week_ending_friday(d: date) -> date:
+    # weekday(): Mon=0 ... Fri=4 ... Sun=6
+    return d + timedelta(days=(4 - d.weekday()))
+
+
 @router.get("/universe/ticker/{ticker}")
 async def get_universe_ticker(ticker: str):
     data = cache_get("universe_loadings")
@@ -77,6 +88,84 @@ async def get_universe_ticker(ticker: str):
     if item is None:
         raise HTTPException(status_code=404, detail="Ticker not found in cached universe")
     return {"item": _normalize_universe_item(item), "_cached": True}
+
+
+@router.get("/universe/ticker/{ticker}/history")
+async def get_universe_ticker_history(
+    ticker: str,
+    years: int = Query(5, ge=1, le=20),
+):
+    data = cache_get("universe_loadings")
+    if data is None:
+        raise_cache_not_ready(
+            cache_key="universe_loadings",
+            message="Universe cache is not ready yet. Run refresh and try again.",
+            refresh_mode="light",
+        )
+    clean_ticker = str(ticker).upper().strip()
+    item = (data.get("by_ticker") or {}).get(clean_ticker)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Ticker not found in cached universe")
+    ric = str(item.get("ric") or "").upper().strip()
+    if not ric:
+        raise HTTPException(status_code=404, detail="RIC mapping unavailable for ticker")
+
+    conn = sqlite3.connect(str(DATA_DB))
+    try:
+        latest_row = conn.execute(
+            """
+            SELECT MAX(date)
+            FROM security_prices_eod
+            WHERE UPPER(ric) = ?
+            """,
+            (ric,),
+        ).fetchone()
+        latest_date = str(latest_row[0] or "").strip() if latest_row else ""
+        if not latest_date:
+            raise HTTPException(status_code=404, detail="No price history found for ticker")
+        end_dt = datetime.fromisoformat(latest_date).date()
+        start_dt = end_dt - timedelta(days=(366 * int(years)))
+
+        rows = conn.execute(
+            """
+            SELECT date, CAST(close AS REAL) AS close
+            FROM security_prices_eod
+            WHERE UPPER(ric) = ?
+              AND date >= ?
+              AND date <= ?
+              AND close IS NOT NULL
+            ORDER BY date ASC
+            """,
+            (ric, start_dt.isoformat(), end_dt.isoformat()),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    week_close: dict[str, float] = {}
+    for d_raw, close_raw in rows:
+        if d_raw is None or close_raw is None:
+            continue
+        d_txt = str(d_raw).strip()
+        try:
+            d = datetime.fromisoformat(d_txt).date()
+            close = float(close_raw)
+        except (TypeError, ValueError):
+            continue
+        week_end = _week_ending_friday(d).isoformat()
+        # Rows are sorted asc by date, so later rows in the same week overwrite earlier ones.
+        week_close[week_end] = close
+
+    points = [
+        {"date": week_end, "close": round(float(close), 4)}
+        for week_end, close in sorted(week_close.items())
+    ]
+    return {
+        "ticker": clean_ticker,
+        "ric": ric,
+        "years": int(years),
+        "points": points,
+        "_cached": True,
+    }
 
 
 @router.get("/universe/search")

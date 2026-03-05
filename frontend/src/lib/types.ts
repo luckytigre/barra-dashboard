@@ -140,6 +140,19 @@ export interface UniverseTickerData {
   _cached: boolean;
 }
 
+export interface WeeklyPricePoint {
+  date: string;
+  close: number;
+}
+
+export interface UniverseTickerHistoryData {
+  ticker: string;
+  ric: string;
+  years: number;
+  points: WeeklyPricePoint[];
+  _cached: boolean;
+}
+
 export interface UniverseSearchItem {
   ticker: string;
   name: string;
