@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from barra.daily_factor_returns import load_specific_residuals
-from barra.math_utils import exponential_weights
+from backend.barra.daily_factor_returns import load_specific_residuals
+from backend.barra.math_utils import exponential_weights
 
 ANNUALIZATION = 252.0
 

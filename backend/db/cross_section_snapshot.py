@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from db.trbc_schema import ensure_trbc_naming
+from backend.db.trbc_schema import ensure_trbc_naming
 
 TABLE = "universe_cross_section_snapshot"
 

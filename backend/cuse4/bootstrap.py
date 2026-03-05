@@ -11,7 +11,7 @@ from pathlib import Path
 import sqlite3
 from typing import Any
 
-from cuse4.schema import (
+from backend.cuse4.schema import (
     ESTU_MEMBERSHIP_TABLE,
     FUNDAMENTALS_HISTORY_TABLE,
     PRICES_TABLE,

@@ -1,8 +1,8 @@
 """GET /api/risk — variance decomposition, factor details, covariance matrix."""
 
 from fastapi import APIRouter
-from db.sqlite import cache_get
-from routes.readiness import raise_cache_not_ready
+from backend.db.sqlite import cache_get
+from backend.routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 

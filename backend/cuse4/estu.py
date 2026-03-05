@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from cuse4.schema import (
+from backend.cuse4.schema import (
     ESTU_MEMBERSHIP_TABLE,
     FUNDAMENTALS_HISTORY_TABLE,
     PRICES_TABLE,
@@ -18,8 +18,8 @@ from cuse4.schema import (
     TRBC_HISTORY_TABLE,
     ensure_cuse4_schema,
 )
-from cuse4.settings import EstuPolicy, estu_policy_from_env
-from trading_calendar import previous_or_same_xnys_session
+from backend.cuse4.settings import EstuPolicy, estu_policy_from_env
+from backend.trading_calendar import previous_or_same_xnys_session
 
 
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:

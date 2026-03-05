@@ -9,10 +9,10 @@ from typing import Any
 
 import pandas as pd
 
-from db.trbc_schema import ensure_trbc_naming
-from trading_calendar import previous_or_same_xnys_session
+from backend.db.trbc_schema import ensure_trbc_naming
+from backend.trading_calendar import previous_or_same_xnys_session
 
-import config
+from backend import config
 
 DATA_DB = Path(config.DATA_DB_PATH)
 

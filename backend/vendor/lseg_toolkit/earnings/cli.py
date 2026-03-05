@@ -6,10 +6,10 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 
-from lseg_toolkit.client import LsegClient
-from lseg_toolkit.earnings.config import EarningsConfig
-from lseg_toolkit.earnings.pipeline import EarningsReportPipeline
-from lseg_toolkit.exceptions import ConfigurationError, LsegError
+from ..client import LsegClient
+from .config import EarningsConfig
+from .pipeline import EarningsReportPipeline
+from ..exceptions import ConfigurationError, LsegError
 
 
 def parse_date(date_str: str) -> datetime:

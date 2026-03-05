@@ -10,11 +10,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from barra.daily_factor_returns import load_specific_residuals
-from barra.descriptors import FULL_STYLE_FACTORS, FULL_STYLE_ORTH_RULES, canonicalize_style_scores
-from barra.eligibility import build_eligibility_context, structural_eligibility_for_date
-from barra.risk_attribution import STYLE_COLUMN_TO_LABEL
-from db.sqlite import cache_get
+from backend.barra.daily_factor_returns import load_specific_residuals
+from backend.barra.descriptors import FULL_STYLE_FACTORS, FULL_STYLE_ORTH_RULES, canonicalize_style_scores
+from backend.barra.eligibility import build_eligibility_context, structural_eligibility_for_date
+from backend.barra.risk_attribution import STYLE_COLUMN_TO_LABEL
+from backend.db.sqlite import cache_get
 
 ANNUALIZATION = 252.0
 

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
-from db.sqlite import cache_get
-from routes.readiness import raise_cache_not_ready
+from backend.analytics.trbc_economic_sector_short import abbreviate_trbc_economic_sector_short
+from backend.db.sqlite import cache_get
+from backend.routes.readiness import raise_cache_not_ready
 
 router = APIRouter()
 

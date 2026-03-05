@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from barra.math_utils import standardize_cap_weighted
+from backend.barra.math_utils import standardize_cap_weighted
 
 STYLE_SCORE_ABS_CAP = 5.0
 

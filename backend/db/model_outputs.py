@@ -11,7 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from db.trbc_schema import pick_trbc_industry_column
+from backend.db.trbc_schema import pick_trbc_industry_column
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:

@@ -7,8 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import config
-from db.sqlite import cache_get
+from backend import config
+from backend.db.sqlite import cache_get
 
 from fastapi import APIRouter, Query
 
