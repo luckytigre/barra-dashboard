@@ -139,6 +139,19 @@ CREATE TABLE IF NOT EXISTS barra_raw_cross_section_history (
     PRIMARY KEY (ric, as_of_date)
 );
 
+CREATE TABLE IF NOT EXISTS model_factor_returns_daily (
+    date DATE NOT NULL,
+    factor_name TEXT NOT NULL,
+    factor_return DOUBLE PRECISION NOT NULL,
+    r_squared DOUBLE PRECISION,
+    residual_vol DOUBLE PRECISION,
+    cross_section_n INTEGER,
+    eligible_n INTEGER,
+    coverage DOUBLE PRECISION,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (date, factor_name)
+);
+
 CREATE INDEX IF NOT EXISTS idx_security_master_ticker ON security_master (ticker);
 CREATE INDEX IF NOT EXISTS idx_security_master_permid ON security_master (permid);
 CREATE INDEX IF NOT EXISTS idx_security_master_sid ON security_master (sid);
@@ -148,3 +161,4 @@ CREATE INDEX IF NOT EXISTS idx_security_fundamentals_pit_asof ON security_fundam
 CREATE INDEX IF NOT EXISTS idx_security_classification_pit_asof ON security_classification_pit (as_of_date);
 CREATE INDEX IF NOT EXISTS idx_barra_raw_cross_section_history_asof ON barra_raw_cross_section_history (as_of_date);
 CREATE INDEX IF NOT EXISTS idx_barra_raw_cross_section_history_ticker ON barra_raw_cross_section_history (ticker);
+CREATE INDEX IF NOT EXISTS idx_model_factor_returns_daily_factor ON model_factor_returns_daily (factor_name);
