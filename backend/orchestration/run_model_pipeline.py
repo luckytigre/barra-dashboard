@@ -22,6 +22,7 @@ from backend.risk_model import (
     compute_daily_factor_returns,
     rebuild_raw_cross_section_history,
 )
+from backend.services.neon_mirror import run_neon_mirror_cycle
 from backend.universe import bootstrap_cuse4_source_tables, build_and_persist_estu_membership
 from backend.scripts.download_data_lseg import download_from_lseg
 from backend.trading_calendar import previous_or_same_xnys_session
@@ -407,6 +408,10 @@ def run_model_pipeline(
 
     stage_results: list[dict[str, Any]] = []
     overall_status = "ok"
+    neon_mirror: dict[str, Any] = {
+        "status": "skipped",
+        "reason": "NEON_AUTO_SYNC_ENABLED=false",
+    }
     total_stages = len(selected)
     for idx, stage in enumerate(selected, start=1):
         stage_t0 = time.perf_counter()
@@ -500,6 +505,42 @@ def run_model_pipeline(
             )
             break
 
+    if overall_status == "ok" and bool(config.NEON_AUTO_SYNC_ENABLED):
+        try:
+            logger.info(
+                "Running Neon mirror cycle: mode=%s parity=%s prune=%s source_years=%s analytics_years=%s",
+                config.NEON_AUTO_SYNC_MODE,
+                bool(config.NEON_AUTO_PARITY_ENABLED),
+                bool(config.NEON_AUTO_PRUNE_ENABLED),
+                int(config.NEON_SOURCE_RETENTION_YEARS),
+                int(config.NEON_ANALYTICS_RETENTION_YEARS),
+            )
+            neon_mirror = run_neon_mirror_cycle(
+                sqlite_path=DATA_DB,
+                dsn=(str(config.NEON_DATABASE_URL).strip() or None),
+                mode=str(config.NEON_AUTO_SYNC_MODE or "incremental"),
+                tables=(list(config.NEON_AUTO_SYNC_TABLES) or None),
+                parity_enabled=bool(config.NEON_AUTO_PARITY_ENABLED),
+                prune_enabled=bool(config.NEON_AUTO_PRUNE_ENABLED),
+                source_years=int(config.NEON_SOURCE_RETENTION_YEARS),
+                analytics_years=int(config.NEON_ANALYTICS_RETENTION_YEARS),
+            )
+            mirror_status = str(neon_mirror.get("status") or "")
+            if mirror_status not in {"ok"}:
+                logger.warning("Neon mirror cycle reported non-ok status: %s", mirror_status)
+                if bool(config.NEON_AUTO_SYNC_REQUIRED):
+                    overall_status = "failed"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Neon mirror cycle failed")
+            neon_mirror = {
+                "status": "failed",
+                "error": {"type": type(exc).__name__, "message": str(exc)},
+            }
+            if bool(config.NEON_AUTO_SYNC_REQUIRED):
+                overall_status = "failed"
+    elif overall_status != "ok":
+        neon_mirror = {"status": "skipped", "reason": "pipeline_failed"}
+
     return {
         "status": overall_status,
         "run_id": effective_run_id,
@@ -513,6 +554,7 @@ def run_model_pipeline(
         "reset_core_cache": bool(reset_core_cache),
         "selected_stages": selected,
         "stage_results": stage_results,
+        "neon_mirror": neon_mirror,
         "run_rows": job_runs.run_rows(db_path=DATA_DB, run_id=effective_run_id),
     }
 
