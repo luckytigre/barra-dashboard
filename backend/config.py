@@ -2,9 +2,19 @@
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
+
+# Resolve env vars with precedence:
+# shell/process env > backend/.env > project .env
+root_env = dotenv_values(PROJECT_DIR / ".env")
+backend_env = dotenv_values(BASE_DIR / ".env")
+merged_env = {**root_env, **backend_env}
+for key, value in merged_env.items():
+    if key and value is not None:
+        os.environ.setdefault(str(key), str(value))
 
 
 # AWS Postgres (read-only)
@@ -15,7 +25,6 @@ PG_USER = os.getenv("PG_USER", "postgres")
 PG_PASSWORD = os.getenv("PG_PASSWORD", "")
 
 # Storage paths
-BASE_DIR = Path(__file__).resolve().parent
 APP_DATA_DIR = Path(os.getenv("APP_DATA_DIR", str(BASE_DIR / "runtime"))).expanduser()
 if not APP_DATA_DIR.is_absolute():
     APP_DATA_DIR = (BASE_DIR / APP_DATA_DIR).resolve()
@@ -72,6 +81,20 @@ def _env_csv(name: str, default: list[str]) -> list[str]:
     return [p for p in parts if p]
 
 
+# Neon mirror + cutover controls.
+NEON_AUTO_SYNC_ENABLED = _env_bool("NEON_AUTO_SYNC_ENABLED", False)
+NEON_AUTO_SYNC_REQUIRED = _env_bool("NEON_AUTO_SYNC_REQUIRED", False)
+NEON_AUTO_PARITY_ENABLED = _env_bool("NEON_AUTO_PARITY_ENABLED", True)
+NEON_AUTO_PRUNE_ENABLED = _env_bool("NEON_AUTO_PRUNE_ENABLED", True)
+NEON_AUTO_SYNC_MODE = str(os.getenv("NEON_AUTO_SYNC_MODE", "incremental")).strip().lower()
+if NEON_AUTO_SYNC_MODE not in {"incremental", "full"}:
+    NEON_AUTO_SYNC_MODE = "incremental"
+NEON_AUTO_SYNC_TABLES = _env_csv("NEON_AUTO_SYNC_TABLES", [])
+NEON_SOURCE_RETENTION_YEARS = max(1, int(os.getenv("NEON_SOURCE_RETENTION_YEARS", "10")))
+NEON_ANALYTICS_RETENTION_YEARS = max(1, int(os.getenv("NEON_ANALYTICS_RETENTION_YEARS", "5")))
+NEON_READ_SURFACES = {s.strip().lower() for s in _env_csv("NEON_READ_SURFACES", [])}
+
+
 # cUSE4 foundation toggles (non-breaking additive path).
 CUSE4_ENABLE_ESTU_AUDIT = _env_bool("CUSE4_ENABLE_ESTU_AUDIT", True)
 CUSE4_AUTO_BOOTSTRAP = _env_bool("CUSE4_AUTO_BOOTSTRAP", False)
@@ -96,3 +119,14 @@ def pg_dsn() -> str:
 
 def neon_dsn() -> str:
     return NEON_DATABASE_URL
+
+
+def neon_surface_enabled(surface: str) -> bool:
+    clean = str(surface or "").strip().lower()
+    if not clean:
+        return False
+    if DATA_BACKEND == "neon":
+        return True
+    if "*" in NEON_READ_SURFACES:
+        return True
+    return clean in NEON_READ_SURFACES

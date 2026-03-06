@@ -8,16 +8,36 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from psycopg.rows import dict_row
 
+from backend import config
+from backend.data.neon import connect, resolve_dsn
 from backend.data.trbc_schema import ensure_trbc_naming
 from backend.trading_calendar import previous_or_same_xnys_session
 
-from backend import config
-
 DATA_DB = Path(config.DATA_DB_PATH)
+_CORE_READ_SURFACE = "core_reads"
+
+
+def _use_neon_core_reads() -> bool:
+    return bool(config.neon_surface_enabled(_CORE_READ_SURFACE))
+
+
+def _to_pg_sql(query: str) -> str:
+    # Runtime SQL in this module is simple and uses `?` only as parameter placeholders.
+    return str(query).replace("?", "%s")
 
 
 def _fetch_rows(sql: str, params: list[Any] | None = None) -> list[dict[str, Any]]:
+    if _use_neon_core_reads():
+        pg_conn = connect(dsn=resolve_dsn(None), autocommit=True)
+        try:
+            with pg_conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(_to_pg_sql(sql), params or [])
+                return [dict(row) for row in cur.fetchall()]
+        finally:
+            pg_conn.close()
+
     conn = sqlite3.connect(str(DATA_DB))
     conn.row_factory = sqlite3.Row
     try:
@@ -29,6 +49,18 @@ def _fetch_rows(sql: str, params: list[Any] | None = None) -> list[dict[str, Any
 
 
 def _table_exists(table: str) -> bool:
+    if _use_neon_core_reads():
+        rows = _fetch_rows(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema='public' AND table_name=?
+            LIMIT 1
+            """,
+            [table],
+        )
+        return bool(rows)
+
     rows = _fetch_rows(
         """
         SELECT 1

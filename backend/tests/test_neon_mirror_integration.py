@@ -1,0 +1,64 @@
+from __future__ import annotations
+
+import importlib
+
+run_model_pipeline = importlib.import_module("backend.orchestration.run_model_pipeline")
+
+
+def _patch_lightweight_pipeline(monkeypatch) -> None:
+    monkeypatch.setattr(run_model_pipeline, "_resolved_as_of_date", lambda _: "2026-03-04")
+    monkeypatch.setattr(run_model_pipeline, "_risk_recompute_due", lambda *_args, **_kwargs: (False, "within_interval"))
+    monkeypatch.setattr(run_model_pipeline, "_stage_window", lambda *_args, **_kwargs: ["feature_build"])
+    monkeypatch.setattr(run_model_pipeline, "_run_stage", lambda **_kwargs: {"status": "ok"})
+    monkeypatch.setattr(run_model_pipeline.sqlite, "cache_get", lambda _k: {})
+    monkeypatch.setattr(run_model_pipeline.job_runs, "ensure_schema", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(run_model_pipeline.job_runs, "completed_stages", lambda *_args, **_kwargs: set())
+    monkeypatch.setattr(run_model_pipeline.job_runs, "begin_stage", lambda **_kwargs: None)
+    monkeypatch.setattr(run_model_pipeline.job_runs, "finish_stage", lambda **_kwargs: None)
+    monkeypatch.setattr(run_model_pipeline.job_runs, "run_rows", lambda **_kwargs: [])
+
+
+def test_run_model_pipeline_runs_optional_neon_mirror(monkeypatch) -> None:
+    _patch_lightweight_pipeline(monkeypatch)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_REQUIRED", False)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_PARITY_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_PRUNE_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_MODE", "incremental")
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_TABLES", [])
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_SOURCE_RETENTION_YEARS", 10)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_ANALYTICS_RETENTION_YEARS", 5)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_DATABASE_URL", "postgresql://example")
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "run_neon_mirror_cycle",
+        lambda **_kwargs: {"status": "ok", "sync": {"status": "ok"}},
+    )
+
+    out = run_model_pipeline.run_model_pipeline(profile="daily-fast")
+
+    assert out["status"] == "ok"
+    assert out["neon_mirror"]["status"] == "ok"
+
+
+def test_run_model_pipeline_fails_if_required_neon_mirror_mismatch(monkeypatch) -> None:
+    _patch_lightweight_pipeline(monkeypatch)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_REQUIRED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_PARITY_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_PRUNE_ENABLED", True)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_MODE", "incremental")
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_TABLES", [])
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_SOURCE_RETENTION_YEARS", 10)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_ANALYTICS_RETENTION_YEARS", 5)
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_DATABASE_URL", "postgresql://example")
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "run_neon_mirror_cycle",
+        lambda **_kwargs: {"status": "mismatch"},
+    )
+
+    out = run_model_pipeline.run_model_pipeline(profile="daily-fast")
+
+    assert out["neon_mirror"]["status"] == "mismatch"
+    assert out["status"] == "failed"
