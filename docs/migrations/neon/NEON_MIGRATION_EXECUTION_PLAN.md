@@ -15,6 +15,7 @@ Use local SQLite as the full historical ingest/source authority while Neon opera
 - `backend/orchestration/run_model_pipeline.py` now runs a Neon mirror cycle after a successful pipeline run when `NEON_AUTO_SYNC_ENABLED=true`.
 - Mirror cycle includes:
   - incremental/full sync,
+  - factor-return sync from `cache.db` (`daily_factor_returns` -> `model_factor_returns_daily`),
   - optional Neon prune,
   - optional bounded parity audit.
 - Pipeline output now includes `neon_mirror` status payload.
@@ -34,8 +35,8 @@ Use local SQLite as the full historical ingest/source authority while Neon opera
   - `price_history` -> `/api/universe/ticker/{ticker}/history` path via `backend/data/history_queries.py`.
 - If a surface is enabled, reads go to Neon for that surface.
 - If `DATA_BACKEND=neon`, all surfaces route to Neon.
-- Current runtime setting for controlled cutover: `NEON_READ_SURFACES=core_reads,price_history`.
-  - `factor_history` remains SQLite until `model_factor_returns_daily` is mirrored into Neon.
+- Current runtime setting for controlled cutover can include all three surfaces:
+  - `NEON_READ_SURFACES=core_reads,factor_history,price_history`
 
 ## Environment Controls
 - `DATA_BACKEND=sqlite|neon`

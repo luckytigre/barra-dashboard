@@ -517,6 +517,7 @@ def run_model_pipeline(
             )
             neon_mirror = run_neon_mirror_cycle(
                 sqlite_path=DATA_DB,
+                cache_path=CACHE_DB,
                 dsn=(str(config.NEON_DATABASE_URL).strip() or None),
                 mode=str(config.NEON_AUTO_SYNC_MODE or "incremental"),
                 tables=(list(config.NEON_AUTO_SYNC_TABLES) or None),
