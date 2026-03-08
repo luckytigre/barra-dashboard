@@ -10,6 +10,10 @@ This is the only approved operational flow for onboarding new RICs into:
 - `security_fundamentals_pit`
 - `security_classification_pit`
 
+Current policy:
+- this workflow is still initiated manually with Codex
+- it is not yet exposed as a self-service UI action
+
 ## Preconditions
 
 - The new names have been validated to be equity names you want in the coverage universe.

@@ -1229,6 +1229,38 @@ main {
   font-weight: 600;
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid rgba(169, 182, 210, 0.16);
+  background: rgba(34, 38, 48, 0.48);
+  color: rgba(223, 228, 238, 0.88);
+}
+
+.status-pill.success {
+  border-color: rgba(107, 207, 154, 0.22);
+  background: rgba(30, 73, 53, 0.34);
+  color: rgba(156, 231, 187, 0.96);
+}
+
+.status-pill.warning {
+  border-color: rgba(224, 190, 92, 0.24);
+  background: rgba(92, 74, 26, 0.34);
+  color: rgba(241, 212, 128, 0.95);
+}
+
+.status-pill.error {
+  border-color: rgba(204, 53, 88, 0.24);
+  background: rgba(94, 28, 44, 0.34);
+  color: rgba(240, 133, 160, 0.96);
+}
+
 /* Detail panel */
 .detail-panel {
   width: min(88%, 980px);

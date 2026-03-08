@@ -10,8 +10,10 @@ Implemented now:
 - canonical orchestrator lane names are live in `run_model_pipeline`
 - legacy profile aliases still resolve for compatibility
 - `/api/operator/status` exposes lane status, source recency, core-due state, refresh state, and Neon parity health
-- Health page now surfaces operator cards and lane recency
+- Data page now acts as the operator control deck with lane controls, plain-English popovers, and lane recency
+- Health page also surfaces operator cards for redundancy
 - source recency now explicitly tracks prices, fundamentals, classification, and raw cross-section dates
+- `make operator-check` / `scripts/operator_check.sh` provide one-command backend/operator validation
 
 Cold-core lessons now incorporated:
 - serving refresh must read live risk-engine cache keys, not only the active published snapshot
@@ -304,7 +306,7 @@ Does:
 
 Current state:
 - named lane exists for observability/finalization
-- onboarding and targeted backfill still remain operator-driven via runbook/commands
+- onboarding and targeted backfill still remain operator-driven via runbook/commands with Codex
 
 ## Universe-Add Standard Procedure
 
@@ -431,10 +433,8 @@ This should become the only approved path for new ticker onboarding.
 
 ## Proposed Implementation Order
 
-1. Finalize a documented and scriptable `universe-add` workflow.
-2. Add one-command operator checks around `/api/operator/status`, `/api/health`, and latest parity artifact.
-3. Tighten frontend affordances so lane-triggering actions are explicit from the UI.
-4. Only after that, finalize cloud cutover semantics around scheduled runs.
+1. Keep `universe-add` as an explicit manual workflow with Codex until you want self-service onboarding.
+2. Only after that, finalize cloud cutover semantics around scheduled runs.
 
 ## What “Done” Looks Like
 

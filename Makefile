@@ -1,4 +1,4 @@
-.PHONY: dev backend backend-prod frontend frontend-safe refresh refresh-light refresh-cold setup cuse4-bootstrap cuse4-estu prune-history prune-history-dry smoke-check clean-local
+.PHONY: dev backend backend-prod frontend frontend-safe refresh refresh-light refresh-cold setup cuse4-bootstrap cuse4-estu prune-history prune-history-dry smoke-check operator-check clean-local
 
 setup:
 	cd backend && python3 -m pip install -e ".[dev]"
@@ -55,6 +55,9 @@ prune-history-dry:
 
 smoke-check:
 	./scripts/smoke_check.sh
+
+operator-check:
+	./scripts/operator_check.sh
 
 clean-local:
 	find . -name ".DS_Store" -delete || true
