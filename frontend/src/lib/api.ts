@@ -46,6 +46,7 @@ export const apiPath = {
   dataDiagnostics: () => "/api/data/diagnostics",
   operatorStatus: () => "/api/operator/status",
   refresh: (mode: RefreshMode) => `/api/refresh?mode=${mode}`,
+  refreshProfile: (profile: string) => `/api/refresh?profile=${encodeURIComponent(profile)}`,
   refreshStatus: () => "/api/refresh/status",
 };
 

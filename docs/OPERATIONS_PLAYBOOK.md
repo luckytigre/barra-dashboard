@@ -118,6 +118,9 @@
   - `curl -s "http://localhost:8000/api/refresh/status" | jq`
 - Verify operator lane matrix:
   - `curl -s "http://localhost:8000/api/operator/status" | jq`
+- One-command operator check:
+  - `make operator-check`
+  - or `./scripts/operator_check.sh`
 - Verify latest refresh metadata:
   - `curl -s "http://localhost:8000/api/data/status" | jq '.cache_outputs[] | select(.key==\"refresh_meta\")'`
 - Verify risk payload includes engine metadata:

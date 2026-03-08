@@ -2,6 +2,7 @@
 
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
+import OperatorControlPanel from "@/components/OperatorControlPanel";
 import { useDataDiagnostics } from "@/hooks/useApi";
 import type { DataTableStats } from "@/lib/types";
 
@@ -50,6 +51,8 @@ export default function DataPage() {
 
   return (
     <div>
+      <OperatorControlPanel />
+
       <div className="kpi-row">
         <div className="kpi-card">
           <div className="label">Exposure Source</div>
