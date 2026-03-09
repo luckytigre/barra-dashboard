@@ -154,7 +154,8 @@ Efficiency rules now in force:
 - ticker/RIC typeahead is debounced before hitting `/api/universe/search`
 - Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls
 - user-facing dashboard pages should consume durable serving outputs first rather than piecing together raw source tables in the browser
-- old local cache blobs are now bootstrap fallback only when a serving payload snapshot does not yet exist
+- in `local-ingest`, old local cache blobs remain bootstrap fallback only when a serving payload snapshot does not yet exist
+- in `cloud-serve`, serving routes fail closed instead of falling back to local cache/SQLite state
 - universe explore/search outputs
 - health/diagnostic payloads
 

@@ -366,7 +366,7 @@ Where this remains an approximation:
      - `security_fundamentals_pit`
      - `security_classification_pit`
      - `security_prices_eod`
-   - Run in shards/batches; monthly or quarterly PIT cadence depending on run mode.
+   - Run in shards/batches; monthly PIT cadence is the default policy, with narrower/custom cadences only by explicit operator choice.
 3. Raw cross-section feature build:
    - Build `barra_raw_cross_section_history` from canonical source tables.
    - Compute descriptors, z-score/standardize, and apply orthogonalization policy.
@@ -394,12 +394,14 @@ Where this remains an approximation:
      - `source-daily`
      - `source-daily-plus-core-if-due`
      - `core-weekly`
-   - `cold-core`
-   - `universe-add`
-  - Stage checkpoints persist in `job_run_status`.
-  - `ingest` stage always runs canonical bootstrap checks; optional live LSEG ingest is controlled by `ORCHESTRATOR_ENABLE_INGEST`.
+     - `cold-core`
+     - `universe-add`
+   - Stage checkpoints persist in `job_run_status`.
+   - `cloud-serve` allows only `serve-refresh`; source ingest remains a `local-ingest` responsibility.
+   - `ingest` stage always runs canonical bootstrap checks; optional live LSEG ingest is controlled by `ORCHESTRATOR_ENABLE_INGEST`.
 9. Downstream usage:
    - Portfolio exposures/risk attribution and API caches read from processed model outputs, not raw ingest tables.
+   - Dashboard-serving payloads persist durably in `serving_payload_current` so cloud reads do not depend solely on transient local cache state.
 
 ## 11) Near-Term Operating Priorities
 
