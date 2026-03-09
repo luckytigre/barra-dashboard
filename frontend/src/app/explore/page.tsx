@@ -3,9 +3,18 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ExposureBarChart from "@/components/ExposureBarChart";
 import FactorRadarChart from "@/components/FactorRadarChart";
+import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
-import { usePortfolio, useUniverseFactors, useUniverseSearch, useUniverseTicker } from "@/hooks/useApi";
+import LazyMountOnVisible from "@/components/LazyMountOnVisible";
+import {
+  usePortfolio,
+  useUniverseFactors,
+  useUniverseSearch,
+  useUniverseTicker,
+  useUniverseTickerHistory,
+} from "@/hooks/useApi";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { shortFactorLabel, factorTier } from "@/lib/factorLabels";
 import type { FactorExposure } from "@/lib/types";
 
@@ -17,7 +26,7 @@ interface ExploreRow {
   tier: number;
 }
 
-const TIER_NAMES: Record<number, string> = { 1: "Industry", 2: "Style" };
+const TIER_NAMES: Record<number, string> = { 1: "Country", 2: "Industry", 3: "Style" };
 
 function fmtPct(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
@@ -45,14 +54,33 @@ export default function ExplorePage() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const wrapRef = useRef<HTMLDivElement>(null);
 
-  const { data: searchData, error: searchError } = useUniverseSearch(query, 10);
+  const debouncedQuery = useDebouncedValue(query, 220);
+  const { data: searchData, error: searchError } = useUniverseSearch(debouncedQuery, 10);
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
+  const {
+    data: historyData,
+    isLoading: historyLoading,
+    error: historyError,
+  } = useUniverseTickerHistory(selectedTicker, 5);
   const { data: factorsData, error: factorsError } = useUniverseFactors();
   const { data: portfolioData, error: portfolioError } = usePortfolio();
 
   const item = tickerData?.item;
   const factorVols = factorsData?.factor_vols ?? {};
   const results = searchData?.results ?? [];
+  const historyPoints = historyData?.points ?? [];
+
+  const historySummary = useMemo(() => {
+    if (historyPoints.length === 0) return null;
+    const first = Number(historyPoints[0]?.close ?? 0);
+    const latest = Number(historyPoints[historyPoints.length - 1]?.close ?? 0);
+    const totalReturnPct = first > 0 ? ((latest / first) - 1) * 100 : null;
+    return {
+      latest,
+      totalReturnPct,
+      isPositive: (totalReturnPct ?? 0) >= 0,
+    };
+  }, [historyPoints]);
 
   // Build a quick lookup of held positions by ticker
   const positionMap = useMemo(() => {
@@ -72,13 +100,13 @@ export default function ExplorePage() {
 
   // Show dropdown when there's a query with results
   useEffect(() => {
-    if (query.trim().length > 0 && results.length > 0) {
+    if (debouncedQuery.trim().length > 0 && results.length > 0) {
       setDropdownOpen(true);
       setActiveIndex(-1);
     } else {
       setDropdownOpen(false);
     }
-  }, [query, results.length]);
+  }, [debouncedQuery, results.length]);
 
   // Close on outside click
   useEffect(() => {
@@ -184,6 +212,46 @@ export default function ExplorePage() {
     }
     return groups;
   }, [rows]);
+
+  const weeklyHistoryCard = item ? (
+    <div className="chart-card">
+      <h3 style={{ marginBottom: 25 }}>{item.ticker} Weekly Price</h3>
+      <div className="detail-history" style={{ marginTop: 0, marginBottom: 0 }}>
+        <div className="detail-history-header">
+          <h5>5Y Weekly Close</h5>
+          {!historyLoading && !historyError && historySummary && (
+            <div className="detail-history-stats">
+              {historySummary.totalReturnPct != null && (
+                <span
+                  className="detail-history-stat"
+                  style={{
+                    color: historySummary.isPositive
+                      ? "rgba(107, 207, 154, 0.85)"
+                      : "rgba(224, 87, 127, 0.85)",
+                  }}
+                >
+                  {historySummary.totalReturnPct >= 0 ? "+" : ""}
+                  {historySummary.totalReturnPct.toFixed(1)}%
+                </span>
+              )}
+              <span className="detail-history-stat muted">
+                ${historySummary.latest.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+        {historyLoading
+          ? <div className="detail-history-empty loading-pulse">Loading weekly history...</div>
+          : historyError
+            ? (
+              <div className="detail-history-empty">
+                Weekly history is temporarily unavailable for {item.ticker}.
+              </div>
+            )
+            : <TickerWeeklyPriceChart ticker={item.ticker} points={historyPoints} />}
+      </div>
+    </div>
+  ) : null;
 
   if (factorsError || portfolioError) {
     return <ApiErrorState title="Universe Data Not Ready" error={factorsError || portfolioError} />;
@@ -296,7 +364,7 @@ export default function ExplorePage() {
                 <div className="explore-hero-stat">
                   <span className="label">Beta</span>
                   <span className="value">
-                    {typeof item.exposures?.Beta === "number" ? item.exposures.Beta.toFixed(2) : "—"}
+                    —
                   </span>
                 </div>
                 <div className="explore-hero-stat">
@@ -355,72 +423,93 @@ export default function ExplorePage() {
 
           {/* Two-column: Radar + Table */}
           {item.eligible_for_model !== false ? (
-            <div className="explore-detail-grid">
-              {/* Left: Radar Chart */}
-              <div className="chart-card">
-                <h3>Style Factor Profile</h3>
-                <FactorRadarChart exposures={item.exposures ?? {}} />
+            <>
+              <div className="explore-detail-grid">
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the style profile chart.</div></div>}
+                >
+                  <div className="chart-card">
+                    <h3>Style Factor Profile</h3>
+                    <FactorRadarChart exposures={item.exposures ?? {}} />
+                  </div>
+                </LazyMountOnVisible>
+
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the factor exposure chart.</div></div>}
+                >
+                  <div className="chart-card">
+                    <h3>{item.ticker} Factor Exposures</h3>
+                    <ExposureBarChart factors={chartFactors} />
+                  </div>
+                </LazyMountOnVisible>
               </div>
 
-              {/* Right: Factor Loadings Table */}
-              <div className="chart-card">
-                <h3>Factor Loadings</h3>
-                <div className="dash-table" style={{ maxHeight: 360, overflowY: "auto" }}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Factor</th>
-                        <th className="text-right">Loading</th>
-                        <th className="text-right">Factor Vol</th>
-                        <th className="text-right">Sensitivity</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {groupedRows.map((group) => (
-                        <Fragment key={`tier-${group.tier}`}>
-                          <tr className="explore-tier-header">
-                            <td colSpan={4}>{TIER_NAMES[group.tier] ?? "Other"}</td>
-                          </tr>
-                          {group.rows.map((row) => (
-                            <tr key={row.factor}>
-                              <td>{shortFactorLabel(row.factor)}</td>
-                              <td
-                                className={`text-right ${row.loading >= 0 ? "positive" : "negative"}`}
-                              >
-                                {row.loading >= 0 ? "+" : ""}
-                                {row.loading.toFixed(4)}
-                              </td>
-                              <td className="text-right">{fmtPct(row.factorVol)}</td>
-                              <td
-                                className={`text-right ${row.sensitivity >= 0 ? "positive" : "negative"}`}
-                              >
-                                {row.sensitivity >= 0 ? "+" : ""}
-                                {row.sensitivity.toFixed(4)}
-                              </td>
+              <div className="explore-detail-grid">
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the weekly price chart.</div></div>}
+                >
+                  {weeklyHistoryCard}
+                </LazyMountOnVisible>
+
+                {/* Right: Factor Loadings Table */}
+                <div className="chart-card">
+                  <h3>Factor Loadings</h3>
+                  <div className="dash-table" style={{ maxHeight: 360, overflowY: "auto" }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Factor</th>
+                          <th className="text-right">Loading</th>
+                          <th className="text-right">Factor Vol</th>
+                          <th className="text-right">Sensitivity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupedRows.map((group) => (
+                          <Fragment key={`tier-${group.tier}`}>
+                            <tr className="explore-tier-header">
+                              <td colSpan={4}>{TIER_NAMES[group.tier] ?? "Other"}</td>
                             </tr>
-                          ))}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
+                            {group.rows.map((row) => (
+                              <tr key={row.factor}>
+                                <td>{shortFactorLabel(row.factor)}</td>
+                                <td
+                                  className={`text-right ${row.loading >= 0 ? "positive" : "negative"}`}
+                                >
+                                  {row.loading >= 0 ? "+" : ""}
+                                  {row.loading.toFixed(4)}
+                                </td>
+                                <td className="text-right">{fmtPct(row.factorVol)}</td>
+                                <td
+                                  className={`text-right ${row.sensitivity >= 0 ? "positive" : "negative"}`}
+                                >
+                                  {row.sensitivity >= 0 ? "+" : ""}
+                                  {row.sensitivity.toFixed(4)}
+                                </td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           ) : (
-            <div className="chart-card mb-4">
-              <h3>Model Analytics</h3>
-              <div style={{ color: "var(--text-secondary)" }}>
-                N/A for this ticker under strict equity eligibility rules.
-              </div>
-            </div>
-          )}
+            <>
+              {weeklyHistoryCard}
 
-          {/* Full exposure bar chart */}
-          {item.eligible_for_model !== false && (
-            <div className="chart-card mb-4">
-              <h3>{item.ticker} Factor Profile</h3>
-              <ExposureBarChart factors={chartFactors} />
-            </div>
+              <div className="chart-card mb-4">
+                <h3>Model Analytics</h3>
+                <div style={{ color: "var(--text-secondary)" }}>
+                  N/A for this ticker under strict equity eligibility rules.
+                </div>
+              </div>
+            </>
           )}
         </>
       )}

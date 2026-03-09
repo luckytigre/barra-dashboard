@@ -86,7 +86,7 @@ def get_earnings_data(
 
         # Convert timezone if requested
         if convert_timezone:
-            from lseg_toolkit.timezone_utils import add_timezone_converted_columns
+            from ..timezone_utils import add_timezone_converted_columns
 
             df = add_timezone_converted_columns(df, target_tz=convert_timezone)
 

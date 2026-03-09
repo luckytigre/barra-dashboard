@@ -1,4 +1,10 @@
-"""Update local SQLite market/fundamental data using jl-lseg-toolkit."""
+"""Canonical LSEG ingest: direct writes into RIC-keyed source-of-truth tables.
+
+Volume policy:
+- Ingest writes `security_prices_eod.volume` from `TR.Volume`.
+- Historical volume-repair runs use the same metric via
+  `backfill_prices_range_lseg.py --volume-only`.
+"""
 
 from __future__ import annotations
 
@@ -7,7 +13,6 @@ import hashlib
 import os
 import re
 import sqlite3
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,31 +20,39 @@ from typing import Any
 
 import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "vendor"))
 
-from db.fundamental_schema import ensure_fundamental_snapshots_schema
-from db.prices_schema import ensure_prices_daily_schema
-from db.trbc_schema import ensure_trbc_naming
-from lseg_ric_resolver import ensure_ric_map_table, load_ric_map, resolve_ric_map
-from trading_calendar import previous_or_same_xnys_session
+from backend.universe.schema import (
+    FUNDAMENTALS_HISTORY_TABLE,
+    PRICES_TABLE,
+    SECURITY_MASTER_TABLE,
+    TRBC_HISTORY_TABLE,
+    ensure_cuse4_schema,
+)
+from backend.trading_calendar import previous_or_same_xnys_session
 
 _DB_RAW = Path(os.getenv("DATA_DB_PATH", "data.db")).expanduser()
 DEFAULT_DB = _DB_RAW if _DB_RAW.is_absolute() else (Path(__file__).resolve().parent.parent / _DB_RAW)
-LSEG_BATCH_SIZE = 500
+LSEG_BATCH_SIZE = max(1, int(os.getenv("LSEG_BATCH_SIZE", "500")))
 SQLITE_TIMEOUT_SECONDS = 120
 SQLITE_BUSY_TIMEOUT_MS = 120000
 SQLITE_MAX_RETRIES = 6
 SQLITE_RETRY_SLEEP_SECONDS = 2.0
+PRICE_VOLUME_FIELD = "TR.Volume"
 
-LSEG_FIELDS = [
+LSEG_FIELDS_ALL = [
     "TR.CommonName",
     "TR.TRBCEconomicSector",
     "TR.TRBCBusinessSector",
     "TR.TRBCIndustryGroup",
     "TR.TRBCIndustry",
     "TR.TRBCActivity",
+    "TR.HQCountryCode",
+    "TR.PriceOpen",
+    "TR.PriceHigh",
+    "TR.PriceLow",
     "TR.PriceClose",
+    PRICE_VOLUME_FIELD,
+    "TR.PriceClose.currency",
     "TR.CompanyMarketCap",
     "TR.SharesOutstanding",
     "TR.DividendYield",
@@ -70,12 +83,76 @@ LSEG_FIELDS = [
     "TR.OperatingMarginPercent",
 ]
 
+FUNDAMENTALS_FIELD_SET = {
+    "TR.CommonName",
+    "TR.CompanyMarketCap",
+    "TR.SharesOutstanding",
+    "TR.DividendYield",
+    "TR.BookValuePerShare",
+    "TR.EPSMean",
+    "TR.EPSActValue",
+    "TR.TotalDebt",
+    "TR.CashAndEquivalents",
+    "TR.LongTermDebt",
+    "TR.CashFromOperatingActivities",
+    "TR.CapitalExpenditures",
+    "TR.Revenue",
+    "TR.Revenue.fperiod",
+    "TR.Revenue.currency",
+    "TR.Revenue.periodenddate",
+    "TR.EBITDA",
+    "TR.EBIT",
+    "TR.TotalAssets",
+    "TR.ROEPercent",
+    "TR.OperatingMarginPercent",
+}
 
-def _to_local_ticker(ric: str) -> str:
-    base = str(ric or "").strip().upper()
-    if not base:
-        return base
-    return base.split(".", 1)[0]
+CLASSIFICATION_FIELD_SET = {
+    "TR.TRBCEconomicSector",
+    "TR.TRBCBusinessSector",
+    "TR.TRBCIndustryGroup",
+    "TR.TRBCIndustry",
+    "TR.TRBCActivity",
+    "TR.HQCountryCode",
+}
+
+PRICE_FIELD_SET = {
+    "TR.PriceOpen",
+    "TR.PriceHigh",
+    "TR.PriceLow",
+    "TR.PriceClose",
+    PRICE_VOLUME_FIELD,
+    "TR.PriceClose.currency",
+}
+
+
+def _select_lseg_fields(
+    *,
+    write_fundamentals: bool,
+    write_prices: bool,
+    write_classification: bool,
+) -> list[str]:
+    wanted: set[str] = set()
+    if write_fundamentals:
+        wanted.update(FUNDAMENTALS_FIELD_SET)
+    if write_prices:
+        wanted.update(PRICE_FIELD_SET)
+    if write_classification:
+        wanted.update(CLASSIFICATION_FIELD_SET)
+    if not wanted:
+        return []
+    return [f for f in LSEG_FIELDS_ALL if f in wanted]
+
+
+def _load_lseg_client():
+    try:
+        from backend.vendor.lseg_toolkit import LsegClient
+    except Exception as exc:
+        raise RuntimeError(
+            "Unable to import lseg_toolkit/LSEG runtime. "
+            "Ensure vendored toolkit is present and `lseg-data` is installed."
+        ) from exc
+    return LsegClient
 
 
 def _pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
@@ -87,43 +164,63 @@ def _pick_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
     return None
 
 
-def _existing_cols(conn: sqlite3.Connection, table: str) -> list[str]:
-    cur = conn.execute(f"PRAGMA table_info({table})")
-    return [str(r[1]) for r in cur.fetchall()]
+def _iso_date(value: Any) -> str | None:
+    if isinstance(value, pd.Series):
+        for item in value.tolist():
+            if item is None or pd.isna(item):
+                continue
+            value = item
+            break
+        else:
+            return None
+    if value is None:
+        return None
+    if isinstance(value, pd.Timestamp):
+        if pd.isna(value):
+            return None
+        return str(value.date())
+    s = str(value).strip()
+    if not s or s.lower() in {"nan", "nat", "none"}:
+        return None
+    return s
 
 
-def _ensure_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
-    cols = {str(c).lower() for c in _existing_cols(conn, table)}
-    if column.lower() in cols:
-        return
+def _float_or_none(value: Any) -> float | None:
+    if isinstance(value, pd.Series):
+        for item in value.tolist():
+            if item is None or pd.isna(item):
+                continue
+            value = item
+            break
+        else:
+            return None
+    if value is None or pd.isna(value):
+        return None
     try:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
-    except sqlite3.OperationalError as exc:
-        if "duplicate column name" not in str(exc).lower():
-            raise
+        return float(value)
+    except Exception:
+        return None
 
 
-def _ensure_tables(conn: sqlite3.Connection) -> None:
-    ensure_trbc_naming(conn)
-    ensure_fundamental_snapshots_schema(conn, prune_extra_columns=True)
-    ensure_prices_daily_schema(conn)
+def _parse_fiscal_period(value: Any) -> tuple[int | None, str | None, str | None]:
+    if value is None or pd.isna(value):
+        return None, None, None
+    s = str(value).strip().upper()
+    if not s:
+        return None, None, None
 
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS trbc_industry_history (
-            ticker TEXT NOT NULL,
-            as_of_date TEXT NOT NULL,
-            trbc_industry_group TEXT,
-            trbc_economic_sector TEXT,
-            source TEXT,
-            job_run_id TEXT,
-            updated_at TEXT,
-            PRIMARY KEY (ticker, as_of_date)
-        )
-        """
-    )
-    for col in ["trbc_business_sector", "trbc_industry", "trbc_activity"]:
-        _ensure_column(conn, "trbc_industry_history", col, "TEXT")
+    m_fy = re.match(r"^FY\D*(\d{4})$", s)
+    if m_fy:
+        return int(m_fy.group(1)), None, "FY"
+
+    m_fq = re.match(r"^F?Q([1-4])\D*(\d{4})$", s)
+    if m_fq:
+        return int(m_fq.group(2)), f"Q{m_fq.group(1)}", "FQ"
+
+    m_year = re.search(r"(\d{4})", s)
+    if m_year:
+        return int(m_year.group(1)), None, None
+    return None, None, None
 
 
 def _connect_db(db_path: Path) -> sqlite3.Connection:
@@ -132,6 +229,11 @@ def _connect_db(db_path: Path) -> sqlite3.Connection:
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
     return conn
+
+
+def _existing_cols(conn: sqlite3.Connection, table: str) -> list[str]:
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    return [str(r[1]) for r in cur.fetchall()]
 
 
 def _insert_rows(
@@ -162,169 +264,62 @@ def _insert_rows(
     return len(rows)
 
 
-def _backfill_common_names(conn: sqlite3.Connection) -> int:
-    before = conn.total_changes
-    conn.execute(
-        """
-        WITH stable_name AS (
-            SELECT s.ticker, MIN(s.common_name) AS common_name
-            FROM (
-                SELECT
-                    UPPER(f.ticker) AS ticker,
-                    TRIM(f.common_name) AS common_name
-                FROM fundamental_snapshots
-                JOIN ticker_ric_map m
-                  ON UPPER(f.ticker) = UPPER(m.ticker)
-                WHERE f.common_name IS NOT NULL
-                  AND TRIM(f.common_name) <> ''
-                  AND COALESCE(m.classification_ok, 0) = 1
-            ) s
-            GROUP BY s.ticker
-            HAVING COUNT(DISTINCT s.common_name) = 1
-        )
-        UPDATE fundamental_snapshots
-        SET common_name = (
-            SELECT n.common_name
-            FROM stable_name n
-            WHERE n.ticker = UPPER(fundamental_snapshots.ticker)
-        )
-        WHERE (common_name IS NULL OR TRIM(common_name) = '')
-          AND UPPER(ticker) IN (SELECT ticker FROM stable_name)
-        """
-    )
-    return int(conn.total_changes - before)
+def _to_local_ticker(ric: str) -> str:
+    base = str(ric or "").strip().upper()
+    if not base:
+        return base
+    return base.split(".", 1)[0]
 
 
-def _resolve_universe(
+def _load_universe_from_security_master(
+    conn: sqlite3.Connection,
     *,
-    db_path: Path,
-    index: str | None,
+    tickers: list[str] | None,
+    rics: list[str] | None,
+) -> list[dict[str, str]]:
+    where = [
+        "ticker IS NOT NULL",
+        "TRIM(ticker) <> ''",
+        "ric IS NOT NULL",
+        "TRIM(ric) <> ''",
+        "COALESCE(classification_ok, 0) = 1",
+        "COALESCE(is_equity_eligible, 0) = 1",
+    ]
+    params: list[Any] = []
+    if tickers:
+        placeholders = ",".join("?" for _ in tickers)
+        where.append(f"UPPER(TRIM(ticker)) IN ({placeholders})")
+        params.extend([str(t).strip().upper() for t in tickers])
+    if rics:
+        placeholders = ",".join("?" for _ in rics)
+        where.append(f"UPPER(TRIM(ric)) IN ({placeholders})")
+        params.extend([str(r).strip().upper() for r in rics])
+
+    rows = conn.execute(
+        f"""
+        SELECT UPPER(TRIM(ticker)) AS ticker, UPPER(TRIM(ric)) AS ric
+        FROM {SECURITY_MASTER_TABLE}
+        WHERE {' AND '.join(where)}
+        ORDER BY ticker
+        """,
+        params,
+    ).fetchall()
+    return [{"ticker": str(r[0]), "ric": str(r[1])} for r in rows if r and r[0] and r[1]]
+
+
+def _resolve_requested_tickers(
+    *,
     tickers_csv: str | None,
-    _ric_suffix: str,
-    as_of_date: str | None,
-) -> list[str]:
+    index: str | None,
+) -> list[str] | None:
     if tickers_csv:
         return [t.strip().upper() for t in tickers_csv.split(",") if t.strip()]
-    if index:
-        LsegClient = _load_lseg_client()
-        with LsegClient() as client:
-            rics = client.get_index_constituents(index=index)
-        return [_to_local_ticker(str(r)) for r in rics if str(r).strip()]
-    conn = sqlite3.connect(str(db_path))
-    try:
-        tables = {
-            str(r[0]) for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        }
-        if "universe_eligibility_summary" in tables and as_of_date:
-            latest_current = conn.execute(
-                """
-                SELECT MAX(current_snapshot_date)
-                FROM universe_eligibility_summary
-                WHERE current_snapshot_date IS NOT NULL
-                  AND TRIM(current_snapshot_date) <> ''
-                """
-            ).fetchone()
-            latest_current_date = str(latest_current[0]) if latest_current and latest_current[0] else None
-            if latest_current_date and str(as_of_date) >= latest_current_date:
-                rows = conn.execute(
-                    """
-                    SELECT DISTINCT UPPER(ticker) AS ticker
-                    FROM universe_eligibility_summary
-                    WHERE ticker IS NOT NULL
-                      AND TRIM(ticker) <> ''
-                      AND in_current_snapshot = 1
-                    ORDER BY ticker
-                    """
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT DISTINCT UPPER(ticker) AS ticker
-                    FROM universe_eligibility_summary
-                    WHERE ticker IS NOT NULL
-                      AND TRIM(ticker) <> ''
-                      AND start_date <= ?
-                      AND end_date >= ?
-                    ORDER BY ticker
-                    """,
-                    (str(as_of_date), str(as_of_date)),
-                ).fetchall()
-            tickers = [str(r[0]).strip().upper() for r in rows if r and str(r[0]).strip()]
-            if tickers:
-                return tickers
-        parts: list[str] = []
-        if "ticker_ric_map" in tables:
-            parts.append(
-                "SELECT DISTINCT UPPER(ticker) AS ticker FROM ticker_ric_map WHERE COALESCE(classification_ok, 0) = 1"
-            )
-        if "fundamental_snapshots" in tables:
-            parts.append("SELECT DISTINCT UPPER(ticker) AS ticker FROM fundamental_snapshots")
-        if "prices_daily" in tables:
-            parts.append("SELECT DISTINCT UPPER(ticker) AS ticker FROM prices_daily")
-        if "trbc_industry_history" in tables:
-            parts.append("SELECT DISTINCT UPPER(ticker) AS ticker FROM trbc_industry_history")
-        if "barra_raw_cross_section_history" in tables:
-            parts.append("SELECT DISTINCT UPPER(ticker) AS ticker FROM barra_raw_cross_section_history")
-        if not parts:
-            return []
-        rows = conn.execute(f"{' UNION '.join(parts)} ORDER BY ticker").fetchall()
-    finally:
-        conn.close()
-    return [str(r[0]).strip().upper() for r in rows if r and str(r[0]).strip()]
-
-
-def _load_lseg_client():
-    try:
-        from lseg_toolkit import LsegClient
-    except Exception as exc:
-        raise RuntimeError(
-            "Unable to import lseg_toolkit/LSEG runtime. "
-            "Ensure vendored toolkit is present and `lseg-data` is installed."
-        ) from exc
-    return LsegClient
-
-
-def _iso_date(value: Any) -> str | None:
-    if value is None:
+    if not index:
         return None
-    if isinstance(value, pd.Timestamp):
-        if pd.isna(value):
-            return None
-        return str(value.date())
-    s = str(value).strip()
-    if not s or s.lower() in {"nan", "nat", "none"}:
-        return None
-    return s
-
-
-def _float_or_none(value: Any) -> float | None:
-    if value is None or pd.isna(value):
-        return None
-    try:
-        return float(value)
-    except Exception:
-        return None
-
-
-def _parse_fiscal_period(value: Any) -> tuple[int | None, str | None, str | None]:
-    if value is None or pd.isna(value):
-        return None, None, None
-    s = str(value).strip().upper()
-    if not s:
-        return None, None, None
-
-    m_fy = re.match(r"^FY\D*(\d{4})$", s)
-    if m_fy:
-        return int(m_fy.group(1)), None, "FY"
-
-    m_fq = re.match(r"^F?Q([1-4])\D*(\d{4})$", s)
-    if m_fq:
-        return int(m_fq.group(2)), f"Q{m_fq.group(1)}", "FQ"
-
-    m_year = re.search(r"(\d{4})", s)
-    if m_year:
-        return int(m_year.group(1)), None, None
-    return None, None, None
+    LsegClient = _load_lseg_client()
+    with LsegClient() as client:
+        rics = client.get_index_constituents(index=index)
+    return [_to_local_ticker(str(r)) for r in rics if str(r).strip()]
 
 
 def download_from_lseg(
@@ -332,35 +327,61 @@ def download_from_lseg(
     db_path: Path = DEFAULT_DB,
     index: str | None = None,
     tickers_csv: str | None = None,
-    ric_suffix: str = ".O",
+    rics_csv: str | None = None,
     as_of_date: str | None = None,
     shard_count: int = 1,
     shard_index: int = 0,
-    skip_common_name_backfill: bool = False,
+    write_fundamentals: bool = True,
+    write_prices: bool = True,
+    write_classification: bool = True,
 ) -> dict[str, Any]:
     LsegClient = _load_lseg_client()
 
     raw_as_of = str(as_of_date or datetime.now(timezone.utc).date().isoformat())
     as_of = previous_or_same_xnys_session(raw_as_of)
     updated_at = datetime.now(timezone.utc).isoformat()
-    universe = _resolve_universe(
-        db_path=db_path,
-        index=index,
-        tickers_csv=tickers_csv,
-        _ric_suffix=ric_suffix,
-        as_of_date=as_of,
+    selected_fields = _select_lseg_fields(
+        write_fundamentals=bool(write_fundamentals),
+        write_prices=bool(write_prices),
+        write_classification=bool(write_classification),
     )
+    if not selected_fields:
+        return {
+            "status": "no-op",
+            "as_of": as_of,
+            "reason": "all_write_targets_skipped",
+            "shard_index": int(shard_index),
+            "shard_count": int(shard_count),
+        }
+
+    conn = _connect_db(db_path)
+    ensure_cuse4_schema(conn)
+
+    requested_tickers = _resolve_requested_tickers(tickers_csv=tickers_csv, index=index)
+    requested_rics = (
+        [r.strip().upper() for r in str(rics_csv).split(",") if str(r).strip()]
+        if rics_csv
+        else None
+    )
+    universe_rows = _load_universe_from_security_master(
+        conn,
+        tickers=requested_tickers,
+        rics=requested_rics,
+    )
+
     shard_count = max(1, int(shard_count))
     shard_index = int(shard_index)
     if shard_index < 0 or shard_index >= shard_count:
         raise ValueError(f"shard_index must be in [0, {shard_count - 1}]")
     if shard_count > 1:
-        universe = [
-            t
-            for t in universe
-            if int(hashlib.md5(t.encode("utf-8")).hexdigest(), 16) % shard_count == shard_index
+        universe_rows = [
+            r
+            for r in universe_rows
+            if int(hashlib.md5(r["ticker"].encode("utf-8")).hexdigest(), 16) % shard_count == shard_index
         ]
-    if not universe:
+
+    if not universe_rows:
+        conn.close()
         return {
             "status": "no-universe",
             "as_of": as_of,
@@ -368,33 +389,19 @@ def download_from_lseg(
             "shard_count": int(shard_count),
         }
 
-    conn = _connect_db(db_path)
-    _ensure_tables(conn)
-    ensure_ric_map_table(conn)
+    ric_universe = sorted({r["ric"] for r in universe_rows})
 
-    print(f"Resolving LSEG RICs for {len(universe)} tickers...")
-    _ = load_ric_map(conn)
+    print(f"Fetching LSEG data for {len(ric_universe)} instruments...")
     company_parts: list[pd.DataFrame] = []
+    bad_instruments = 0
 
     with LsegClient() as client:
-        ticker_to_ric = resolve_ric_map(
-            client=client,
-            conn=conn,
-            tickers=universe,
-            as_of_date=as_of,
-            source="lseg_daily",
-            suffixes=[ric_suffix, ".N", ".O", ".A", ".K", ".P", ".PK"],
-            batch_size=LSEG_BATCH_SIZE,
-        )
-        ric_universe = [ticker_to_ric[t] for t in universe if t in ticker_to_ric]
-        ric_to_ticker = {v.upper(): k.upper() for k, v in ticker_to_ric.items() if v}
 
         def _fetch_company_data_robust(batch: list[str]) -> tuple[pd.DataFrame, int]:
-            """Fetch company data while isolating bad instruments in failing batches."""
             if not batch:
                 return pd.DataFrame(), 0
             try:
-                part = client.get_company_data(batch, fields=LSEG_FIELDS, as_of_date=as_of)
+                part = client.get_company_data(batch, fields=selected_fields, as_of_date=as_of)
                 return (part if part is not None else pd.DataFrame(), 0)
             except Exception as exc:
                 if len(batch) <= 1:
@@ -404,12 +411,10 @@ def download_from_lseg(
                 mid = len(batch) // 2
                 left_df, left_bad = _fetch_company_data_robust(batch[:mid])
                 right_df, right_bad = _fetch_company_data_robust(batch[mid:])
-                frames = [df for df in [left_df, right_df] if df is not None and not df.empty]
+                frames = [df for df in (left_df, right_df) if df is not None and not df.empty]
                 merged = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
                 return merged, left_bad + right_bad
 
-        print(f"Fetching LSEG data for {len(ric_universe)} instruments...")
-        bad_instruments = 0
         for i in range(0, len(ric_universe), LSEG_BATCH_SIZE):
             batch = ric_universe[i : i + LSEG_BATCH_SIZE]
             part, bad_n = _fetch_company_data_robust(batch)
@@ -422,14 +427,26 @@ def download_from_lseg(
     company = pd.concat(company_parts, ignore_index=True) if company_parts else pd.DataFrame()
     if company is None or company.empty:
         conn.close()
-        return {"status": "no-data", "as_of": as_of, "universe": len(universe)}
+        return {"status": "no-data", "as_of": as_of, "universe": len(universe_rows)}
 
     instrument_col = _pick_col(company, ["Instrument"])
     if not instrument_col:
+        conn.close()
         raise RuntimeError("LSEG response missing Instrument column")
 
     col = {
+        "price_open": _pick_col(company, ["Price Open"]),
+        "price_high": _pick_col(company, ["Price High"]),
+        "price_low": _pick_col(company, ["Price Low"]),
         "price": _pick_col(company, ["Price Close"]),
+        "price_volume": _pick_col(
+            company,
+            [
+                "Volume",
+                "TR.Volume",
+            ],
+        ),
+        "price_currency": _pick_col(company, ["Price Close Currency", "Currency"]),
         "market_cap": _pick_col(company, ["Company Market Cap"]),
         "shares_outstanding": _pick_col(company, ["Outstanding Shares", "Shares Outstanding", "Shares Outstanding - Common Stock"]),
         "dividend_yield": _pick_col(company, ["Dividend yield", "Dividend Yield"]),
@@ -439,6 +456,15 @@ def download_from_lseg(
         "trbc_industry_group": _pick_col(company, ["TRBC Industry Group Name", "TRBC Industry Group"]),
         "trbc_industry": _pick_col(company, ["TRBC Industry Name", "TRBC Industry"]),
         "trbc_activity": _pick_col(company, ["TRBC Activity Name", "TRBC Activity"]),
+        "hq_country_code": _pick_col(
+            company,
+            [
+                "Country ISO Code of Headquarters",
+                "Headquarters Country Code",
+                "HQ Country Code",
+                "Country Code",
+            ],
+        ),
         "book_value": _pick_col(company, ["Book Value Per Share"]),
         "forward_eps": _pick_col(company, ["Earnings Per Share - Mean"]),
         "trailing_eps": _pick_col(company, ["Earnings Per Share - Actual"]),
@@ -446,14 +472,9 @@ def download_from_lseg(
         "cash_and_equivalents": _pick_col(company, ["Cash and Equivalents"]),
         "long_term_debt": _pick_col(company, ["Long Term Debt"]),
         "free_cash_flow": _pick_col(company, ["Free Cash Flow"]),
-        "gross_profit": _pick_col(company, ["Gross Profit"]),
         "net_income": _pick_col(company, ["Net Income Incl Extra Before Distributions", "Net Income"]),
         "operating_cashflow": _pick_col(company, ["Cash from Operating Activities"]),
         "capital_expenditures": _pick_col(company, ["Capital Expenditures, Cumulative"]),
-        "shares_basic": _pick_col(company, ["Basic Weighted Average Shares"]),
-        "shares_diluted": _pick_col(company, ["Diluted Weighted Average Shares"]),
-        "free_float_shares": _pick_col(company, ["Free Float"]),
-        "free_float_percent": _pick_col(company, ["Free Float (Percent)", "Float Percent"]),
         "revenue": _pick_col(company, ["Revenue"]),
         "financial_period_abs": _pick_col(company, ["Financial Period Absolute"]),
         "report_currency": _pick_col(company, ["Currency"]),
@@ -469,90 +490,62 @@ def download_from_lseg(
     job_run_id = f"lseg_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     fundamentals_rows: list[dict[str, Any]] = []
     prices_rows: list[dict[str, Any]] = []
-    trbc_history_rows: list[dict[str, Any]] = []
+    classification_rows: list[dict[str, Any]] = []
+
+    def _txt(v: Any) -> str | None:
+        if isinstance(v, pd.Series):
+            for item in v.tolist():
+                if item is None or pd.isna(item):
+                    continue
+                v = item
+                break
+            else:
+                return None
+        if v is None or pd.isna(v):
+            return None
+        s = str(v).strip()
+        if not s or s.lower() in {"nan", "none"}:
+            return None
+        return s
 
     for _, row in company.iterrows():
         ric = str(row.get(instrument_col) or "").strip().upper()
-        ticker = ric_to_ticker.get(ric) or _to_local_ticker(ric)
-        if not ticker:
+        if ric not in ric_universe:
             continue
 
-        trbc_economic_sector_short = row.get(col["trbc_economic_sector"]) if col["trbc_economic_sector"] else None
-        trbc_business = row.get(col["trbc_business_sector"]) if col["trbc_business_sector"] else None
-        trbc_industry_group = row.get(col["trbc_industry_group"]) if col["trbc_industry_group"] else None
-        trbc_industry = row.get(col["trbc_industry"]) if col["trbc_industry"] else None
-        trbc_activity = row.get(col["trbc_activity"]) if col["trbc_activity"] else None
+        period_end_date = _iso_date(row.get(col["fundamental_period_end_date"]) if col["fundamental_period_end_date"] else None)
         fiscal_year, _, period_type = _parse_fiscal_period(
             row.get(col["financial_period_abs"]) if col["financial_period_abs"] else None
         )
-
-        def _txt(v: Any) -> str | None:
-            if v is None or pd.isna(v):
-                return None
-            s = str(v).strip()
-            if not s or s.lower() in {"nan", "none"}:
-                return None
-            return s
+        stat_date = period_end_date or as_of
 
         fundamentals_rows.append(
             {
-                "ticker": ticker,
-                "fetch_date": as_of,
+                "ric": ric,
+                "as_of_date": as_of,
+                "stat_date": stat_date,
+                "period_end_date": period_end_date,
+                "fiscal_year": fiscal_year,
+                "period_type": period_type,
+                "report_currency": _txt(row.get(col["report_currency"]) if col["report_currency"] else None),
                 "market_cap": _float_or_none(row.get(col["market_cap"]) if col["market_cap"] else None),
                 "shares_outstanding": _float_or_none(row.get(col["shares_outstanding"]) if col["shares_outstanding"] else None),
                 "dividend_yield": _float_or_none(row.get(col["dividend_yield"]) if col["dividend_yield"] else None),
-                "common_name": _txt(row.get(col["common_name"]) if col["common_name"] else None),
-                "book_value": _float_or_none(row.get(col["book_value"]) if col["book_value"] else None),
-                "forward_eps": _float_or_none(row.get(col["forward_eps"]) if col["forward_eps"] else None),
-                "trailing_eps": _float_or_none(row.get(col["trailing_eps"]) if col["trailing_eps"] else None),
+                "book_value_per_share": _float_or_none(row.get(col["book_value"]) if col["book_value"] else None),
+                "total_assets": _float_or_none(row.get(col["total_assets"]) if col["total_assets"] else None),
                 "total_debt": _float_or_none(row.get(col["total_debt"]) if col["total_debt"] else None),
                 "cash_and_equivalents": _float_or_none(row.get(col["cash_and_equivalents"]) if col["cash_and_equivalents"] else None),
                 "long_term_debt": _float_or_none(row.get(col["long_term_debt"]) if col["long_term_debt"] else None),
-                "free_cash_flow": _float_or_none(row.get(col["free_cash_flow"]) if col["free_cash_flow"] else None),
-                "gross_profit": _float_or_none(row.get(col["gross_profit"]) if col["gross_profit"] else None),
-                "net_income": _float_or_none(row.get(col["net_income"]) if col["net_income"] else None),
-                "operating_cashflow": _float_or_none(
-                    row.get(col["operating_cashflow"]) if col["operating_cashflow"] else None
-                ),
-                "capital_expenditures": _float_or_none(
-                    row.get(col["capital_expenditures"]) if col["capital_expenditures"] else None
-                ),
-                "shares_basic": _float_or_none(row.get(col["shares_basic"]) if col["shares_basic"] else None),
-                "shares_diluted": _float_or_none(row.get(col["shares_diluted"]) if col["shares_diluted"] else None),
-                "free_float_shares": _float_or_none(
-                    row.get(col["free_float_shares"]) if col["free_float_shares"] else None
-                ),
-                "free_float_percent": _float_or_none(
-                    row.get(col["free_float_percent"]) if col["free_float_percent"] else None
-                ),
+                "operating_cashflow": _float_or_none(row.get(col["operating_cashflow"]) if col["operating_cashflow"] else None),
+                "capital_expenditures": _float_or_none(row.get(col["capital_expenditures"]) if col["capital_expenditures"] else None),
+                "trailing_eps": _float_or_none(row.get(col["trailing_eps"]) if col["trailing_eps"] else None),
+                "forward_eps": _float_or_none(row.get(col["forward_eps"]) if col["forward_eps"] else None),
                 "revenue": _float_or_none(row.get(col["revenue"]) if col["revenue"] else None),
                 "ebitda": _float_or_none(row.get(col["ebitda"]) if col["ebitda"] else None),
                 "ebit": _float_or_none(row.get(col["ebit"]) if col["ebit"] else None),
-                "total_assets": _float_or_none(row.get(col["total_assets"]) if col["total_assets"] else None),
-                "total_liabilities": _float_or_none(row.get(col["total_liabilities"]) if col["total_liabilities"] else None),
-                "return_on_equity": _float_or_none(row.get(col["return_on_equity"]) if col["return_on_equity"] else None),
-                "operating_margins": _float_or_none(row.get(col["operating_margins"]) if col["operating_margins"] else None),
-                "fundamental_period_end_date": _iso_date(
-                    row.get(col["fundamental_period_end_date"]) if col["fundamental_period_end_date"] else None
-                ),
-                "report_currency": _txt(row.get(col["report_currency"]) if col["report_currency"] else None),
-                "fiscal_year": fiscal_year,
-                "period_type": period_type,
-                "source": "lseg_toolkit",
-                "job_run_id": job_run_id,
-                "updated_at": updated_at,
-            }
-        )
-
-        trbc_history_rows.append(
-            {
-                "ticker": ticker,
-                "as_of_date": as_of,
-                "trbc_economic_sector": _txt(trbc_economic_sector_short),
-                "trbc_business_sector": _txt(trbc_business),
-                "trbc_industry_group": _txt(trbc_industry_group),
-                "trbc_industry": _txt(trbc_industry),
-                "trbc_activity": _txt(trbc_activity),
+                "roe_pct": _float_or_none(row.get(col["return_on_equity"]) if col["return_on_equity"] else None),
+                "operating_margin_pct": _float_or_none(row.get(col["operating_margins"]) if col["operating_margins"] else None),
+                "common_name": _txt(row.get(col["common_name"]) if col["common_name"] else None),
                 "source": "lseg_toolkit",
                 "job_run_id": job_run_id,
                 "updated_at": updated_at,
@@ -560,83 +553,89 @@ def download_from_lseg(
         )
 
         close = _float_or_none(row.get(col["price"]) if col["price"] else None)
+        open_px = _float_or_none(row.get(col["price_open"]) if col["price_open"] else None)
+        high_px = _float_or_none(row.get(col["price_high"]) if col["price_high"] else None)
+        low_px = _float_or_none(row.get(col["price_low"]) if col["price_low"] else None)
+        volume_px = _float_or_none(row.get(col["price_volume"]) if col["price_volume"] else None)
+        price_ccy = _txt(row.get(col["price_currency"]) if col["price_currency"] else None)
+        report_ccy = _txt(row.get(col["report_currency"]) if col["report_currency"] else None)
         prices_rows.append(
             {
-                "ticker": ticker,
+                "ric": ric,
                 "date": as_of,
-                "open": close,
-                "high": close,
-                "low": close,
+                "open": open_px if open_px is not None else close,
+                "high": high_px if high_px is not None else close,
+                "low": low_px if low_px is not None else close,
                 "close": close,
                 "adj_close": close,
-                "volume": None,
-                "currency": None,
-                "exchange": None,
+                "volume": volume_px,
+                "currency": (price_ccy or report_ccy),
                 "source": "lseg_toolkit",
                 "updated_at": updated_at,
             }
         )
 
-    do_common_name_backfill = bool(skip_common_name_backfill) is False and shard_count <= 1
-    if shard_count > 1 and not skip_common_name_backfill:
-        print("Sharded ingest detected; skipping common_name backfill in-shard to avoid SQLite lock contention.")
+        classification_rows.append(
+            {
+                "ric": ric,
+                "as_of_date": as_of,
+                "trbc_economic_sector": _txt(row.get(col["trbc_economic_sector"]) if col["trbc_economic_sector"] else None),
+                "trbc_business_sector": _txt(row.get(col["trbc_business_sector"]) if col["trbc_business_sector"] else None),
+                "trbc_industry_group": _txt(row.get(col["trbc_industry_group"]) if col["trbc_industry_group"] else None),
+                "trbc_industry": _txt(row.get(col["trbc_industry"]) if col["trbc_industry"] else None),
+                "trbc_activity": _txt(row.get(col["trbc_activity"]) if col["trbc_activity"] else None),
+                "hq_country_code": (_txt(row.get(col["hq_country_code"]) if col["hq_country_code"] else None) or "").upper() or None,
+                "source": "lseg_toolkit",
+                "job_run_id": job_run_id,
+                "updated_at": updated_at,
+            }
+        )
 
+    n_f = 0
+    n_p = 0
+    n_c = 0
     try:
-        deleted_f = 0
-        deleted_p = 0
-        n_f = _insert_rows(conn, "fundamental_snapshots", fundamentals_rows, replace=True)
-        conn.commit()
-        n_p = _insert_rows(conn, "prices_daily", prices_rows, replace=True)
-        conn.commit()
-        n_g = _insert_rows(conn, "trbc_industry_history", trbc_history_rows, replace=True)
-        conn.commit()
-        n_name_backfill = 0
-        if do_common_name_backfill:
-            n_name_backfill = _backfill_common_names(conn)
+        if write_fundamentals:
+            n_f = _insert_rows(conn, FUNDAMENTALS_HISTORY_TABLE, fundamentals_rows, replace=True)
             conn.commit()
-        n_ric = conn.execute("SELECT COUNT(*) FROM ticker_ric_map").fetchone()[0]
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_ticker ON fundamental_snapshots(ticker)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_fund_date ON fundamental_snapshots(fetch_date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_prices_ticker ON prices_daily(ticker)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_prices_date ON prices_daily(date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_prices_ticker_date ON prices_daily(ticker, date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_trbc_hist_date ON trbc_industry_history(as_of_date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_trbc_hist_ticker ON trbc_industry_history(ticker)")
-        conn.commit()
+        if write_prices:
+            n_p = _insert_rows(conn, PRICES_TABLE, prices_rows, replace=True)
+            conn.commit()
+        if write_classification:
+            n_c = _insert_rows(conn, TRBC_HISTORY_TABLE, classification_rows, replace=True)
+            conn.commit()
     finally:
         conn.close()
 
     out = {
         "status": "ok",
         "as_of": as_of,
-        "universe": len(universe),
-        "fundamental_rows_inserted": n_f,
-        "fundamental_rows_deleted": int(deleted_f),
-        "price_rows_inserted": n_p,
-        "price_rows_deleted": int(deleted_p),
-        "trbc_rows_inserted": n_g,
-        "common_name_rows_backfilled": int(n_name_backfill),
-        "ticker_ric_map_size": int(n_ric or 0),
+        "universe": len(universe_rows),
+        "price_volume_metric": PRICE_VOLUME_FIELD,
+        "fundamental_rows_inserted": int(n_f),
+        "price_rows_inserted": int(n_p),
+        "classification_rows_inserted": int(n_c),
         "db_path": str(db_path),
         "shard_index": int(shard_index),
         "shard_count": int(shard_count),
-        "skip_common_name_backfill": bool(skip_common_name_backfill),
-        "bad_instruments_skipped": int(bad_instruments if 'bad_instruments' in locals() else 0),
+        "bad_instruments_skipped": int(bad_instruments),
     }
     print(out)
     return out
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Update local SQLite data using jl-lseg-toolkit.")
+    p = argparse.ArgumentParser(description="Canonical LSEG ingest into RIC-keyed source-of-truth tables.")
     p.add_argument("--db-path", default=str(DEFAULT_DB), help="Path to target SQLite DB")
-    p.add_argument("--index", default=None, help="Index code (e.g. SPX, NDX). If set, uses index constituents")
-    p.add_argument("--tickers", default=None, help="Comma-separated plain tickers to fetch")
-    p.add_argument("--ric-suffix", default=".O", help="Suffix when converting plain tickers to RICs")
+    p.add_argument("--index", default=None, help="Index code (e.g. SPX, NDX). Constituents are filtered to security_master")
+    p.add_argument("--tickers", default=None, help="Comma-separated tickers to ingest (must exist in security_master)")
+    p.add_argument("--rics", default=None, help="Comma-separated RICs to ingest (must exist in security_master)")
     p.add_argument("--as-of-date", default=None, help="Override as-of date (YYYY-MM-DD)")
     p.add_argument("--shard-count", type=int, default=1, help="Total number of ticker shards")
     p.add_argument("--shard-index", type=int, default=0, help="Zero-based shard index to process")
-    p.add_argument("--skip-common-name-backfill", action="store_true", help="Skip common_name carry-forward pass")
+    p.add_argument("--skip-fundamentals", action="store_true", help="Skip writing fundamentals table")
+    p.add_argument("--skip-prices", action="store_true", help="Skip writing prices table")
+    p.add_argument("--skip-classification", action="store_true", help="Skip writing classification table")
     return p.parse_args()
 
 
@@ -646,9 +645,11 @@ if __name__ == "__main__":
         db_path=Path(args.db_path),
         index=args.index,
         tickers_csv=args.tickers,
-        ric_suffix=args.ric_suffix,
+        rics_csv=args.rics,
         as_of_date=args.as_of_date,
         shard_count=args.shard_count,
         shard_index=args.shard_index,
-        skip_common_name_backfill=bool(args.skip_common_name_backfill),
+        write_fundamentals=not bool(args.skip_fundamentals),
+        write_prices=not bool(args.skip_prices),
+        write_classification=not bool(args.skip_classification),
     )

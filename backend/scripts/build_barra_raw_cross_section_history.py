@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import argparse
-import os
-import sys
 from pathlib import Path
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from barra.raw_cross_section_history import rebuild_raw_cross_section_history
+from backend.risk_model.raw_cross_section_history import rebuild_raw_cross_section_history
 
 
 def _parse_args() -> argparse.Namespace:

@@ -10,10 +10,10 @@ from typing import Any
 
 import pandas as pd
 
-from lseg_toolkit.client import LsegClient
-from lseg_toolkit.earnings.config import EarningsConfig
-from lseg_toolkit.excel import ExcelExporter
-from lseg_toolkit.shared import calculate_sector_breakdown, calculate_summary_statistics
+from ..client import LsegClient
+from .config import EarningsConfig
+from ..excel import ExcelExporter
+from ..shared import calculate_sector_breakdown, calculate_summary_statistics
 
 
 @contextmanager
