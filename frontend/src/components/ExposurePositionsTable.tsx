@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Position } from "@/lib/types";
 import TableRowToggle from "@/components/TableRowToggle";
+import ShareAdjuster from "@/components/ShareAdjuster";
 
 interface ExposurePositionsTableProps {
   positions: Position[];
@@ -21,13 +22,23 @@ function fmtShares(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 3 });
 }
 
+function normalizeRiskMix(pos: Position) {
+  const raw = (pos.risk_mix ?? {}) as Partial<NonNullable<Position["risk_mix"]>>;
+  return {
+    country: Number(raw.country ?? 0) || 0,
+    industry: Number(raw.industry ?? 0) || 0,
+    style: Number(raw.style ?? 0) || 0,
+    idio: Number(raw.idio ?? 0) || 0,
+  };
+}
+
 function riskMixLabel(pos: Position): string {
-  const mix = pos.risk_mix ?? { industry: 0, style: 0, idio: 0 };
-  return `Ind ${mix.industry.toFixed(1)}% / Sty ${mix.style.toFixed(1)}% / Idio ${mix.idio.toFixed(1)}%`;
+  const mix = normalizeRiskMix(pos);
+  return `Ctry ${mix.country.toFixed(1)}% / Ind ${mix.industry.toFixed(1)}% / Sty ${mix.style.toFixed(1)}% / Idio ${mix.idio.toFixed(1)}%`;
 }
 
 function riskMixSortValue(pos: Position): number {
-  const mix = pos.risk_mix ?? { industry: 0, style: 0, idio: 0 };
+  const mix = normalizeRiskMix(pos);
   return Number(mix.idio || 0);
 }
 
@@ -72,7 +83,7 @@ export default function ExposurePositionsTable({ positions }: ExposurePositionsT
             <th className="text-right" onClick={() => handleSort("shares")}>Share Count{arrow("shares")}</th>
             <th className="text-right" onClick={() => handleSort("market_value")}>Market Value{arrow("market_value")}</th>
             <th className="text-right" onClick={() => handleSort("risk_mix")}>
-              Risk Mix (Ind/Sty/Idio){arrow("risk_mix")}
+              Risk Mix (Ctry/Ind/Sty/Idio){arrow("risk_mix")}
             </th>
           </tr>
         </thead>
@@ -81,7 +92,12 @@ export default function ExposurePositionsTable({ positions }: ExposurePositionsT
             <tr key={pos.ticker}>
               <td>{pos.ticker}</td>
               <td>{pos.trbc_industry_group || "Unmapped"}</td>
-              <td className="text-right">{fmtShares(pos.shares)}</td>
+              <td className="text-right">
+                <span className="share-cell">
+                  <span>{fmtShares(pos.shares)}</span>
+                  <ShareAdjuster ticker={pos.ticker} currentShares={pos.shares} accountId={pos.account} />
+                </span>
+              </td>
               <td className="text-right">{fmtCurrency(pos.market_value)}</td>
               <td className="text-right">{riskMixLabel(pos)}</td>
             </tr>

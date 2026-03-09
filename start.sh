@@ -4,12 +4,14 @@ set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
+BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+FRONTEND_HOST="${FRONTEND_HOST:-127.0.0.1}"
 BACKEND_PID=""
 FRONTEND_PID=""
 FORCE_KILL_PORTS="${FORCE_KILL_PORTS:-0}"
 
 # Keep app storage in one explicit location unless caller overrides.
-export APP_DATA_DIR="${APP_DATA_DIR:-$DIR/backend}"
+export APP_DATA_DIR="${APP_DATA_DIR:-$DIR/backend/runtime}"
 
 cleanup() {
   echo ""
@@ -79,7 +81,7 @@ chmod +x "$DIR/frontend/node_modules/.bin/"* 2>/dev/null || true
 
 if ! python3 -c "import fastapi; import psycopg; import pydantic" 2>/dev/null; then
   echo "Installing backend dependencies..."
-  if ! (cd "$DIR/backend" && pip install -e ".[dev]" -q); then
+  if ! (cd "$DIR/backend" && python3 -m pip install -e ".[dev]" -q); then
     python3 -m pip install -q fastapi "uvicorn[standard]" "psycopg[binary]" pydantic pandas numpy scipy python-dotenv
   fi
 fi
@@ -95,19 +97,19 @@ ensure_port_available "$FRONTEND_PORT"
 
 # --- Start backend ---
 echo "Starting backend on :$BACKEND_PORT..."
-(cd "$DIR/backend" && uvicorn main:app --reload --port "$BACKEND_PORT") &
+(cd "$DIR" && uvicorn backend.main:app --reload --port "$BACKEND_PORT") &
 BACKEND_PID=$!
 
 # --- Start frontend ---
 echo "Starting frontend on :$FRONTEND_PORT..."
-(cd "$DIR/frontend" && npm run dev -- --port "$FRONTEND_PORT") &
+(cd "$DIR/frontend" && npm run dev) &
 FRONTEND_PID=$!
 
 # --- Wait for backend ---
 echo "Waiting for backend..."
 BACKEND_READY=0
 for i in $(seq 1 30); do
-  if curl -sf "http://localhost:$BACKEND_PORT/api/health" >/dev/null 2>&1; then
+  if curl -sf "http://$BACKEND_HOST:$BACKEND_PORT/api/health" >/dev/null 2>&1; then
     BACKEND_READY=1
     break
   fi
@@ -123,7 +125,7 @@ fi
 echo "Waiting for frontend..."
 FRONTEND_READY=0
 for i in $(seq 1 30); do
-  if curl -sfI "http://localhost:$FRONTEND_PORT" >/dev/null 2>&1; then
+  if curl -sfI "http://$FRONTEND_HOST:$FRONTEND_PORT" >/dev/null 2>&1; then
     FRONTEND_READY=1
     break
   fi
@@ -136,14 +138,24 @@ fi
 
 # --- Trigger non-blocking light refresh ---
 echo "Triggering background light refresh..."
-if ! curl -sf -X POST "http://localhost:$BACKEND_PORT/api/refresh?mode=light" >/dev/null; then
-  echo "WARNING: Could not trigger background refresh. App is running, but data may be stale."
+REFRESH_TOKEN="${REFRESH_API_TOKEN:-}"
+if [ -z "$REFRESH_TOKEN" ] && [ -f "$DIR/backend/.env" ]; then
+  REFRESH_TOKEN="$(grep -E '^REFRESH_API_TOKEN=' "$DIR/backend/.env" | tail -n1 | cut -d= -f2- | tr -d '\r' || true)"
+fi
+if [ -n "$REFRESH_TOKEN" ]; then
+  if ! curl -sf -X POST -H "X-Refresh-Token: $REFRESH_TOKEN" "http://$BACKEND_HOST:$BACKEND_PORT/api/refresh?mode=light" >/dev/null; then
+    echo "WARNING: Could not trigger background refresh. App is running, but data may be stale."
+  fi
+else
+  if ! curl -sf -X POST "http://$BACKEND_HOST:$BACKEND_PORT/api/refresh?mode=light" >/dev/null; then
+    echo "WARNING: Could not trigger background refresh. App is running, but data may be stale."
+  fi
 fi
 
 echo ""
 echo "==================================="
-echo "  Open http://localhost:$FRONTEND_PORT"
-echo "  Refresh status: http://localhost:$BACKEND_PORT/api/refresh/status"
+echo "  Open http://$FRONTEND_HOST:$FRONTEND_PORT"
+echo "  Refresh status: http://$BACKEND_HOST:$BACKEND_PORT/api/refresh/status"
 echo "  Ctrl+C to stop"
 echo "==================================="
 
