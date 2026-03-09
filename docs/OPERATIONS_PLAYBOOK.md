@@ -22,7 +22,7 @@
 - In `cloud-serve` mode, set non-empty auth tokens before exposing the app online:
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
-  - or at minimum `REFRESH_API_TOKEN` as the operator fallback
+  - `REFRESH_API_TOKEN` only as a legacy fallback if you intentionally want the refresh proxy to reuse it
 - Prefer manual or low-frequency refreshes (`serve-refresh` most days).
 - Keep daily file backups of `data.db` and `cache.db`.
 - Production backend command:
@@ -53,6 +53,7 @@ Runtime-role rule:
 - Data page is the primary control room.
 - Fast diagnostics are the default because they are cheap and always available.
 - Deep diagnostics are on-demand and compute exact row counts, ticker counts, duplicate checks, and update metadata.
+- Health page is for deeper model diagnostics, not routine operator actions.
 - Operator lane cards show:
   - plain-English lane purpose
   - latest run state
@@ -66,7 +67,7 @@ Runtime-role rule:
 - API refresh explicit serve-refresh profile:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh"`
 - Cloud-mode authenticated serve-refresh:
-  - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh" -H "X-Refresh-Token: $OPERATOR_API_TOKEN"`
+  - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
 - API refresh explicit source-daily profile:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily"`
 - API refresh explicit weekly core recompute:
