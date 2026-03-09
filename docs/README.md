@@ -7,6 +7,7 @@
 - `specs/cUSE4_engine_spec.md`: cUSE4 model/foundation spec.
 - `Makefile` / `scripts/operator_check.sh`: quick operator validation of `/api/health`, `/api/operator/status`, and parity artifact presence.
 - Data page in the app is the live operator cockpit; the playbook mirrors that runtime behavior.
+- Health page diagnostics are intentionally on-demand and section-lazy; this is expected behavior, not missing content.
 
 ## Migration Notes
 - `migrations/neon/`: Neon migration plans, SQL, and runbooks.

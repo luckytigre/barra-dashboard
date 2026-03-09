@@ -6,6 +6,7 @@ import FactorRadarChart from "@/components/FactorRadarChart";
 import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
+import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import {
   usePortfolio,
   useUniverseFactors,
@@ -424,19 +425,34 @@ export default function ExplorePage() {
           {item.eligible_for_model !== false ? (
             <>
               <div className="explore-detail-grid">
-                <div className="chart-card">
-                  <h3>Style Factor Profile</h3>
-                  <FactorRadarChart exposures={item.exposures ?? {}} />
-                </div>
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the style profile chart.</div></div>}
+                >
+                  <div className="chart-card">
+                    <h3>Style Factor Profile</h3>
+                    <FactorRadarChart exposures={item.exposures ?? {}} />
+                  </div>
+                </LazyMountOnVisible>
 
-                <div className="chart-card">
-                  <h3>{item.ticker} Factor Exposures</h3>
-                  <ExposureBarChart factors={chartFactors} />
-                </div>
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the factor exposure chart.</div></div>}
+                >
+                  <div className="chart-card">
+                    <h3>{item.ticker} Factor Exposures</h3>
+                    <ExposureBarChart factors={chartFactors} />
+                  </div>
+                </LazyMountOnVisible>
               </div>
 
               <div className="explore-detail-grid">
-                {weeklyHistoryCard}
+                <LazyMountOnVisible
+                  minHeight={320}
+                  fallback={<div className="chart-card"><div className="detail-history-empty">Scroll to load the weekly price chart.</div></div>}
+                >
+                  {weeklyHistoryCard}
+                </LazyMountOnVisible>
 
                 {/* Right: Factor Loadings Table */}
                 <div className="chart-card">

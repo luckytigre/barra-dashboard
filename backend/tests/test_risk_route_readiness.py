@@ -23,12 +23,13 @@ def test_risk_route_accepts_correlation_cov_matrix(monkeypatch) -> None:
     }
 
     def fake_cache_get(key: str):
-        if key == "risk":
-            return payload
-        if key == "model_sanity":
-            return {"status": "ok", "warnings": [], "checks": {}}
         return None
 
+    monkeypatch.setattr(
+        risk_routes,
+        "load_current_payload",
+        lambda name: payload if name == "risk" else {"status": "ok", "warnings": [], "checks": {}} if name == "model_sanity" else None,
+    )
     monkeypatch.setattr(risk_routes, "cache_get", fake_cache_get)
     client = TestClient(app)
     res = client.get("/api/risk")
@@ -44,7 +45,8 @@ def test_risk_route_rejects_missing_cov_rows(monkeypatch) -> None:
         "risk_engine": {"specific_risk_ticker_count": 100},
     }
 
-    monkeypatch.setattr(risk_routes, "cache_get", lambda key: payload if key == "risk" else None)
+    monkeypatch.setattr(risk_routes, "load_current_payload", lambda name: payload if name == "risk" else None)
+    monkeypatch.setattr(risk_routes, "cache_get", lambda key: None)
     client = TestClient(app)
     res = client.get("/api/risk")
     assert res.status_code == 503

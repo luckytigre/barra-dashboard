@@ -17,12 +17,9 @@ router = APIRouter()
 
 @router.get("/exposures")
 async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk_contribution)$")):
-    if config.cloud_mode() and config.neon_surface_enabled("serving_outputs"):
-        data = load_current_payload("exposures")
-    elif config.serving_outputs_primary_reads_enabled() and config.neon_surface_enabled("serving_outputs"):
-        data = load_current_payload("exposures") or cache_get("exposures")
-    else:
-        data = cache_get("exposures") or load_current_payload("exposures")
+    data = load_current_payload("exposures")
+    if data is None and not config.cloud_mode():
+        data = cache_get("exposures")
     if data is None:
         raise_cache_not_ready(
             cache_key="exposures",

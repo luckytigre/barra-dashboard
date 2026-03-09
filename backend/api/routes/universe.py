@@ -40,19 +40,17 @@ def _week_ending_friday(d: date) -> date:
 
 
 def _load_universe_payload():
-    if config.cloud_mode() and config.neon_surface_enabled("serving_outputs"):
-        return load_current_payload("universe_loadings")
-    if config.serving_outputs_primary_reads_enabled() and config.neon_surface_enabled("serving_outputs"):
-        return load_current_payload("universe_loadings") or cache_get("universe_loadings")
-    return cache_get("universe_loadings") or load_current_payload("universe_loadings")
+    data = load_current_payload("universe_loadings")
+    if data is None and not config.cloud_mode():
+        data = cache_get("universe_loadings")
+    return data
 
 
 def _load_universe_factors_payload():
-    if config.cloud_mode() and config.neon_surface_enabled("serving_outputs"):
-        return load_current_payload("universe_factors")
-    if config.serving_outputs_primary_reads_enabled() and config.neon_surface_enabled("serving_outputs"):
-        return load_current_payload("universe_factors") or cache_get("universe_factors")
-    return cache_get("universe_factors") or load_current_payload("universe_factors")
+    data = load_current_payload("universe_factors")
+    if data is None and not config.cloud_mode():
+        data = cache_get("universe_factors")
+    return data
 
 
 @router.get("/universe/ticker/{ticker}")

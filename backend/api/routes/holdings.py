@@ -2,24 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.api.auth import require_role
-from backend.data.neon import connect, resolve_dsn
-from backend.services.neon_holdings import (
-    IMPORT_MODES,
-    apply_holdings_import,
-    apply_single_position_edit,
-    list_holdings_accounts,
-    list_holdings_positions,
-    parse_holdings_rows,
-    remove_single_position,
-)
-from backend.services.holdings_runtime_state import mark_holdings_dirty
-from backend.services.refresh_manager import start_refresh
+from backend.services import holdings_service
 
 router = APIRouter()
 
@@ -66,40 +55,10 @@ class HoldingsPositionRemoveRequest(BaseModel):
     trigger_refresh: bool = True
 
 
-def _trigger_light_refresh_if_requested(trigger: bool) -> dict[str, Any] | None:
-    if not bool(trigger):
-        return None
-    started, state = start_refresh(
-        mode="light",
-        force_risk_recompute=False,
-    )
-    return {
-        "started": bool(started),
-        "state": state,
-    }
-
-
-def _record_holdings_dirty(
-    *,
-    action: str,
-    account_id: str | None,
-    summary: str,
-    import_batch_id: str | None,
-    change_count: int,
-) -> None:
-    mark_holdings_dirty(
-        action=action,
-        account_id=account_id,
-        summary=summary,
-        import_batch_id=import_batch_id,
-        change_count=change_count,
-    )
-
-
 @router.get("/holdings/modes")
 async def get_holdings_modes():
     return {
-        "modes": sorted(IMPORT_MODES),
+        "modes": sorted(holdings_service.IMPORT_MODES),
         "default": "upsert_absolute",
     }
 
@@ -107,31 +66,23 @@ async def get_holdings_modes():
 @router.get("/holdings/accounts")
 async def get_holdings_accounts():
     try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=True)
+        rows = holdings_service.load_holdings_accounts()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
-    try:
-        rows = list_holdings_accounts(conn)
-        return {"accounts": rows}
-    finally:
-        conn.close()
+    return {"accounts": rows}
 
 
 @router.get("/holdings/positions")
 async def get_holdings_positions(account_id: str | None = Query(default=None)):
     try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=True)
+        rows = holdings_service.load_holdings_positions(account_id=account_id)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
-    try:
-        rows = list_holdings_positions(conn, account_id=account_id)
-        return {
-            "positions": rows,
-            "account_id": account_id,
-            "count": int(len(rows)),
-        }
-    finally:
-        conn.close()
+    return {
+        "positions": rows,
+        "account_id": account_id,
+        "count": int(len(rows)),
+    }
 
 
 @router.post("/holdings/import")
@@ -148,49 +99,21 @@ async def post_holdings_import(
         authorization=authorization,
     )
     try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=False)
+        return holdings_service.run_holdings_import(
+            account_id=payload.account_id,
+            mode=str(payload.mode),
+            rows=[r.model_dump() for r in payload.rows],
+            filename=payload.filename,
+            requested_by=payload.requested_by,
+            notes=payload.notes,
+            default_source=payload.default_source,
+            dry_run=bool(payload.dry_run),
+            trigger_refresh=bool(payload.trigger_refresh),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
-    try:
-        parsed = parse_holdings_rows(
-            conn,
-            rows=[r.model_dump() for r in payload.rows],
-            mode=str(payload.mode),
-            default_account_id=payload.account_id,
-            default_source=payload.default_source,
-        )
-        out = apply_holdings_import(
-            conn,
-            parsed=parsed,
-            mode=str(payload.mode),
-            account_id=payload.account_id,
-            requested_by=payload.requested_by,
-            filename=payload.filename,
-            notes=payload.notes,
-            dry_run=bool(payload.dry_run),
-        )
-        applied_changes = int(out.get("applied_upserts") or 0) + int(out.get("applied_deletes") or 0)
-        if not payload.dry_run and str(out.get("status")) == "ok" and applied_changes > 0:
-            _record_holdings_dirty(
-                action=f"holdings_import:{payload.mode}",
-                account_id=payload.account_id,
-                summary=(
-                    f"{payload.mode} import applied for {payload.account_id}: "
-                    f"{int(out.get('applied_upserts') or 0)} upserts, {int(out.get('applied_deletes') or 0)} deletes"
-                ),
-                import_batch_id=str(out.get("import_batch_id") or "") or None,
-                change_count=applied_changes,
-            )
-        out["refresh"] = _trigger_light_refresh_if_requested(
-            bool(payload.trigger_refresh and not payload.dry_run and str(out.get("status")) == "ok")
-        )
-        out["preview_rejections"] = parsed.get("rejected", [])[:100]
-        return out
-    except ValueError as exc:
-        conn.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        conn.close()
 
 
 @router.post("/holdings/position")
@@ -207,12 +130,7 @@ async def post_holdings_position(
         authorization=authorization,
     )
     try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=False)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
-    try:
-        out = apply_single_position_edit(
-            conn,
+        return holdings_service.run_position_upsert(
             account_id=payload.account_id,
             quantity=payload.quantity,
             ric=payload.ric,
@@ -221,24 +139,12 @@ async def post_holdings_position(
             requested_by=payload.requested_by,
             notes=payload.notes,
             dry_run=bool(payload.dry_run),
+            trigger_refresh=bool(payload.trigger_refresh),
         )
-        if not payload.dry_run and str(out.get("status")) == "ok" and str(out.get("action") or "") != "none":
-            _record_holdings_dirty(
-                action="holdings_position_edit",
-                account_id=payload.account_id,
-                summary=f"Position {out.get('action')} for {out.get('ticker') or out.get('ric')}",
-                import_batch_id=str(out.get("import_batch_id") or "") or None,
-                change_count=1,
-            )
-        out["refresh"] = _trigger_light_refresh_if_requested(
-            bool(payload.trigger_refresh and not payload.dry_run and str(out.get("status")) == "ok")
-        )
-        return out
     except ValueError as exc:
-        conn.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
 
 
 @router.post("/holdings/position/remove")
@@ -255,33 +161,16 @@ async def post_holdings_position_remove(
         authorization=authorization,
     )
     try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=False)
-    except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
-    try:
-        out = remove_single_position(
-            conn,
+        return holdings_service.run_position_remove(
             account_id=payload.account_id,
             ric=payload.ric,
             ticker=payload.ticker,
             requested_by=payload.requested_by,
             notes=payload.notes,
             dry_run=bool(payload.dry_run),
+            trigger_refresh=bool(payload.trigger_refresh),
         )
-        if not payload.dry_run and str(out.get("status")) == "ok" and str(out.get("action") or "") != "none":
-            _record_holdings_dirty(
-                action="holdings_position_remove",
-                account_id=payload.account_id,
-                summary=f"Position removed for {out.get('ticker') or out.get('ric')}",
-                import_batch_id=str(out.get("import_batch_id") or "") or None,
-                change_count=1,
-            )
-        out["refresh"] = _trigger_light_refresh_if_requested(
-            bool(payload.trigger_refresh and not payload.dry_run and str(out.get("status")) == "ok")
-        )
-        return out
     except ValueError as exc:
-        conn.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    finally:
-        conn.close()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"Neon not available: {exc}") from exc
