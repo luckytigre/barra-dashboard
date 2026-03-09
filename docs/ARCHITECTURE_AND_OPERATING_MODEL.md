@@ -13,6 +13,7 @@ Implemented now:
 - `/api/operator/status` also carries backend-authoritative holdings dirty state, runtime warnings, and per-lane recent-run history
 - Data page now acts as the operator control deck with lane controls, plain-English popovers, recent-run history strips, stage detail, and fast/deep diagnostics
 - Health page also surfaces operator cards for redundancy
+- Health page is now split into a shell plus lazily mounted diagnostics sections so heavy chart bundles load only after explicit user intent
 - source recency now explicitly tracks prices, fundamentals, classification, and raw cross-section dates
 - `make operator-check` / `scripts/operator_check.sh` provide one-command backend/operator validation
 - holdings serving reads now prefer Neon whenever a Neon DSN is configured; in-code mock positions are bootstrap fallback only
@@ -21,6 +22,8 @@ Implemented now:
 - `cloud-serve` runtime now treats durable serving payloads as the effective serving authority
 - `cloud-serve` runtime now restricts refresh lanes to `serve-refresh` and blocks LSEG ingest
 - broad Neon mirror/parity/prune remain a `local-ingest` publish responsibility rather than a cloud-serving behavior
+- holdings mutations now flow through a dedicated backend service layer instead of route-local business logic
+- the Positions page now composes feature-level holdings modules (`features/holdings`) rather than owning CSV parsing, mutation orchestration, and tables inline
 
 Cold-core lessons now incorporated:
 - serving refresh must read live risk-engine cache keys, not only the active published snapshot
@@ -148,10 +151,11 @@ Canonical page-to-backend wiring:
   - purpose: deeper model-diagnostics study, loaded on demand because it is the heaviest dashboard page
 
 Efficiency rules now in force:
-- operator state is polled centrally and slowly; pages should not each invent their own background loop
+- operator state is fetched on demand plus fast-polled only while a refresh is actively running; pages should not each invent their own background loop
 - ticker/RIC typeahead is debounced before hitting `/api/universe/search`
-- Health diagnostics are no longer fetched automatically on page load
-- serving pages should consume durable serving outputs rather than piecing together raw source tables in the browser
+- Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls
+- user-facing dashboard pages should consume durable serving outputs first rather than piecing together raw source tables in the browser
+- old local cache blobs are now bootstrap fallback only when a serving payload snapshot does not yet exist
 - universe explore/search outputs
 - health/diagnostic payloads
 

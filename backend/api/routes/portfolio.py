@@ -13,12 +13,9 @@ router = APIRouter()
 
 @router.get("/portfolio")
 async def get_portfolio():
-    if config.cloud_mode() and config.neon_surface_enabled("serving_outputs"):
-        data = load_current_payload("portfolio")
-    elif config.serving_outputs_primary_reads_enabled() and config.neon_surface_enabled("serving_outputs"):
-        data = load_current_payload("portfolio") or cache_get("portfolio")
-    else:
-        data = cache_get("portfolio") or load_current_payload("portfolio")
+    data = load_current_payload("portfolio")
+    if data is None and not config.cloud_mode():
+        data = cache_get("portfolio")
     if data is None:
         raise_cache_not_ready(
             cache_key="portfolio",

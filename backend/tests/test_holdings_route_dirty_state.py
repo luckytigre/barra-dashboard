@@ -6,23 +6,11 @@ from backend.main import app
 from backend.api.routes import holdings as holdings_route
 
 
-class _FakeConn:
-    def close(self) -> None:
-        return None
-
-    def rollback(self) -> None:
-        return None
-
-
-def test_noop_position_edit_does_not_mark_dirty(monkeypatch) -> None:
-    marked = {"called": False}
-
-    monkeypatch.setattr(holdings_route, "resolve_dsn", lambda _dsn=None: "postgres://example")
-    monkeypatch.setattr(holdings_route, "connect", lambda **kwargs: _FakeConn())
+def test_noop_position_edit_route_returns_service_payload(monkeypatch) -> None:
     monkeypatch.setattr(
-        holdings_route,
-        "apply_single_position_edit",
-        lambda *args, **kwargs: {
+        holdings_route.holdings_service,
+        "run_position_upsert",
+        lambda **kwargs: {
             "status": "ok",
             "action": "none",
             "account_id": "main",
@@ -32,7 +20,6 @@ def test_noop_position_edit_does_not_mark_dirty(monkeypatch) -> None:
             "import_batch_id": "batch_1",
         },
     )
-    monkeypatch.setattr(holdings_route, "mark_holdings_dirty", lambda **kwargs: marked.update({"called": True}))
 
     client = TestClient(app)
     res = client.post(
@@ -46,4 +33,4 @@ def test_noop_position_edit_does_not_mark_dirty(monkeypatch) -> None:
     )
 
     assert res.status_code == 200
-    assert marked["called"] is False
+    assert res.json()["action"] == "none"

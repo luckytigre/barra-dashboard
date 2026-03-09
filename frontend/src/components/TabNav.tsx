@@ -130,12 +130,19 @@ export default function TabNav() {
   }, [refreshIsRunning, mutateOperatorStatus]);
 
   useEffect(() => {
-    if (refreshIsRunning) return;
-    const id = window.setInterval(() => {
+    if (refreshIsRunning) return undefined;
+    const refreshVisibleState = () => {
       if (document.visibilityState !== "visible") return;
       void mutateOperatorStatus();
-    }, 300000);
-    return () => window.clearInterval(id);
+    };
+    const onFocus = () => refreshVisibleState();
+    const onVisibility = () => refreshVisibleState();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [refreshIsRunning, mutateOperatorStatus]);
 
   async function handleRecalculateNow() {

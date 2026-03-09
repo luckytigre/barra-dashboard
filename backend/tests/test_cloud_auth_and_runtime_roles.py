@@ -16,15 +16,6 @@ from backend.api.routes import refresh as refresh_routes
 orchestrator = importlib.import_module("backend.orchestration.run_model_pipeline")
 refresh_manager = importlib.import_module("backend.services.refresh_manager")
 
-
-class _FakeConn:
-    def close(self) -> None:
-        return None
-
-    def rollback(self) -> None:
-        return None
-
-
 def test_cloud_refresh_requires_operator_token(monkeypatch) -> None:
     monkeypatch.setattr(refresh_routes.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(refresh_routes.config, "OPERATOR_API_TOKEN", "op-secret")
@@ -42,12 +33,10 @@ def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> 
     monkeypatch.setattr(auth_module.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(auth_module.config, "OPERATOR_API_TOKEN", "op-secret")
     monkeypatch.setattr(auth_module.config, "EDITOR_API_TOKEN", "edit-secret")
-    monkeypatch.setattr(holdings_route, "resolve_dsn", lambda _dsn=None: "postgres://example")
-    monkeypatch.setattr(holdings_route, "connect", lambda **kwargs: _FakeConn())
     monkeypatch.setattr(
-        holdings_route,
-        "apply_single_position_edit",
-        lambda *args, **kwargs: {
+        holdings_route.holdings_service,
+        "run_position_upsert",
+        lambda **kwargs: {
             "status": "ok",
             "action": "upserted",
             "account_id": "main",
@@ -57,8 +46,6 @@ def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> 
             "import_batch_id": "batch_1",
         },
     )
-    monkeypatch.setattr(holdings_route, "mark_holdings_dirty", lambda **kwargs: None)
-    monkeypatch.setattr(holdings_route, "_trigger_light_refresh_if_requested", lambda _trigger: None)
 
     client = TestClient(app)
     payload = {"account_id": "main", "ric": "AAPL.OQ", "quantity": 10, "trigger_refresh": False}

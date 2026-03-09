@@ -10,6 +10,7 @@ import CovarianceHeatmap from "@/components/CovarianceHeatmap";
 import TableRowToggle from "@/components/TableRowToggle";
 import HelpLabel from "@/components/HelpLabel";
 import ApiErrorState from "@/components/ApiErrorState";
+import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import type { FactorDetail } from "@/lib/types";
 
 const MODES = [
@@ -286,9 +287,14 @@ export default function ExposuresPage() {
             }}
           />
         </h3>
-        <div className="heatmap-centered-70">
-          <CovarianceHeatmap data={cov} />
-        </div>
+        <LazyMountOnVisible
+          minHeight={320}
+          fallback={<div className="detail-history-empty">Scroll to load the factor correlation heatmap.</div>}
+        >
+          <div className="heatmap-centered-70">
+            <CovarianceHeatmap data={cov} />
+          </div>
+        </LazyMountOnVisible>
       </div>
 
       <div className="floating-mode-toggle">
