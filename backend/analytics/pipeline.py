@@ -605,28 +605,41 @@ def run_refresh(
 
     model_outputs_write: dict[str, Any] = {"status": "skipped"}
     serving_outputs_write: dict[str, Any] = {"status": "skipped"}
+    skip_model_outputs_persistence = bool(
+        refresh_scope_key == "holdings_only"
+        and light_mode
+        and universe_loadings_reused
+        and not recomputed_this_refresh
+    )
     try:
-        model_outputs_write = model_outputs.persist_model_outputs(
-            data_db=DATA_DB,
-            cache_db=CACHE_DB,
-            run_id=run_id,
-            refresh_mode=refresh_mode,
-            status="ok",
-            started_at=refresh_started_at,
-            completed_at=datetime.now(timezone.utc).isoformat(),
-            source_dates=source_dates,
-            params={
-                "force_risk_recompute": bool(force_risk_recompute),
-                "mode": refresh_mode,
-                "lookback_days": int(config.LOOKBACK_DAYS),
-                "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
-                "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
-                "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
-            },
-            risk_engine_state=risk_engine_state,
-            cov=cov,
-            specific_risk_by_ticker=specific_risk_by_security,
-        )
+        if skip_model_outputs_persistence:
+            model_outputs_write = {
+                "status": "skipped",
+                "reason": "holdings_only_fast_path",
+                "run_id": run_id,
+            }
+        else:
+            model_outputs_write = model_outputs.persist_model_outputs(
+                data_db=DATA_DB,
+                cache_db=CACHE_DB,
+                run_id=run_id,
+                refresh_mode=refresh_mode,
+                status="ok",
+                started_at=refresh_started_at,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+                source_dates=source_dates,
+                params={
+                    "force_risk_recompute": bool(force_risk_recompute),
+                    "mode": refresh_mode,
+                    "lookback_days": int(config.LOOKBACK_DAYS),
+                    "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
+                    "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
+                    "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
+                },
+                risk_engine_state=risk_engine_state,
+                cov=cov,
+                specific_risk_by_ticker=specific_risk_by_security,
+            )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to persist relational model outputs")
         model_outputs_write = {

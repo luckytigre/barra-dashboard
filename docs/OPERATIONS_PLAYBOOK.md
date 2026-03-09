@@ -40,6 +40,7 @@
   - holdings-triggered light refreshes now pass an explicit `holdings_only` scope and may reuse the current published `universe_loadings` payload when both of these still match:
     - `source_dates`
     - stable risk-engine fingerprint (`method_version`, `last_recompute_date`, `factor_returns_latest_date`, snapshot-age/lookback settings, specific-risk count)
+  - when that reuse path is active, relational `model_outputs` persistence is skipped because the core model state is unchanged; serving payload persistence still runs normally
   - manual `serve-refresh` without that scope keeps the existing full serving-refresh behavior.
 - `source-daily`: latest-source ingest plus serving refresh only.
 - `source-daily-plus-core-if-due`: default daily maintenance lane; recomputes core only when cadence/version says due.
@@ -121,6 +122,7 @@ Runtime-role rule:
 - `cuse4_foundation`: bootstrap + latest ESTU audit summary for cUSE4 transition layer.
 - `portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `health_diagnostics`, `eligibility`, `refresh_meta`: refreshed on each `/api/refresh` call.
 - `model_outputs_write`: latest relational model-output persistence status.
+  - for the holdings-only fast path, this now reports `status=skipped` with reason `holdings_only_fast_path`.
 - `refresh_status`: background orchestrator state snapshot.
   - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
 
