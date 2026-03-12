@@ -20,9 +20,12 @@ Implemented now:
 - serving payloads now persist into durable `serving_payload_current` rows so the cloud-serving path can read dashboard outputs without depending solely on local cache blobs
 - `cloud-serve` runtime now treats durable serving payloads as the effective serving authority
 - `cloud-serve` runtime now restricts refresh lanes to `serve-refresh` and blocks LSEG ingest
+- a bare cloud `POST /api/refresh` now resolves safely to `serve-refresh`; deeper lanes still require explicit local/operator intent
 - broad Neon mirror/parity/prune remain a `local-ingest` publish responsibility rather than a cloud-serving behavior
 - holdings mutations now flow through a dedicated backend service layer instead of route-local business logic
 - the Positions page now composes feature-level holdings modules (`features/holdings`) rather than owning CSV parsing, mutation orchestration, and tables inline
+- holdings projection now loads one holdings snapshot per refresh build instead of re-querying holdings metadata repeatedly
+- Neon holdings read failures now stop serving-refresh projection work instead of silently degrading to an empty successful portfolio
 
 Cold-core lessons now incorporated:
 - serving refresh must read live risk-engine cache keys, not only the active published snapshot
@@ -46,6 +49,7 @@ This plan is intentionally operational rather than theoretical. It maps directly
 
 - Local SQLite remains the full historical ingest authority.
 - Neon remains the pruned serving database and runtime holdings store.
+- The active Barra model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
 - `security_master` is the only universe authority.
 - The committed universe artifact is `data/reference/security_master_seed.csv`.
 - The three canonical source-of-truth tables are:
@@ -93,6 +97,10 @@ Key actions:
 Rule:
 - Source tables can be current to latest available session.
 - They are not constrained by the cUSE4 lag policy.
+- Local source archives may intentionally extend beyond the active Barra model window.
+- Neon receives a pruned rolling publish window from this layer:
+  - source tables: 10 years
+  - analytics tables: 5 years
 - Fundamentals and classification PIT backfills run monthly by default.
 - Only `local-ingest` should publish broad source/model updates into Neon.
 
@@ -109,6 +117,11 @@ Purpose:
 Key rule:
 - Core estimation uses lagged exposures only.
 - Current policy remains `CROSS_SECTION_MIN_AGE_DAYS=7`.
+- The active Barra model-history horizon is defined by retained `barra_raw_cross_section_history`.
+- Ordinary `core-weekly` recomputes should ignore deeper source/archive history outside that retained model window.
+- The risk-model math window is narrower than retained model history:
+  - covariance / specific risk use `LOOKBACK_DAYS` (currently ~2 trading years)
+  - factor-return / raw cross-section history may be retained for longer (for example ~5 years)
 
 Interpretation:
 - New source data can arrive daily.
@@ -151,6 +164,7 @@ Canonical page-to-backend wiring:
 
 Efficiency rules now in force:
 - operator state is fetched on demand plus fast-polled only while a refresh is actively running; pages should not each invent their own background loop
+- header sync/recalc actions now use canonical profile semantics (`serve-refresh`) instead of legacy mode-based refresh calls
 - ticker/RIC typeahead is debounced before hitting `/api/universe/search`
 - Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls
 - user-facing dashboard pages should consume durable serving outputs first rather than piecing together raw source tables in the browser
@@ -244,6 +258,9 @@ Does:
 - portfolio / risk / exposures / universe serving payloads
 - health payloads
 - durable serving-payload write (`serving_payload_current`)
+- holdings-triggered refreshes may reuse the current published `universe_loadings` payload when source dates and the risk-engine fingerprint still match
+- on that reuse path, cached `eligibility`, `cov_matrix`, and `condition_number` may also be reused when present
+- on that reuse path, durable relational `model_outputs` persistence is intentionally skipped because the underlying factor/covariance/specific-risk state has not changed
 
 Does not:
 - pull LSEG
@@ -257,6 +274,7 @@ Primary trigger:
 Current implemented path:
 - `serve-refresh`
 - In `cloud-serve`, this is the only allowed refresh lane.
+- manual `serve-refresh` keeps the existing full serving-refresh behavior; only holdings-triggered refreshes set the explicit `holdings_only` reuse hint
 
 ### 2) `source-daily`
 
@@ -312,6 +330,8 @@ Does not:
 
 Current implemented path:
 - `core-weekly`
+- daily factor-return recompute now resolves uncached dates before loading prices and only materializes the required price window plus the immediately prior session needed for return calculation
+- factor-return cache invalidation now also keys off the configured minimum exposure-snapshot age (`CROSS_SECTION_MIN_AGE_DAYS`)
 
 ### 5) `cold-core`
 
@@ -393,6 +413,8 @@ Role:
 
 Policy:
 - keep long/full history locally
+- local source archives may extend beyond Neon's publish window when extra historical context is useful
+- active Barra recomputes should still respect the retained `barra_raw_cross_section_history` floor rather than the deepest local source date
 - do not prune unless deliberately doing local retention work
 
 ### Neon
@@ -407,6 +429,7 @@ Policy:
 - keep only bounded windows:
   - source tables: 10 years
   - analytics tables: 5 years
+- Neon retention is a publish/serving policy, not the definition of the active Barra model horizon
 - parity checks must compare Neon only against the same bounded windows
 - if a Neon DSN is configured, holdings-serving reads should resolve from Neon rather than static mock positions
 
@@ -430,8 +453,11 @@ Should show:
 - last `core-weekly`
 - last `cold-core`
 - last `universe-add`
+- latest run elapsed time and delta versus the previous run
+- slowest stage for the latest run
 - recent run history per lane
 - latest stage detail per lane
+- current stage, stage index, and stage count for any in-flight orchestrated run
 - latest source dates:
   - prices
   - fundamentals

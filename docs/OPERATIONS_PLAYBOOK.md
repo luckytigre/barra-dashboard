@@ -37,9 +37,16 @@
 
 ## Refresh Paths (When To Use)
 - `serve-refresh`: quick serving refresh; no core recompute and no source ingest.
+  - holdings-triggered light refreshes now pass an explicit `holdings_only` scope and may reuse the current published `universe_loadings` payload when both of these still match:
+    - `source_dates`
+    - stable risk-engine fingerprint (`method_version`, `last_recompute_date`, `factor_returns_latest_date`, snapshot-age/lookback settings, specific-risk count)
+  - on that same fast path, cached `eligibility`, `cov_matrix`, and `condition_number` are reused when present instead of being rebuilt from unchanged model state
+  - when that reuse path is active, relational `model_outputs` persistence is skipped because the core model state is unchanged; serving payload persistence still runs normally
+  - manual `serve-refresh` without that scope keeps the existing full serving-refresh behavior.
 - `source-daily`: latest-source ingest plus serving refresh only.
 - `source-daily-plus-core-if-due`: default daily maintenance lane; recomputes core only when cadence/version says due.
 - `core-weekly`: force core recompute without rebuilding full raw history.
+  - factor-return recompute now determines uncached dates before loading prices and only reads the bounded price window needed for those dates plus the immediately prior session.
 - `cold-core`: full historical reset for structural data changes (new/changed historical prices, volume, fundamentals, classification, or factor methodology).
   - This path rebuilds `barra_raw_cross_section_history` over full history and clears core cache tables before recomputing factor returns/risk.
   - UI now requires explicit confirmation before starting this lane from the operator deck.
@@ -48,15 +55,21 @@
 Runtime-role rule:
 - `local-ingest`: all lanes may be used.
 - `cloud-serve`: only `serve-refresh` is allowed.
+- In `cloud-serve`, a bare `POST /api/refresh` now defaults safely to `serve-refresh`.
+- Explicit deeper lanes remain blocked in `cloud-serve` even if requested by old mode-based callers.
 
 ## Operator UI Policy
 - Data page is the primary control room.
 - Fast diagnostics are the default because they are cheap and always available.
 - Deep diagnostics are on-demand and compute exact row counts, ticker counts, duplicate checks, and update metadata.
 - Health page is for deeper model diagnostics, not routine operator actions.
+- Operator Status and header health are the live runtime truth.
+- Data/Health diagnostics are deeper local-instance maintenance panels and may lag the cloud-serving view.
 - Operator lane cards show:
   - plain-English lane purpose
   - latest run state
+  - latest run elapsed time and delta versus the previous run
+  - slowest stage for the latest run
   - recent-run history strip
   - stage-level detail
   - separate Neon mirror and Neon parity status
@@ -110,14 +123,30 @@ Runtime-role rule:
   - This prevents partial live state if refresh fails mid-run.
   - Old staged snapshots are pruned automatically; tune with `SQLITE_CACHE_SNAPSHOT_RETENTION` (default `3`).
 - `risk_engine_meta`: recompute metadata (method version, last recompute date, latest factor-return date, settings).
+  - factor-return cache invalidation now also tracks `CROSS_SECTION_MIN_AGE_DAYS` so snapshot-age policy changes clear stale factor-return/residual/eligibility rows.
 - `risk_engine_cov`: serialized factor covariance matrix (weekly cache).
 - `risk_engine_specific_risk`: stock-level specific risk map (weekly cache).
 - `cuse4_foundation`: bootstrap + latest ESTU audit summary for cUSE4 transition layer.
 - `portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `health_diagnostics`, `eligibility`, `refresh_meta`: refreshed on each `/api/refresh` call.
+- if Neon-backed holdings cannot be read during serving projection, refresh fails instead of publishing an empty-success portfolio payload
 - `model_outputs_write`: latest relational model-output persistence status.
+  - for the holdings-only fast path, this now reports `status=skipped` with reason `holdings_only_fast_path`.
 - `refresh_status`: background orchestrator state snapshot.
+  - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
+- operator lane summaries also expose additive persisted run-timing fields:
+  - `duration_seconds`
+  - `duration_delta_seconds`
+  - `duration_delta_pct`
+  - `stage_duration_seconds_total`
+  - `slowest_stage`
 
 ## Lookback Retention Policy
+- Treat three horizons separately:
+  - active Barra model history: the retained `barra_raw_cross_section_history` window that drives factor-return recomputes
+  - risk-model lookback: the rolling covariance/specific-risk window (`LOOKBACK_DAYS`, currently ~2 trading years)
+  - source archive retention: deeper local history plus Neon publish retention
+- Ordinary `core-weekly` recomputes respect the active Barra model-history floor from `barra_raw_cross_section_history`; they do not try to backfill the full price archive.
+- The first usable factor-return date may be a few sessions later than raw-history start because cross-sectional regressions honor `CROSS_SECTION_MIN_AGE_DAYS`.
 - Think in terms of target factor-return history horizon `H` (years).
 - If you need to recompute and keep `H` years of factor returns, retain at least `H` years in:
   - `barra_raw_cross_section_history`
@@ -133,6 +162,10 @@ Runtime-role rule:
 - Practical rule:
   - For a 5-year history target (example: as of 2026-03-05, keep data from ~2021-03-05 onward), keep at least 5 years in the source/raw tables.
   - Add extra buffer if you rebuild raw descriptors from prices (rolling feature construction benefits from pre-window data).
+  - Deeper local source archives are allowed and expected; they do not, by themselves, widen the active Barra model window.
+  - Neon is the pruned publish surface:
+    - source tables: rolling 10 years
+    - analytics tables: rolling 5 years
 
 ### Storage vs Recompute Tradeoff
 - Keep long source/raw history:

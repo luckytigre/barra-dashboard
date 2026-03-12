@@ -62,6 +62,7 @@ export interface HoldingsPosition {
   ric: string;
   ticker: string;
   quantity: number;
+  instrument_type?: string | null;
   source: string;
   updated_at: string | null;
 }
@@ -432,6 +433,24 @@ export interface DataDiagnosticsData {
   status: string;
   database_path: string;
   cache_db_path: string;
+  diagnostic_scope?: {
+    source?: string;
+    plain_english?: string;
+  };
+  truth_surfaces?: {
+    dashboard_serving?: {
+      source?: string;
+      plain_english?: string;
+    };
+    operator_status?: {
+      source?: string;
+      plain_english?: string;
+    };
+    local_diagnostics?: {
+      source?: string;
+      plain_english?: string;
+    };
+  };
   exposure_source_table: string;
   exposure_source?: {
     table: string;
@@ -621,12 +640,25 @@ export interface OperatorStatusData {
   } | null;
   latest_parity_artifact?: string | null;
   runtime?: {
+    app_runtime_role?: string;
+    allowed_profiles?: string[];
+    local_only_profiles?: string[];
+    canonical_serving_profile?: string;
+    dashboard_truth_surface?: string;
+    dashboard_truth_plain_english?: string;
+    diagnostics_scope?: string;
+    diagnostics_scope_plain_english?: string;
     data_backend?: string;
     neon_database_configured?: boolean;
     neon_auto_sync_enabled?: boolean;
+    neon_auto_sync_enabled_effective?: boolean;
     neon_auto_parity_enabled?: boolean;
+    neon_auto_parity_enabled_effective?: boolean;
     neon_auto_prune_enabled?: boolean;
+    neon_auto_prune_enabled_effective?: boolean;
     neon_read_surfaces?: string[];
+    serving_outputs_primary_reads?: boolean;
+    serving_outputs_primary_reads_effective?: boolean;
     warnings?: string[];
   } | null;
 }

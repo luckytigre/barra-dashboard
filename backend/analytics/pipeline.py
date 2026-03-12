@@ -33,6 +33,7 @@ from backend.analytics.services.risk_views import (
     build_positions_from_universe as _build_positions_from_universe_impl,
     compute_exposures_modes as _compute_exposures_modes_impl,
     compute_position_risk_mix as _compute_position_risk_mix_impl,
+    compute_position_total_risk_contributions as _compute_position_total_risk_contributions_impl,
     specific_risk_by_ticker_view as _specific_risk_by_ticker_view_impl,
 )
 from backend.analytics.services.universe_loadings import (
@@ -54,6 +55,15 @@ logger = logging.getLogger(__name__)
 DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
 RISK_ENGINE_METHOD_VERSION = "v4_trbc_l2_country_us_dummy_2026_03_08"
+_UNIVERSE_REUSE_RISK_KEYS = (
+    "status",
+    "method_version",
+    "last_recompute_date",
+    "factor_returns_latest_date",
+    "cross_section_min_age_days",
+    "lookback_days",
+    "specific_risk_ticker_count",
+)
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -62,6 +72,52 @@ def _finite_float(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return float(default)
     return out if np.isfinite(out) else float(default)
+
+
+def _risk_engine_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
+    meta = dict(payload or {})
+    return {key: meta.get(key) for key in _UNIVERSE_REUSE_RISK_KEYS}
+
+
+def _can_reuse_cached_universe_loadings(
+    cached_payload: Any,
+    *,
+    source_dates: SourceDatesPayload,
+    risk_engine_meta: RiskEngineMetaPayload,
+) -> tuple[bool, str]:
+    if not isinstance(cached_payload, dict):
+        return False, "missing_cached_payload"
+    by_ticker = cached_payload.get("by_ticker")
+    if not isinstance(by_ticker, dict) or not by_ticker:
+        return False, "missing_by_ticker"
+    cached_source_dates = cached_payload.get("source_dates")
+    if not isinstance(cached_source_dates, dict):
+        return False, "missing_cached_source_dates"
+    if dict(cached_source_dates) != dict(source_dates):
+        return False, "source_dates_changed"
+    cached_risk = cached_payload.get("risk_engine")
+    if not isinstance(cached_risk, dict):
+        return False, "missing_cached_risk_engine"
+    if _risk_engine_reuse_signature(cached_risk) != _risk_engine_reuse_signature(risk_engine_meta):
+        return False, "risk_engine_state_changed"
+    return True, "source_and_risk_engine_match"
+
+
+def _load_cached_risk_display_payload() -> tuple[CovarianceMatrixPayload, float] | None:
+    cached_risk = sqlite.cache_get("risk")
+    if not isinstance(cached_risk, dict):
+        return None
+    cov_matrix = cached_risk.get("cov_matrix")
+    condition_number = cached_risk.get("condition_number")
+    if not isinstance(cov_matrix, dict):
+        return None
+    try:
+        clean_condition = _finite_float(condition_number, np.nan)
+    except Exception:
+        clean_condition = np.nan
+    if not np.isfinite(clean_condition):
+        return None
+    return dict(cov_matrix), float(clean_condition)
 
 
 def _parse_iso_date(value: Any) -> date | None:
@@ -196,10 +252,23 @@ def _compute_position_risk_mix(
     )
 
 
+def _compute_position_total_risk_contributions(
+    positions: list[PositionPayload],
+    cov,
+    specific_risk_by_ticker: dict[str, SpecificRiskPayload] | None = None,
+) -> dict[str, float]:
+    return _compute_position_total_risk_contributions_impl(
+        positions,
+        cov,
+        specific_risk_by_ticker=specific_risk_by_ticker,
+    )
+
+
 def run_refresh(
     *,
     force_risk_recompute: bool = False,
     mode: str = "full",
+    refresh_scope: str | None = None,
     skip_snapshot_rebuild: bool = False,
     skip_cuse4_foundation: bool = False,
     skip_risk_engine: bool = False,
@@ -211,6 +280,7 @@ def run_refresh(
     """
     logger.info("Starting refresh pipeline...")
     refresh_mode = str(mode or "full").strip().lower()
+    refresh_scope_key = str(refresh_scope or "").strip().lower() or None
     if refresh_mode not in {"full", "light"}:
         refresh_mode = "full"
     light_mode = refresh_mode == "light"
@@ -234,21 +304,8 @@ def run_refresh(
             mode=str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
         )
 
-    # 1. Fetch full-universe data from local data.db
-    logger.info("Fetching data from local database...")
     source_dates: SourceDatesPayload = core_reads.load_source_dates()
     fundamentals_asof = source_dates.get("fundamentals_asof") or source_dates.get("exposures_asof")
-    prices_universe_df = core_reads.load_latest_prices()
-    fundamentals_universe_df = core_reads.load_latest_fundamentals(
-        as_of_date=str(fundamentals_asof) if fundamentals_asof else None,
-    )
-    exposures_universe_df = core_reads.load_raw_cross_section_latest()
-    logger.info(
-        "Loaded source rows: prices=%s fundamentals=%s exposures=%s",
-        int(len(prices_universe_df)),
-        int(len(fundamentals_universe_df)),
-        int(len(exposures_universe_df)),
-    )
 
     # Optional cUSE4 foundation maintenance (additive, non-breaking).
     cuse4_foundation: dict[str, Any] = {"status": "disabled"}
@@ -378,20 +435,60 @@ def run_refresh(
     specific_risk_by_ticker = _specific_risk_by_ticker_view(specific_risk_by_security)
 
     # 3. Build/cached full-universe loadings first (portfolio is a final projection only).
-    logger.info("Building full-universe ticker loadings...")
-    universe_loadings = _build_universe_ticker_loadings(
-        exposures_universe_df,
-        fundamentals_universe_df,
-        prices_universe_df,
-        cov,
-        specific_risk_by_ticker=specific_risk_by_ticker,
+    universe_loadings_reused = False
+    universe_loadings_reuse_reason = "not_attempted"
+    cached_universe_loadings = (
+        sqlite.cache_get("universe_loadings")
+        if refresh_scope_key == "holdings_only" and light_mode and not recomputed_this_refresh
+        else None
     )
-    logger.info(
-        "Universe loadings built: ticker_count=%s eligible_ticker_count=%s factor_count=%s",
-        int(universe_loadings.get("ticker_count", 0)),
-        int(universe_loadings.get("eligible_ticker_count", 0)),
-        int(universe_loadings.get("factor_count", 0)),
-    )
+    if cached_universe_loadings is not None:
+        universe_loadings_reused, universe_loadings_reuse_reason = _can_reuse_cached_universe_loadings(
+            cached_universe_loadings,
+            source_dates=source_dates,
+            risk_engine_meta=risk_engine_meta,
+        )
+
+    if universe_loadings_reused:
+        universe_loadings = dict(cached_universe_loadings)
+        logger.info(
+            "Reusing cached universe loadings for light refresh (%s): ticker_count=%s eligible_ticker_count=%s factor_count=%s",
+            universe_loadings_reuse_reason,
+            int(universe_loadings.get("ticker_count", 0)),
+            int(universe_loadings.get("eligible_ticker_count", 0)),
+            int(universe_loadings.get("factor_count", 0)),
+        )
+    else:
+        logger.info(
+            "Fetching full-universe inputs from local database for rebuild (%s)...",
+            universe_loadings_reuse_reason,
+        )
+        prices_universe_df = core_reads.load_latest_prices()
+        fundamentals_universe_df = core_reads.load_latest_fundamentals(
+            as_of_date=str(fundamentals_asof) if fundamentals_asof else None,
+        )
+        exposures_universe_df = core_reads.load_raw_cross_section_latest()
+        logger.info(
+            "Loaded source rows: prices=%s fundamentals=%s exposures=%s",
+            int(len(prices_universe_df)),
+            int(len(fundamentals_universe_df)),
+            int(len(exposures_universe_df)),
+        )
+        logger.info("Building full-universe ticker loadings...")
+        universe_loadings = _build_universe_ticker_loadings(
+            exposures_universe_df,
+            fundamentals_universe_df,
+            prices_universe_df,
+            cov,
+            specific_risk_by_ticker=specific_risk_by_ticker,
+        )
+        universe_loadings_reuse_reason = "rebuilt"
+        logger.info(
+            "Universe loadings built: ticker_count=%s eligible_ticker_count=%s factor_count=%s",
+            int(universe_loadings.get("ticker_count", 0)),
+            int(universe_loadings.get("eligible_ticker_count", 0)),
+            int(universe_loadings.get("factor_count", 0)),
+        )
 
     # 4. Project held positions from full-universe cache
     logger.info("Projecting held positions from full-universe cache...")
@@ -429,25 +526,36 @@ def run_refresh(
         cov=cov,
         specific_risk_by_ticker=specific_risk_by_ticker,
     )
+    position_risk_contrib = _compute_position_total_risk_contributions(
+        positions=positions,
+        cov=cov,
+        specific_risk_by_ticker=specific_risk_by_ticker,
+    )
 
     # 6. Compute per-position risk contributions
     for pos in positions:
-        exps = pos.get("exposures", {})
-        risk_score = sum(
-            abs(float(exps.get(d["factor"], 0.0)) * d["sensitivity"])
-            for d in factor_details
-        )
-        pos["risk_contrib_pct"] = round(risk_score * pos["weight"] * 100, 2)
-        pos["risk_mix"] = dict(position_risk_mix.get(str(pos.get("ticker", "")).upper(), {
+        ticker = str(pos.get("ticker", "")).upper()
+        pos["risk_contrib_pct"] = float(position_risk_contrib.get(ticker, 0.0))
+        pos["risk_mix"] = dict(position_risk_mix.get(ticker, {
             "country": 0.0,
             "industry": 0.0,
             "style": 0.0,
             "idio": 0.0,
         }))
 
+    reuse_cached_risk_display = bool(
+        refresh_scope_key == "holdings_only"
+        and light_mode
+        and universe_loadings_reused
+        and not recomputed_this_refresh
+    )
+    cached_risk_display = _load_cached_risk_display_payload() if reuse_cached_risk_display else None
+
     # 7. Compute condition number from cov matrix
     condition_number = 0.0
-    if not cov.empty:
+    if cached_risk_display is not None:
+        condition_number = float(cached_risk_display[1])
+    elif not cov.empty:
         try:
             cn = float(np.linalg.cond(cov.to_numpy()))
             condition_number = cn if np.isfinite(cn) else 9999.99
@@ -473,7 +581,9 @@ def run_refresh(
         "Momentum", "Short-Term Reversal", "Residual Volatility",
     }
     cov_matrix: CovarianceMatrixPayload = {}
-    if not cov.empty:
+    if cached_risk_display is not None:
+        cov_matrix = cached_risk_display[0]
+    elif not cov.empty:
         all_factors = list(cov.columns)
         style_idx = [i for i, f in enumerate(all_factors) if f in STYLE_FACTOR_NAMES]
         if style_idx:
@@ -527,6 +637,12 @@ def run_refresh(
         exposure_modes=exposure_modes,
         cuse4_foundation=cuse4_foundation,
         light_mode=light_mode,
+        reuse_cached_static_payloads=bool(
+            refresh_scope_key == "holdings_only"
+            and light_mode
+            and universe_loadings_reused
+            and not recomputed_this_refresh
+        ),
         data_db=DATA_DB,
         cache_db=CACHE_DB,
     )
@@ -538,28 +654,41 @@ def run_refresh(
 
     model_outputs_write: dict[str, Any] = {"status": "skipped"}
     serving_outputs_write: dict[str, Any] = {"status": "skipped"}
+    skip_model_outputs_persistence = bool(
+        refresh_scope_key == "holdings_only"
+        and light_mode
+        and universe_loadings_reused
+        and not recomputed_this_refresh
+    )
     try:
-        model_outputs_write = model_outputs.persist_model_outputs(
-            data_db=DATA_DB,
-            cache_db=CACHE_DB,
-            run_id=run_id,
-            refresh_mode=refresh_mode,
-            status="ok",
-            started_at=refresh_started_at,
-            completed_at=datetime.now(timezone.utc).isoformat(),
-            source_dates=source_dates,
-            params={
-                "force_risk_recompute": bool(force_risk_recompute),
-                "mode": refresh_mode,
-                "lookback_days": int(config.LOOKBACK_DAYS),
-                "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
-                "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
-                "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
-            },
-            risk_engine_state=risk_engine_state,
-            cov=cov,
-            specific_risk_by_ticker=specific_risk_by_security,
-        )
+        if skip_model_outputs_persistence:
+            model_outputs_write = {
+                "status": "skipped",
+                "reason": "holdings_only_fast_path",
+                "run_id": run_id,
+            }
+        else:
+            model_outputs_write = model_outputs.persist_model_outputs(
+                data_db=DATA_DB,
+                cache_db=CACHE_DB,
+                run_id=run_id,
+                refresh_mode=refresh_mode,
+                status="ok",
+                started_at=refresh_started_at,
+                completed_at=datetime.now(timezone.utc).isoformat(),
+                source_dates=source_dates,
+                params={
+                    "force_risk_recompute": bool(force_risk_recompute),
+                    "mode": refresh_mode,
+                    "lookback_days": int(config.LOOKBACK_DAYS),
+                    "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
+                    "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
+                    "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
+                },
+                risk_engine_state=risk_engine_state,
+                cov=cov,
+                specific_risk_by_ticker=specific_risk_by_security,
+            )
     except Exception as exc:  # noqa: BLE001
         logger.exception("Failed to persist relational model outputs")
         model_outputs_write = {
@@ -606,11 +735,14 @@ def run_refresh(
         "positions": len(positions),
         "total_value": round(total_value, 2),
         "mode": refresh_mode,
+        "refresh_scope": refresh_scope_key,
         "cross_section_snapshot": snapshot_build,
         "risk_engine": risk_engine_state,
         "model_sanity": sanity,
         "cuse4_foundation": cuse4_foundation,
         "health_refreshed": bool(health_refreshed),
+        "universe_loadings_reused": bool(universe_loadings_reused),
+        "universe_loadings_reuse_reason": str(universe_loadings_reuse_reason),
         "model_outputs_write": model_outputs_write,
         "serving_outputs_write": serving_outputs_write,
     }

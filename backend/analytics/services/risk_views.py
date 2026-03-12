@@ -19,7 +19,12 @@ from backend.risk_model.risk_attribution import (
     portfolio_factor_exposure,
     systematic_variance_by_category,
 )
-from backend.portfolio.positions_store import get_position_meta, get_shares, get_tickers
+from backend.portfolio.positions_store import (
+    DEFAULT_ACCOUNT,
+    DEFAULT_SLEEVE,
+    DEFAULT_SOURCE,
+    load_positions_snapshot,
+)
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -59,11 +64,12 @@ def build_positions_from_universe(
     universe_by_ticker: dict[str, dict[str, Any]],
 ) -> tuple[list[PositionPayload], float]:
     """Project held positions from full-universe cached analytics."""
-    shares_map = get_shares()
-    tickers = get_tickers()
+    shares_map, dynamic_meta = load_positions_snapshot()
+    tickers = list(shares_map.keys())
 
     positions: list[PositionPayload] = []
     total_value = 0.0
+    gross_value = 0.0
     for ticker in tickers:
         t = ticker.upper()
         base = universe_by_ticker.get(t, {})
@@ -71,7 +77,13 @@ def build_positions_from_universe(
         price = _finite_float(base.get("price"), 0.0)
         mv = shares * price
         total_value += mv
-        meta = get_position_meta(t)
+        gross_value += abs(mv)
+        meta_base = dynamic_meta.get(t, {})
+        meta = {
+            "account": str(meta_base.get("account") or DEFAULT_ACCOUNT),
+            "sleeve": str(meta_base.get("sleeve") or DEFAULT_SLEEVE),
+            "source": str(meta_base.get("source") or DEFAULT_SOURCE),
+        }
         positions.append({
             "ticker": t,
             "name": str(base.get("name") or ""),
@@ -112,7 +124,7 @@ def build_positions_from_universe(
 
     for pos in positions:
         mv = _finite_float(pos.get("market_value"), 0.0)
-        pos["weight"] = round(mv / total_value, 6) if total_value != 0 else 0.0
+        pos["weight"] = round(mv / gross_value, 6) if gross_value != 0 else 0.0
 
     return positions, round(total_value, 2)
 
@@ -295,3 +307,74 @@ def compute_position_risk_mix(
             "idio": round(idio_pct, 2),
         }
     return out
+
+
+def compute_position_total_risk_contributions(
+    positions: list[PositionPayload],
+    cov,
+    specific_risk_by_ticker: dict[str, SpecificRiskPayload] | None = None,
+) -> dict[str, float]:
+    """Exact per-position contribution to total portfolio variance, in percent."""
+    if cov is None or cov.empty or not positions:
+        return {
+            str(pos.get("ticker", "")).upper(): 0.0
+            for pos in positions
+            if str(pos.get("ticker", "")).strip()
+        }
+
+    factors = [str(c) for c in cov.columns if str(c).lower() != "market"]
+    if not factors:
+        return {
+            str(pos.get("ticker", "")).upper(): 0.0
+            for pos in positions
+            if str(pos.get("ticker", "")).strip()
+        }
+
+    f_mat = cov.reindex(index=factors, columns=factors).to_numpy(dtype=float)
+    if f_mat.size == 0:
+        return {
+            str(pos.get("ticker", "")).upper(): 0.0
+            for pos in positions
+            if str(pos.get("ticker", "")).strip()
+        }
+
+    spec_map = specific_risk_by_ticker or {}
+    tickers: list[str] = []
+    x_rows: list[np.ndarray] = []
+    w_vec: list[float] = []
+    spec_vars: list[float] = []
+
+    for pos in positions:
+        ticker = str(pos.get("ticker", "")).upper().strip()
+        if not ticker:
+            continue
+        exps = pos.get("exposures", {}) or {}
+        x_rows.append(np.array([_finite_float(exps.get(f), 0.0) for f in factors], dtype=float))
+        w_vec.append(_finite_float(pos.get("weight", 0.0), 0.0))
+        spec_var = _finite_float(spec_map.get(ticker, {}).get("specific_var"), 0.0)
+        spec_vars.append(max(0.0, spec_var))
+        tickers.append(ticker)
+
+    if not tickers:
+        return {}
+
+    x_mat = np.vstack(x_rows)
+    w_arr = np.asarray(w_vec, dtype=float)
+    spec_arr = np.asarray(spec_vars, dtype=float)
+
+    h_vec = (w_arr[:, None] * x_mat).sum(axis=0)
+    fh_vec = f_mat @ h_vec
+    systematic_contrib = w_arr * (x_mat @ fh_vec)
+    specific_contrib = (w_arr ** 2) * spec_arr
+    total_contrib = systematic_contrib + specific_contrib
+
+    systematic_total = float(h_vec.T @ f_mat @ h_vec)
+    specific_total = float(specific_contrib.sum())
+    total_var = systematic_total + specific_total
+    if not np.isfinite(total_var) or total_var <= 1e-12:
+        return {ticker: 0.0 for ticker in tickers}
+
+    return {
+        tickers[i]: round(float(total_contrib[i]) / total_var * 100.0, 2)
+        for i in range(len(tickers))
+    }
