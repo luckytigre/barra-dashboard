@@ -90,6 +90,41 @@ def test_build_positions_from_universe_loads_holdings_snapshot_once(monkeypatch:
     assert total_value == 750.0
 
 
+def test_build_positions_from_universe_uses_signed_gross_weights_for_long_short_books(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _load_snapshot():
+        return (
+            {"VRT": -3.0, "ORCL": 2.0, "WMT": -1.0},
+            {
+                "VRT": {"account": "MAIN", "sleeve": "NEON HOLDINGS", "source": "NEON"},
+                "ORCL": {"account": "MAIN", "sleeve": "NEON HOLDINGS", "source": "NEON"},
+                "WMT": {"account": "MAIN", "sleeve": "NEON HOLDINGS", "source": "NEON"},
+            },
+        )
+
+    from backend.analytics.services import risk_views
+
+    monkeypatch.setattr(risk_views, "load_positions_snapshot", _load_snapshot)
+
+    positions, total_value = risk_views.build_positions_from_universe(
+        {
+            "VRT": {"price": 100.0, "name": "Vertiv"},
+            "ORCL": {"price": 50.0, "name": "Oracle"},
+            "WMT": {"price": 25.0, "name": "Walmart"},
+        }
+    )
+
+    assert total_value == -225.0
+    by_ticker = {row["ticker"]: row for row in positions}
+    assert by_ticker["VRT"]["market_value"] == -300.0
+    assert by_ticker["ORCL"]["market_value"] == 100.0
+    assert by_ticker["WMT"]["market_value"] == -25.0
+    assert by_ticker["VRT"]["weight"] == pytest.approx(-300.0 / 425.0, abs=1e-6)
+    assert by_ticker["ORCL"]["weight"] == pytest.approx(100.0 / 425.0, abs=1e-6)
+    assert by_ticker["WMT"]["weight"] == pytest.approx(-25.0 / 425.0, abs=1e-6)
+
+
 def test_holdings_runtime_state_round_trip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(holdings_runtime_state, "cache_get", lambda key: None if key != "holdings_sync_state" else None)
     recorded: dict[str, object] = {}

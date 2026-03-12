@@ -69,6 +69,7 @@ def build_positions_from_universe(
 
     positions: list[PositionPayload] = []
     total_value = 0.0
+    gross_value = 0.0
     for ticker in tickers:
         t = ticker.upper()
         base = universe_by_ticker.get(t, {})
@@ -76,6 +77,7 @@ def build_positions_from_universe(
         price = _finite_float(base.get("price"), 0.0)
         mv = shares * price
         total_value += mv
+        gross_value += abs(mv)
         meta_base = dynamic_meta.get(t, {})
         meta = {
             "account": str(meta_base.get("account") or DEFAULT_ACCOUNT),
@@ -122,7 +124,7 @@ def build_positions_from_universe(
 
     for pos in positions:
         mv = _finite_float(pos.get("market_value"), 0.0)
-        pos["weight"] = round(mv / total_value, 6) if total_value != 0 else 0.0
+        pos["weight"] = round(mv / gross_value, 6) if gross_value != 0 else 0.0
 
     return positions, round(total_value, 2)
 
