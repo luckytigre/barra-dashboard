@@ -3,10 +3,15 @@
 import { useState } from "react";
 import type { Position } from "@/lib/types";
 import TableRowToggle from "@/components/TableRowToggle";
-import ShareAdjuster from "@/components/ShareAdjuster";
+import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
 
 interface ExposurePositionsTableProps {
   positions: Position[];
+  getDraftQuantityText?: (position: Position) => string;
+  hasDraftForPosition?: (position: Position) => boolean;
+  isDraftInvalidForPosition?: (position: Position) => boolean;
+  onDraftQuantityChange?: (position: Position, value: string) => void;
+  onAdjust?: (position: Position, delta: number) => void;
 }
 
 type SortKey = "ticker" | "trbc_industry_group" | "shares" | "market_value" | "risk_mix";
@@ -42,7 +47,14 @@ function riskMixSortValue(pos: Position): number {
   return Number(mix.idio || 0);
 }
 
-export default function ExposurePositionsTable({ positions }: ExposurePositionsTableProps) {
+export default function ExposurePositionsTable({
+  positions,
+  getDraftQuantityText,
+  hasDraftForPosition,
+  isDraftInvalidForPosition,
+  onDraftQuantityChange,
+  onAdjust,
+}: ExposurePositionsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("market_value");
   const [sortAsc, setSortAsc] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
@@ -93,10 +105,19 @@ export default function ExposurePositionsTable({ positions }: ExposurePositionsT
               <td>{pos.ticker}</td>
               <td>{pos.trbc_industry_group || "Unmapped"}</td>
               <td className="text-right">
-                <span className="share-cell">
-                  <span>{fmtShares(pos.shares)}</span>
-                  <ShareAdjuster ticker={pos.ticker} currentShares={pos.shares} accountId={pos.account} />
-                </span>
+                {getDraftQuantityText && onDraftQuantityChange && onAdjust ? (
+                  <InlineShareDraftEditor
+                    quantityText={getDraftQuantityText(pos)}
+                    disabled={!pos.account || String(pos.account).trim().toLowerCase() === "multi"}
+                    draftActive={Boolean(hasDraftForPosition?.(pos))}
+                    invalid={Boolean(isDraftInvalidForPosition?.(pos))}
+                    titleBase={pos.ticker}
+                    onQuantityTextChange={(value) => onDraftQuantityChange(pos, value)}
+                    onStep={(delta) => onAdjust(pos, delta)}
+                  />
+                ) : (
+                  fmtShares(pos.shares)
+                )}
               </td>
               <td className="text-right">{fmtCurrency(pos.market_value)}</td>
               <td className="text-right">{riskMixLabel(pos)}</td>
