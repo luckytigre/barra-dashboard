@@ -4,6 +4,8 @@ import useSWR from "swr";
 import { ApiError, apiFetch, apiPath, type RefreshMode } from "@/lib/api";
 import type {
   PortfolioData,
+  WhatIfPreviewData,
+  WhatIfScenarioRow,
   HoldingsModeData,
   HoldingsAccountsData,
   HoldingsPositionsData,
@@ -119,6 +121,16 @@ export async function triggerRefreshProfile(profile: string): Promise<{ status: 
 
 export async function triggerServeRefresh(): Promise<{ status: string }> {
   return triggerRefreshProfile("serve-refresh");
+}
+
+export async function previewPortfolioWhatIf(payload: {
+  scenario_rows: WhatIfScenarioRow[];
+}): Promise<WhatIfPreviewData> {
+  return apiFetch<WhatIfPreviewData>(apiPath.portfolioWhatIf(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function triggerDailyMaintenanceRefresh(): Promise<{ status: string }> {

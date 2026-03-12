@@ -150,8 +150,8 @@ Canonical page-to-backend wiring:
   - reads: `/api/exposures`, `/api/risk`, `/api/portfolio`
   - purpose: factor-level portfolio views plus per-position drilldown
 - `Explore`
-  - reads: `/api/universe/search`, `/api/universe/ticker/{ticker}`, `/api/universe/ticker/{ticker}/history`, `/api/universe/factors`, `/api/portfolio`
-  - purpose: single-name inspection against the cached universe
+  - reads: `/api/universe/search`, `/api/universe/ticker/{ticker}`, `/api/universe/ticker/{ticker}/history`, `/api/universe/factors`, `/api/portfolio`, `/api/portfolio/whatif`
+  - purpose: single-name inspection plus account-aware what-if preview against the current live holdings ledger
 - `Positions`
   - reads: `/api/holdings/*`, `/api/portfolio`, `/api/universe/search`
   - purpose: holdings editing/import and current model portfolio view
@@ -168,6 +168,7 @@ Efficiency rules now in force:
 - ticker/RIC typeahead is debounced before hitting `/api/universe/search`
 - Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls
 - user-facing dashboard pages should consume durable serving outputs first rather than piecing together raw source tables in the browser
+- the Explore what-if preview is intentionally read-only and ephemeral; scenario rows live in browser state and are posted once to `/api/portfolio/whatif` for in-memory comparison only
 - in `local-ingest`, old local cache blobs remain bootstrap fallback only when a serving payload snapshot does not yet exist
 - in `cloud-serve`, serving routes fail closed instead of falling back to local cache/SQLite state
 - universe explore/search outputs

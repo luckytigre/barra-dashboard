@@ -37,6 +37,68 @@ export interface PortfolioData {
   _cached: boolean;
 }
 
+export interface WhatIfScenarioRow {
+  account_id: string;
+  ticker?: string | null;
+  ric?: string | null;
+  quantity: number;
+  source?: string | null;
+}
+
+export interface WhatIfHoldingDelta {
+  account_id: string;
+  ticker: string;
+  ric: string;
+  current_quantity: number;
+  hypothetical_quantity: number;
+  delta_quantity: number;
+}
+
+export interface WhatIfPreviewSide {
+  positions: Position[];
+  total_value: number;
+  position_count: number;
+  risk_shares: RiskShares;
+  component_shares: Omit<RiskShares, "idio">;
+  factor_details: FactorDetail[];
+  exposure_modes: {
+    raw: FactorExposure[];
+    sensitivity: FactorExposure[];
+    risk_contribution: FactorExposure[];
+  };
+}
+
+export interface WhatIfFactorDeltaRow {
+  factor: string;
+  current: number;
+  hypothetical: number;
+  delta: number;
+}
+
+export interface WhatIfPreviewData {
+  scenario_rows: WhatIfScenarioRow[];
+  holding_deltas: WhatIfHoldingDelta[];
+  current: WhatIfPreviewSide;
+  hypothetical: WhatIfPreviewSide;
+  diff: {
+    total_value: number;
+    position_count: number;
+    risk_shares: RiskShares;
+    factor_deltas: {
+      raw: WhatIfFactorDeltaRow[];
+      sensitivity: WhatIfFactorDeltaRow[];
+      risk_contribution: WhatIfFactorDeltaRow[];
+    };
+  };
+  source_dates?: {
+    fundamentals_asof?: string | null;
+    exposures_asof?: string | null;
+    prices_asof?: string | null;
+    classification_asof?: string | null;
+  };
+  _preview_only: boolean;
+}
+
 export type HoldingsImportMode = "replace_account" | "upsert_absolute" | "increment_delta";
 
 export interface HoldingsModeData {

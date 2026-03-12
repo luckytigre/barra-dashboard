@@ -1078,6 +1078,78 @@ main {
   margin-top: 2px;
 }
 
+.explore-whatif-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.explore-whatif-builder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.explore-whatif-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.explore-whatif-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.explore-whatif-message {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(59, 169, 225, 0.22);
+  background: rgba(59, 169, 225, 0.06);
+  color: rgba(216, 228, 246, 0.88);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.explore-whatif-message.error {
+  border-color: rgba(224, 87, 127, 0.28);
+  background: rgba(224, 87, 127, 0.08);
+  color: rgba(244, 190, 205, 0.94);
+}
+
+.explore-mode-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.explore-mode-btn {
+  border: 1px solid rgba(154, 171, 214, 0.18);
+  background: rgba(14, 17, 26, 0.32);
+  color: rgba(169, 182, 210, 0.82);
+  padding: 7px 11px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.explore-mode-btn.active {
+  border-color: rgba(59, 169, 225, 0.32);
+  background: rgba(59, 169, 225, 0.12);
+  color: rgba(224, 236, 252, 0.95);
+}
+
+.btn-action.subtle {
+  padding: 5px 9px;
+  font-size: 10px;
+}
+
 /* ─── Operator status (health page) ─── */
 .operator-header {
   display: flex;

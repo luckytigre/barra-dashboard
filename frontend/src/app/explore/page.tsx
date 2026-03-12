@@ -7,6 +7,7 @@ import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
+import ExploreWhatIfSection from "@/features/whatif/ExploreWhatIfSection";
 import {
   usePortfolio,
   useUniverseFactors,
@@ -97,6 +98,16 @@ export default function ExplorePage() {
   }, [portfolioData]);
 
   const selectedPosition = selectedTicker ? positionMap.get(selectedTicker.toUpperCase()) : undefined;
+  const priceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of portfolioData?.positions ?? []) {
+      map.set(p.ticker.toUpperCase(), Number(p.price || 0));
+    }
+    if (item?.ticker) {
+      map.set(item.ticker.toUpperCase(), Number(item.price || 0));
+    }
+    return map;
+  }, [portfolioData, item]);
 
   // Show dropdown when there's a query with results
   useEffect(() => {
@@ -420,6 +431,8 @@ export default function ExplorePage() {
               </div>
             )}
           </div>
+
+          <ExploreWhatIfSection item={item} priceMap={priceMap} />
 
           {/* Two-column: Radar + Table */}
           {item.eligible_for_model !== false ? (
