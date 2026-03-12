@@ -60,12 +60,14 @@ def specific_risk_by_ticker_view(
     return out
 
 
-def build_positions_from_universe(
+def build_positions_from_snapshot(
     universe_by_ticker: dict[str, dict[str, Any]],
+    shares_map: dict[str, float],
+    dynamic_meta: dict[str, dict[str, str]] | None = None,
 ) -> tuple[list[PositionPayload], float]:
-    """Project held positions from full-universe cached analytics."""
-    shares_map, dynamic_meta = load_positions_snapshot()
+    """Project positions from an explicit holdings snapshot."""
     tickers = list(shares_map.keys())
+    dynamic_meta = dynamic_meta or {}
 
     positions: list[PositionPayload] = []
     total_value = 0.0
@@ -127,6 +129,18 @@ def build_positions_from_universe(
         pos["weight"] = round(mv / gross_value, 6) if gross_value != 0 else 0.0
 
     return positions, round(total_value, 2)
+
+
+def build_positions_from_universe(
+    universe_by_ticker: dict[str, dict[str, Any]],
+) -> tuple[list[PositionPayload], float]:
+    """Project held positions from full-universe cached analytics."""
+    shares_map, dynamic_meta = load_positions_snapshot()
+    return build_positions_from_snapshot(
+        universe_by_ticker,
+        shares_map,
+        dynamic_meta=dynamic_meta,
+    )
 
 
 def compute_exposures_modes(
