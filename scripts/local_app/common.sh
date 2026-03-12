@@ -12,6 +12,8 @@ BACKEND_PIP="${BACKEND_VENV_DIR}/bin/pip"
 BACKEND_DEPS_STAMP="${BACKEND_VENV_DIR}/.deps_installed"
 BACKEND_PID_FILE="${PID_DIR}/backend.pid"
 FRONTEND_PID_FILE="${PID_DIR}/frontend.pid"
+BACKEND_SESSION_FILE="${PID_DIR}/backend.session"
+FRONTEND_SESSION_FILE="${PID_DIR}/frontend.session"
 BACKEND_LOG="${LOG_DIR}/backend.log"
 FRONTEND_LOG="${LOG_DIR}/frontend.log"
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
@@ -20,6 +22,9 @@ FRONTEND_HOST="${FRONTEND_HOST:-127.0.0.1}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
 BACKEND_URL="http://${BACKEND_HOST}:${BACKEND_PORT}"
 FRONTEND_URL="http://${FRONTEND_HOST}:${FRONTEND_PORT}"
+SESSION_PREFIX="${LOCAL_APP_SESSION_PREFIX:-barra_dashboard_local}"
+BACKEND_SESSION="${SESSION_PREFIX}_backend"
+FRONTEND_SESSION="${SESSION_PREFIX}_frontend"
 
 mkdir -p "${PID_DIR}" "${LOG_DIR}"
 
@@ -57,6 +62,20 @@ remove_pid_file() {
   return 0
 }
 
+write_text_file() {
+  local file="$1"
+  local value="$2"
+  printf '%s\n' "${value}" >"${file}"
+}
+
+read_text_file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    tr -d '[:space:]' <"${file}"
+  fi
+  return 0
+}
+
 kill_pid_file() {
   local file="$1"
   local pid
@@ -66,6 +85,27 @@ kill_pid_file() {
     sleep 1
     if pid_alive "${pid}"; then
       kill -9 "${pid}" >/dev/null 2>&1 || true
+    fi
+  fi
+  remove_pid_file "${file}"
+}
+
+screen_session_exists() {
+  local session_name="$1"
+  local screen_output
+  screen_output="$(screen -ls 2>/dev/null || true)"
+  [[ "${screen_output}" == *".${session_name}"* ]]
+}
+
+kill_screen_session() {
+  local file="$1"
+  local session_name
+  session_name="$(read_text_file "${file}")"
+  if [[ -n "${session_name}" ]] && command_exists screen && screen_session_exists "${session_name}"; then
+    screen -S "${session_name}" -X quit >/dev/null 2>&1 || true
+    sleep 1
+    if screen_session_exists "${session_name}"; then
+      pkill -f "[.]${session_name}" >/dev/null 2>&1 || true
     fi
   fi
   remove_pid_file "${file}"
@@ -138,29 +178,63 @@ ensure_frontend_build() {
   (cd "${ROOT_DIR}" && npm --prefix frontend run build) >>"${FRONTEND_LOG}" 2>&1
 }
 
+resolve_listener_pid() {
+  local port="$1"
+  if command_exists lsof; then
+    lsof -tiTCP:"${port}" -sTCP:LISTEN 2>/dev/null | head -n 1 || true
+  fi
+}
+
+require_screen() {
+  if ! command_exists screen; then
+    fail "GNU screen is required for local app supervision. Install it and rerun app-up."
+  fi
+}
+
+start_screen_session() {
+  local session_name="$1"
+  local session_file="$2"
+  local command="$3"
+  require_screen
+  if screen_session_exists "${session_name}"; then
+    screen -S "${session_name}" -X quit >/dev/null 2>&1 || true
+    sleep 1
+  fi
+  screen -dmS "${session_name}" bash -lc "${command}"
+  write_text_file "${session_file}" "${session_name}"
+}
+
 start_backend() {
   ensure_backend_env
   log "Starting backend on ${BACKEND_URL}"
-  nohup bash -lc "cd '${ROOT_DIR}' && '${BACKEND_PYTHON}' -m uvicorn backend.main:app --host ${BACKEND_HOST} --port ${BACKEND_PORT}" >>"${BACKEND_LOG}" 2>&1 &
-  echo $! >"${BACKEND_PID_FILE}"
+  start_screen_session \
+    "${BACKEND_SESSION}" \
+    "${BACKEND_SESSION_FILE}" \
+    "cd '${ROOT_DIR}' && exec '${BACKEND_PYTHON}' -m uvicorn backend.main:app --host ${BACKEND_HOST} --port ${BACKEND_PORT} >>'${BACKEND_LOG}' 2>&1"
   if ! wait_for_http "${BACKEND_URL}/api/health" 30; then
     tail -n 80 "${BACKEND_LOG}" >&2 || true
     fail "Backend did not become healthy"
   fi
+  write_text_file "${BACKEND_PID_FILE}" "$(resolve_listener_pid "${BACKEND_PORT}")"
 }
 
 start_frontend() {
   ensure_frontend_build
   log "Starting frontend on ${FRONTEND_URL}"
-  nohup bash -lc "cd '${ROOT_DIR}' && npm --prefix frontend run start -- --hostname ${FRONTEND_HOST} --port ${FRONTEND_PORT}" >>"${FRONTEND_LOG}" 2>&1 &
-  echo $! >"${FRONTEND_PID_FILE}"
+  start_screen_session \
+    "${FRONTEND_SESSION}" \
+    "${FRONTEND_SESSION_FILE}" \
+    "cd '${ROOT_DIR}' && exec npm --prefix frontend run start -- --hostname ${FRONTEND_HOST} --port ${FRONTEND_PORT} >>'${FRONTEND_LOG}' 2>&1"
   if ! wait_for_frontend 45; then
     tail -n 120 "${FRONTEND_LOG}" >&2 || true
     fail "Frontend did not become healthy"
   fi
+  write_text_file "${FRONTEND_PID_FILE}" "$(resolve_listener_pid "${FRONTEND_PORT}")"
 }
 
 stop_all() {
+  kill_screen_session "${FRONTEND_SESSION_FILE}"
+  kill_screen_session "${BACKEND_SESSION_FILE}"
   kill_pid_file "${FRONTEND_PID_FILE}"
   kill_pid_file "${BACKEND_PID_FILE}"
   kill_port_listener "${FRONTEND_PORT}"
@@ -168,11 +242,15 @@ stop_all() {
 }
 
 print_status() {
-  local backend_pid frontend_pid
+  local backend_pid frontend_pid backend_session frontend_session
   backend_pid="$(read_pid "${BACKEND_PID_FILE}")"
   frontend_pid="$(read_pid "${FRONTEND_PID_FILE}")"
+  backend_session="$(read_text_file "${BACKEND_SESSION_FILE}")"
+  frontend_session="$(read_text_file "${FRONTEND_SESSION_FILE}")"
   printf 'backend_pid=%s\n' "${backend_pid:-}"
   printf 'frontend_pid=%s\n' "${frontend_pid:-}"
+  printf 'backend_session=%s\n' "${backend_session:-}"
+  printf 'frontend_session=%s\n' "${frontend_session:-}"
   printf 'backend_url=%s\n' "${BACKEND_URL}"
   printf 'frontend_url=%s\n' "${FRONTEND_URL}"
   printf 'backend_log=%s\n' "${BACKEND_LOG}"
