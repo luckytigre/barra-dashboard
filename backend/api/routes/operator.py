@@ -27,6 +27,33 @@ def _today_session_date():
     ).date()
 
 
+def _enrich_run_deltas(run_summaries: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    normalized_durations: list[float | None] = []
+    for summary in run_summaries:
+        duration = summary.get("duration_seconds")
+        try:
+            normalized_durations.append(float(duration) if duration is not None else None)
+        except (TypeError, ValueError):
+            normalized_durations.append(None)
+    for idx, summary in enumerate(run_summaries):
+        item = dict(summary)
+        duration_val = normalized_durations[idx]
+        if duration_val is not None:
+            item["duration_seconds"] = round(duration_val, 3)
+        previous_duration = normalized_durations[idx + 1] if idx + 1 < len(normalized_durations) else None
+        if duration_val is not None and previous_duration is not None:
+            delta = round(duration_val - float(previous_duration), 3)
+            item["duration_delta_seconds"] = delta
+            if previous_duration > 0:
+                item["duration_delta_pct"] = round((delta / float(previous_duration)) * 100.0, 2)
+        else:
+            item["duration_delta_seconds"] = None
+            item["duration_delta_pct"] = None
+        out.append(item)
+    return out
+
+
 @router.get("/operator/status")
 def get_operator_status(
     x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
@@ -68,30 +95,45 @@ def get_operator_status(
         runtime_warnings.append("Neon auto-parity is disabled; post-run parity evidence will be incomplete.")
     if not bool(config.neon_auto_prune_enabled_effective()):
         runtime_warnings.append("Neon auto-prune is disabled; retained history may exceed the cloud retention window.")
+    allowed_profiles = sorted(_runtime_allowed_profiles())
+    local_only_profiles = sorted(set(profiles) - set(allowed_profiles))
 
     lanes = []
     for item in catalog:
         profile = str(item.get("profile") or "")
+        profile_recent_runs = _enrich_run_deltas(recent_runs.get(profile, []))
+        latest_run = dict(
+            latest_runs.get(
+                profile,
+                {
+                    "run_id": None,
+                    "profile": profile,
+                    "status": "missing",
+                    "started_at": None,
+                    "finished_at": None,
+                    "updated_at": None,
+                    "duration_seconds": None,
+                    "stage_count": 0,
+                    "completed_stage_count": 0,
+                    "failed_stage_count": 0,
+                    "running_stage_count": 0,
+                    "stage_duration_seconds_total": 0.0,
+                    "slowest_stage": None,
+                    "stages": [],
+                },
+            )
+        )
+        if profile_recent_runs and str(profile_recent_runs[0].get("run_id") or "") == str(latest_run.get("run_id") or ""):
+            latest_run["duration_delta_seconds"] = profile_recent_runs[0].get("duration_delta_seconds")
+            latest_run["duration_delta_pct"] = profile_recent_runs[0].get("duration_delta_pct")
+        else:
+            latest_run["duration_delta_seconds"] = None
+            latest_run["duration_delta_pct"] = None
         lanes.append(
             {
                 **item,
-                "recent_runs": recent_runs.get(profile, []),
-                "latest_run": latest_runs.get(
-                    profile,
-                    {
-                        "run_id": None,
-                        "profile": profile,
-                        "status": "missing",
-                        "started_at": None,
-                        "finished_at": None,
-                        "updated_at": None,
-                        "stage_count": 0,
-                        "completed_stage_count": 0,
-                        "failed_stage_count": 0,
-                        "running_stage_count": 0,
-                        "stages": [],
-                    },
-                ),
+                "recent_runs": profile_recent_runs,
+                "latest_run": latest_run,
             }
         )
 
@@ -112,7 +154,19 @@ def get_operator_status(
         "latest_parity_artifact": neon_sync_health.get("artifact_path") if isinstance(neon_sync_health, dict) else None,
         "runtime": {
             "app_runtime_role": str(config.APP_RUNTIME_ROLE),
-            "allowed_profiles": sorted(_runtime_allowed_profiles()),
+            "allowed_profiles": allowed_profiles,
+            "local_only_profiles": local_only_profiles,
+            "canonical_serving_profile": "serve-refresh",
+            "dashboard_truth_surface": "durable_serving_payloads",
+            "dashboard_truth_plain_english": (
+                "Dashboard pages should read durable serving payloads plus live holdings/runtime state, "
+                "not rebuild directly from raw source tables in the browser."
+            ),
+            "diagnostics_scope": "local_sqlite_and_cache",
+            "diagnostics_scope_plain_english": (
+                "Detailed diagnostics are local-instance diagnostics. Operator status, refresh state, holdings dirty state, "
+                "and Neon mirror/parity health are the live operator truth surfaces."
+            ),
             "data_backend": str(config.DATA_BACKEND),
             "neon_database_configured": bool(str(config.NEON_DATABASE_URL).strip()),
             "neon_auto_sync_enabled": bool(config.NEON_AUTO_SYNC_ENABLED),

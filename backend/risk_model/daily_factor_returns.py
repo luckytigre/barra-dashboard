@@ -147,17 +147,38 @@ def _purge_non_session_rows(
 
 
 def _load_prices(data_db: Path) -> pd.DataFrame:
-    """Load all daily close prices keyed by RIC."""
+    """Load daily close prices keyed by RIC for an optional bounded date window."""
+    return _load_prices_for_window(data_db)
+
+
+def _load_prices_for_window(
+    data_db: Path,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> pd.DataFrame:
+    """Load daily close prices keyed by RIC for an optional bounded date window."""
     conn = sqlite3.connect(str(data_db))
+    predicates: list[str] = []
+    params: list[str] = []
+    if start_date:
+        predicates.append("p.date >= ?")
+        params.append(str(start_date))
+    if end_date:
+        predicates.append("p.date <= ?")
+        params.append(str(end_date))
+    where_clause = f"WHERE {' AND '.join(predicates)}" if predicates else ""
     df = pd.read_sql_query(
-        """
+        f"""
         SELECT UPPER(p.ric) AS ric, UPPER(sm.ticker) AS ticker, p.date, p.close, p.source, p.updated_at
         FROM security_prices_eod p
         JOIN security_master sm
           ON sm.ric = p.ric
+        {where_clause}
         ORDER BY UPPER(p.ric), p.date
         """,
         conn,
+        params=params,
     )
     conn.close()
     df["ric"] = df["ric"].astype(str).str.upper()
@@ -174,8 +195,64 @@ def _load_prices(data_db: Path) -> pd.DataFrame:
     return df[["ric", "ticker", "date", "close"]]
 
 
+def _load_trading_dates(data_db: Path) -> list[str]:
+    """Load distinct trading dates from the price table without materializing the full panel."""
+    conn = sqlite3.connect(str(data_db))
+    rows = conn.execute(
+        """
+        SELECT DISTINCT date
+        FROM security_prices_eod
+        WHERE date IS NOT NULL
+        ORDER BY date
+        """
+    ).fetchall()
+    conn.close()
+    trading_dates = [str(row[0]) for row in rows if row and row[0]]
+    return filter_xnys_sessions(trading_dates)
+
+
+def _active_model_history_start_date(data_db: Path) -> str | None:
+    """Return the active Barra-history floor derived from raw cross-sectional history."""
+    conn = sqlite3.connect(str(data_db))
+    try:
+        row = conn.execute(
+            """
+            SELECT MIN(as_of_date)
+            FROM barra_raw_cross_section_history
+            WHERE as_of_date IS NOT NULL
+            """
+        ).fetchone()
+    except sqlite3.OperationalError:
+        row = None
+    finally:
+        conn.close()
+    if not row or not row[0]:
+        return None
+    return str(row[0])
+
+
+def _first_usable_model_date(
+    trading_dates: list[str],
+    *,
+    model_history_start_date: str | None,
+    min_cross_section_age_days: int,
+) -> str | None:
+    if not trading_dates:
+        return None
+    if not model_history_start_date:
+        return trading_dates[0]
+    ts = pd.to_datetime(str(model_history_start_date), errors="coerce")
+    if pd.isna(ts):
+        return str(model_history_start_date)
+    threshold = (ts + pd.Timedelta(days=max(0, int(min_cross_section_age_days)))).date().isoformat()
+    for date_key in trading_dates:
+        if str(date_key) >= threshold:
+            return str(date_key)
+    return None
+
+
 def _load_cached_dates(cache_db: Path) -> set[str]:
-    """Return dates that are complete in cache for both factors and residuals."""
+    """Return dates that are complete in cache for factors, residuals, and eligibility."""
     conn = sqlite3.connect(str(cache_db))
     conn.execute(_DAILY_FR_SCHEMA)
     conn.execute(_DAILY_FR_META_SCHEMA)
@@ -184,43 +261,79 @@ def _load_cached_dates(cache_db: Path) -> set[str]:
     conn.commit()
     factor_dates = {str(row[0]) for row in conn.execute("SELECT DISTINCT date FROM daily_factor_returns").fetchall()}
     residual_dates = {str(row[0]) for row in conn.execute("SELECT DISTINCT date FROM daily_specific_residuals").fetchall()}
-    dates = factor_dates & residual_dates
+    eligibility_dates = {
+        str(row[0])
+        for row in conn.execute("SELECT DISTINCT date FROM daily_universe_eligibility_summary").fetchall()
+    }
+    dates = factor_dates & residual_dates & eligibility_dates
     conn.close()
     return dates
 
 
-def _ensure_cache_version(cache_db: Path):
+def _factor_return_cache_signature(*, min_cross_section_age_days: int) -> dict[str, str]:
+    return {
+        "method_version": str(CACHE_METHOD_VERSION),
+        "cross_section_min_age_days": str(max(0, int(min_cross_section_age_days))),
+    }
+
+
+def _ensure_cache_version(cache_db: Path, *, min_cross_section_age_days: int):
     """Invalidate cache rows if the daily-factor-returns methodology changed."""
     conn = sqlite3.connect(str(cache_db))
     conn.execute(_DAILY_FR_SCHEMA)
     conn.execute(_DAILY_FR_META_SCHEMA)
     conn.execute(_DAILY_RESIDUALS_SCHEMA)
     conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
-    row = conn.execute(
-        "SELECT value FROM daily_factor_returns_meta WHERE key = ?",
-        ("method_version",),
-    ).fetchone()
-    current_version = row[0] if row else None
-    if current_version != CACHE_METHOD_VERSION:
+    required_meta = _factor_return_cache_signature(
+        min_cross_section_age_days=min_cross_section_age_days
+    )
+    current_meta = {
+        str(row[0]): str(row[1])
+        for row in conn.execute(
+            "SELECT key, value FROM daily_factor_returns_meta WHERE key IN (?, ?)",
+            tuple(required_meta.keys()),
+        ).fetchall()
+    }
+    missing_keys = sorted(key for key in required_meta.keys() if key not in current_meta)
+    has_conflicting_values = any(
+        str(current_meta.get(key)) != str(value)
+        for key, value in required_meta.items()
+        if key in current_meta
+    )
+    if current_meta and not has_conflicting_values and missing_keys:
+        conn.executemany(
+            """
+            INSERT INTO daily_factor_returns_meta(key, value)
+            VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            [(key, value) for key, value in required_meta.items()],
+        )
+        conn.commit()
+        logger.info(
+            "Backfilled missing daily_factor_returns cache metadata keys without invalidating cache: %s",
+            missing_keys,
+        )
+    elif current_meta != required_meta:
         conn.execute("DROP TABLE IF EXISTS daily_factor_returns")
         conn.execute("DROP TABLE IF EXISTS daily_specific_residuals")
         conn.execute("DROP TABLE IF EXISTS daily_universe_eligibility_summary")
         conn.execute(_DAILY_FR_SCHEMA)
         conn.execute(_DAILY_RESIDUALS_SCHEMA)
         conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
-        conn.execute(
+        conn.executemany(
             """
             INSERT INTO daily_factor_returns_meta(key, value)
             VALUES (?, ?)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
             """,
-            ("method_version", CACHE_METHOD_VERSION),
+            [(key, value) for key, value in required_meta.items()],
         )
         conn.commit()
         logger.info(
-            "Cleared cached daily_factor_returns due to method version change: %s -> %s",
-            current_version,
-            CACHE_METHOD_VERSION,
+            "Cleared cached daily_factor_returns due to cache signature change: %s -> %s",
+            current_meta,
+            required_meta,
         )
     pruned = {
         "daily_factor_returns": _purge_non_session_rows(
@@ -340,26 +453,35 @@ def _save_daily_eligibility_summary(cache_db: Path, rows: list[dict]) -> None:
     conn.close()
 
 
-def _load_latest_structural_count(cache_db: Path) -> int | None:
+def _load_structural_counts(cache_db: Path) -> dict[str, int]:
     conn = sqlite3.connect(str(cache_db))
     try:
         conn.execute(_DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
-        row = conn.execute(
+        rows = conn.execute(
             """
-            SELECT structural_eligible_n
+            SELECT date, structural_eligible_n
             FROM daily_universe_eligibility_summary
-            ORDER BY date DESC
-            LIMIT 1
+            WHERE date IS NOT NULL
+            ORDER BY date
             """
-        ).fetchone()
+        ).fetchall()
     finally:
         conn.close()
-    if not row:
+    out: dict[str, int] = {}
+    for row in rows:
+        try:
+            date_key = str(row[0])
+            out[date_key] = int(row[1])
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _previous_structural_count(structural_counts: dict[str, int], date: str) -> int | None:
+    prev_dates = [key for key in structural_counts.keys() if key < str(date)]
+    if not prev_dates:
         return None
-    try:
-        return int(row[0])
-    except (TypeError, ValueError):
-        return None
+    return structural_counts[max(prev_dates)]
 
 
 def compute_daily_factor_returns(
@@ -384,25 +506,77 @@ def compute_daily_factor_returns(
     t0 = time.time()
     logger.info("Loading data for daily factor returns...")
 
-    # Load source data
-    prices_df = _load_prices(data_db)
+    # Invalidate stale cache rows if methodology changed, then check cached dates.
+    _ensure_cache_version(
+        cache_db,
+        min_cross_section_age_days=min_cross_section_age_days,
+    )
+    all_trading_dates = _load_trading_dates(data_db)
+    model_history_start_date = _active_model_history_start_date(data_db)
+    factor_history_start_date = _first_usable_model_date(
+        all_trading_dates,
+        model_history_start_date=model_history_start_date,
+        min_cross_section_age_days=min_cross_section_age_days,
+    )
+    trading_dates = list(all_trading_dates)
+    if factor_history_start_date:
+        trading_dates = [d for d in trading_dates if d >= factor_history_start_date]
+    if lookback_days > 0:
+        trading_dates = trading_dates[-lookback_days:]
+    logger.info(
+        "Resolved trading date window: total_dates=%s lookback_days=%s model_history_start=%s factor_history_start=%s",
+        len(trading_dates),
+        lookback_days,
+        model_history_start_date,
+        factor_history_start_date,
+    )
+    if not trading_dates:
+        logger.warning("No trading dates inside active Barra-history window — cannot compute daily factor returns")
+        return _load_all_from_cache(
+            cache_db,
+            lookback_days,
+            model_history_start_date=factor_history_start_date,
+        )
+    cached_dates = _load_cached_dates(cache_db)
+    dates_to_compute = [d for d in trading_dates if d not in cached_dates]
+
+    if not dates_to_compute:
+        logger.info("All dates already cached, loading from cache")
+        return _load_all_from_cache(
+            cache_db,
+            lookback_days,
+            model_history_start_date=factor_history_start_date,
+        )
+
+    logger.info(
+        f"Computing daily factor returns: {len(dates_to_compute)} new dates "
+        f"({len(cached_dates)} already cached)"
+    )
+
+    first_compute_idx = all_trading_dates.index(dates_to_compute[0])
+    price_start_date = all_trading_dates[max(0, first_compute_idx - 1)]
+    price_end_date = dates_to_compute[-1]
+    prices_df = _load_prices_for_window(
+        data_db,
+        start_date=price_start_date,
+        end_date=price_end_date,
+    )
     if prices_df.empty:
-        logger.warning("No prices data — cannot compute daily factor returns")
+        logger.warning("No prices data in resolved window — cannot compute daily factor returns")
         return pd.DataFrame(columns=["date", "factor_name", "factor_return", "r_squared", "residual_vol"])
     logger.info(
-        "Loaded prices for factor returns: rows=%s rics=%s trading_dates=%s",
+        "Loaded bounded prices for factor returns: rows=%s rics=%s trading_dates=%s start=%s end=%s",
         len(prices_df),
         prices_df["ric"].nunique(),
         prices_df["date"].nunique(),
+        price_start_date,
+        price_end_date,
     )
 
-    # Build daily returns: pivot prices to wide, then compute pct_change
     prices_wide = prices_df.pivot(index="date", columns="ric", values="close")
     prices_wide = prices_wide.sort_index()
-    daily_returns = prices_wide.pct_change(fill_method=None)  # r_i(t) = close(t)/close(t-1) - 1
-    daily_returns = daily_returns.iloc[1:]  # drop first NaN row
-    trading_dates = sorted(str(d) for d in daily_returns.index.tolist())
-    trading_dates = filter_xnys_sessions(trading_dates)
+    daily_returns = prices_wide.pct_change(fill_method=None)
+    daily_returns = daily_returns.iloc[1:]
     daily_returns.index = daily_returns.index.astype(str)
     ric_ticker_map = (
         prices_df.sort_values(["ric", "date"])
@@ -414,27 +588,12 @@ def compute_daily_factor_returns(
         .to_dict()
     )
 
-    if lookback_days > 0:
-        trading_dates = trading_dates[-lookback_days:]
-    logger.info("Resolved trading date window: total_dates=%s lookback_days=%s", len(trading_dates), lookback_days)
-
-    # Invalidate stale cache rows if methodology changed, then check cached dates.
-    _ensure_cache_version(cache_db)
-    cached_dates = _load_cached_dates(cache_db)
-    dates_to_compute = [d for d in trading_dates if d not in cached_dates]
-
-    if not dates_to_compute:
-        logger.info("All dates already cached, loading from cache")
-        return _load_all_from_cache(cache_db, lookback_days)
-
-    logger.info(
-        f"Computing daily factor returns: {len(dates_to_compute)} new dates "
-        f"({len(cached_dates)} already cached)"
-    )
-
     # Centralized structural-eligibility context for all daily cross-sections.
     lag_days = max(0, int(min_cross_section_age_days))
-    eligibility_dates = [_shift_date_by_days(d, lag_days) for d in trading_dates]
+    eligibility_dates = sorted({
+        _shift_date_by_days(d, lag_days)
+        for d in dates_to_compute
+    })
     eligibility_ctx = build_eligibility_context(data_db, dates=eligibility_dates)
     if not eligibility_ctx.exposure_dates:
         logger.warning("No exposure snapshots available — cannot compute daily factor returns")
@@ -457,9 +616,10 @@ def compute_daily_factor_returns(
         "small_cross_section": 0,
         "low_coverage": 0,
         "missing_l2_sector": 0,
+        "missing_country": 0,
         "empty_dummies": 0,
     }
-    prev_structural_n = _load_latest_structural_count(cache_db)
+    structural_counts = _load_structural_counts(cache_db)
 
     for i, date in enumerate(dates_to_compute):
         # 1. Daily stock returns for this date
@@ -514,6 +674,7 @@ def compute_daily_factor_returns(
 
         structural_coverage = float(structural_n / max(1, exposure_n))
         regression_coverage = float(regression_n / max(1, structural_n))
+        prev_structural_n = _previous_structural_count(structural_counts, date)
         if prev_structural_n is None or prev_structural_n <= 0:
             drop_pct_from_prev = 0.0
         else:
@@ -531,7 +692,7 @@ def compute_daily_factor_returns(
                 structural_n,
                 drop_pct_from_prev * 100.0,
             )
-        prev_structural_n = structural_n
+        structural_counts[date] = structural_n
         batch_eligibility.append({
             "date": date,
             "exp_date": exp_date,
@@ -722,20 +883,36 @@ def compute_daily_factor_returns(
         skip_counts,
     )
 
-    return _load_all_from_cache(cache_db, lookback_days)
+    return _load_all_from_cache(
+        cache_db,
+        lookback_days,
+        model_history_start_date=factor_history_start_date,
+    )
 
 
-def _load_all_from_cache(cache_db: Path, lookback_days: int = 0) -> pd.DataFrame:
+def _load_all_from_cache(
+    cache_db: Path,
+    lookback_days: int = 0,
+    *,
+    model_history_start_date: str | None = None,
+) -> pd.DataFrame:
     """Load all daily factor returns from the cache."""
     conn = sqlite3.connect(str(cache_db))
     conn.execute(_DAILY_FR_SCHEMA)
     conn.execute(_DAILY_FR_META_SCHEMA)
+    where_clause = ""
+    params: list[object] = []
+    if model_history_start_date:
+        where_clause = "WHERE date >= ?"
+        params.append(str(model_history_start_date))
     if lookback_days > 0:
         df = pd.read_sql_query(
-            """SELECT date, factor_name, factor_return, r_squared, residual_vol
+            f"""SELECT date, factor_name, factor_return, r_squared, residual_vol
                FROM daily_factor_returns
+               {where_clause}
                ORDER BY date DESC""",
             conn,
+            params=params,
         )
         # Get the last N unique dates
         unique_dates = df["date"].unique()
@@ -745,10 +922,12 @@ def _load_all_from_cache(cache_db: Path, lookback_days: int = 0) -> pd.DataFrame
         df = df.sort_values(["date", "factor_name"]).reset_index(drop=True)
     else:
         df = pd.read_sql_query(
-            """SELECT date, factor_name, factor_return, r_squared, residual_vol
+            f"""SELECT date, factor_name, factor_return, r_squared, residual_vol
                FROM daily_factor_returns
+               {where_clause}
                ORDER BY date, factor_name""",
             conn,
+            params=params,
         )
     conn.close()
     return df

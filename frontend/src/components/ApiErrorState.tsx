@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, triggerRefresh, triggerRefreshProfile } from "@/hooks/useApi";
+import {
+  ApiError,
+  triggerDailyMaintenanceRefresh,
+  triggerRefreshProfile,
+  triggerServeRefresh,
+  useOperatorStatus,
+} from "@/hooks/useApi";
 
 function parseError(error: unknown): {
   message: string;
@@ -55,14 +61,25 @@ export default function ApiErrorState({
 }) {
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const parsed = parseError(error);
+  const { data: operator } = useOperatorStatus();
+  const allowedProfiles = new Set(operator?.runtime?.allowed_profiles ?? []);
+  const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
 
   async function handleRefresh() {
     setRefreshState("running");
     try {
       if (parsed.refreshProfile) {
         await triggerRefreshProfile(parsed.refreshProfile);
+      } else if (onlyServeRefreshAllowed) {
+        await triggerServeRefresh();
       } else {
-        await triggerRefresh(parsed.refreshMode || "light");
+        if (parsed.refreshMode === "cold") {
+          await triggerRefreshProfile("cold-core");
+        } else if (parsed.refreshMode === "full") {
+          await triggerDailyMaintenanceRefresh();
+        } else {
+          await triggerServeRefresh();
+        }
       }
       setRefreshState("done");
     } catch {
@@ -85,7 +102,13 @@ export default function ApiErrorState({
               ? "Starting refresh..."
               : parsed.refreshProfile
                 ? `Run ${parsed.refreshProfile}`
-                : `Run ${parsed.refreshMode || "light"} refresh`}
+                : onlyServeRefreshAllowed
+                  ? "Run serve-refresh"
+                : parsed.refreshMode === "cold"
+                  ? "Run cold-core"
+                  : parsed.refreshMode === "full"
+                    ? "Run source-daily-plus-core-if-due"
+                    : "Run serve-refresh"}
           </button>
           {refreshState === "done" && (
             <div style={{ marginTop: 8, color: "rgba(169,182,210,0.8)", fontSize: 12 }}>

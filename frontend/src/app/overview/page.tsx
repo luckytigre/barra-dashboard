@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { triggerRefresh, usePortfolio, useRisk } from "@/hooks/useApi";
+import {
+  triggerDailyMaintenanceRefresh,
+  triggerServeRefresh,
+  useOperatorStatus,
+  usePortfolio,
+  useRisk,
+} from "@/hooks/useApi";
 import KpiCard from "@/components/KpiCard";
 import RiskDecompChart from "@/components/RiskDecompChart";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
@@ -16,6 +22,18 @@ function fmt(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
+function fmtMarketValue(n: number): string {
+  if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (Math.abs(n) >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return n.toFixed(2);
+}
+
+function marketValueTone(n: number): string {
+  if (n > 0) return "positive";
+  if (n < 0) return "negative";
+  return "";
+}
+
 function fmtAsOfDate(isoDate?: string): string {
   if (!isoDate) return "N/A";
   const d = new Date(`${isoDate}T00:00:00Z`);
@@ -26,6 +44,7 @@ function fmtAsOfDate(isoDate?: string): string {
 export default function OverviewPage() {
   const { data: portfolio, isLoading: pLoading, error: pError } = usePortfolio();
   const { data: risk, isLoading: rLoading, error: rError } = useRisk();
+  const { data: operator } = useOperatorStatus();
   const [showAllHoldings, setShowAllHoldings] = useState(false);
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const [dismissUpdatePrompt, setDismissUpdatePrompt] = useState(false);
@@ -56,6 +75,8 @@ export default function OverviewPage() {
     && latestSourceAsOf
     && latestSourceAsOf > String(modelAsOf),
   );
+  const allowedProfiles = new Set(operator?.runtime?.allowed_profiles ?? []);
+  const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
 
   const holdings = [...positions].sort((a, b) => b.market_value - a.market_value);
   const visibleHoldings = showAllHoldings ? holdings : holdings.slice(0, COLLAPSED_ROWS);
@@ -67,7 +88,11 @@ export default function OverviewPage() {
     if (!proceed) return;
     setRefreshState("running");
     try {
-      await triggerRefresh("full");
+      if (onlyServeRefreshAllowed) {
+        await triggerServeRefresh();
+      } else {
+        await triggerDailyMaintenanceRefresh();
+      }
       setRefreshState("done");
     } catch {
       setRefreshState("failed");
@@ -154,7 +179,7 @@ export default function OverviewPage() {
               {visibleHoldings.map((pos) => (
                 <tr key={pos.ticker}>
                   <td><strong>{pos.ticker}</strong></td>
-                  <td className="text-right">{fmt(pos.market_value)}</td>
+                  <td className={`text-right ${marketValueTone(pos.market_value)}`.trim()}>{fmtMarketValue(pos.market_value)}</td>
                   <td className="text-right">{(pos.weight * 100).toFixed(2)}%</td>
                   <td>{pos.trbc_economic_sector_short || "—"}</td>
                   <td className="text-right">{pos.risk_contrib_pct.toFixed(2)}%</td>
