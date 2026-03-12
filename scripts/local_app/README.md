@@ -5,13 +5,14 @@ This folder is the canonical local launcher for the full app.
 Purpose:
 - start backend and frontend in the correct order
 - kill stale listeners on `3000` and `8000`
-- keep PID files and logs in one place
+- keep `screen` session names, PID files, and logs in one place
 - provide a repeatable local inspection workflow
 
 Runtime files:
 - PIDs: `backend/runtime/local_app/pids/`
 - Logs: `backend/runtime/local_app/logs/`
 - Backend venv: `backend/.venv/`
+- Supervisor: named `screen` sessions
 
 Commands:
 - `./scripts/local_app/up.sh`
@@ -27,6 +28,7 @@ Behavior:
   2. frontend
 - It waits for backend health and frontend page readiness before reporting success.
 - It bootstraps a project-local backend virtualenv automatically from `backend/pyproject.toml` when needed.
+- It supervises both services with named `screen` sessions so they survive after the launching shell exits.
 
 Why this exists:
 - ad hoc `uvicorn`/`next` launches were leaving stale listeners and mismatched processes behind
