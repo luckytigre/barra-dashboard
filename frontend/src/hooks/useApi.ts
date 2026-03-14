@@ -41,6 +41,12 @@ const HEAVY_DIAGNOSTICS_OPTS = {
   refreshInterval: 0,
 };
 
+function operatorStatusRefreshInterval(data?: OperatorStatusData): number {
+  const refreshRunning = String(data?.refresh?.status || "").toLowerCase() === "running";
+  const laneRunning = (data?.lanes ?? []).some((lane) => String(lane.latest_run?.status || "").toLowerCase() === "running");
+  return refreshRunning || laneRunning ? 3000 : 0;
+}
+
 export function usePortfolio() {
   return useSWR<PortfolioData>(apiPath.portfolio(), apiFetch, SWR_OPTS);
 }
@@ -107,7 +113,7 @@ export function useDataDiagnostics(opts?: { includeExactRowCounts?: boolean; inc
 export function useOperatorStatus() {
   return useSWR<OperatorStatusData>(apiPath.operatorStatus(), apiFetch, {
     ...SWR_OPTS,
-    refreshInterval: 0,
+    refreshInterval: operatorStatusRefreshInterval,
   });
 }
 
