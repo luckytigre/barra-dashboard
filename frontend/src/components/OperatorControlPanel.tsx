@@ -5,7 +5,7 @@ import HelpLabel from "@/components/HelpLabel";
 import ConfirmActionModal from "@/components/ConfirmActionModal";
 import LaneRunHistoryStrip from "@/components/operator/LaneRunHistoryStrip";
 import { triggerRefreshProfile, useOperatorStatus } from "@/hooks/useApi";
-import type { OperatorLaneStatus } from "@/lib/types";
+import type { OperatorLaneStage, OperatorLaneStatus } from "@/lib/types";
 
 function fmtTs(v: string | null | undefined): string {
   if (!v) return "—";
@@ -28,9 +28,40 @@ function tone(status: string | null | undefined): "success" | "warning" | "error
 
 function laneSummary(lane: OperatorLaneStatus): string {
   const run = lane.latest_run;
+  const activeStage = run.current_stage;
+  const activeMessage = activeStage?.details?.message;
   if (run.status === "missing") return "No runs yet";
-  if (run.status === "running") return `Running since ${fmtTs(run.started_at)}`;
+  if (run.status === "running") {
+    if (activeStage?.stage_name && activeMessage) return `${activeStage.stage_name}: ${activeMessage}`;
+    if (activeStage?.stage_name) return `${activeStage.stage_name} in progress`;
+    return `Running since ${fmtTs(run.started_at)}`;
+  }
   return `${run.status.toUpperCase()} · ${fmtTs(run.finished_at || run.updated_at)}`;
+}
+
+function fmtElapsed(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds)) return "—";
+  const rounded = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const secs = rounded % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+  if (minutes > 0) return `${minutes}m ${secs}s`;
+  return `${secs}s`;
+}
+
+function progressLabel(stage: OperatorLaneStage | null | undefined): string | null {
+  if (!stage?.details) return null;
+  const processed = stage.details.items_processed;
+  const total = stage.details.items_total;
+  const unit = stage.details.unit || "items";
+  if (typeof processed === "number" && typeof total === "number" && total > 0) {
+    return `${processed.toLocaleString()} / ${total.toLocaleString()} ${unit}`;
+  }
+  if (typeof processed === "number") {
+    return `${processed.toLocaleString()} ${unit}`;
+  }
+  return null;
 }
 
 const LANE_HELP: Record<string, { plain: string; math: string }> = {
@@ -87,7 +118,6 @@ export default function OperatorControlPanel({ compact = false }: { compact?: bo
     ["Last holdings change", holdingsSync?.last_mutation_summary ?? "—", "neutral"],
     ["Neon mirror", neonHealth?.mirror_status ?? neonHealth?.status ?? "—", mirrorStatus === "ok" || mirrorStatus === "synced" ? "success" : mirrorStatus === "—" || !mirrorStatus ? "neutral" : "warning"],
     ["Neon parity", neonHealth?.parity_status ?? "—", parityStatus === "ok" || parityStatus === "match" ? "success" : parityStatus === "—" || !parityStatus ? "neutral" : "error"],
-    ["Parity artifact", data?.latest_parity_artifact ?? "—", "neutral"],
   ];
   const sourceRecencyRows = [
     ["Prices", sourceDates.prices_asof ?? "—"],
@@ -217,6 +247,60 @@ export default function OperatorControlPanel({ compact = false }: { compact?: bo
                   </td>
                   <td className="operator-lane-copy">
                     <div style={{ marginBottom: 6 }}>{lane.default_stages.join(" -> ") || "—"}</div>
+                    {lane.latest_run.current_stage && (
+                      <div
+                        style={{
+                          marginBottom: 8,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "rgba(19, 25, 39, 0.85)",
+                          border: "1px solid rgba(76, 108, 188, 0.28)",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                          <strong style={{ color: "rgba(232,237,249,0.92)" }}>
+                            Live: {lane.latest_run.current_stage.stage_name}
+                          </strong>
+                          <span style={{ fontSize: 11, color: "rgba(169,182,210,0.78)" }}>
+                            {fmtElapsed(lane.latest_run.current_stage.duration_seconds)}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12, color: "rgba(169,182,210,0.82)", lineHeight: 1.45 }}>
+                          {lane.latest_run.current_stage.details?.message || "Stage is running"}
+                        </div>
+                        {typeof lane.latest_run.current_stage.details?.progress_pct === "number" && (
+                          <div style={{ marginTop: 8 }}>
+                            <div
+                              style={{
+                                height: 7,
+                                borderRadius: 999,
+                                background: "rgba(255,255,255,0.08)",
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: `${Math.max(0, Math.min(100, lane.latest_run.current_stage.details.progress_pct))}%`,
+                                  height: "100%",
+                                  background: "linear-gradient(90deg, rgba(91,164,235,0.95), rgba(115,214,171,0.95))",
+                                }}
+                              />
+                            </div>
+                            <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 11, color: "rgba(169,182,210,0.74)" }}>
+                                {progressLabel(lane.latest_run.current_stage) || "Progress available"}
+                              </span>
+                              <span style={{ fontSize: 11, color: "rgba(169,182,210,0.74)" }}>
+                                {lane.latest_run.current_stage.details.progress_pct.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 6, fontSize: 11, color: "rgba(169,182,210,0.68)" }}>
+                          Heartbeat {fmtTs(lane.latest_run.current_stage.heartbeat_at || lane.latest_run.updated_at)}
+                        </div>
+                      </div>
+                    )}
                     <details>
                       <summary style={{ cursor: "pointer", color: "rgba(169,182,210,0.82)" }}>
                         Stage detail
@@ -225,7 +309,20 @@ export default function OperatorControlPanel({ compact = false }: { compact?: bo
                         {(lane.latest_run.stages ?? []).map((stage) => (
                           <div key={`${lane.profile}:${stage.stage_name}`} style={{ fontSize: 12, color: "rgba(232,237,249,0.82)" }}>
                             <strong>{stage.stage_name}</strong>: {stage.status}
+                            {stage.details?.message ? ` — ${stage.details.message}` : ""}
                             {stage.error_message ? ` — ${stage.error_message}` : ""}
+                            {(stage.details?.items_processed != null || stage.details?.progress_pct != null) && (
+                              <div style={{ marginTop: 3, color: "rgba(169,182,210,0.76)" }}>
+                                {progressLabel(stage) || "Progress available"}
+                                {stage.details?.progress_pct != null ? ` · ${stage.details.progress_pct.toFixed(1)}%` : ""}
+                                {stage.duration_seconds != null ? ` · elapsed ${fmtElapsed(stage.duration_seconds)}` : ""}
+                              </div>
+                            )}
+                            {stage.heartbeat_at && (
+                              <div style={{ marginTop: 3, color: "rgba(169,182,210,0.6)" }}>
+                                heartbeat {fmtTs(stage.heartbeat_at)}
+                              </div>
+                            )}
                           </div>
                         ))}
                         {(lane.latest_run.stages ?? []).length === 0 && (

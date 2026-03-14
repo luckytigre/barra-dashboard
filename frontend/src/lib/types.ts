@@ -616,19 +616,47 @@ export interface OperatorLaneLatestRun {
   started_at: string | null;
   finished_at: string | null;
   updated_at: string | null;
+  duration_seconds?: number | null;
+  duration_delta_seconds?: number | null;
+  duration_delta_pct?: number | null;
   stage_count: number;
   completed_stage_count: number;
   failed_stage_count: number;
   running_stage_count: number;
-  stages: Array<{
+  stage_duration_seconds_total?: number;
+  current_stage?: OperatorLaneStage | null;
+  slowest_stage?: {
     stage_name: string;
-    stage_order: number;
-    status: string;
-    started_at: string | null;
-    completed_at: string | null;
-    error_type: string | null;
-    error_message: string | null;
-  }>;
+    duration_seconds: number;
+  } | null;
+  stages: OperatorLaneStage[];
+}
+
+export interface OperatorLaneStage {
+  stage_name: string;
+  stage_order: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds?: number | null;
+  heartbeat_at?: string | null;
+  details?: {
+    message?: string | null;
+    progress_kind?: string | null;
+    progress_pct?: number | null;
+    items_processed?: number | null;
+    items_total?: number | null;
+    unit?: string | null;
+    current_date?: string | null;
+    current_as_of?: string | null;
+    dates_per_second?: number | null;
+    computed_dates?: number | null;
+    cached_dates?: number | null;
+    skip_counts?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  error_type: string | null;
+  error_message: string | null;
 }
 
 export interface OperatorLaneStatus {
