@@ -25,7 +25,7 @@ export default function SectionCovarianceQuality({ data }: { data: HealthDiagnos
         <HelpLabel
           label="Section 4 — Covariance Quality"
           plain="Checks whether covariance forecasts are stable and close to what actually happened."
-          math="Uses eigenvalues, condition number, and forecast-vs-realized volatility"
+          math="Uses eigenvalues and forecast-vs-realized volatility"
         />
       </h3>
       <div className="health-grid-2-half">
@@ -58,16 +58,6 @@ export default function SectionCovarianceQuality({ data }: { data: HealthDiagnos
           </div>
         </div>
       </div>
-
-      <div className="health-kpi-strip">
-        <div className="health-kpi">
-          <div className="health-kpi-label">Condition Number</div>
-          <div className="health-kpi-value">
-            {Number(data.section4.condition_number || 0).toFixed(2)}
-          </div>
-        </div>
-      </div>
-
       <div className="dash-table health-table">
         <table>
           <thead>

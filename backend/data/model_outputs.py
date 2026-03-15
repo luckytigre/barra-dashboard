@@ -25,8 +25,13 @@ def _drop_if_columns_missing(conn: sqlite3.Connection, *, table: str, required: 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     _drop_if_columns_missing(
         conn,
+        table="model_factor_returns_daily",
+        required={"date", "factor_name", "factor_return", "robust_se", "t_stat", "r_squared", "residual_vol", "run_id", "updated_at"},
+    )
+    _drop_if_columns_missing(
+        conn,
         table="model_specific_risk_daily",
-        required={"as_of_date", "ric", "ticker", "specific_var", "specific_vol", "obs", "trbc_industry_group", "run_id", "updated_at"},
+        required={"as_of_date", "ric", "ticker", "specific_var", "specific_vol", "obs", "trbc_business_sector", "run_id", "updated_at"},
     )
 
     conn.execute(
@@ -35,6 +40,8 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             date TEXT NOT NULL,
             factor_name TEXT NOT NULL,
             factor_return REAL NOT NULL,
+            robust_se REAL NOT NULL DEFAULT 0.0,
+            t_stat REAL NOT NULL DEFAULT 0.0,
             r_squared REAL NOT NULL,
             residual_vol REAL NOT NULL,
             cross_section_n INTEGER NOT NULL DEFAULT 0,
@@ -68,7 +75,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             specific_var REAL NOT NULL,
             specific_vol REAL NOT NULL,
             obs INTEGER NOT NULL DEFAULT 0,
-            trbc_industry_group TEXT,
+            trbc_business_sector TEXT,
             run_id TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             PRIMARY KEY (as_of_date, ric)
@@ -131,6 +138,8 @@ def _load_factor_returns(cache_db: Path, *, date_from: str | None = None) -> pd.
                 date,
                 factor_name,
                 factor_return,
+                {('robust_se' if 'robust_se' in cols else '0.0')} AS robust_se,
+                {('t_stat' if 't_stat' in cols else '0.0')} AS t_stat,
                 r_squared,
                 residual_vol,
                 {cross_col if cross_col else '0'} AS cross_section_n,
@@ -149,7 +158,7 @@ def _load_factor_returns(cache_db: Path, *, date_from: str | None = None) -> pd.
         return df
     df["date"] = df["date"].astype(str)
     df["factor_name"] = df["factor_name"].astype(str)
-    for col in ["factor_return", "r_squared", "residual_vol", "coverage"]:
+    for col in ["factor_return", "robust_se", "t_stat", "r_squared", "residual_vol", "coverage"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").replace([np.inf, -np.inf], np.nan)
     for col in ["cross_section_n", "eligible_n"]:
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
@@ -165,11 +174,15 @@ def _upsert_factor_returns(
 ) -> int:
     if rows.empty:
         return 0
+    min_date = str(rows["date"].min())
+    conn.execute("DELETE FROM model_factor_returns_daily WHERE date >= ?", (min_date,))
     payload = [
         (
             str(r.date),
             str(r.factor_name),
             float(r.factor_return),
+            float(r.robust_se),
+            float(r.t_stat),
             float(r.r_squared),
             float(r.residual_vol),
             int(r.cross_section_n),
@@ -183,9 +196,9 @@ def _upsert_factor_returns(
     conn.executemany(
         """
         INSERT OR REPLACE INTO model_factor_returns_daily (
-            date, factor_name, factor_return, r_squared, residual_vol,
+            date, factor_name, factor_return, robust_se, t_stat, r_squared, residual_vol,
             cross_section_n, eligible_n, coverage, run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         payload,
     )
@@ -203,6 +216,17 @@ def _upsert_covariance(
     if cov is None or cov.empty:
         return 0
     factors = [str(c) for c in cov.columns]
+    placeholders = ",".join("?" for _ in factors)
+    if placeholders:
+        conn.execute(
+            f"""
+            DELETE FROM model_factor_covariance_daily
+            WHERE factor_name NOT IN ({placeholders})
+               OR factor_name_2 NOT IN ({placeholders})
+            """,
+            [*factors, *factors],
+        )
+    conn.execute("DELETE FROM model_factor_covariance_daily WHERE as_of_date = ?", (as_of_date,))
     payload: list[tuple[Any, ...]] = []
     for f1 in factors:
         for f2 in factors:
@@ -237,6 +261,7 @@ def _upsert_specific_risk(
 ) -> int:
     if not specific_risk_by_ticker:
         return 0
+    conn.execute("DELETE FROM model_specific_risk_daily WHERE as_of_date = ?", (as_of_date,))
     payload: list[tuple[Any, ...]] = []
     for key, row in specific_risk_by_ticker.items():
         ric = str(row.get("ric") or key or "").upper().strip()
@@ -246,7 +271,7 @@ def _upsert_specific_risk(
         spec_var = float(row.get("specific_var", 0.0) or 0.0)
         spec_vol = float(row.get("specific_vol", 0.0) or 0.0)
         obs = int(row.get("obs", 0) or 0)
-        industry = str(row.get("trbc_industry_group") or "").strip()
+        business_sector = str(row.get("trbc_business_sector") or "").strip()
         payload.append(
             (
                 as_of_date,
@@ -255,7 +280,7 @@ def _upsert_specific_risk(
                 spec_var,
                 spec_vol,
                 obs,
-                industry,
+                business_sector,
                 run_id,
                 updated_at,
             )
@@ -265,7 +290,7 @@ def _upsert_specific_risk(
     conn.executemany(
         """
         INSERT OR REPLACE INTO model_specific_risk_daily (
-            as_of_date, ric, ticker, specific_var, specific_vol, obs, trbc_industry_group, run_id, updated_at
+            as_of_date, ric, ticker, specific_var, specific_vol, obs, trbc_business_sector, run_id, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         payload,
@@ -278,6 +303,47 @@ def _latest_date(conn: sqlite3.Connection, *, table: str, col: str) -> str | Non
     if not row or row[0] is None:
         return None
     return str(row[0])
+
+
+def _latest_risk_engine_state(conn: sqlite3.Connection) -> dict[str, Any]:
+    row = conn.execute(
+        """
+        SELECT risk_engine_state_json
+        FROM model_run_metadata
+        ORDER BY completed_at DESC, updated_at DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row or row[0] is None:
+        return {}
+    try:
+        decoded = json.loads(str(row[0]))
+    except Exception:
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def _factor_returns_load_start(
+    conn: sqlite3.Connection,
+    *,
+    as_of_date: str,
+    risk_engine_state: dict[str, Any],
+) -> tuple[str | None, str]:
+    latest_persisted_date = _latest_date(conn, table="model_factor_returns_daily", col="date")
+    if not latest_persisted_date:
+        return None, "full"
+
+    previous_state = _latest_risk_engine_state(conn)
+    previous_method_version = str(previous_state.get("method_version") or "").strip()
+    current_method_version = str(risk_engine_state.get("method_version") or "").strip()
+    if current_method_version and previous_method_version and current_method_version != previous_method_version:
+        return None, "full"
+    if current_method_version and not previous_method_version:
+        return None, "full"
+
+    if as_of_date and as_of_date < latest_persisted_date:
+        return str(as_of_date), "incremental"
+    return str(latest_persisted_date), "incremental"
 
 
 def persist_model_outputs(
@@ -310,9 +376,12 @@ def persist_model_outputs(
     conn.execute("PRAGMA busy_timeout=120000")
     try:
         _ensure_schema(conn)
-        factor_date_from = _latest_date(conn, table="model_factor_returns_daily", col="date")
-
-        factor_returns = _load_factor_returns(cache_db, date_from=factor_date_from)
+        factor_returns_date_from, factor_returns_mode = _factor_returns_load_start(
+            conn,
+            as_of_date=as_of_date,
+            risk_engine_state=risk_engine_state,
+        )
+        factor_returns = _load_factor_returns(cache_db, date_from=factor_returns_date_from)
 
         n_factor = _upsert_factor_returns(conn, rows=factor_returns, run_id=run_id, updated_at=now_iso)
         n_cov = _upsert_covariance(
@@ -390,6 +459,8 @@ def persist_model_outputs(
             "status": "ok",
             "run_id": run_id,
             "factor_returns_asof": as_of_date,
+            "factor_returns_persistence_mode": factor_returns_mode,
+            "factor_returns_reload_from": factor_returns_date_from,
             "row_counts": row_counts,
         }
     finally:

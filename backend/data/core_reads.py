@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,6 +18,7 @@ from backend.trading_calendar import previous_or_same_xnys_session
 
 DATA_DB = Path(config.DATA_DB_PATH)
 _CORE_READ_SURFACE = "core_reads"
+logger = logging.getLogger(__name__)
 
 
 def _use_neon_core_reads() -> bool:
@@ -108,15 +110,52 @@ def _exposure_source_table_required() -> str:
     return table
 
 
+def _resolve_latest_well_covered_exposure_asof(table: str) -> str | None:
+    rows = _fetch_rows(
+        f"""
+        SELECT as_of_date, COUNT(*) AS row_count
+        FROM {table}
+        GROUP BY as_of_date
+        ORDER BY as_of_date DESC
+        """
+    )
+    if not rows:
+        return None
+
+    latest_raw = str(rows[0].get("as_of_date") or "")
+    max_count = max(int(row.get("row_count") or 0) for row in rows)
+    min_coverage = max(100, int(0.50 * max_count))
+    well_covered_dates = sorted(
+        str(row.get("as_of_date") or "")
+        for row in rows
+        if int(row.get("row_count") or 0) >= min_coverage
+    )
+    selected = well_covered_dates[-1] if well_covered_dates else latest_raw
+    if selected and selected != latest_raw:
+        logger.warning(
+            "Using well-covered exposure as-of date %s instead of sparse latest %s "
+            "(coverage threshold=%s, max_count=%s)",
+            selected,
+            latest_raw,
+            min_coverage,
+            max_count,
+        )
+    return selected or None
+
+
 def load_raw_cross_section_latest(tickers: list[str] | None = None) -> pd.DataFrame:
     table = _exposure_source_table_required()
-    params: list[Any] = []
+    selected_asof = _resolve_latest_well_covered_exposure_asof(table)
+    if selected_asof is None:
+        return pd.DataFrame()
+
+    params: list[Any] = [selected_asof]
     ticker_clause = ""
     if tickers:
         clean = [t.upper() for t in tickers if t.strip()]
         if clean:
             placeholders = ",".join("?" for _ in clean)
-            ticker_clause = f" WHERE ticker IN ({placeholders})"
+            ticker_clause = f" AND UPPER(e.ticker) IN ({placeholders})"
             params.extend(clean)
 
     rows = _fetch_rows(
@@ -126,9 +165,10 @@ def load_raw_cross_section_latest(tickers: list[str] | None = None) -> pd.DataFr
                 e.*,
                 ROW_NUMBER() OVER (
                     PARTITION BY e.ric
-                    ORDER BY e.as_of_date DESC, e.updated_at DESC
+                    ORDER BY e.updated_at DESC
                 ) AS rn
             FROM {table} e
+            WHERE e.as_of_date = ?
             {ticker_clause}
         )
         SELECT *

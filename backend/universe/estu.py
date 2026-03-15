@@ -61,7 +61,6 @@ def _load_security_frame(conn: sqlite3.Connection) -> pd.DataFrame:
         SELECT
             UPPER(TRIM(ric)) AS ric,
             UPPER(TRIM(ticker)) AS ticker,
-            COALESCE(permid, '') AS permid,
             COALESCE(classification_ok, 0) AS classification_ok,
             COALESCE(is_equity_eligible, 0) AS is_equity_eligible
         FROM {SECURITY_MASTER_TABLE}
@@ -182,7 +181,7 @@ def _load_latest_trbc(conn: sqlite3.Connection, *, as_of_date: str) -> pd.DataFr
             SELECT
                 ric,
                 as_of_date,
-                COALESCE(trbc_industry_group, '') AS trbc_industry_group,
+                COALESCE(trbc_business_sector, '') AS trbc_business_sector,
                 COALESCE(hq_country_code, '') AS hq_country_code,
                 ROW_NUMBER() OVER (
                     PARTITION BY ric
@@ -191,7 +190,7 @@ def _load_latest_trbc(conn: sqlite3.Connection, *, as_of_date: str) -> pd.DataFr
             FROM {TRBC_HISTORY_TABLE}
             WHERE as_of_date <= ?
         )
-        SELECT ric, trbc_industry_group, hq_country_code
+        SELECT ric, trbc_business_sector, hq_country_code
         FROM ranked
         WHERE rn = 1
         """,
@@ -199,13 +198,13 @@ def _load_latest_trbc(conn: sqlite3.Connection, *, as_of_date: str) -> pd.DataFr
         params=(as_of_date,),
     )
     if df.empty:
-        return pd.DataFrame(columns=["ric", "trbc_industry_group", "hq_country_code", "has_required_trbc"])
-    df["trbc_industry_group"] = df["trbc_industry_group"].fillna("").astype(str).str.strip()
+        return pd.DataFrame(columns=["ric", "trbc_business_sector", "hq_country_code", "has_required_trbc"])
+    df["trbc_business_sector"] = df["trbc_business_sector"].fillna("").astype(str).str.strip()
     df["hq_country_code"] = df["hq_country_code"].fillna("").astype(str).str.strip().str.upper()
     df["has_required_trbc"] = (
-        df["trbc_industry_group"].str.len().gt(0) & df["hq_country_code"].str.len().gt(0)
+        df["trbc_business_sector"].str.len().gt(0) & df["hq_country_code"].str.len().gt(0)
     )
-    return df[["ric", "trbc_industry_group", "hq_country_code", "has_required_trbc"]]
+    return df[["ric", "trbc_business_sector", "hq_country_code", "has_required_trbc"]]
 
 
 def _drop_reason(row: pd.Series) -> tuple[str, str]:
@@ -216,7 +215,7 @@ def _drop_reason(row: pd.Series) -> tuple[str, str]:
     if not bool(row.get("has_required_fundamentals", False)):
         return "missing_fundamentals", "no positive market cap fundamentals row"
     if not bool(row.get("has_required_trbc", False)):
-        return "missing_trbc", "missing industry or country classification"
+        return "missing_trbc", "missing business-sector or country classification"
     if not bool(row.get("passes_price_floor", False)):
         return "price_floor", "price below minimum threshold"
     if not bool(row.get("passes_microcap_guard", False)):
@@ -270,7 +269,7 @@ def build_and_persist_estu_membership(
             frame["ric"].fillna("").astype(str).map(_infer_country_from_ric),
         )
         frame["has_required_trbc"] = (
-            frame.get("trbc_industry_group", "").fillna("").astype(str).str.strip().str.len().gt(0)
+            frame.get("trbc_business_sector", "").fillna("").astype(str).str.strip().str.len().gt(0)
             & frame["hq_country_code"].astype(str).str.len().gt(0)
         )
 

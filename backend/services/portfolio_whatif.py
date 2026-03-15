@@ -6,6 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+import math
+
 import pandas as pd
 
 from backend import config
@@ -73,6 +75,36 @@ def _load_specific_risk_by_ticker() -> dict[str, dict[str, Any]]:
     return specific_risk_by_ticker_view(payload)
 
 
+def _normalize_scenario_rows(scenario_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized_rows: list[dict[str, Any]] = []
+    seen_scenario_keys: set[str] = set()
+    for raw in list(scenario_rows or []):
+        account_id = _normalize_account_id(raw.get("account_id"))
+        ticker = _normalize_ticker(raw.get("ticker"))
+        ric = _normalize_ric(raw.get("ric"))
+        delta_quantity = float(raw.get("quantity") or 0.0)
+        if not account_id:
+            raise ValueError("Each what-if row requires account_id.")
+        if not ticker:
+            raise ValueError("Each what-if row requires ticker.")
+        if not math.isfinite(delta_quantity):
+            raise ValueError("Each what-if row requires a finite quantity.")
+        key = _scenario_key(account_id, ric, ticker)
+        if key in seen_scenario_keys:
+            raise ValueError(f"Duplicate what-if row for account {account_id} ticker {ticker}.")
+        seen_scenario_keys.add(key)
+        normalized_rows.append(
+            {
+                "account_id": account_id,
+                "ticker": ticker,
+                "ric": ric,
+                "quantity": delta_quantity,
+                "source": str(raw.get("source") or "what_if"),
+            }
+        )
+    return normalized_rows
+
+
 def _build_holdings_snapshot(
     scenario_rows: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -85,33 +117,38 @@ def _build_holdings_snapshot(
         if not account_id or not (ticker or ric):
             continue
         key = _scenario_key(account_id, ric, ticker)
-        current_by_key[key] = {
-            "account_id": account_id,
-            "ticker": ticker,
-            "ric": ric,
-            "quantity": float(raw.get("quantity") or 0.0),
-            "source": str(raw.get("source") or "neon_holdings"),
-        }
+        quantity = float(raw.get("quantity") or 0.0)
+        existing = current_by_key.get(key)
+        if existing is None:
+            current_by_key[key] = {
+                "account_id": account_id,
+                "ticker": ticker,
+                "ric": ric,
+                "quantity": quantity,
+                "source": str(raw.get("source") or "neon_holdings"),
+            }
+            continue
+        existing["quantity"] = float(existing.get("quantity") or 0.0) + quantity
+        if not existing.get("ric"):
+            existing["ric"] = ric
 
     hypothetical_by_key = {key: dict(value) for key, value in current_by_key.items()}
     for raw in scenario_rows:
         account_id = _normalize_account_id(raw.get("account_id"))
         ticker = _normalize_ticker(raw.get("ticker"))
         ric = _normalize_ric(raw.get("ric"))
-        quantity = float(raw.get("quantity") or 0.0)
-        if not account_id:
-            raise ValueError("Each what-if row requires account_id.")
-        if not (ticker or ric):
-            raise ValueError("Each what-if row requires ticker or RIC.")
+        delta_quantity = float(raw.get("quantity") or 0.0)
         key = _scenario_key(account_id, ric, ticker)
+        current_quantity = float((current_by_key.get(key) or {}).get("quantity") or 0.0)
+        hypothetical_quantity = current_quantity + delta_quantity
         normalized = {
             "account_id": account_id,
             "ticker": ticker,
             "ric": ric,
-            "quantity": quantity,
+            "quantity": hypothetical_quantity,
             "source": str(raw.get("source") or "what_if"),
         }
-        if abs(quantity) <= 0.0:
+        if abs(hypothetical_quantity) <= 1e-12:
             hypothetical_by_key.pop(key, None)
         else:
             hypothetical_by_key[key] = dict(normalized)
@@ -142,7 +179,12 @@ def _build_holdings_snapshot(
     )
 
 
-def _rows_to_snapshot(rows: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, dict[str, str]]]:
+def _rows_to_snapshot(
+    rows: list[dict[str, Any]],
+    *,
+    sleeve_label: str,
+    default_source: str,
+) -> tuple[dict[str, float], dict[str, dict[str, str]]]:
     qty_by_ticker: dict[str, float] = defaultdict(float)
     accounts_by_ticker: dict[str, set[str]] = defaultdict(set)
     source_by_ticker: dict[str, str] = {}
@@ -168,8 +210,8 @@ def _rows_to_snapshot(rows: list[dict[str, Any]]) -> tuple[dict[str, float], dic
         account = accounts[0] if len(accounts) == 1 else ("MULTI" if len(accounts) > 1 else "MAIN")
         meta[ticker] = {
             "account": str(account).upper(),
-            "sleeve": "WHAT IF" if len(accounts) > 0 else "NEON HOLDINGS",
-            "source": source_by_ticker.get(ticker) or "WHAT_IF",
+            "sleeve": sleeve_label if len(accounts) > 0 else "NEON HOLDINGS",
+            "source": source_by_ticker.get(ticker) or default_source,
         }
     return shares, meta
 
@@ -177,13 +219,19 @@ def _rows_to_snapshot(rows: list[dict[str, Any]]) -> tuple[dict[str, float], dic
 def _build_preview_payload(
     *,
     holdings_rows: list[dict[str, Any]],
+    sleeve_label: str,
+    default_source: str,
     universe_loadings: dict[str, Any],
     cov: pd.DataFrame,
     specific_risk_by_ticker: dict[str, dict[str, Any]],
     coverage_date: str | None,
     factor_coverage: dict[str, Any],
 ) -> dict[str, Any]:
-    shares_map, dynamic_meta = _rows_to_snapshot(holdings_rows)
+    shares_map, dynamic_meta = _rows_to_snapshot(
+        holdings_rows,
+        sleeve_label=sleeve_label,
+        default_source=default_source,
+    )
     positions, total_value = build_positions_from_snapshot(
         universe_loadings["by_ticker"],
         shares_map,
@@ -276,13 +324,16 @@ def preview_portfolio_whatif(
     *,
     scenario_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    normalized_scenario_rows = _normalize_scenario_rows(scenario_rows)
     universe_loadings = _load_universe_loadings()
     cov = _load_covariance_frame()
     specific_risk = _load_specific_risk_by_ticker()
     coverage_date, factor_coverage = load_latest_factor_coverage(cache_db=CACHE_DB)
-    current_rows, hypothetical_rows, deltas = _build_holdings_snapshot(scenario_rows)
+    current_rows, hypothetical_rows, deltas = _build_holdings_snapshot(normalized_scenario_rows)
     current_preview = _build_preview_payload(
         holdings_rows=current_rows,
+        sleeve_label="LIVE HOLDINGS",
+        default_source="NEON_HOLDINGS",
         universe_loadings=universe_loadings,
         cov=cov,
         specific_risk_by_ticker=specific_risk,
@@ -291,6 +342,8 @@ def preview_portfolio_whatif(
     )
     hypothetical_preview = _build_preview_payload(
         holdings_rows=hypothetical_rows,
+        sleeve_label="WHAT IF",
+        default_source="WHAT_IF",
         universe_loadings=universe_loadings,
         cov=cov,
         specific_risk_by_ticker=specific_risk,
@@ -328,7 +381,7 @@ def preview_portfolio_whatif(
                 "quantity": float(row.get("quantity") or 0.0),
                 "source": str(row.get("source") or "what_if"),
             }
-            for row in scenario_rows
+            for row in normalized_scenario_rows
         ],
         "holding_deltas": deltas,
         "current": current_preview,

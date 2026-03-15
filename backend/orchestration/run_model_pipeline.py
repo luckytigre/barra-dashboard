@@ -365,6 +365,10 @@ def _default_stage_selection(cfg: dict[str, Any], from_stage: str | None, to_sta
     return selected or list(STAGES)
 
 
+def _selected_stages_require_source_as_of(selected: list[str]) -> bool:
+    return any(stage in {"ingest", "estu_audit"} for stage in selected)
+
+
 def _run_stage(
     *,
     stage: str,
@@ -613,7 +617,12 @@ def run_model_pipeline(
     job_runs.fail_stale_running_stages(db_path=DATA_DB)
     completed = job_runs.completed_stages(db_path=DATA_DB, run_id=effective_run_id) if resume_run_id else set()
 
-    as_of = _resolved_as_of_date(as_of_date)
+    if _selected_stages_require_source_as_of(selected):
+        as_of = _resolved_as_of_date(as_of_date)
+    elif as_of_date and str(as_of_date).strip():
+        as_of = previous_or_same_xnys_session(str(as_of_date).strip())
+    else:
+        as_of = previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
     today_utc = datetime.fromisoformat(previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())).date()
     due, due_reason = _risk_recompute_due(
         sqlite.cache_get_live_first("risk_engine_meta") or {},

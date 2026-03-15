@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { ApiError, apiFetch, apiPath, type RefreshMode } from "@/lib/api";
 import type {
   PortfolioData,
+  WhatIfApplyResponse,
   WhatIfPreviewData,
   WhatIfScenarioRow,
   HoldingsModeData,
@@ -22,6 +23,7 @@ import type {
   HealthDiagnosticsData,
   DataDiagnosticsData,
   OperatorStatusData,
+  RefreshStatusData,
 } from "@/lib/types";
 
 export { ApiError };
@@ -40,6 +42,10 @@ const HEAVY_DIAGNOSTICS_OPTS = {
   // Keep these on-demand/focus refreshes only instead of interval polling.
   refreshInterval: 0,
 };
+
+function refreshStatusRefreshInterval(data?: RefreshStatusData): number {
+  return String(data?.refresh?.status || "").toLowerCase() === "running" ? 3000 : 0;
+}
 
 function operatorStatusRefreshInterval(data?: OperatorStatusData): number {
   const refreshRunning = String(data?.refresh?.status || "").toLowerCase() === "running";
@@ -117,15 +123,34 @@ export function useOperatorStatus() {
   });
 }
 
-export async function triggerRefresh(mode: RefreshMode = "full"): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>(apiPath.refresh(mode), { method: "POST" });
+export function useRefreshStatus(enabled = true) {
+  return useSWR<RefreshStatusData>(enabled ? apiPath.refreshStatus() : null, apiFetch, {
+    ...SWR_OPTS,
+    refreshInterval: refreshStatusRefreshInterval,
+  });
 }
 
-export async function triggerRefreshProfile(profile: string): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>(apiPath.refreshProfile(profile), { method: "POST" });
+export async function triggerRefresh(mode: RefreshMode = "full"): Promise<{
+  status: string;
+  message?: string;
+  refresh?: RefreshStatusData["refresh"];
+}> {
+  return apiFetch(apiPath.refresh(mode), { method: "POST" });
 }
 
-export async function triggerServeRefresh(): Promise<{ status: string }> {
+export async function triggerRefreshProfile(profile: string): Promise<{
+  status: string;
+  message?: string;
+  refresh?: RefreshStatusData["refresh"];
+}> {
+  return apiFetch(apiPath.refreshProfile(profile), { method: "POST" });
+}
+
+export async function triggerServeRefresh(): Promise<{
+  status: string;
+  message?: string;
+  refresh?: RefreshStatusData["refresh"];
+}> {
   return triggerRefreshProfile("serve-refresh");
 }
 
@@ -133,6 +158,18 @@ export async function previewPortfolioWhatIf(payload: {
   scenario_rows: WhatIfScenarioRow[];
 }): Promise<WhatIfPreviewData> {
   return apiFetch<WhatIfPreviewData>(apiPath.portfolioWhatIf(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function applyPortfolioWhatIf(payload: {
+  scenario_rows: WhatIfScenarioRow[];
+  requested_by?: string;
+  default_source?: string;
+}): Promise<WhatIfApplyResponse> {
+  return apiFetch<WhatIfApplyResponse>(apiPath.portfolioWhatIfApply(), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),

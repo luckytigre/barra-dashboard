@@ -140,12 +140,6 @@ export default function OperatorStatusSection({
             </span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Neon Parity</span>
-            <span className={`kv-value ${runtimeStatusTone(neon?.parity_status)}`.trim()}>
-              {neon?.parity_status ?? "—"}
-            </span>
-          </div>
-          <div className="operator-kv-item">
             <span className="kv-label">Snapshot</span>
             <span className="kv-value">{data?.active_snapshot?.snapshot_id ?? "—"}</span>
           </div>

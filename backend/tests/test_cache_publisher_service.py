@@ -24,6 +24,11 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
     monkeypatch.setattr(config, "SQLITE_PATH", str(cache_db))
     monkeypatch.setattr(cache_sqlite, "_SCHEMA_READY", False)
     monkeypatch.setattr(cache_sqlite, "_SCHEMA_READY_PATH", None)
+    monkeypatch.setattr(
+        cache_publisher,
+        "compute_health_diagnostics",
+        lambda *args, **kwargs: {"status": "ok", "section5": {"fundamentals": {"fields": []}, "trbc_history": {"fields": []}}},
+    )
     cache_sqlite.cache_set("health_diagnostics", _health_payload())
     cache_sqlite.cache_set("portfolio", {"version": "old"})
 
@@ -56,7 +61,6 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
         ],
         cov_matrix={"factors": ["Beta"], "correlation": [[1.0]]},
         latest_r2=0.35,
-        condition_number=123.0,
         universe_loadings={
             "factors": ["Beta"],
             "factor_vols": {"Beta": 0.05},

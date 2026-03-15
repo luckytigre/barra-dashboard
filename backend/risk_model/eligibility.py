@@ -119,8 +119,10 @@ def load_exposure_snapshots(
         if not {"ric", "as_of_date"}.issubset(cols):
             return [], {}
         style_cols = [c for c in STYLE_COLUMN_TO_LABEL.keys() if c in cols]
-        industry_col = pick_trbc_industry_column(cols)
-        industry_select = f"{industry_col} AS trbc_industry_group" if industry_col else "NULL AS trbc_industry_group"
+        business_col = pick_trbc_business_sector_column(cols)
+        business_select = (
+            f"{business_col} AS trbc_business_sector" if business_col else "NULL AS trbc_business_sector"
+        )
         requested_dates = sorted({str(d) for d in (dates or []) if str(d).strip()})
         params: list[str] = []
         lower_bound: str | None = None
@@ -146,7 +148,7 @@ def load_exposure_snapshots(
             where_clause = ""
         df = pd.read_sql_query(
             f"""
-            SELECT UPPER(ric) AS ric, UPPER(ticker) AS ticker, as_of_date, {", ".join(style_cols)}, {industry_select}
+            SELECT UPPER(ric) AS ric, UPPER(ticker) AS ticker, as_of_date, {", ".join(style_cols)}, {business_select}
             FROM {source_table}
             {where_clause}
             ORDER BY as_of_date, ric
@@ -162,8 +164,8 @@ def load_exposure_snapshots(
     df["ric"] = df["ric"].astype(str).str.upper()
     df["ticker"] = df["ticker"].astype(str).str.upper()
     df["as_of_date"] = df["as_of_date"].astype(str)
-    if "trbc_industry_group" in df.columns:
-        df["trbc_industry_group"] = _normalize_text_series(df["trbc_industry_group"])
+    if "trbc_business_sector" in df.columns:
+        df["trbc_business_sector"] = _normalize_text_series(df["trbc_business_sector"])
     for col in style_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
@@ -173,8 +175,8 @@ def load_exposure_snapshots(
         keep_cols = [*style_cols]
         if "ticker" in snap.columns:
             keep_cols.append("ticker")
-        if "trbc_industry_group" in snap.columns:
-            keep_cols.append("trbc_industry_group")
+        if "trbc_business_sector" in snap.columns:
+            keep_cols.append("trbc_business_sector")
         snapshots[str(as_of)] = snap[keep_cols].copy()
     return sorted(snapshots.keys()), snapshots
 

@@ -20,7 +20,6 @@ STYLE_COLUMN_TO_LABEL: dict[str, str] = {
     "liquidity_score": "Liquidity",
     "book_to_price_score": "Book-to-Price",
     "earnings_yield_score": "Earnings Yield",
-    "value_score": "Value",
     "leverage_score": "Leverage",
     "growth_score": "Growth",
     "profitability_score": "Profitability",
@@ -144,8 +143,7 @@ def risk_decomposition(
         )
 
     # The intercept is part of phase-A fit but not modeled as a factor.
-    # Drop any stale "market" column defensively if present in a legacy cache.
-    factors = [str(c) for c in cov.columns if str(c).lower() != "market"]
+    factors = [str(c) for c in cov.columns]
     exposure_map = {f: portfolio_factor_exposure(positions, f) for f in factors}
     h = np.array([exposure_map[f] for f in factors], dtype=float)
     f_mat = cov.reindex(index=factors, columns=factors).to_numpy(dtype=float)

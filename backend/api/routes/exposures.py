@@ -15,6 +15,20 @@ from backend.data.sqlite import cache_get
 router = APIRouter()
 
 
+def _normalize_factor_rows(rows) -> list[dict]:
+    if not isinstance(rows, list):
+        return []
+    out: list[dict] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        clean = dict(row)
+        if not isinstance(clean.get("drilldown"), list):
+            clean["drilldown"] = []
+        out.append(clean)
+    return out
+
+
 @router.get("/exposures")
 async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk_contribution)$")):
     data = load_current_payload("exposures")
@@ -26,7 +40,7 @@ async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk
             message="Exposure cache is not ready yet. Run refresh and try again.",
             refresh_mode="light",
         )
-    factors = data.get(mode, [])
+    factors = _normalize_factor_rows(data.get(mode, []))
     return {"mode": mode, "factors": factors, "_cached": True}
 
 

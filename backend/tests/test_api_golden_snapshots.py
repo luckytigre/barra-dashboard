@@ -59,15 +59,14 @@ def test_api_risk_matches_golden_snapshot(monkeypatch) -> None:
             }
         ],
         "cov_matrix": {
-            "factors": ["Beta", "Value"],
+            "factors": ["Beta", "Book-to-Price"],
             "correlation": [[1.0, 0.2], [0.2, 1.0]],
         },
         "risk_engine": {
             "specific_risk_ticker_count": 100,
-            "method_version": "v4_trbc_l2_country_us_dummy_2026_03_08",
+            "method_version": "v7_country_split_hc1_no_value_factor_2026_03_14",
         },
         "r_squared": 0.41,
-        "condition_number": 1100.0,
     }
 
     monkeypatch.setattr(

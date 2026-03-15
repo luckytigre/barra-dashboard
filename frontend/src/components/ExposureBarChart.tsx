@@ -33,6 +33,7 @@ interface ExposureBarChartProps {
   factors: FactorExposure[];
   onBarClick?: (factor: string) => void;
   mode?: "raw" | "sensitivity" | "risk_contribution";
+  orderByFactors?: string[];
 }
 
 const zeroLinePlugin: Plugin<"bar" | "line"> = {
@@ -82,7 +83,7 @@ const netMarkerPlugin: Plugin<"bar" | "line"> = {
   },
 };
 
-export default function ExposureBarChart({ factors, onBarClick, mode = "raw" }: ExposureBarChartProps) {
+export default function ExposureBarChart({ factors, onBarClick, mode = "raw", orderByFactors }: ExposureBarChartProps) {
   const axisLabel = mode === "risk_contribution"
     ? "% of total risk"
     : mode === "sensitivity"
@@ -122,13 +123,23 @@ export default function ExposureBarChart({ factors, onBarClick, mode = "raw" }: 
 
   // Sort by Toraniko regression hierarchy: industry → style (non-orth → orth).
   // Within each tier, sort by absolute net magnitude descending.
-  const sorted = [...decomposed].sort((a, b) => {
+  const baseSorted = [...decomposed].sort((a, b) => {
     const tierDiff = factorTier(a.factor) - factorTier(b.factor);
     if (tierDiff !== 0) return tierDiff;
     const byMagnitude = Math.abs(b.net) - Math.abs(a.net);
     if (byMagnitude !== 0) return byMagnitude;
     return a.factor.localeCompare(b.factor);
   });
+  const orderMap = orderByFactors ? new Map(orderByFactors.map((factor, index) => [factor, index])) : null;
+  const baseOrderMap = new Map(baseSorted.map((row, index) => [row.factor, index]));
+  const sorted = orderMap
+    ? [...baseSorted].sort((a, b) => {
+        const aIndex = orderMap.has(a.factor) ? Number(orderMap.get(a.factor)) : Number.POSITIVE_INFINITY;
+        const bIndex = orderMap.has(b.factor) ? Number(orderMap.get(b.factor)) : Number.POSITIVE_INFINITY;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return Number(baseOrderMap.get(a.factor) ?? 0) - Number(baseOrderMap.get(b.factor) ?? 0);
+      })
+    : baseSorted;
   // Find tier boundary indices (last index of each tier before the next tier starts)
   const tierBoundaries: number[] = [];
   for (let i = 0; i < sorted.length - 1; i++) {

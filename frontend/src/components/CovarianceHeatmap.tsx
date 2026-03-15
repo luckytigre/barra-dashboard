@@ -10,7 +10,7 @@ interface CovarianceHeatmapProps {
 }
 
 const STYLE_ORDER: string[] = [
-  "Book-to-Price", "Earnings Yield", "Value",
+  "Book-to-Price", "Earnings Yield",
   "Dividend Yield", "Profitability",
   "Growth", "Investment",
   "Leverage", "Size", "Nonlinear Size",
@@ -36,7 +36,8 @@ function corrColorStr(v: number): string {
 }
 
 function filterStyleFactors(data: CovMatrix): { factors: string[]; correlation: number[][] } {
-  const { factors, correlation } = data;
+  const factors = data.factors ?? [];
+  const correlation = data.correlation ?? data.matrix ?? [];
   const idxMap = new Map<string, number>();
   factors.forEach((f, i) => idxMap.set(f, i));
 
@@ -127,7 +128,7 @@ function drawHeatmap(
         ctx.stroke();
       }
 
-      // Value text
+      // Correlation text
       if (cellSize >= 22) {
         const absVal = Math.abs(val);
         ctx.fillStyle = absVal > 0.4 ? "rgba(232, 237, 249, 0.88)" : "rgba(169, 182, 210, 0.5)";
