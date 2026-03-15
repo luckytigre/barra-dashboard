@@ -114,6 +114,32 @@ def load_factor_return_history(
     years: int,
 ) -> tuple[str | None, list[tuple[str, float]]]:
     """Return latest factor-return date and historical rows for a factor."""
+    clean_factor = str(factor or "").strip()
+
+    def _load_sqlite() -> tuple[str | None, list[tuple[str, float]]]:
+        conn = sqlite3.connect(str(cache_db))
+        try:
+            latest_row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
+            latest = str(latest_row[0]).strip() if latest_row and latest_row[0] is not None else ""
+            if not latest:
+                return None, []
+            latest_dt = date.fromisoformat(latest)
+            start_dt = latest_dt - timedelta(days=365 * max(1, int(years)))
+            rows = conn.execute(
+                """
+                SELECT date, factor_return
+                FROM daily_factor_returns
+                WHERE factor_name = ?
+                  AND date >= ?
+                ORDER BY date
+                """,
+                (clean_factor, start_dt.isoformat()),
+            ).fetchall()
+            out = [(str(dt), float(raw_ret or 0.0)) for dt, raw_ret in rows]
+            return latest, out
+        finally:
+            conn.close()
+
     use_neon = _use_neon_surface(_FACTOR_HISTORY_SURFACE) and _path_matches_config(
         cache_db,
         config.SQLITE_PATH,
@@ -144,32 +170,11 @@ def load_factor_return_history(
                     (str(row.get("date")), float(row.get("factor_return") or 0.0))
                     for row in rows
                 ]
-                return latest, out
+                if out:
+                    return latest, out
         finally:
             pg_conn.close()
-
-    conn = sqlite3.connect(str(cache_db))
-    try:
-        latest_row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
-        latest = str(latest_row[0]).strip() if latest_row and latest_row[0] is not None else ""
-        if not latest:
-            return None, []
-        latest_dt = date.fromisoformat(latest)
-        start_dt = latest_dt - timedelta(days=365 * max(1, int(years)))
-        rows = conn.execute(
-            """
-            SELECT date, factor_return
-            FROM daily_factor_returns
-            WHERE factor_name = ?
-              AND date >= ?
-            ORDER BY date
-            """,
-            (str(factor), start_dt.isoformat()),
-        ).fetchall()
-        out = [(str(dt), float(raw_ret or 0.0)) for dt, raw_ret in rows]
-        return latest, out
-    finally:
-        conn.close()
+    return _load_sqlite()
 
 
 def load_price_history_rows(

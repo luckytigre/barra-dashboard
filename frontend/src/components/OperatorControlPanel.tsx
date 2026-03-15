@@ -65,6 +65,10 @@ function progressLabel(stage: OperatorLaneStage | null | undefined): string | nu
 }
 
 const LANE_HELP: Record<string, { plain: string; math: string }> = {
+  "publish-only": {
+    plain: "Republishes the current cached serving payloads without rebuilding universe analytics, health diagnostics, or core model outputs.",
+    math: "Current cache -> serving payload publish",
+  },
   "serve-refresh": {
     plain: "Rebuilds the frontend-facing portfolio, risk, exposure, and universe caches without pulling new source data or recomputing the core model.",
     math: "Holdings + current source tables + existing risk engine -> serving caches",

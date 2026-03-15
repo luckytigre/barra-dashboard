@@ -3,6 +3,7 @@
   "factors": [
     {
       "factor_id": "style_beta_score",
+      "factor_name": "style_beta_score",
       "value": 0.123456,
       "factor_vol": 0.05,
       "coverage_pct": 0.99,
@@ -17,6 +18,7 @@
     },
     {
       "factor_id": "industry_technology_equipment",
+      "factor_name": "industry_technology_equipment",
       "value": 0.2,
       "factor_vol": 0.1,
       "coverage_pct": 0.95,

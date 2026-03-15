@@ -399,11 +399,19 @@ def download_from_lseg(
         if rics_csv
         else None
     )
+    requested_ticker_set = set(requested_tickers or [])
+    requested_ric_set = set(requested_rics or [])
     universe_rows = _load_universe_from_security_master(
         conn,
         tickers=requested_tickers,
         rics=requested_rics,
     )
+    available_ticker_set = {str(row.get("ticker") or "").strip().upper() for row in universe_rows if row.get("ticker")}
+    available_ric_set = {str(row.get("ric") or "").strip().upper() for row in universe_rows if row.get("ric")}
+    matched_ticker_set = available_ticker_set & requested_ticker_set
+    matched_ric_set = available_ric_set & requested_ric_set
+    missing_requested_tickers = sorted(requested_ticker_set - matched_ticker_set)
+    missing_requested_rics = sorted(requested_ric_set - matched_ric_set)
 
     shard_count = max(1, int(shard_count))
     shard_index = int(shard_index)
@@ -423,6 +431,13 @@ def download_from_lseg(
             "as_of": as_of,
             "shard_index": int(shard_index),
             "shard_count": int(shard_count),
+            "requested_ticker_count": int(len(requested_ticker_set)),
+            "requested_ric_count": int(len(requested_ric_set)),
+            "matched_requested_ticker_count": int(len(matched_ticker_set)),
+            "matched_requested_ric_count": int(len(matched_ric_set)),
+            "missing_requested_tickers": missing_requested_tickers,
+            "missing_requested_rics": missing_requested_rics,
+            "requires_seeded_security_master": bool(requested_ticker_set or requested_ric_set),
         }
 
     ric_universe = sorted({r["ric"] for r in universe_rows})
@@ -463,7 +478,17 @@ def download_from_lseg(
     company = pd.concat(company_parts, ignore_index=True) if company_parts else pd.DataFrame()
     if company is None or company.empty:
         conn.close()
-        return {"status": "no-data", "as_of": as_of, "universe": len(universe_rows)}
+        return {
+            "status": "no-data",
+            "as_of": as_of,
+            "universe": len(universe_rows),
+            "requested_ticker_count": int(len(requested_ticker_set)),
+            "requested_ric_count": int(len(requested_ric_set)),
+            "matched_requested_ticker_count": int(len(matched_ticker_set)),
+            "matched_requested_ric_count": int(len(matched_ric_set)),
+            "missing_requested_tickers": missing_requested_tickers,
+            "missing_requested_rics": missing_requested_rics,
+        }
 
     instrument_col = _pick_col(company, ["Instrument"])
     if not instrument_col:
@@ -531,6 +556,7 @@ def download_from_lseg(
     fundamentals_rows: list[dict[str, Any]] = []
     prices_rows: list[dict[str, Any]] = []
     classification_rows: list[dict[str, Any]] = []
+    prices_rows_skipped_missing_close = 0
 
     def _txt(v: Any) -> str | None:
         if isinstance(v, pd.Series):
@@ -626,21 +652,24 @@ def download_from_lseg(
         volume_px = _float_or_none(row.get(col["price_volume"]) if col["price_volume"] else None)
         price_ccy = _txt(row.get(col["price_currency"]) if col["price_currency"] else None)
         report_ccy = _txt(row.get(col["report_currency"]) if col["report_currency"] else None)
-        prices_rows.append(
-            {
-                "ric": ric,
-                "date": as_of,
-                "open": open_px if open_px is not None else close,
-                "high": high_px if high_px is not None else close,
-                "low": low_px if low_px is not None else close,
-                "close": close,
-                "adj_close": close,
-                "volume": volume_px,
-                "currency": (price_ccy or report_ccy),
-                "source": "lseg_toolkit",
-                "updated_at": updated_at,
-            }
-        )
+        if close is None:
+            prices_rows_skipped_missing_close += 1
+        else:
+            prices_rows.append(
+                {
+                    "ric": ric,
+                    "date": as_of,
+                    "open": open_px if open_px is not None else close,
+                    "high": high_px if high_px is not None else close,
+                    "low": low_px if low_px is not None else close,
+                    "close": close,
+                    "adj_close": close,
+                    "volume": volume_px,
+                    "currency": (price_ccy or report_ccy),
+                    "source": "lseg_toolkit",
+                    "updated_at": updated_at,
+                }
+            )
 
         classification_rows.append(
             {
@@ -685,11 +714,18 @@ def download_from_lseg(
         "security_master_rows_upserted": int(n_sm),
         "fundamental_rows_inserted": int(n_f),
         "price_rows_inserted": int(n_p),
+        "price_rows_skipped_missing_close": int(prices_rows_skipped_missing_close),
         "classification_rows_inserted": int(n_c),
         "db_path": str(db_path),
         "shard_index": int(shard_index),
         "shard_count": int(shard_count),
         "bad_instruments_skipped": int(bad_instruments),
+        "requested_ticker_count": int(len(requested_ticker_set)),
+        "requested_ric_count": int(len(requested_ric_set)),
+        "matched_requested_ticker_count": int(len(matched_ticker_set)),
+        "matched_requested_ric_count": int(len(matched_ric_set)),
+        "missing_requested_tickers": missing_requested_tickers,
+        "missing_requested_rics": missing_requested_rics,
     }
     print(out)
     return out

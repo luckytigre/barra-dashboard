@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import sqlite3
 from pathlib import Path
@@ -36,6 +38,7 @@ from backend.data import sqlite
 logger = logging.getLogger(__name__)
 ELIGIBILITY_WELL_COVERED_RATIO = 0.50
 ELIGIBILITY_WELL_COVERED_MIN_N = 100
+HEALTH_DIAGNOSTICS_CACHE_VERSION = "2026_03_15_v1"
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -64,6 +67,59 @@ def build_risk_engine_state(
         "recomputed_this_refresh": bool(recomputed_this_refresh),
         "recompute_reason": str(recompute_reason),
     }
+
+
+def _positions_fingerprint(positions: list[PositionPayload]) -> str:
+    normalized = []
+    for row in positions:
+        if not isinstance(row, dict):
+            continue
+        normalized.append(
+            {
+                "ticker": str(row.get("ticker") or "").upper(),
+                "weight": round(_finite_float(row.get("weight"), 0.0), 10),
+                "market_value": round(_finite_float(row.get("market_value"), 0.0), 4),
+                "quantity": round(_finite_float(row.get("quantity"), 0.0), 6),
+            }
+        )
+    normalized.sort(key=lambda item: item["ticker"])
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _health_reuse_signature(
+    *,
+    source_dates: SourceDatesPayload,
+    risk_engine_state: RiskEngineStatePayload,
+    positions: list[PositionPayload],
+    total_value: float,
+) -> dict[str, Any]:
+    return {
+        "cache_version": HEALTH_DIAGNOSTICS_CACHE_VERSION,
+        "source_dates": dict(source_dates or {}),
+        "risk_engine": {
+            "method_version": str(risk_engine_state.get("method_version") or ""),
+            "last_recompute_date": str(risk_engine_state.get("last_recompute_date") or ""),
+            "factor_returns_latest_date": str(risk_engine_state.get("factor_returns_latest_date") or ""),
+            "lookback_days": int(risk_engine_state.get("lookback_days") or 0),
+            "specific_risk_ticker_count": int(risk_engine_state.get("specific_risk_ticker_count") or 0),
+        },
+        "positions_fingerprint": _positions_fingerprint(positions),
+        "total_value": round(_finite_float(total_value, 0.0), 2),
+    }
+
+
+def _can_reuse_cached_health_payload(
+    cached_payload: Any,
+    *,
+    signature: dict[str, Any],
+) -> bool:
+    if not isinstance(cached_payload, dict):
+        return False
+    cached_signature = cached_payload.get("_reuse_signature")
+    if not isinstance(cached_signature, dict):
+        return False
+    return cached_signature == signature
 
 
 def build_model_sanity_report(
@@ -314,6 +370,12 @@ def stage_refresh_cache_snapshot(
         "source_dates": source_dates,
     }
     _stage_cache("portfolio", portfolio_data)
+    health_reuse_signature = _health_reuse_signature(
+        source_dates=source_dates,
+        risk_engine_state=risk_engine_state,
+        positions=positions,
+        total_value=total_value,
+    )
 
     risk_data = {
         "risk_shares": risk_shares,
@@ -363,19 +425,30 @@ def stage_refresh_cache_snapshot(
     _stage_cache("model_sanity", sanity)
     _stage_cache("cuse4_foundation", cuse4_foundation)
 
-    health_payload = compute_health_diagnostics(
-        data_db,
-        cache_db,
-        risk_payload=risk_data,
-        portfolio_payload=portfolio_data,
-        universe_payload=universe_loadings,
-        covariance_payload=cov_payload,
-        source_dates=source_dates,
-        run_id=run_id,
-        snapshot_id=snapshot_id,
-    )
+    cached_health_payload = sqlite.cache_get("health_diagnostics") if light_mode else None
+    if _can_reuse_cached_health_payload(cached_health_payload, signature=health_reuse_signature):
+        health_payload = dict(cached_health_payload)
+        health_refreshed = False
+    else:
+        health_payload = compute_health_diagnostics(
+            data_db,
+            cache_db,
+            risk_payload=risk_data,
+            portfolio_payload=portfolio_data,
+            universe_payload=universe_loadings,
+            covariance_payload=cov_payload,
+            source_dates=source_dates,
+            run_id=run_id,
+            snapshot_id=snapshot_id,
+        )
+        health_refreshed = True
+    if isinstance(health_payload, dict):
+        health_payload = dict(health_payload)
+        health_payload["run_id"] = str(run_id)
+        health_payload["snapshot_id"] = str(snapshot_id)
+        health_payload["_reuse_signature"] = health_reuse_signature
+        health_payload["cache_version"] = HEALTH_DIAGNOSTICS_CACHE_VERSION
     _stage_cache("health_diagnostics", health_payload)
-    health_refreshed = True
     logger.info(
         "Staged core payloads: positions=%s factors=%s health_refreshed=%s",
         len(positions),

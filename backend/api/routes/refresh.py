@@ -39,13 +39,14 @@ async def refresh(
     resume_run_id: str | None = Query(None),
     from_stage: str | None = Query(None),
     to_stage: str | None = Query(None),
+    x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
     x_refresh_token: str | None = Header(default=None, alias="X-Refresh-Token"),
     authorization: str | None = Header(default=None),
 ):
     if config.cloud_mode():
         require_role(
             "operator",
-            x_operator_token=x_refresh_token,
+            x_operator_token=x_operator_token,
             x_refresh_token=x_refresh_token,
             authorization=authorization,
         )
@@ -70,6 +71,15 @@ async def refresh(
             },
         )
     if not started:
+        if str(state.get("status") or "") != "running":
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "status": "failed_to_start",
+                    "message": "Refresh failed to start.",
+                    "refresh": state,
+                },
+            )
         return JSONResponse(
             status_code=409,
             content={
@@ -87,13 +97,14 @@ async def refresh(
 
 @router.get("/refresh/status")
 async def refresh_status(
+    x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
     x_refresh_token: str | None = Header(default=None, alias="X-Refresh-Token"),
     authorization: str | None = Header(default=None),
 ):
     if config.cloud_mode():
         require_role(
             "operator",
-            x_operator_token=x_refresh_token,
+            x_operator_token=x_operator_token,
             x_refresh_token=x_refresh_token,
             authorization=authorization,
         )

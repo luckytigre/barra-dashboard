@@ -13,6 +13,7 @@
   "factor_details": [
     {
       "factor_id": "style_beta_score",
+      "factor_name": "style_beta_score",
       "category": "style",
       "exposure": 0.13,
       "factor_vol": 0.05,

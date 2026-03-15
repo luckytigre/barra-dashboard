@@ -488,7 +488,7 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
 
     out = pipeline.run_refresh(
         mode="light",
-        refresh_scope="holdings_only",
+        refresh_scope="full",
         skip_snapshot_rebuild=True,
         skip_cuse4_foundation=True,
         skip_risk_engine=True,
@@ -498,7 +498,7 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
     assert out["universe_loadings_reused"] is True
     assert out["universe_loadings_reuse_reason"] == "source_and_risk_engine_match"
     assert out["model_outputs_write"]["status"] == "skipped"
-    assert out["model_outputs_write"]["reason"] == "holdings_only_fast_path"
+    assert out["model_outputs_write"]["reason"] == "risk_engine_reused"
     assert captured["reuse_cached_static_payloads"] is True
     assert captured["published"] == "snap_1"
     assert isinstance(captured["staged_universe_loadings"], dict)
@@ -535,7 +535,7 @@ def test_cached_universe_loadings_reuse_requires_matching_risk_engine_and_source
     assert reason == "risk_engine_state_changed"
 
 
-def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
+def test_pipeline_fallback_light_refresh_skips_model_outputs_when_risk_engine_is_reused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
@@ -680,7 +680,7 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
     monkeypatch.setattr(
         pipeline.model_outputs,
         "persist_model_outputs",
-        lambda **kwargs: captured.update({"persisted_model_outputs": True}) or {"status": "ok", "run_id": kwargs["run_id"]},
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("model outputs should be skipped when risk engine is reused")),
     )
     monkeypatch.setattr(
         pipeline.serving_outputs,
@@ -702,7 +702,8 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
     assert out["universe_loadings_reused"] is False
     assert out["universe_loadings_reuse_reason"] == "rebuilt"
     assert captured["reuse_cached_static_payloads"] is False
-    assert captured["persisted_model_outputs"] is True
+    assert out["model_outputs_write"]["status"] == "skipped"
+    assert out["model_outputs_write"]["reason"] == "risk_engine_reused"
 
 
 def test_run_refresh_prefers_live_risk_engine_artifacts_over_active_snapshot(
@@ -860,6 +861,52 @@ def test_run_refresh_prefers_live_risk_engine_artifacts_over_active_snapshot(
     assert captured["recompute_reason"] == "orchestrator_precomputed"
 
 
+def test_run_refresh_publish_only_republishes_cached_payloads_without_recompute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    payloads = {
+        "portfolio": {"position_count": 2, "total_value": 123.45, "source_dates": {"prices_asof": "2026-03-14"}},
+        "risk": {"risk_engine": {"method_version": "v8"}},
+        "model_sanity": {"status": "ok"},
+        "refresh_meta": {
+            "cross_section_snapshot": {"status": "reused"},
+            "risk_engine": {"method_version": "v8"},
+            "cuse4_foundation": {"status": "ok"},
+        },
+        "eligibility": {},
+        "exposures": {},
+        "health_diagnostics": {"status": "ok"},
+        "universe_factors": {},
+        "universe_loadings": {},
+    }
+
+    monkeypatch.setattr(pipeline, "_load_publishable_payloads", lambda: (dict(payloads), []))
+    monkeypatch.setattr(
+        pipeline.serving_outputs,
+        "persist_current_payloads",
+        lambda **kwargs: captured.update({"payloads": kwargs["payloads"], "refresh_mode": kwargs["refresh_mode"]}) or {
+            "status": "ok",
+            "snapshot_id": kwargs["snapshot_id"],
+        },
+    )
+    monkeypatch.setattr(pipeline.sqlite, "cache_set", lambda key, value, **kwargs: captured.setdefault("cache_set", []).append((key, value)))
+    monkeypatch.setattr(
+        pipeline.core_reads,
+        "load_source_dates",
+        lambda: (_ for _ in ()).throw(AssertionError("publish-only should not load source dates")),
+    )
+
+    out = pipeline.run_refresh(mode="publish")
+
+    assert out["status"] == "ok"
+    assert out["mode"] == "publish"
+    assert out["universe_loadings_reuse_reason"] == "publish_only_cached_payloads"
+    assert out["health_refreshed"] is False
+    assert captured["refresh_mode"] == "publish"
+    assert captured["payloads"] == payloads
+
+
 def test_run_model_pipeline_clears_pending_after_serving_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 
@@ -975,6 +1022,7 @@ def test_refresh_manager_marks_holdings_failure_on_exception(monkeypatch: pytest
 
     refresh_manager._run_in_background(
         job_id="abc123",
+        pipeline_run_id="api_abc123",
         profile="serve-refresh",
         mode="light",
         as_of_date=None,
@@ -986,6 +1034,7 @@ def test_refresh_manager_marks_holdings_failure_on_exception(monkeypatch: pytest
 
     assert captured["status"] == "failed"
     assert captured["profile"] == "serve-refresh"
+    assert captured["run_id"] == "api_abc123"
     assert captured["clear_pending"] is False
 
 
@@ -1021,6 +1070,7 @@ def test_refresh_manager_tracks_current_stage_from_pipeline_callback(monkeypatch
 
     refresh_manager._run_in_background(
         job_id="abc123",
+        pipeline_run_id="api_abc123",
         profile="serve-refresh",
         mode="light",
         as_of_date=None,
@@ -1037,10 +1087,45 @@ def test_refresh_manager_tracks_current_stage_from_pipeline_callback(monkeypatch
     assert any(update.get("status") == "ok" for update in updates)
 
 
+def test_start_refresh_reports_light_mode_for_source_daily_and_uses_pipeline_run_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started_calls: list[dict[str, object]] = []
+
+    class _FakeLock:
+        def acquire(self, blocking: bool = False) -> bool:
+            return True
+
+        def release(self) -> None:
+            return None
+
+    class _FakeThread:
+        def __init__(self, *args, **kwargs) -> None:
+            self.kwargs = kwargs
+
+        def start(self) -> None:
+            return None
+
+    monkeypatch.setattr(refresh_manager, "_RUN_LOCK", _FakeLock())
+    monkeypatch.setattr(refresh_manager.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(refresh_manager, "mark_refresh_started", lambda **kwargs: started_calls.append(kwargs))
+
+    started, state = refresh_manager.start_refresh(
+        profile="source-daily",
+        force_risk_recompute=False,
+    )
+
+    assert started is True
+    assert state["mode"] == "light"
+    assert state["pipeline_run_id"].startswith("api_")
+    assert started_calls[0]["run_id"] == state["pipeline_run_id"]
+
+
 def test_start_refresh_marks_holdings_failure_if_worker_start_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
+    state_store: dict[str, object] = {}
 
-    monkeypatch.setattr(refresh_manager, "_set_state", lambda **kwargs: kwargs)
+    monkeypatch.setattr(refresh_manager, "_set_state", lambda **kwargs: state_store.update(kwargs) or dict(state_store))
     monkeypatch.setattr(refresh_manager, "mark_refresh_started", lambda **kwargs: None)
     monkeypatch.setattr(refresh_manager, "mark_refresh_finished", lambda **kwargs: captured.update(kwargs))
 
@@ -1070,4 +1155,5 @@ def test_start_refresh_marks_holdings_failure_if_worker_start_fails(monkeypatch:
     assert state["status"] == "failed"
     assert captured["status"] == "failed"
     assert captured["profile"] == "serve-refresh"
+    assert captured["run_id"] == state["pipeline_run_id"]
     assert captured["clear_pending"] is False

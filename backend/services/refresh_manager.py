@@ -14,6 +14,7 @@ from backend.data.cache import cache_get, cache_set
 from backend.orchestration.run_model_pipeline import (
     PROFILE_CONFIG,
     STAGES,
+    planned_stages_for_profile,
     resolve_profile_name,
     run_model_pipeline,
 )
@@ -145,9 +146,17 @@ def _normalize_stage(name: str | None) -> str | None:
     return clean
 
 
+def _validate_stage_window(from_stage: str | None, to_stage: str | None) -> None:
+    if from_stage is None or to_stage is None:
+        return
+    if STAGES.index(from_stage) > STAGES.index(to_stage):
+        raise ValueError("--from-stage must be before or equal to --to-stage")
+
+
 def _run_in_background(
     *,
     job_id: str,
+    pipeline_run_id: str,
     profile: str,
     mode: str,
     as_of_date: str | None,
@@ -175,7 +184,7 @@ def _run_in_background(
         result = run_model_pipeline(
             profile=profile,
             as_of_date=as_of_date,
-            run_id=(None if resume_run_id else f"api_{job_id}"),
+            run_id=(None if resume_run_id else pipeline_run_id),
             resume_run_id=resume_run_id,
             from_stage=from_stage,
             to_stage=to_stage,
@@ -207,7 +216,7 @@ def _run_in_background(
         try:
             mark_refresh_finished(
                 profile=profile,
-                run_id=(str(resume_run_id).strip() if resume_run_id else f"api_{job_id}"),
+                run_id=str(pipeline_run_id).strip() or None,
                 status="failed",
                 message=str(exc),
                 clear_pending=False,
@@ -250,20 +259,28 @@ def start_refresh(
     """Start refresh in a background thread. Returns (started, status)."""
     resolved_profile = _resolve_profile(profile)
     _assert_profile_allowed(resolved_profile)
-    mode = "light" if resolved_profile == "serve-refresh" else "full"
+    mode = str(PROFILE_CONFIG.get(resolved_profile, {}).get("serving_mode") or "full")
     stage_from = _normalize_stage(from_stage)
     stage_to = _normalize_stage(to_stage)
+    _validate_stage_window(stage_from, stage_to)
     force_core_effective = bool(force_core or force_risk_recompute)
+    planned_stages_for_profile(
+        profile=resolved_profile,
+        from_stage=stage_from,
+        to_stage=stage_to,
+        force_core=force_core_effective,
+    )
 
     if not _RUN_LOCK.acquire(blocking=False):
         return False, _snapshot()
 
     job_id = uuid.uuid4().hex[:12]
+    pipeline_run_id = (str(resume_run_id).strip() if resume_run_id else f"api_{job_id}")
     now = _now_iso()
     running_state = _set_state(
         status="running",
         job_id=job_id,
-        pipeline_run_id=(str(resume_run_id).strip() if resume_run_id else None),
+        pipeline_run_id=pipeline_run_id,
         profile=resolved_profile,
         requested_profile=(str(profile).strip().lower() if profile else None),
         mode=mode,
@@ -291,7 +308,7 @@ def start_refresh(
         error=None,
     )
     try:
-        mark_refresh_started(profile=resolved_profile, run_id=job_id)
+        mark_refresh_started(profile=resolved_profile, run_id=pipeline_run_id)
     except Exception:
         logger.exception("Failed to mark holdings refresh start state")
 
@@ -299,6 +316,7 @@ def start_refresh(
         target=_run_in_background,
         kwargs={
             "job_id": job_id,
+            "pipeline_run_id": pipeline_run_id,
             "profile": resolved_profile,
             "mode": str(mode),
             "refresh_scope": (str(refresh_scope).strip().lower() if refresh_scope else None),
@@ -318,7 +336,7 @@ def start_refresh(
         try:
             mark_refresh_finished(
                 profile=resolved_profile,
-                run_id=job_id,
+                run_id=pipeline_run_id,
                 status="failed",
                 message=str(exc),
                 clear_pending=False,

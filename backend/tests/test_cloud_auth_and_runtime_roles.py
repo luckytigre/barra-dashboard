@@ -26,7 +26,19 @@ def test_cloud_refresh_requires_operator_token(monkeypatch) -> None:
     )
     client = TestClient(app)
     assert client.post("/api/refresh").status_code == 401
+    assert client.post("/api/refresh", headers={"X-Operator-Token": "op-secret"}).status_code == 202
     assert client.post("/api/refresh", headers={"X-Refresh-Token": "op-secret"}).status_code == 202
+
+
+def test_cloud_refresh_status_accepts_operator_header(monkeypatch) -> None:
+    monkeypatch.setattr(refresh_routes.config, "APP_RUNTIME_ROLE", "cloud-serve")
+    monkeypatch.setattr(refresh_routes.config, "OPERATOR_API_TOKEN", "op-secret")
+    monkeypatch.setattr(refresh_routes, "get_refresh_status", lambda: {"status": "idle"})
+
+    client = TestClient(app)
+    res = client.get("/api/refresh/status", headers={"X-Operator-Token": "op-secret"})
+    assert res.status_code == 200
+    assert res.json()["refresh"]["status"] == "idle"
 
 
 def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> None:

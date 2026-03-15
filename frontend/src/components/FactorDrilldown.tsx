@@ -70,7 +70,7 @@ export default function FactorDrilldown({
   );
   const [sortAsc, setSortAsc] = useState(false);
   const [showAllRows, setShowAllRows] = useState(false);
-  const { data: historyData, isLoading: historyLoading } = useFactorHistory(factorId, 5);
+  const { data: historyData, error: historyError, isLoading: historyLoading } = useFactorHistory(factorId, 5);
   const displayFactor = shortFactorLabel(factorId, factorCatalog);
   const sorted = [...items].sort((a, b) => {
     if (sortKey === "ticker") {
@@ -136,7 +136,9 @@ export default function FactorDrilldown({
           </div>
         {historyLoading
           ? <div className="detail-history-empty loading-pulse">Loading 5Y history...</div>
-          : <FactorHistoryChart factor={factorName} points={historyData?.points ?? []} factorVol={factorVol} />}
+          : historyError
+            ? <div className="detail-history-empty">5Y factor-return history is temporarily unavailable for {displayFactor}.</div>
+            : <FactorHistoryChart factor={factorName} points={historyData?.points ?? []} factorVol={factorVol} />}
       </div>
       <p className="detail-panel-meta">
         {items.length} positions, {uniqueExposureCount} unique exposure values

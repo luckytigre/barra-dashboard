@@ -18,6 +18,8 @@ from backend.trading_calendar import previous_or_same_xnys_session
 
 DATA_DB = Path(config.DATA_DB_PATH)
 _CORE_READ_SURFACE = "core_reads"
+_LATEST_PRICES_TABLE = "security_prices_latest_cache"
+_LATEST_PRICES_META_TABLE = "security_prices_latest_cache_meta"
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +79,130 @@ def _table_exists(table: str) -> bool:
 
 def _missing_tables(*tables: str) -> list[str]:
     return [t for t in tables if not _table_exists(t)]
+
+
+def _ensure_latest_prices_cache_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {_LATEST_PRICES_TABLE} (
+            ric TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            close REAL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS {_LATEST_PRICES_META_TABLE} (
+            cache_key TEXT PRIMARY KEY,
+            cache_value TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        f"CREATE INDEX IF NOT EXISTS idx_{_LATEST_PRICES_TABLE}_date ON {_LATEST_PRICES_TABLE}(date)"
+    )
+
+
+def _latest_prices_signature(conn: sqlite3.Connection) -> str:
+    row = conn.execute(
+        """
+        SELECT MAX(date), COUNT(DISTINCT ric)
+        FROM security_prices_eod
+        """
+    ).fetchone()
+    latest_date = str(row[0] or "")
+    ric_count = int(row[1] or 0)
+    return f"{latest_date}|{ric_count}"
+
+
+def _latest_prices_cache_signature(conn: sqlite3.Connection) -> str | None:
+    row = conn.execute(
+        f"""
+        SELECT cache_value
+        FROM {_LATEST_PRICES_META_TABLE}
+        WHERE cache_key = 'source_signature'
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row or row[0] is None:
+        return None
+    return str(row[0])
+
+
+def _refresh_latest_prices_cache(conn: sqlite3.Connection) -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    source_signature = _latest_prices_signature(conn)
+    conn.execute(f"DELETE FROM {_LATEST_PRICES_TABLE}")
+    conn.execute(
+        f"""
+        INSERT INTO {_LATEST_PRICES_TABLE} (ric, date, close, updated_at)
+        SELECT p.ric, p.date, CAST(p.close AS REAL), ?
+        FROM security_prices_eod p
+        JOIN (
+            SELECT ric, MAX(date) AS date
+            FROM security_prices_eod
+            GROUP BY ric
+        ) latest
+          ON latest.ric = p.ric
+         AND latest.date = p.date
+        """
+        ,
+        (now_iso,),
+    )
+    conn.execute(f"DELETE FROM {_LATEST_PRICES_META_TABLE} WHERE cache_key = 'source_signature'")
+    conn.execute(
+        f"""
+        INSERT INTO {_LATEST_PRICES_META_TABLE} (cache_key, cache_value, updated_at)
+        VALUES ('source_signature', ?, ?)
+        """,
+        (source_signature, now_iso),
+    )
+
+
+def _load_latest_prices_sqlite(tickers: list[str] | None = None) -> pd.DataFrame:
+    missing = _missing_tables("security_master", "security_prices_eod")
+    if missing:
+        raise RuntimeError(
+            f"Missing required canonical table(s): {', '.join(sorted(missing))}"
+        )
+    clean = [t.upper() for t in (tickers or []) if t.strip()]
+    conn = sqlite3.connect(str(DATA_DB))
+    conn.row_factory = sqlite3.Row
+    try:
+        ensure_trbc_naming(conn)
+        _ensure_latest_prices_cache_schema(conn)
+        if _latest_prices_cache_signature(conn) != _latest_prices_signature(conn):
+            _refresh_latest_prices_cache(conn)
+            conn.commit()
+
+        ticker_filter = ""
+        params: list[Any] = []
+        if clean:
+            placeholders = ",".join("?" for _ in clean)
+            ticker_filter = f" WHERE UPPER(sm.ticker) IN ({placeholders})"
+            params = clean
+
+        rows = conn.execute(
+            f"""
+            SELECT
+                UPPER(sm.ric) AS ric,
+                UPPER(sm.ticker) AS ticker,
+                lp.date,
+                CAST(lp.close AS REAL) AS close
+            FROM {_LATEST_PRICES_TABLE} lp
+            JOIN security_master sm
+              ON sm.ric = lp.ric
+            {ticker_filter}
+            ORDER BY sm.ric ASC
+            """,
+            params,
+        ).fetchall()
+        return pd.DataFrame([dict(row) for row in rows]) if rows else pd.DataFrame()
+    finally:
+        conn.close()
 
 
 def _resolve_latest_barra_tuple() -> dict[str, str] | None:
@@ -304,6 +430,9 @@ def load_latest_fundamentals(
 
 
 def load_latest_prices(tickers: list[str] | None = None) -> pd.DataFrame:
+    if not _use_neon_core_reads():
+        return _load_latest_prices_sqlite(tickers)
+
     clean = [t.upper() for t in (tickers or []) if t.strip()]
     ticker_filter = ""
     params: list[Any] = []

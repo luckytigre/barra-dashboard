@@ -45,6 +45,16 @@ STAGES = [
 ]
 
 PROFILE_CONFIG: dict[str, dict[str, Any]] = {
+    "publish-only": {
+        "label": "Publish Only",
+        "description": "Republish already-current cached serving payloads without recomputing analytics.",
+        "core_policy": "never",
+        "serving_mode": "publish",
+        "raw_history_policy": "none",
+        "reset_core_cache": False,
+        "default_stages": ["serving_refresh"],
+        "enable_ingest": False,
+    },
     "serve-refresh": {
         "label": "Serve Refresh",
         "description": "Rebuild frontend-facing caches only.",
@@ -365,6 +375,50 @@ def _default_stage_selection(cfg: dict[str, Any], from_stage: str | None, to_sta
     return selected or list(STAGES)
 
 
+def _apply_force_core_stage_selection(
+    *,
+    selected: list[str],
+    force_core: bool,
+    from_stage: str | None,
+    to_stage: str | None,
+) -> list[str]:
+    if not force_core:
+        return selected
+    required = {"factor_returns", "risk_model"}
+    if required.issubset(set(selected)):
+        return selected
+    if from_stage or to_stage:
+        raise ValueError(
+            "force_core requires a stage window that includes factor_returns and risk_model, "
+            "or no explicit --from-stage/--to-stage."
+        )
+    wanted = set(selected) | required
+    return [stage for stage in STAGES if stage in wanted]
+
+
+def planned_stages_for_profile(
+    *,
+    profile: str,
+    from_stage: str | None = None,
+    to_stage: str | None = None,
+    force_core: bool = False,
+) -> tuple[str, dict[str, Any], list[str]]:
+    profile_key = resolve_profile_name(profile)
+    if profile_key not in PROFILE_CONFIG:
+        raise ValueError(
+            f"Unsupported profile '{profile}'. Expected one of: {', '.join(sorted(PROFILE_CONFIG))}"
+        )
+    cfg = PROFILE_CONFIG[profile_key]
+    selected = _default_stage_selection(cfg, from_stage, to_stage)
+    selected = _apply_force_core_stage_selection(
+        selected=selected,
+        force_core=bool(force_core),
+        from_stage=from_stage,
+        to_stage=to_stage,
+    )
+    return profile_key, cfg, selected
+
+
 def _selected_stages_require_source_as_of(selected: list[str]) -> bool:
     return any(stage in {"ingest", "estu_audit"} for stage in selected)
 
@@ -566,7 +620,9 @@ def _run_stage(
         if progress_callback is not None:
             progress_callback({"message": "Publishing serving payloads", "progress_kind": "stage"})
         skip_risk_engine, skip_reason = _serving_refresh_skip_risk_engine(
-            today_utc=datetime.now(timezone.utc).date()
+            today_utc=datetime.fromisoformat(
+                previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
+            ).date()
         )
         out = run_refresh(
             mode=serving_mode,
@@ -599,14 +655,12 @@ def run_model_pipeline(
     refresh_scope: str | None = None,
     stage_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
-    profile_key = resolve_profile_name(profile)
-    if profile_key not in PROFILE_CONFIG:
-        raise ValueError(
-            f"Unsupported profile '{profile}'. Expected one of: {', '.join(sorted(PROFILE_CONFIG))}"
-        )
-
-    cfg = PROFILE_CONFIG[profile_key]
-    selected = _default_stage_selection(cfg, from_stage, to_stage)
+    profile_key, cfg, selected = planned_stages_for_profile(
+        profile=profile,
+        from_stage=from_stage,
+        to_stage=to_stage,
+        force_core=bool(force_core),
+    )
     effective_run_id = (
         str(resume_run_id).strip()
         if resume_run_id and str(resume_run_id).strip()

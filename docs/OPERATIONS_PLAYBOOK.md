@@ -111,8 +111,13 @@ Runtime-role rule:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily-plus-core-if-due --resume-run-id <run_id>`
 - Refresh data from LSEG:
   - `python3 -m backend.scripts.download_data_lseg --db-path backend/runtime/data.db`
+  - Explicit `--tickers`, `--rics`, and index-derived names only operate on instruments already present in `security_master`; the command now reports any requested names that were not seeded there.
 - Repair historical volume coverage only (writes `TR.Volume` into `security_prices_eod.volume`):
   - `python3 -m backend.scripts.backfill_prices_range_lseg --db-path backend/runtime/data.db --start-date 2012-01-03 --end-date 2026-03-04 --volume-only --only-null-volume`
+  - Explicit `--rics` repairs likewise only target seeded `security_master` rows and report unmatched requested RICs in the result payload.
+- PIT history backfill (monthly/quarterly anchor dates for fundamentals/classification, with optional sparse anchor-date prices):
+  - `python3 -m backend.scripts.backfill_pit_history_lseg --db-path backend/runtime/data.db --start-date 2018-01-01 --end-date 2026-03-04 --frequency monthly`
+  - This is not a substitute for full daily price-history repair. Use `backfill_prices_range_lseg.py` when you need continuous daily `security_prices_eod` history for raw-history rebuilds or factor-return recompute coverage.
 - Bootstrap cUSE4 canonical source tables:
   - `python3 -m backend.scripts.bootstrap_cuse4_source_tables --db-path backend/runtime/data.db`
 - Build cUSE4 ESTU audit snapshot:

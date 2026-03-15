@@ -25,12 +25,72 @@ def test_unknown_profile_is_rejected() -> None:
         refresh_manager._resolve_profile("daily-with-core-if-due")
 
 
+def test_invalid_stage_window_is_rejected_before_worker_start() -> None:
+    with pytest.raises(ValueError, match="--from-stage must be before or equal to --to-stage"):
+        refresh_manager.start_refresh(
+            force_risk_recompute=False,
+            profile="serve-refresh",
+            from_stage="risk_model",
+            to_stage="ingest",
+        )
+
+
+def test_force_core_conflict_is_rejected_before_worker_start() -> None:
+    with pytest.raises(ValueError, match="force_core requires a stage window"):
+        refresh_manager.start_refresh(
+            force_risk_recompute=False,
+            force_core=True,
+            profile="serve-refresh",
+            from_stage="serving_refresh",
+            to_stage="serving_refresh",
+        )
+
+
+def test_force_core_adds_core_stages_for_serve_refresh_defaults() -> None:
+    selected = run_model_pipeline._apply_force_core_stage_selection(
+        selected=["serving_refresh"],
+        force_core=True,
+        from_stage=None,
+        to_stage=None,
+    )
+
+    assert selected == ["factor_returns", "risk_model", "serving_refresh"]
+
+
+def test_force_core_rejects_explicit_stage_window_without_core_stages() -> None:
+    with pytest.raises(ValueError, match="force_core requires a stage window"):
+        run_model_pipeline._apply_force_core_stage_selection(
+            selected=["serving_refresh"],
+            force_core=True,
+            from_stage="serving_refresh",
+            to_stage="serving_refresh",
+        )
+
+
+def test_planned_stages_for_profile_rejects_invalid_force_core_window() -> None:
+    with pytest.raises(ValueError, match="force_core requires a stage window"):
+        run_model_pipeline.planned_stages_for_profile(
+            profile="serve-refresh",
+            from_stage="serving_refresh",
+            to_stage="serving_refresh",
+            force_core=True,
+        )
+
+
 def test_cold_profile_config_enables_full_rebuild_and_cache_reset() -> None:
     cfg = run_model_pipeline.PROFILE_CONFIG["cold-core"]
     assert cfg["core_policy"] == "always"
     assert cfg["serving_mode"] == "full"
     assert cfg["raw_history_policy"] == "full-daily"
     assert bool(cfg["reset_core_cache"]) is True
+
+
+def test_publish_only_profile_config_reuses_cached_payloads() -> None:
+    cfg = run_model_pipeline.PROFILE_CONFIG["publish-only"]
+    assert cfg["core_policy"] == "never"
+    assert cfg["serving_mode"] == "publish"
+    assert cfg["raw_history_policy"] == "none"
+    assert cfg["default_stages"] == ["serving_refresh"]
 
 
 def test_source_daily_profile_enables_ingest_without_core() -> None:

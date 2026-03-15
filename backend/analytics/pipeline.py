@@ -69,6 +69,17 @@ _UNIVERSE_REUSE_RISK_KEYS = (
     "lookback_days",
     "specific_risk_ticker_count",
 )
+_PUBLISH_ONLY_PAYLOAD_NAMES = (
+    "eligibility",
+    "exposures",
+    "health_diagnostics",
+    "model_sanity",
+    "portfolio",
+    "refresh_meta",
+    "risk",
+    "universe_factors",
+    "universe_loadings",
+)
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -136,6 +147,20 @@ def _serialize_covariance(cov: pd.DataFrame) -> CovariancePayload:
         "factors": factors,
         "matrix": [[_finite_float(v, 0.0) for v in row] for row in mat.tolist()],
     }
+
+
+def _load_publishable_payloads() -> tuple[dict[str, Any], list[str]]:
+    payloads: dict[str, Any] = {}
+    missing: list[str] = []
+    for payload_name in _PUBLISH_ONLY_PAYLOAD_NAMES:
+        payload = sqlite.cache_get(payload_name)
+        if payload is None:
+            payload = serving_outputs.load_current_payload(payload_name)
+        if payload is None:
+            missing.append(payload_name)
+            continue
+        payloads[payload_name] = payload
+    return payloads, missing
 
 
 def _deserialize_covariance(payload: Any) -> pd.DataFrame:
@@ -274,23 +299,78 @@ def run_refresh(
     skip_cuse4_foundation: bool = False,
     skip_risk_engine: bool = False,
 ) -> dict[str, Any]:
-    """Pipeline refresh with two modes:
-    - full: weekly-gated risk engine + all downstream caches (including health diagnostics)
-    - light: fast cache refresh path; skips health diagnostics and avoids risk recompute
-      unless core risk caches are missing.
+    """Pipeline refresh with serving-oriented modes:
+    - full: weekly-gated risk engine + all downstream caches
+    - light: fast cache refresh path that prefers cache reuse and avoids risk recompute
+      unless risk caches are missing, stale, or explicitly forced.
+    - publish: republishes already-current cached payloads without recomputing analytics.
     """
     logger.info("Starting refresh pipeline...")
     refresh_mode = str(mode or "full").strip().lower()
     refresh_scope_key = str(refresh_scope or "").strip().lower() or None
-    if refresh_mode not in {"full", "light"}:
+    if refresh_mode not in {"full", "light", "publish"}:
         refresh_mode = "full"
     light_mode = refresh_mode == "light"
+    publish_only_mode = refresh_mode == "publish"
 
     refresh_started_at = datetime.now(timezone.utc).isoformat()
     run_id = f"model_run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     today_utc = datetime.fromisoformat(
         previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
     ).date()
+
+    if publish_only_mode:
+        payloads, missing_payloads = _load_publishable_payloads()
+        if missing_payloads:
+            raise RuntimeError(
+                "publish-only requested but cached serving payloads are incomplete: "
+                + ", ".join(sorted(missing_payloads))
+            )
+        snapshot_id = run_id
+        refresh_meta = dict(payloads.get("refresh_meta") or {})
+        risk_payload = dict(payloads.get("risk") or {})
+        portfolio_payload = dict(payloads.get("portfolio") or {})
+        serving_outputs_write = serving_outputs.persist_current_payloads(
+            data_db=DATA_DB,
+            run_id=run_id,
+            snapshot_id=snapshot_id,
+            refresh_mode=refresh_mode,
+            payloads=payloads,
+            replace_all=True,
+        )
+        neon_write = serving_outputs_write.get("neon_write") if isinstance(serving_outputs_write, dict) else None
+        if (
+            config.cloud_mode()
+            and config.neon_surface_enabled("serving_outputs")
+            and isinstance(neon_write, dict)
+            and str(neon_write.get("status") or "") != "ok"
+        ):
+            raise RuntimeError(f"Serving payload Neon write failed: {neon_write}")
+        model_outputs_write = {
+            "status": "skipped",
+            "reason": "publish_only",
+            "run_id": run_id,
+        }
+        sqlite.cache_set("model_outputs_write", model_outputs_write)
+        sqlite.cache_set("serving_outputs_write", serving_outputs_write)
+        return {
+            "status": "ok",
+            "run_id": run_id,
+            "snapshot_id": snapshot_id,
+            "positions": int((portfolio_payload.get("position_count") or 0)),
+            "total_value": round(_finite_float(portfolio_payload.get("total_value"), 0.0), 2),
+            "mode": refresh_mode,
+            "refresh_scope": refresh_scope_key,
+            "cross_section_snapshot": dict(refresh_meta.get("cross_section_snapshot") or {"status": "reused"}),
+            "risk_engine": dict(risk_payload.get("risk_engine") or refresh_meta.get("risk_engine") or {}),
+            "model_sanity": dict(payloads.get("model_sanity") or {"status": "unknown"}),
+            "cuse4_foundation": dict(refresh_meta.get("cuse4_foundation") or {"status": "reused"}),
+            "health_refreshed": False,
+            "universe_loadings_reused": True,
+            "universe_loadings_reuse_reason": "publish_only_cached_payloads",
+            "model_outputs_write": model_outputs_write,
+            "serving_outputs_write": serving_outputs_write,
+        }
 
     if skip_snapshot_rebuild:
         snapshot_build: SnapshotBuildPayload = {
@@ -440,7 +520,7 @@ def run_refresh(
     universe_loadings_reuse_reason = "not_attempted"
     cached_universe_loadings = (
         sqlite.cache_get("universe_loadings")
-        if refresh_scope_key == "holdings_only" and light_mode and not recomputed_this_refresh
+        if light_mode and not recomputed_this_refresh
         else None
     )
     if cached_universe_loadings is not None:
@@ -546,8 +626,7 @@ def run_refresh(
         }))
 
     reuse_cached_risk_display = bool(
-        refresh_scope_key == "holdings_only"
-        and light_mode
+        light_mode
         and universe_loadings_reused
         and not recomputed_this_refresh
     )
@@ -638,8 +717,7 @@ def run_refresh(
         cuse4_foundation=cuse4_foundation,
         light_mode=light_mode,
         reuse_cached_static_payloads=bool(
-            refresh_scope_key == "holdings_only"
-            and light_mode
+            light_mode
             and universe_loadings_reused
             and not recomputed_this_refresh
         ),
@@ -654,17 +732,12 @@ def run_refresh(
 
     model_outputs_write: dict[str, Any] = {"status": "skipped"}
     serving_outputs_write: dict[str, Any] = {"status": "skipped"}
-    skip_model_outputs_persistence = bool(
-        refresh_scope_key == "holdings_only"
-        and light_mode
-        and universe_loadings_reused
-        and not recomputed_this_refresh
-    )
+    skip_model_outputs_persistence = not recomputed_this_refresh
     try:
         if skip_model_outputs_persistence:
             model_outputs_write = {
                 "status": "skipped",
-                "reason": "holdings_only_fast_path",
+                "reason": "risk_engine_reused",
                 "run_id": run_id,
             }
         else:
