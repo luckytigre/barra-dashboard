@@ -84,7 +84,6 @@ def test_cloud_operator_status_requires_operator_token(monkeypatch) -> None:
     monkeypatch.setattr(operator_route.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(operator_route.config, "OPERATOR_API_TOKEN", "op-secret")
     monkeypatch.setattr(operator_route.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
-    monkeypatch.setattr(operator_route.job_runs, "recent_run_summaries_by_profile", lambda **kwargs: {})
     monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
     monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
 

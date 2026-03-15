@@ -422,6 +422,7 @@ Where this remains an approximation:
    - Stage checkpoints persist in `job_run_status`.
    - `cloud-serve` allows only `serve-refresh`; source ingest remains a `local-ingest` responsibility.
    - `ingest` stage always runs canonical bootstrap checks; optional live LSEG ingest is controlled by `ORCHESTRATOR_ENABLE_INGEST`.
+   - Orchestrator-managed ingest is a single full-universe pass; any manual sharding belongs to the direct ingest/backfill scripts, not the profile lane.
 9. Downstream usage:
    - Portfolio exposures/risk attribution and API caches read from processed model outputs, not raw ingest tables.
    - Dashboard-serving payloads persist durably in `serving_payload_current` so cloud reads do not depend solely on transient local cache state.

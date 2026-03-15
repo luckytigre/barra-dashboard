@@ -51,7 +51,7 @@
   - factor-return recompute now determines uncached dates before loading prices and only reads the bounded price window needed for those dates plus the immediately prior session.
 - `cold-core`: full historical reset for structural data changes (new/changed historical prices, volume, fundamentals, classification, or factor methodology).
   - This path rebuilds `barra_raw_cross_section_history` over full history and clears core cache tables before recomputing factor returns/risk.
-  - UI now requires explicit confirmation before starting this lane from the operator deck.
+  - This lane is an explicit operator/API path; it is not exposed as a one-click dashboard control in the current frontend.
 - `universe-add`: finalization lane after explicit `security_master` merge and targeted source backfills for new names.
 
 Runtime-role rule:
@@ -67,14 +67,8 @@ Runtime-role rule:
 - Data page is for source-table lineage, coverage, cache surfaces, and integrity diagnostics.
 - Operator Status and header health are the live runtime truth.
 - Data/Health diagnostics are deeper local-instance maintenance panels and may lag the cloud-serving view.
-- Operator lane cards show:
-  - plain-English lane purpose
-  - latest run state
-  - latest run elapsed time and delta versus the previous run
-  - slowest stage for the latest run
-  - recent-run history strip
-  - stage-level detail
-  - separate Neon mirror and Neon parity status
+- Health now shows compact per-lane status cards plus runtime/source-recency cards.
+- Lane-specific refresh controls and detailed run-history drilldowns are currently API/CLI-driven rather than exposed directly in the frontend.
 
 ## Local App Lifecycle
 - Preferred local launch path: `make app-up`
@@ -146,12 +140,7 @@ Runtime-role rule:
   - only the canonical serving-refresh writer opts into `replace_all=true`, which keeps destructive delete behavior explicit instead of implicit.
 - `refresh_status`: background orchestrator state snapshot.
   - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
-- operator lane summaries also expose additive persisted run-timing fields:
-  - `duration_seconds`
-  - `duration_delta_seconds`
-  - `duration_delta_pct`
-  - `stage_duration_seconds_total`
-  - `slowest_stage`
+- operator lane summaries expose the latest persisted run state, while richer in-flight stage progress remains part of `refresh_status` and backend/operator diagnostics.
 
 ## Factor-Return Durability And Parity
 - Durable SQLite factor-return persistence now replaces stale date slices instead of only writing rows from the latest durable date forward.
@@ -239,6 +228,7 @@ Runtime-role rule:
 - Orchestrator ingest behavior:
   - Stage `ingest` now always runs bootstrap checks.
   - Live ingest remains opt-in via `ORCHESTRATOR_ENABLE_INGEST=true`.
+  - Orchestrator live ingest runs as one full-universe pass; use the direct LSEG ingest script for any manual shard/chunk workflow.
 - Security master key policy:
   - `security_master` is physically keyed by `ric`.
   - deprecated `sid`/`permid` and dead instrument metadata were removed from the canonical schema.

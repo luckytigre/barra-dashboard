@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,10 @@ import numpy as np
 import pandas as pd
 
 from backend import config
+from backend.analytics.refresh_policy import (
+    latest_factor_return_date as _latest_factor_return_date_impl,
+    risk_recompute_due as _risk_recompute_due_impl,
+)
 from backend.analytics.contracts import (
     ComponentSharesPayload,
     CovarianceMatrixPayload,
@@ -129,13 +132,17 @@ def _load_cached_risk_display_payload() -> CovarianceMatrixPayload | None:
     return dict(cov_matrix)
 
 
-def _parse_iso_date(value: Any) -> date | None:
-    if value is None:
-        return None
-    try:
-        return datetime.fromisoformat(str(value)).date()
-    except (TypeError, ValueError):
-        return None
+def _risk_recompute_due(meta: dict[str, Any], *, today_utc: date) -> tuple[bool, str]:
+    return _risk_recompute_due_impl(
+        meta,
+        today_utc=today_utc,
+        method_version=RISK_ENGINE_METHOD_VERSION,
+        interval_days=config.RISK_RECOMPUTE_INTERVAL_DAYS,
+    )
+
+
+def _latest_factor_return_date(cache_db: Path) -> str | None:
+    return _latest_factor_return_date_impl(cache_db)
 
 
 def _serialize_covariance(cov: pd.DataFrame) -> CovariancePayload:
@@ -153,9 +160,9 @@ def _load_publishable_payloads() -> tuple[dict[str, Any], list[str]]:
     payloads: dict[str, Any] = {}
     missing: list[str] = []
     for payload_name in _PUBLISH_ONLY_PAYLOAD_NAMES:
-        payload = sqlite.cache_get(payload_name)
+        payload = serving_outputs.load_current_payload(payload_name)
         if payload is None:
-            payload = serving_outputs.load_current_payload(payload_name)
+            payload = sqlite.cache_get(payload_name)
         if payload is None:
             missing.append(payload_name)
             continue
@@ -177,33 +184,6 @@ def _deserialize_covariance(payload: Any) -> pd.DataFrame:
     if arr.ndim != 2 or arr.shape[0] != len(factors) or arr.shape[1] != len(factors):
         return pd.DataFrame()
     return pd.DataFrame(arr, index=factors, columns=factors)
-
-
-def _latest_factor_return_date(cache_db: Path) -> str | None:
-    conn = sqlite3.connect(str(cache_db))
-    try:
-        row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
-    except sqlite3.OperationalError:
-        row = None
-    finally:
-        conn.close()
-    if not row or not row[0]:
-        return None
-    return str(row[0])
-
-
-def _risk_recompute_due(meta: dict[str, Any], *, today_utc: date) -> tuple[bool, str]:
-    if not meta:
-        return True, "missing_meta"
-    if str(meta.get("method_version") or "") != RISK_ENGINE_METHOD_VERSION:
-        return True, "method_version_change"
-    last_recompute = _parse_iso_date(meta.get("last_recompute_date"))
-    if last_recompute is None:
-        return True, "missing_last_recompute_date"
-    interval = max(1, int(config.RISK_RECOMPUTE_INTERVAL_DAYS))
-    if (today_utc - last_recompute).days >= interval:
-        return True, f"interval_elapsed_{interval}d"
-    return False, "within_interval"
 
 
 def _specific_risk_by_ticker_view(

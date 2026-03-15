@@ -9,7 +9,7 @@ Status: Canonical reference document
 Implemented now:
 - canonical orchestrator lane names are live in `run_model_pipeline`
 - `/api/operator/status` exposes lane status, source recency, core-due state, refresh state, and Neon parity health
-- `/api/operator/status` also carries backend-authoritative holdings dirty state, runtime warnings, and per-lane recent-run history
+- `/api/operator/status` also carries backend-authoritative holdings dirty state and runtime warnings
 - Health page now acts as the live operator control deck and freshness/model-quality surface
 - Data page now acts as the source-table/cache diagnostics surface
 - Health page is now split into a shell plus lazily mounted diagnostics sections so heavy chart bundles load only after explicit user intent
@@ -310,6 +310,7 @@ Primary trigger:
 Current implemented path:
 - `source-daily`
 - actual live ingest still depends on `ORCHESTRATOR_ENABLE_INGEST=true`
+- orchestrator-driven live ingest is a single full-universe pass; manual sharded runs belong on the direct LSEG ingest script, not the orchestrator lane
 - This lane is intentionally unavailable in `cloud-serve`.
 
 ### 3) `source-daily-plus-core-if-due`
@@ -456,7 +457,7 @@ This is already the implemented direction and should remain the rule.
 
 ## Frontend Observability Model
 
-The frontend should expose operations by lane, not as one vague status.
+The frontend should expose backend/runtime truth clearly, without pretending to offer deeper operator controls than it actually does.
 
 ### Header-level signals
 
@@ -464,19 +465,12 @@ The frontend should expose operations by lane, not as one vague status.
 - refresh running / idle / failed
 - Neon sync health
 
-### Data or Health page operator cards
+### Health-page operator cards
 
 Should show:
-- last `serve-refresh`
-- last `source-daily`
-- last `core-weekly`
-- last `cold-core`
-- last `universe-add`
-- latest run elapsed time and delta versus the previous run
-- slowest stage for the latest run
-- recent run history per lane
-- latest stage detail per lane
-- current stage, stage index, and stage count for any in-flight orchestrated run
+- compact status for each canonical lane (`serve-refresh`, `source-daily`, `source-daily-plus-core-if-due`, `core-weekly`, `cold-core`, `universe-add`)
+- latest run state per lane
+- in-flight run status without pretending to be a full stage-inspector
 - latest source dates:
   - prices
   - fundamentals
@@ -486,10 +480,9 @@ Should show:
   - due / not due
   - reason
 - Neon mirror status
-- Neon parity status
-- latest parity artifact link/path
 - runtime warnings when the backend is not operating in the standard Neon-first profile
 - fast diagnostics vs deep diagnostics explicitly labeled, so omitted expensive checks are not mistaken for live truth
+- lane-specific control actions beyond the generic refresh prompt should remain operator/API driven until the frontend intentionally reintroduces them
 
 ### Recommended color model
 

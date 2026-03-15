@@ -907,6 +907,27 @@ def test_run_refresh_publish_only_republishes_cached_payloads_without_recompute(
     assert captured["payloads"] == payloads
 
 
+def test_load_publishable_payloads_prefers_durable_serving_payloads(monkeypatch: pytest.MonkeyPatch) -> None:
+    durable_payload = {"status": "durable"}
+    cache_payload = {"status": "cache"}
+
+    monkeypatch.setattr(
+        pipeline.serving_outputs,
+        "load_current_payload",
+        lambda name: durable_payload if name == "portfolio" else {"status": name},
+    )
+    monkeypatch.setattr(
+        pipeline.sqlite,
+        "cache_get",
+        lambda name: cache_payload if name == "portfolio" else None,
+    )
+
+    payloads, missing = pipeline._load_publishable_payloads()
+
+    assert missing == []
+    assert payloads["portfolio"] == durable_payload
+
+
 def test_run_model_pipeline_clears_pending_after_serving_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
 

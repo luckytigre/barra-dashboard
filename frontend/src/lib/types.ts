@@ -691,18 +691,12 @@ export interface OperatorLaneLatestRun {
   finished_at: string | null;
   updated_at: string | null;
   duration_seconds?: number | null;
-  duration_delta_seconds?: number | null;
-  duration_delta_pct?: number | null;
   stage_count: number;
   completed_stage_count: number;
   failed_stage_count: number;
   running_stage_count: number;
   stage_duration_seconds_total?: number;
   current_stage?: OperatorLaneStage | null;
-  slowest_stage?: {
-    stage_name: string;
-    duration_seconds: number;
-  } | null;
   stages: OperatorLaneStage[];
 }
 
@@ -743,9 +737,7 @@ export interface OperatorLaneStatus {
   reset_core_cache: boolean;
   default_stages: string[];
   enable_ingest: boolean;
-  aliases: string[];
   latest_run: OperatorLaneLatestRun;
-  recent_runs?: OperatorLaneLatestRun[];
 }
 
 export interface OperatorStatusData {

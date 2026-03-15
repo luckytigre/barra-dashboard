@@ -15,6 +15,10 @@ from typing import Any, Callable
 import numpy as np
 
 from backend import config
+from backend.analytics.refresh_policy import (
+    latest_factor_return_date as _latest_factor_return_date_impl,
+    risk_recompute_due as _risk_recompute_due_impl,
+)
 from backend.analytics.pipeline import RISK_ENGINE_METHOD_VERSION, run_refresh
 from backend.data import core_reads, job_runs, rebuild_cross_section_snapshot, sqlite
 from backend.risk_model import (
@@ -136,7 +140,6 @@ def profile_catalog() -> list[dict[str, Any]]:
             "reset_core_cache": bool(cfg.get("reset_core_cache")),
             "default_stages": list(cfg.get("default_stages") or []),
             "enable_ingest": bool(cfg.get("enable_ingest")),
-            "aliases": [],
         }
         for profile, cfg in PROFILE_CONFIG.items()
     ]
@@ -221,27 +224,17 @@ def _publish_neon_sync_health(
         logger.info("Neon sync/parity health OK: %s", message)
 
 
-def _parse_iso_date(value: Any) -> date | None:
-    if value is None:
-        return None
-    try:
-        return datetime.fromisoformat(str(value)).date()
-    except (TypeError, ValueError):
-        return None
-
-
 def _risk_recompute_due(meta: dict[str, Any], *, today_utc: date) -> tuple[bool, str]:
-    if not meta:
-        return True, "missing_meta"
-    if str(meta.get("method_version") or "") != RISK_ENGINE_METHOD_VERSION:
-        return True, "method_version_change"
-    last_recompute = _parse_iso_date(meta.get("last_recompute_date"))
-    if last_recompute is None:
-        return True, "missing_last_recompute_date"
-    interval = max(1, int(config.RISK_RECOMPUTE_INTERVAL_DAYS))
-    if (today_utc - last_recompute).days >= interval:
-        return True, f"interval_elapsed_{interval}d"
-    return False, "within_interval"
+    return _risk_recompute_due_impl(
+        meta,
+        today_utc=today_utc,
+        method_version=RISK_ENGINE_METHOD_VERSION,
+        interval_days=config.RISK_RECOMPUTE_INTERVAL_DAYS,
+    )
+
+
+def _latest_factor_return_date(cache_db: Path) -> str | None:
+    return _latest_factor_return_date_impl(cache_db)
 
 
 def _serialize_covariance(cov) -> dict[str, Any]:
@@ -253,19 +246,6 @@ def _serialize_covariance(cov) -> dict[str, Any]:
         "factors": factors,
         "matrix": [[float(v) for v in row] for row in mat.tolist()],
     }
-
-
-def _latest_factor_return_date(cache_db: Path) -> str | None:
-    conn = sqlite3.connect(str(cache_db))
-    try:
-        row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
-    except sqlite3.OperationalError:
-        row = None
-    finally:
-        conn.close()
-    if not row or not row[0]:
-        return None
-    return str(row[0])
 
 
 def _risk_cache_ready() -> bool:
@@ -472,7 +452,9 @@ def _run_stage(
         ingest = download_from_lseg(
             db_path=DATA_DB,
             as_of_date=as_of_date,
-            shard_count=int(config.ORCHESTRATOR_INGEST_SHARD_COUNT),
+            # The orchestrator stage must cover the full universe in one pass.
+            # Explicit sharding remains available on the direct LSEG ingest script.
+            shard_count=1,
             shard_index=0,
             write_fundamentals=True,
             write_prices=True,

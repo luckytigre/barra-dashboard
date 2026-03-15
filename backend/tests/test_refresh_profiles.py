@@ -100,16 +100,47 @@ def test_source_daily_profile_enables_ingest_without_core() -> None:
     assert cfg["default_stages"] == ["ingest", "serving_refresh"]
 
 
+def test_orchestrator_ingest_stage_runs_single_full_universe_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(run_model_pipeline.config, "APP_RUNTIME_ROLE", "local-ingest")
+    monkeypatch.setattr(run_model_pipeline.config, "ORCHESTRATOR_ENABLE_INGEST", True)
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "bootstrap_cuse4_source_tables",
+        lambda **_kwargs: {"status": "ok"},
+    )
+
+    def _fake_download(**kwargs):
+        captured.update(kwargs)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(run_model_pipeline, "download_from_lseg", _fake_download)
+
+    out = run_model_pipeline._run_stage(
+        stage="ingest",
+        as_of_date="2026-03-14",
+        should_run_core=False,
+        serving_mode="light",
+        force_core=False,
+        core_reason="test",
+        enable_ingest=True,
+    )
+
+    assert out["status"] == "ok"
+    assert captured["shard_count"] == 1
+    assert captured["shard_index"] == 0
+
+
 def test_cli_profile_choices_are_canonical_only() -> None:
     choices = sorted(run_model_pipeline.PROFILE_CONFIG.keys())
     assert "serve-refresh" in choices
     assert "daily-fast" not in choices
 
 
-def test_profile_catalog_has_no_runtime_aliases() -> None:
+def test_profile_catalog_has_only_canonical_profile_fields() -> None:
     catalog = run_model_pipeline.profile_catalog()
     assert catalog
-    assert all(item["aliases"] == [] for item in catalog)
+    assert all("aliases" not in item for item in catalog)
 
 
 def test_reset_core_caches_clears_core_tables(tmp_path: Path) -> None:

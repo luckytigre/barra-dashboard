@@ -17,13 +17,6 @@ for key, value in merged_env.items():
         os.environ.setdefault(str(key), str(value))
 
 
-# AWS Postgres (read-only)
-PG_HOST = os.getenv("PG_HOST", "localhost")
-PG_PORT = int(os.getenv("PG_PORT", "15432"))
-PG_DB = os.getenv("PG_DB", "portfolio_cold_dev")
-PG_USER = os.getenv("PG_USER", "postgres")
-PG_PASSWORD = os.getenv("PG_PASSWORD", "")
-
 # Storage paths
 APP_DATA_DIR = Path(os.getenv("APP_DATA_DIR", str(BASE_DIR / "runtime"))).expanduser()
 if not APP_DATA_DIR.is_absolute():
@@ -61,7 +54,6 @@ if APP_RUNTIME_ROLE not in {"local-ingest", "cloud-serve"}:
 
 # Analytics
 LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "504"))  # ~2 years trading days
-ANNUALIZATION_FACTOR = 252
 RISK_RECOMPUTE_INTERVAL_DAYS = int(os.getenv("RISK_RECOMPUTE_INTERVAL_DAYS", "7"))
 # Minimum calendar age of exposure snapshot used for cross-sectional regressions.
 CROSS_SECTION_MIN_AGE_DAYS = int(os.getenv("CROSS_SECTION_MIN_AGE_DAYS", "7"))
@@ -113,7 +105,6 @@ CUSE4_AUTO_BOOTSTRAP = _env_bool("CUSE4_AUTO_BOOTSTRAP", False)
 
 # Orchestrator ingest stage controls.
 ORCHESTRATOR_ENABLE_INGEST = _env_bool("ORCHESTRATOR_ENABLE_INGEST", False)
-ORCHESTRATOR_INGEST_SHARD_COUNT = max(1, int(os.getenv("ORCHESTRATOR_INGEST_SHARD_COUNT", "1")))
 
 # CORS
 CORS_ALLOW_ORIGINS = _env_csv(
@@ -125,10 +116,6 @@ CORS_ALLOW_ORIGINS = _env_csv(
 REFRESH_API_TOKEN = str(os.getenv("REFRESH_API_TOKEN", "")).strip()
 OPERATOR_API_TOKEN = str(os.getenv("OPERATOR_API_TOKEN", "")).strip()
 EDITOR_API_TOKEN = str(os.getenv("EDITOR_API_TOKEN", "")).strip()
-
-
-def pg_dsn() -> str:
-    return f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:{PG_PORT}/{PG_DB}"
 
 
 def neon_dsn() -> str:

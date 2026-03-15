@@ -25,7 +25,6 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
                 "reset_core_cache": False,
                 "default_stages": ["serving_refresh"],
                 "enable_ingest": False,
-                "aliases": [],
             }
         ],
     )
@@ -49,46 +48,6 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
                 "slowest_stage": {"stage_name": "serving_refresh", "duration_seconds": 60.0},
                 "stages": [],
             }
-        },
-    )
-    monkeypatch.setattr(
-        operator_route.job_runs,
-        "recent_run_summaries_by_profile",
-        lambda **kwargs: {
-            "serve-refresh": [
-                {
-                    "run_id": "job_123",
-                    "profile": "serve-refresh",
-                    "status": "ok",
-                    "started_at": "2026-03-08T12:00:00+00:00",
-                    "finished_at": "2026-03-08T12:01:00+00:00",
-                    "updated_at": "2026-03-08T12:01:00+00:00",
-                    "duration_seconds": 60.0,
-                    "stage_count": 1,
-                    "completed_stage_count": 1,
-                    "failed_stage_count": 0,
-                    "running_stage_count": 0,
-                    "stage_duration_seconds_total": 60.0,
-                    "slowest_stage": {"stage_name": "serving_refresh", "duration_seconds": 60.0},
-                    "stages": [],
-                },
-                {
-                    "run_id": "job_122",
-                    "profile": "serve-refresh",
-                    "status": "ok",
-                    "started_at": "2026-03-07T12:00:00+00:00",
-                    "finished_at": "2026-03-07T12:01:30+00:00",
-                    "updated_at": "2026-03-07T12:01:30+00:00",
-                    "duration_seconds": 90.0,
-                    "stage_count": 1,
-                    "completed_stage_count": 1,
-                    "failed_stage_count": 0,
-                    "running_stage_count": 0,
-                    "stage_duration_seconds_total": 90.0,
-                    "slowest_stage": {"stage_name": "serving_refresh", "duration_seconds": 90.0},
-                    "stages": [],
-                },
-            ]
         },
     )
     monkeypatch.setattr(
@@ -127,8 +86,6 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
     assert body["lanes"][0]["profile"] == "serve-refresh"
     assert body["lanes"][0]["latest_run"]["run_id"] == "job_123"
     assert body["lanes"][0]["latest_run"]["duration_seconds"] == 60.0
-    assert body["lanes"][0]["latest_run"]["duration_delta_seconds"] == -30.0
-    assert body["lanes"][0]["latest_run"]["duration_delta_pct"] == -33.33
     assert body["lanes"][0]["latest_run"]["slowest_stage"]["stage_name"] == "serving_refresh"
     assert body["source_dates"]["prices_asof"] == "2026-03-07"
     assert body["latest_parity_artifact"] == "/tmp/report.json"
@@ -148,7 +105,6 @@ def test_operator_status_reports_cloud_allowed_profiles(monkeypatch) -> None:
     monkeypatch.setattr(operator_route.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(operator_route.config, "OPERATOR_API_TOKEN", "op-secret")
     monkeypatch.setattr(operator_route.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
-    monkeypatch.setattr(operator_route.job_runs, "recent_run_summaries_by_profile", lambda **kwargs: {})
     monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
     monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
     monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
