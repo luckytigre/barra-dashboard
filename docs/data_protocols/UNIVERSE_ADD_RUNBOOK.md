@@ -23,8 +23,6 @@ Current policy:
 - Preferred metadata also includes:
   - `isin`
   - `exchange_name`
-  - optional `sid`
-  - optional `permid`
 
 ## Step 1: Merge Into `security_master`
 

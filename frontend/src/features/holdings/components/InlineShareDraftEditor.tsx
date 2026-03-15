@@ -11,6 +11,13 @@ interface InlineShareDraftEditorProps {
   onStep: (delta: number) => void;
 }
 
+function parseQuantityText(raw: string): number | null {
+  const clean = String(raw || "").trim().replaceAll(",", "");
+  if (!clean) return null;
+  const quantity = Number(clean);
+  return Number.isFinite(quantity) ? quantity : null;
+}
+
 export default function InlineShareDraftEditor({
   quantityText,
   disabled = false,
@@ -21,6 +28,31 @@ export default function InlineShareDraftEditor({
   onQuantityTextChange,
   onStep,
 }: InlineShareDraftEditorProps) {
+  const currentQty = parseQuantityText(quantityText);
+  const isShort = currentQty !== null && currentQty < 0;
+  const increaseLabel = `${isShort ? "Increase short" : "Increase"} ${titleBase} by ${step} shares`;
+  const decreaseLabel = `${isShort ? "Decrease short" : "Decrease"} ${titleBase} by ${step} shares`;
+
+  function handleIncrease() {
+    if (isShort) {
+      onStep(-step);
+      return;
+    }
+    onStep(step);
+  }
+
+  function handleDecrease() {
+    if (currentQty === null || currentQty === 0) {
+      onStep(-step);
+      return;
+    }
+    if (isShort) {
+      onStep(Math.min(step, Math.abs(currentQty)));
+      return;
+    }
+    onStep(-Math.min(step, currentQty));
+  }
+
   return (
     <span className={`share-draft-editor${draftActive ? " draft" : ""}${invalid ? " invalid" : ""}`}>
       <input
@@ -33,20 +65,20 @@ export default function InlineShareDraftEditor({
       />
       <button
         className="share-adjuster-btn"
-        onClick={() => onStep(step)}
+        onClick={handleIncrease}
         disabled={disabled}
-        title={`Increase ${titleBase} by ${step} shares`}
-        aria-label={`Increase ${titleBase} by ${step} shares`}
+        title={increaseLabel}
+        aria-label={increaseLabel}
         type="button"
       >
         ↑
       </button>
       <button
         className="share-adjuster-btn"
-        onClick={() => onStep(-step)}
+        onClick={handleDecrease}
         disabled={disabled}
-        title={`Decrease ${titleBase} by ${step} shares`}
-        aria-label={`Decrease ${titleBase} by ${step} shares`}
+        title={decreaseLabel}
+        aria-label={decreaseLabel}
         type="button"
       >
         ↓

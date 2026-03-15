@@ -90,3 +90,45 @@ def test_reset_core_caches_clears_core_tables(tmp_path: Path) -> None:
     assert conn.execute("SELECT COUNT(*) FROM daily_factor_returns_meta").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM cache WHERE key='unrelated'").fetchone()[0] == 1
     conn.close()
+
+
+def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch) -> None:
+    monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
+    monkeypatch.setattr(
+        run_model_pipeline.sqlite,
+        "cache_get_live_first",
+        lambda key: {"method_version": "stale", "last_recompute_date": "2026-03-01"} if key == "risk_engine_meta" else None,
+    )
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "_risk_recompute_due",
+        lambda meta, *, today_utc: (True, "method_version_change"),
+    )
+
+    skip, reason = run_model_pipeline._serving_refresh_skip_risk_engine(
+        today_utc=run_model_pipeline.date(2026, 3, 14)
+    )
+
+    assert skip is False
+    assert reason == "core_due_method_version_change"
+
+
+def test_serving_refresh_skip_risk_engine_allows_current_cache(monkeypatch) -> None:
+    monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
+    monkeypatch.setattr(
+        run_model_pipeline.sqlite,
+        "cache_get_live_first",
+        lambda key: {"method_version": "current", "last_recompute_date": "2026-03-13"} if key == "risk_engine_meta" else None,
+    )
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "_risk_recompute_due",
+        lambda meta, *, today_utc: (False, "within_interval"),
+    )
+
+    skip, reason = run_model_pipeline._serving_refresh_skip_risk_engine(
+        today_utc=run_model_pipeline.date(2026, 3, 14)
+    )
+
+    assert skip is True
+    assert reason == "risk_cache_current"

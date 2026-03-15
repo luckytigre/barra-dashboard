@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import sqlite3
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -197,3 +200,40 @@ def test_job_runs_summary_includes_live_stage_details(tmp_path) -> None:
     assert latest["current_stage"]["details"]["items_processed"] == 250
     assert latest["current_stage"]["details"]["unit"] == "cross_sections"
     assert latest["current_stage"]["heartbeat_at"] is not None
+
+
+def test_fail_stale_running_stages_uses_recent_heartbeat(tmp_path) -> None:
+    from backend.data import job_runs
+
+    db = tmp_path / "data.db"
+    job_runs.ensure_schema(db)
+    job_runs.begin_stage(
+        db_path=db,
+        run_id="job_live",
+        profile="cold-core",
+        stage_name="raw_history",
+        stage_order=2,
+        details={"message": "Starting raw history"},
+    )
+    stale_started_at = (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat()
+    fresh_updated_at = datetime.now(timezone.utc).isoformat()
+
+    conn = sqlite3.connect(str(db))
+    try:
+        conn.execute(
+            f"""
+            UPDATE {job_runs.TABLE}
+            SET started_at = ?, updated_at = ?
+            WHERE run_id = ? AND stage_name = ?
+            """,
+            (stale_started_at, fresh_updated_at, "job_live", "raw_history"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    updated = job_runs.fail_stale_running_stages(db_path=db, stale_after_seconds=60)
+    latest = job_runs.latest_run_summary_by_profile(db_path=db, profiles=["cold-core"])["cold-core"]
+
+    assert updated == 0
+    assert latest["status"] == "running"

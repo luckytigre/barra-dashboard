@@ -129,11 +129,8 @@ export default function ExplorePage() {
         searchQuery={query}
         onSearchQueryChange={setQuery}
         searchResults={results}
-        searchError={searchError}
         onSelectTicker={selectTicker}
         positionMap={positionMap}
-        isLoadingTicker={isLoading}
-        tickerError={tickerError}
       />
     </div>
   );

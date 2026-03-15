@@ -265,7 +265,7 @@ Does:
 - durable serving-payload write (`serving_payload_current`)
 - staged `health_diagnostics` computation against the same refresh-run inputs that are about to be published
 - holdings-triggered refreshes may reuse the current published `universe_loadings` payload when source dates and the risk-engine fingerprint still match
-- on that reuse path, cached `eligibility`, `cov_matrix`, and `condition_number` may also be reused when present
+- on that reuse path, cached `eligibility` and `cov_matrix` may also be reused when present
 - on that reuse path, durable relational `model_outputs` persistence is intentionally skipped because the underlying factor/covariance/specific-risk state has not changed
 
 Does not:

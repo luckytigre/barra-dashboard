@@ -9,7 +9,7 @@ from backend.api.routes import risk as risk_routes
 def test_risk_route_accepts_correlation_cov_matrix(monkeypatch) -> None:
     payload = {
         "cov_matrix": {
-            "factors": ["Beta", "Value"],
+            "factors": ["Beta", "Book-to-Price"],
             "correlation": [[1.0, 0.2], [0.2, 1.0]],
         },
         "risk_engine": {
@@ -19,7 +19,6 @@ def test_risk_route_accepts_correlation_cov_matrix(monkeypatch) -> None:
         "component_shares": {"country": 0.0, "industry": 0.67, "style": 0.33},
         "factor_details": [],
         "r_squared": 0.4,
-        "condition_number": 1200.0,
     }
 
     def fake_cache_get(key: str):
@@ -36,7 +35,7 @@ def test_risk_route_accepts_correlation_cov_matrix(monkeypatch) -> None:
     assert res.status_code == 200
     body = res.json()
     assert body.get("_cached") is True
-    assert body["cov_matrix"]["factors"] == ["Beta", "Value"]
+    assert body["cov_matrix"]["factors"] == ["Beta", "Book-to-Price"]
 
 
 def test_risk_route_rejects_missing_cov_rows(monkeypatch) -> None:

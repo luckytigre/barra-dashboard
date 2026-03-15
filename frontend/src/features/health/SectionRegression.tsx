@@ -143,8 +143,8 @@ export default function SectionRegression({ data }: { data: HealthDiagnosticsDat
         />
       </h3>
       <div className="health-meta-row" style={{ marginBottom: 6 }}>
-        <span>Section 1 sampling: {data.section1.sampling === "weekly_week_end" ? "Week-end (10Y)" : "Daily (10Y)"}</span>
-        <span>Heavy diagnostics downsampled for speed</span>
+        <span>Section 1 sampling: {data.section1.sampling === "weekly_week_end" ? "Week-end sample (10Y)" : "Daily (10Y)"}</span>
+        <span>Heavy diagnostics are sampled at week-end for speed</span>
       </div>
       <div className="health-chart-lg">
         <Line
@@ -242,7 +242,7 @@ export default function SectionRegression({ data }: { data: HealthDiagnosticsDat
             <HelpLabel
               label="Factor t-stat Distribution"
               plain="Shows how often factor signals are small versus extreme on a day."
-              math="Approx t = daily factor return / daily residual volatility"
+              math="t = factor return / heteroskedasticity-robust SE"
               interpret={{
                 lookFor: "Most observations near the center with limited extreme spikes.",
                 good: "Majority within about -2 to +2, with occasional tail observations.",

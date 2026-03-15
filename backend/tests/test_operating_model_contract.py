@@ -353,7 +353,6 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
             },
             "risk": {
                 "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
-                "condition_number": 123.0,
             },
             "universe_loadings": dict(cached_universe_loadings),
         }
@@ -550,7 +549,6 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
             },
             "risk": {
                 "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
-                "condition_number": 123.0,
             },
             "universe_loadings": dict(cached_universe_loadings),
         }
@@ -818,6 +816,38 @@ def test_run_model_pipeline_clears_pending_after_serving_refresh(monkeypatch: py
     assert captured["status"] == "ok"
     assert captured["clear_pending"] is True
     assert captured["profile"] == "serve-refresh"
+
+
+def test_run_model_pipeline_serve_refresh_does_not_require_source_dates(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "ensure_schema", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "fail_stale_running_stages", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "completed_stages", lambda *args, **kwargs: set())
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "begin_stage", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "finish_stage", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "run_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads,
+        "load_source_dates",
+        lambda: (_ for _ in ()).throw(AssertionError("serve-refresh should not read source dates")),
+    )
+    monkeypatch.setattr(run_model_pipeline_module.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(run_model_pipeline_module.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(
+        run_model_pipeline_module,
+        "_run_stage",
+        lambda **kwargs: {"status": "ok", "stage": kwargs.get("stage"), "as_of_date": kwargs.get("as_of_date")},
+    )
+    monkeypatch.setattr(
+        run_model_pipeline_module,
+        "mark_refresh_finished",
+        lambda **kwargs: None,
+    )
+    monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_SYNC_ENABLED", False)
+
+    out = run_model_pipeline_module.run_model_pipeline(profile="serve-refresh")
+
+    assert out["status"] == "ok"
+    assert out["stage_results"][0]["details"]["as_of_date"] is not None
 
 
 def test_run_model_pipeline_reports_stage_runtime_details(monkeypatch: pytest.MonkeyPatch) -> None:

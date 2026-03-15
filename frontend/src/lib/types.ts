@@ -39,7 +39,7 @@ export interface PortfolioData {
 
 export interface WhatIfScenarioRow {
   account_id: string;
-  ticker?: string | null;
+  ticker: string;
   ric?: string | null;
   quantity: number;
   source?: string | null;
@@ -99,6 +99,35 @@ export interface WhatIfPreviewData {
   _preview_only: boolean;
 }
 
+export interface WhatIfApplyRowResult {
+  account_id: string;
+  ticker: string;
+  ric: string;
+  current_quantity: number;
+  applied_quantity: number;
+  delta_quantity?: number;
+  action: string;
+}
+
+export interface WhatIfApplyRejectedRow {
+  row_number: number;
+  reason_code: string;
+  message: string;
+}
+
+export interface WhatIfApplyResponse {
+  status: "ok" | "dry_run" | "rejected";
+  accepted_rows: number;
+  rejected_rows: number;
+  rejection_counts: Record<string, number>;
+  warnings: string[];
+  applied_upserts: number;
+  applied_deletes: number;
+  row_results: WhatIfApplyRowResult[];
+  rejected: WhatIfApplyRejectedRow[];
+  import_batch_ids?: Record<string, string>;
+}
+
 export type HoldingsImportMode = "replace_account" | "upsert_absolute" | "increment_delta";
 
 export interface HoldingsModeData {
@@ -124,7 +153,6 @@ export interface HoldingsPosition {
   ric: string;
   ticker: string;
   quantity: number;
-  instrument_type?: string | null;
   source: string;
   updated_at: string | null;
 }
@@ -221,6 +249,7 @@ export interface FactorDetail {
   sensitivity: number;
   marginal_var_contrib: number;
   pct_of_total: number;
+  pct_of_systematic?: number;
 }
 
 export interface RiskShares {
@@ -232,7 +261,8 @@ export interface RiskShares {
 
 export interface CovMatrix {
   factors: string[];
-  correlation: number[][];
+  correlation?: number[][];
+  matrix?: number[][];
 }
 
 export interface RiskData {
@@ -241,7 +271,6 @@ export interface RiskData {
   factor_details: FactorDetail[];
   cov_matrix: CovMatrix;
   r_squared: number;
-  condition_number: number;
   risk_engine?: {
     status?: string;
     method_version?: string;
@@ -327,7 +356,6 @@ export interface UniverseFactorsData {
   factors: string[];
   factor_vols: Record<string, number>;
   r_squared?: number;
-  condition_number?: number;
   ticker_count?: number;
   eligible_ticker_count?: number;
   _cached: boolean;
@@ -467,7 +495,6 @@ export interface HealthDiagnosticsData {
   };
   section4: {
     eigenvalues: number[];
-    condition_number: number;
     forecast_vs_realized: HealthForecastRealizedRow[];
     rolling_avg_factor_vol: SeriesPoint[];
   };
@@ -596,6 +623,16 @@ export interface RefreshStatusState {
   requested_at: string | null;
   started_at: string | null;
   finished_at: string | null;
+  current_stage?: string | null;
+  stage_index?: number | null;
+  stage_count?: number | null;
+  stage_started_at?: string | null;
+  current_stage_message?: string | null;
+  current_stage_progress_pct?: number | null;
+  current_stage_items_processed?: number | null;
+  current_stage_items_total?: number | null;
+  current_stage_unit?: string | null;
+  current_stage_heartbeat_at?: string | null;
   result: Record<string, unknown> | null;
   error: {
     type?: string;

@@ -80,6 +80,13 @@ def build_positions_from_snapshot(
         mv = shares * price
         total_value += mv
         gross_value += abs(mv)
+        exposures = dict(base.get("exposures") or {})
+        raw_eligible = bool(base.get("eligible_for_model", False))
+        has_factor_exposures = bool(exposures)
+        model_eligible = bool(raw_eligible and has_factor_exposures)
+        eligibility_reason = str(base.get("eligibility_reason") or "")
+        if raw_eligible and not has_factor_exposures and not eligibility_reason:
+            eligibility_reason = "missing_factor_exposures"
         meta_base = dynamic_meta.get(t, {})
         meta = {
             "account": str(meta_base.get("account") or DEFAULT_ACCOUNT),
@@ -108,7 +115,7 @@ def build_positions_from_snapshot(
             "sleeve": meta["sleeve"],
             "source": meta["source"],
             "trbc_industry_group": str(base.get("trbc_industry_group") or ""),
-            "exposures": dict(base.get("exposures") or {}),
+            "exposures": exposures,
             "specific_var": (
                 _finite_float(base.get("specific_var"), 0.0)
                 if np.isfinite(_finite_float(base.get("specific_var"), np.nan))
@@ -120,8 +127,8 @@ def build_positions_from_snapshot(
                 else None
             ),
             "risk_contrib_pct": 0.0,
-            "eligible_for_model": bool(base.get("eligible_for_model", False)),
-            "eligibility_reason": str(base.get("eligibility_reason") or ""),
+            "eligible_for_model": model_eligible,
+            "eligibility_reason": eligibility_reason,
         })
 
     for pos in positions:
@@ -161,7 +168,7 @@ def compute_exposures_modes(
 
     cov_adj_map: dict[str, float] = {}
     if cov is not None and not cov.empty:
-        cov_factors = [str(c) for c in cov.columns if str(c).lower() != "market"]
+        cov_factors = [str(c) for c in cov.columns]
         if cov_factors:
             h_vec = np.array([_finite_float(exposure_map.get(f), 0.0) for f in cov_factors], dtype=float)
             f_mat = cov.reindex(index=cov_factors, columns=cov_factors).to_numpy(dtype=float)
@@ -271,7 +278,7 @@ def compute_position_risk_mix(
                 out[ticker] = {"country": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0}
         return out
 
-    factors = [str(c) for c in cov.columns if str(c).lower() != "market"]
+    factors = [str(c) for c in cov.columns]
     if not factors:
         return {}
     f_mat = cov.reindex(index=factors, columns=factors).to_numpy(dtype=float)
@@ -336,7 +343,7 @@ def compute_position_total_risk_contributions(
             if str(pos.get("ticker", "")).strip()
         }
 
-    factors = [str(c) for c in cov.columns if str(c).lower() != "market"]
+    factors = [str(c) for c in cov.columns]
     if not factors:
         return {
             str(pos.get("ticker", "")).upper(): 0.0

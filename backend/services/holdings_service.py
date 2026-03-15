@@ -8,8 +8,10 @@ from backend.data.neon import connect, resolve_dsn
 from backend.services.holdings_runtime_state import mark_holdings_dirty
 from backend.services.neon_holdings import (
     IMPORT_MODES,
+    apply_ticker_bucket_scenario,
     apply_holdings_import,
     apply_single_position_edit,
+    ensure_holdings_runtime_compat,
     list_holdings_accounts,
     list_holdings_positions,
     parse_holdings_rows,
@@ -204,6 +206,41 @@ def run_position_remove(
         conn.close()
 
 
+def run_whatif_apply(
+    *,
+    scenario_rows: list[dict[str, Any]],
+    requested_by: str | None = None,
+    default_source: str = "what_if",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    conn = connect(dsn=resolve_dsn(None), autocommit=False)
+    try:
+        ensure_holdings_runtime_compat(conn)
+        out = apply_ticker_bucket_scenario(
+            conn,
+            scenario_rows=scenario_rows,
+            requested_by=requested_by,
+            default_source=default_source,
+            dry_run=bool(dry_run),
+        )
+        if not dry_run and str(out.get("status")) == "ok":
+            change_count = int(out.get("applied_upserts") or 0) + int(out.get("applied_deletes") or 0)
+            if change_count > 0:
+                record_holdings_dirty(
+                    action="whatif_apply",
+                    account_id=None,
+                    summary=f"What-if apply committed: {change_count} row mutations across {len(out.get('import_batch_ids') or {})} accounts",
+                    import_batch_id=None,
+                    change_count=change_count,
+                )
+        return out
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 __all__ = [
     "IMPORT_MODES",
     "load_holdings_accounts",
@@ -211,6 +248,7 @@ __all__ = [
     "run_holdings_import",
     "run_position_remove",
     "run_position_upsert",
+    "run_whatif_apply",
     "trigger_light_refresh_if_requested",
     "record_holdings_dirty",
 ]

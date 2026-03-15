@@ -215,7 +215,7 @@ def fail_stale_running_stages(
             """
         ).fetchall()
         for run_id, stage_name, started_at, updated_at in rows:
-            anchor_raw = started_at or updated_at
+            anchor_raw = updated_at or started_at
             try:
                 anchor = datetime.fromisoformat(str(anchor_raw))
             except (TypeError, ValueError):
@@ -225,6 +225,7 @@ def fail_stale_running_stages(
             age_seconds = (now - anchor).total_seconds()
             if age_seconds < float(stale_after_seconds):
                 continue
+            before = conn.total_changes
             conn.execute(
                 f"""
                 UPDATE {TABLE}
@@ -247,7 +248,7 @@ def fail_stale_running_stages(
                     str(stage_name),
                 ),
             )
-            updated += int(conn.total_changes > 0)
+            updated += int(conn.total_changes > before)
         conn.commit()
         return updated
     finally:

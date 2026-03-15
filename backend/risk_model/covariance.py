@@ -143,7 +143,7 @@ def build_factor_covariance(
     latest_date = pivot.index.max()
     latest_r2_rows = hist_df.loc[hist_df["date"] == latest_date, "r_squared"]
     latest_r2 = float(latest_r2_rows.dropna().mean()) if not latest_r2_rows.empty else 0.0
-    latest_r2 = max(0.0, min(1.0, latest_r2 if np.isfinite(latest_r2) else 0.0))
+    latest_r2 = latest_r2 if np.isfinite(latest_r2) else 0.0
 
     return cov, latest_r2
 

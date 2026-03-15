@@ -42,7 +42,7 @@
   - holdings-triggered light refreshes now pass an explicit `holdings_only` scope and may reuse the current published `universe_loadings` payload when both of these still match:
     - `source_dates`
     - stable risk-engine fingerprint (`method_version`, `last_recompute_date`, `factor_returns_latest_date`, snapshot-age/lookback settings, specific-risk count)
-  - on that same fast path, cached `eligibility`, `cov_matrix`, and `condition_number` are reused when present instead of being rebuilt from unchanged model state
+  - on that same fast path, cached `eligibility` and `cov_matrix` are reused when present instead of being rebuilt from unchanged model state
   - when that reuse path is active, relational `model_outputs` persistence is skipped because the core model state is unchanged; serving payload persistence still runs normally
   - manual `serve-refresh` without that scope keeps the existing full serving-refresh behavior.
 - `source-daily`: latest-source ingest plus serving refresh only.
@@ -137,6 +137,9 @@ Runtime-role rule:
 - if Neon-backed holdings cannot be read during serving projection, refresh fails instead of publishing an empty-success portfolio payload
 - `model_outputs_write`: latest relational model-output persistence status.
   - for the holdings-only fast path, this now reports `status=skipped` with reason `holdings_only_fast_path`.
+  - when model persistence does run, factor returns now load incrementally from the latest durable date when the risk-engine fingerprint still matches; schema/method drift falls back to a full reload.
+- durable serving payload writes now default to partial upsert semantics.
+  - only the canonical serving-refresh writer opts into `replace_all=true`, which keeps destructive delete behavior explicit instead of implicit.
 - `refresh_status`: background orchestrator state snapshot.
   - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
 - operator lane summaries also expose additive persisted run-timing fields:

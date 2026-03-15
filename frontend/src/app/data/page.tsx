@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/components/ApiErrorState";
+import OperatorControlPanel from "@/components/OperatorControlPanel";
 import { useDataDiagnostics } from "@/hooks/useApi";
 import type { DataTableStats } from "@/lib/types";
 
@@ -86,6 +87,8 @@ export default function DataPage() {
       <div className="section-subtitle" style={{ marginBottom: 14 }}>
         Health is the live operator/control-room surface. Data is the maintenance surface for source tables, lineage, coverage, and cache diagnostics.
       </div>
+
+      <OperatorControlPanel />
 
       {/* ── Pipeline Overview ── */}
       <div className="chart-card data-section">

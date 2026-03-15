@@ -244,7 +244,6 @@ def stage_refresh_cache_snapshot(
     factor_details: list[FactorDetailPayload],
     cov_matrix: CovarianceMatrixPayload,
     latest_r2: float,
-    condition_number: float,
     universe_loadings: UniverseLoadingsPayload,
     exposure_modes: ExposureModesPayload,
     cuse4_foundation: dict[str, Any],
@@ -284,7 +283,6 @@ def stage_refresh_cache_snapshot(
         "factor_details": factor_details,
         "cov_matrix": cov_matrix,
         "r_squared": round(float(latest_r2), 4),
-        "condition_number": round(float(condition_number), 2),
         "risk_engine": risk_engine_state,
         "refresh_started_at": refresh_started_at,
     }
@@ -298,7 +296,6 @@ def stage_refresh_cache_snapshot(
         "factors": universe_loadings.get("factors", []),
         "factor_vols": universe_loadings.get("factor_vols", {}),
         "r_squared": round(float(latest_r2), 4),
-        "condition_number": round(float(condition_number), 2),
         "ticker_count": universe_loadings.get("ticker_count", 0),
         "eligible_ticker_count": universe_loadings.get("eligible_ticker_count", 0),
         "risk_engine": risk_engine_state,
@@ -323,22 +320,19 @@ def stage_refresh_cache_snapshot(
     _stage_cache("model_sanity", sanity)
     _stage_cache("cuse4_foundation", cuse4_foundation)
 
-    health_refreshed = False
-    existing_health = sqlite.cache_get("health_diagnostics")
-    light_mode_health_missing = (
-        light_mode
-        and (
-            not isinstance(existing_health, dict)
-            or not isinstance(existing_health.get("section5"), dict)
-            or not isinstance(existing_health.get("section5", {}).get("fundamentals"), dict)
-            or not isinstance(existing_health.get("section5", {}).get("trbc_history"), dict)
-            or not isinstance(existing_health.get("section5", {}).get("fundamentals", {}).get("fields"), list)
-            or not isinstance(existing_health.get("section5", {}).get("trbc_history", {}).get("fields"), list)
-        )
+    health_payload = compute_health_diagnostics(
+        data_db,
+        cache_db,
+        risk_payload=risk_data,
+        portfolio_payload=portfolio_data,
+        universe_payload=universe_loadings,
+        covariance_payload=cov_payload,
+        source_dates=source_dates,
+        run_id=run_id,
+        snapshot_id=snapshot_id,
     )
-    if (not light_mode) or light_mode_health_missing:
-        _stage_cache("health_diagnostics", compute_health_diagnostics(data_db, cache_db))
-        health_refreshed = True
+    _stage_cache("health_diagnostics", health_payload)
+    health_refreshed = True
     logger.info(
         "Staged core payloads: positions=%s factors=%s health_refreshed=%s",
         len(positions),
@@ -374,6 +368,7 @@ def stage_refresh_cache_snapshot(
             "universe_factors": universe_factors,
             "eligibility": eligibility_summary,
             "model_sanity": sanity,
+            "health_diagnostics": health_payload,
             "refresh_meta": refresh_meta,
         },
     }

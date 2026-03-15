@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header
 
 from backend.api.auth import require_role
 from backend.api.routes.readiness import raise_cache_not_ready
+from backend.data.serving_outputs import load_current_payload
 from backend.data.sqlite import cache_get
 
 router = APIRouter()
@@ -21,7 +22,9 @@ async def get_health_diagnostics(
         x_operator_token=x_operator_token,
         authorization=authorization,
     )
-    data = cache_get("health_diagnostics")
+    data = load_current_payload("health_diagnostics")
+    if data is None:
+        data = cache_get("health_diagnostics")
     if data is not None:
         return {**data, "_cached": True}
     raise_cache_not_ready(

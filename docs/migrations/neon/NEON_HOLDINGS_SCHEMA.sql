@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS holdings_import_batches (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     notes TEXT,
     CONSTRAINT chk_holdings_import_mode
-        CHECK (mode IN ('replace_account', 'upsert_absolute', 'increment_delta'))
+        CHECK (mode IN ('replace_account', 'upsert_absolute', 'increment_delta', 'replace_ticker_bucket'))
 );
 
 CREATE TABLE IF NOT EXISTS holdings_positions_current (
@@ -55,11 +55,11 @@ CREATE TABLE IF NOT EXISTS holdings_position_events (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_by TEXT,
     CONSTRAINT chk_holdings_event_type
-        CHECK (event_type IN ('set_absolute', 'increment_delta', 'remove_position', 'ui_edit')),
+        CHECK (event_type IN ('set_absolute', 'increment_delta', 'remove_position', 'ui_edit', 'replace_ticker_bucket_delete', 'replace_ticker_bucket_set')),
     CONSTRAINT chk_holdings_events_quantity_after
         CHECK (
-            (event_type = 'remove_position' AND quantity_after = 0)
-            OR (event_type <> 'remove_position' AND quantity_after <> 0)
+            (event_type IN ('remove_position', 'replace_ticker_bucket_delete') AND quantity_after = 0)
+            OR (event_type NOT IN ('remove_position', 'replace_ticker_bucket_delete') AND quantity_after <> 0)
         )
 );
 
