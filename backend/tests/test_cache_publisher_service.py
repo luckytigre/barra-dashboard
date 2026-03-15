@@ -50,25 +50,30 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
         },
         recomputed_this_refresh=False,
         recompute_reason="light_mode_skip",
-        cov_payload={"factors": ["Beta"], "matrix": [[1.0]]},
+        cov_payload={"factors": ["style_beta_score"], "matrix": [[1.0]]},
         specific_risk_by_security={"AAPL.OQ": {"ticker": "AAPL", "specific_var": 0.01}},
-        positions=[{"ticker": "AAPL", "weight": 1.0, "exposures": {"Beta": 1.1}}],
+        positions=[{"ticker": "AAPL", "weight": 1.0, "exposures": {"style_beta_score": 1.1}}],
         total_value=100.0,
-        risk_shares={"country": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
-        component_shares={"country": 0.0, "industry": 0.4, "style": 0.6},
+        risk_shares={"market": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
+        component_shares={"market": 0.0, "industry": 0.4, "style": 0.6},
         factor_details=[
-            {"factor": "Beta", "exposure": 0.1, "sensitivity": 0.01, "factor_vol": 0.05, "pct_of_total": 3.0}
+            {"factor_id": "style_beta_score", "exposure": 0.1, "sensitivity": 0.01, "factor_vol": 0.05, "pct_of_total": 3.0}
         ],
-        cov_matrix={"factors": ["Beta"], "correlation": [[1.0]]},
+        cov_matrix={"factors": ["style_beta_score"], "correlation": [[1.0]]},
         latest_r2=0.35,
         universe_loadings={
-            "factors": ["Beta"],
-            "factor_vols": {"Beta": 0.05},
+            "factors": ["style_beta_score"],
+            "factor_vols": {"style_beta_score": 0.05},
+            "factor_catalog": [],
             "ticker_count": 1,
             "eligible_ticker_count": 1,
-            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"Beta": 1.1}}},
+            "core_estimated_ticker_count": 1,
+            "projected_only_ticker_count": 0,
+            "ineligible_ticker_count": 0,
+            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"style_beta_score": 1.1}}},
         },
         exposure_modes={"raw": [], "sensitivity": [], "risk_contribution": []},
+        factor_catalog=[],
         cuse4_foundation={"status": "skipped"},
         light_mode=True,
         data_db=data_db,
@@ -86,3 +91,7 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
     refresh_meta = cache_sqlite.cache_get("refresh_meta")
     assert isinstance(refresh_meta, dict)
     assert refresh_meta.get("snapshot_id") == "run_stage_1"
+    universe_factors = cache_sqlite.cache_get("universe_factors")
+    assert isinstance(universe_factors, dict)
+    assert universe_factors.get("core_estimated_ticker_count") == 1
+    assert universe_factors.get("projected_only_ticker_count") == 0

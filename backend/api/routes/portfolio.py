@@ -47,7 +47,6 @@ async def get_portfolio():
         raise_cache_not_ready(
             cache_key="portfolio",
             message="Portfolio cache is empty. Run refresh to build positions.",
-            refresh_mode="light",
         )
     positions = []
     for raw in data.get("positions", []):

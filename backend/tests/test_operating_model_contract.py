@@ -276,7 +276,7 @@ def test_pipeline_prefers_fundamentals_asof(monkeypatch: pytest.MonkeyPatch) -> 
     def _cache_get(key: str):
         payloads = {
             "risk_engine_meta": dict(risk_meta),
-            "risk_engine_cov": {"factors": ["Beta"], "matrix": [[1.0]]},
+            "risk_engine_cov": {"factors": ["style_beta_score"], "matrix": [[1.0]]},
             "risk_engine_specific_risk": {
                 "AAPL.OQ": {
                     "ticker": "AAPL",
@@ -332,8 +332,8 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
         "latest_r2": 0.4,
     }
     cached_universe_loadings = {
-        "factors": ["Beta"],
-        "factor_vols": {"Beta": 0.05},
+        "factors": ["style_beta_score"],
+        "factor_vols": {"style_beta_score": 0.05},
         "ticker_count": 1,
         "eligible_ticker_count": 1,
         "source_dates": dict(source_dates),
@@ -352,10 +352,10 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
                 "price": 100.0,
                 "weight": 1.0,
                 "name": "Apple",
-                "exposures": {"Beta": 1.1},
+                "exposures": {"style_beta_score": 1.1},
                 "specific_var": 0.01,
                 "specific_vol": 0.1,
-                "eligible": True,
+                "model_status": "core_estimated",
             }
         },
     }
@@ -385,7 +385,7 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
     def _cache_get(key: str):
         payloads = {
             "risk_engine_meta": dict(risk_meta),
-            "risk_engine_cov": {"factors": ["Beta"], "matrix": [[1.0]]},
+            "risk_engine_cov": {"factors": ["style_beta_score"], "matrix": [[1.0]]},
             "risk_engine_specific_risk": {
                 "AAPL.OQ": {
                     "ticker": "AAPL",
@@ -394,7 +394,7 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
                 }
             },
             "risk": {
-                "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
+                "cov_matrix": {"factors": ["style_beta_score"], "correlation": [[1.0]]},
             },
             "universe_loadings": dict(cached_universe_loadings),
         }
@@ -406,21 +406,21 @@ def test_pipeline_can_reuse_cached_universe_loadings_for_holdings_only_light_ref
     monkeypatch.setattr(
         pipeline,
         "_build_positions_from_universe",
-        lambda by_ticker: ([{"ticker": "AAPL", "weight": 1.0, "exposures": {"Beta": 1.1}}], 100.0),
+        lambda by_ticker: ([{"ticker": "AAPL", "weight": 1.0, "exposures": {"style_beta_score": 1.1}}], 100.0),
     )
     monkeypatch.setattr(
         pipeline,
         "risk_decomposition",
         lambda **kwargs: (
-            {"country": 0.0, "industry": 10.0, "style": 20.0, "idio": 70.0},
-            {"country": 0.0, "industry": 0.1, "style": 0.2},
-            [{"factor": "Beta", "sensitivity": 0.3, "factor_vol": 0.05}],
+            {"market": 0.0, "industry": 10.0, "style": 20.0, "idio": 70.0},
+            {"market": 0.0, "industry": 0.1, "style": 0.2},
+            [{"factor_id": "style_beta_score", "sensitivity": 0.3, "factor_vol": 0.05}],
         ),
     )
     monkeypatch.setattr(
         pipeline,
         "_compute_position_risk_mix",
-        lambda **kwargs: {"AAPL": {"country": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
+        lambda **kwargs: {"AAPL": {"market": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
     )
     monkeypatch.setattr(pipeline, "_load_latest_factor_coverage", lambda _cache_db: (None, {}))
     monkeypatch.setattr(
@@ -526,8 +526,8 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
         "latest_r2": 0.4,
     }
     cached_universe_loadings = {
-        "factors": ["Beta"],
-        "factor_vols": {"Beta": 0.05},
+        "factors": ["style_beta_score"],
+        "factor_vols": {"style_beta_score": 0.05},
         "ticker_count": 1,
         "eligible_ticker_count": 1,
         "source_dates": dict(source_dates),
@@ -546,10 +546,10 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
                 "price": 100.0,
                 "weight": 1.0,
                 "name": "Apple",
-                "exposures": {"Beta": 1.1},
+                "exposures": {"style_beta_score": 1.1},
                 "specific_var": 0.01,
                 "specific_vol": 0.1,
-                "eligible": True,
+                "model_status": "core_estimated",
             }
         },
     }
@@ -581,7 +581,7 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
     def _cache_get(key: str):
         payloads = {
             "risk_engine_meta": dict(risk_meta),
-            "risk_engine_cov": {"factors": ["Beta"], "matrix": [[1.0]]},
+            "risk_engine_cov": {"factors": ["style_beta_score"], "matrix": [[1.0]]},
             "risk_engine_specific_risk": {
                 "AAPL.OQ": {
                     "ticker": "AAPL",
@@ -590,7 +590,7 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
                 }
             },
             "risk": {
-                "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
+                "cov_matrix": {"factors": ["style_beta_score"], "correlation": [[1.0]]},
             },
             "universe_loadings": dict(cached_universe_loadings),
         }
@@ -603,31 +603,31 @@ def test_pipeline_fallback_light_refresh_still_persists_model_outputs(
         pipeline,
         "_build_universe_ticker_loadings",
         lambda *args, **kwargs: {
-            "factors": ["Beta"],
-            "factor_vols": {"Beta": 0.05},
+            "factors": ["style_beta_score"],
+            "factor_vols": {"style_beta_score": 0.05},
             "ticker_count": 1,
             "eligible_ticker_count": 1,
-            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"Beta": 1.1}}},
+            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"style_beta_score": 1.1}}},
         },
     )
     monkeypatch.setattr(
         pipeline,
         "_build_positions_from_universe",
-        lambda by_ticker: ([{"ticker": "AAPL", "weight": 1.0, "exposures": {"Beta": 1.1}}], 100.0),
+        lambda by_ticker: ([{"ticker": "AAPL", "weight": 1.0, "exposures": {"style_beta_score": 1.1}}], 100.0),
     )
     monkeypatch.setattr(
         pipeline,
         "risk_decomposition",
         lambda **kwargs: (
-            {"country": 0.0, "industry": 10.0, "style": 20.0, "idio": 70.0},
-            {"country": 0.0, "industry": 0.1, "style": 0.2},
-            [{"factor": "Beta", "sensitivity": 0.3, "factor_vol": 0.05}],
+            {"market": 0.0, "industry": 10.0, "style": 20.0, "idio": 70.0},
+            {"market": 0.0, "industry": 0.1, "style": 0.2},
+            [{"factor_id": "style_beta_score", "sensitivity": 0.3, "factor_vol": 0.05}],
         ),
     )
     monkeypatch.setattr(
         pipeline,
         "_compute_position_risk_mix",
-        lambda **kwargs: {"AAPL": {"country": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
+        lambda **kwargs: {"AAPL": {"market": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
     )
     monkeypatch.setattr(pipeline, "_load_latest_factor_coverage", lambda _cache_db: (None, {}))
     monkeypatch.setattr(
@@ -700,7 +700,7 @@ def test_run_refresh_prefers_live_risk_engine_artifacts_over_active_snapshot(
         "specific_risk_ticker_count": 2,
         "latest_r2": 0.33,
     }
-    fresh_cov = {"factors": ["Beta"], "matrix": [[1.0]]}
+    fresh_cov = {"factors": ["style_beta_score"], "matrix": [[1.0]]}
     fresh_specific = {"AAPL.OQ": {"ticker": "AAPL", "specific_var": 0.01}}
 
     monkeypatch.setattr(
@@ -722,7 +722,7 @@ def test_run_refresh_prefers_live_risk_engine_artifacts_over_active_snapshot(
     monkeypatch.setattr(
         pipeline.core_reads,
         "load_raw_cross_section_latest",
-        lambda: pd.DataFrame({"ticker": ["AAPL"], "Beta": [1.0]}),
+        lambda: pd.DataFrame({"ticker": ["AAPL"], "beta_score": [1.0]}),
     )
     monkeypatch.setattr(
         pipeline,
@@ -738,25 +738,25 @@ def test_run_refresh_prefers_live_risk_engine_artifacts_over_active_snapshot(
         pipeline,
         "risk_decomposition",
         lambda *args, **kwargs: (
-            {"country": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
-            {"country": 0.0, "industry": 0.4, "style": 0.6},
-            [{"factor": "Beta", "exposure": 0.1, "sensitivity": 0.01, "factor_vol": 0.05, "pct_of_total": 3.0}],
+            {"market": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
+            {"market": 0.0, "industry": 0.4, "style": 0.6},
+            [{"factor_id": "style_beta_score", "exposure": 0.1, "sensitivity": 0.01, "factor_vol": 0.05, "pct_of_total": 3.0}],
         ),
     )
     monkeypatch.setattr(
         pipeline,
         "_compute_position_risk_mix",
-        lambda *args, **kwargs: {"AAPL": {"country": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
+        lambda *args, **kwargs: {"AAPL": {"market": 0.0, "industry": 0.2, "style": 0.3, "idio": 0.5}},
     )
     monkeypatch.setattr(
         pipeline,
         "_build_universe_ticker_loadings",
         lambda *args, **kwargs: {
-            "factors": ["Beta"],
-            "factor_vols": {"Beta": 0.05},
+            "factors": ["style_beta_score"],
+            "factor_vols": {"style_beta_score": 0.05},
             "ticker_count": 1,
             "eligible_ticker_count": 1,
-            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"Beta": 1.0}}},
+            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"style_beta_score": 1.0}}},
         },
     )
     monkeypatch.setattr(
@@ -1031,7 +1031,7 @@ def test_start_refresh_marks_holdings_failure_if_worker_start_fails(monkeypatch:
     monkeypatch.setattr(refresh_manager.threading, "Thread", _BrokenThread)
 
     started, state = refresh_manager.start_refresh(
-        mode="light",
+        profile="serve-refresh",
         force_risk_recompute=False,
     )
 

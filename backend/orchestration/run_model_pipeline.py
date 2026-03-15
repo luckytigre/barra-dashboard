@@ -388,7 +388,6 @@ def _run_stage(
             progress_callback({"message": "Bootstrapping source tables", "progress_kind": "stage"})
         bootstrap = bootstrap_cuse4_source_tables(
             db_path=DATA_DB,
-            replace_all=False,
         )
         if not config.runtime_role_allows_ingest():
             return {

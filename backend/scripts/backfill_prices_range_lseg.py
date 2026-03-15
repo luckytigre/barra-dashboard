@@ -180,19 +180,23 @@ def backfill_prices(
     ensure_cuse4_schema(conn)
 
     try:
+        requested_rics = [str(r).strip().upper() for r in str(rics_csv).split(",") if str(r).strip()] if rics_csv else []
         where = [
-            "COALESCE(classification_ok, 0) = 1",
-            "COALESCE(is_equity_eligible, 0) = 1",
             "ric IS NOT NULL",
             "TRIM(ric) <> ''",
         ]
         params: list[Any] = []
-        if rics_csv:
-            req = [str(r).strip().upper() for r in str(rics_csv).split(",") if str(r).strip()]
-            if req:
-                placeholders = ",".join("?" for _ in req)
-                where.append(f"UPPER(TRIM(ric)) IN ({placeholders})")
-                params.extend(req)
+        if requested_rics:
+            placeholders = ",".join("?" for _ in requested_rics)
+            where.append(f"UPPER(TRIM(ric)) IN ({placeholders})")
+            params.extend(requested_rics)
+        else:
+            where.extend(
+                [
+                    "COALESCE(classification_ok, 0) = 1",
+                    "COALESCE(is_equity_eligible, 0) = 1",
+                ]
+            )
 
         universe = conn.execute(
             f"""

@@ -74,7 +74,11 @@ export default function WhatIfPreviewPanel({
           <div className="explore-detail-grid">
             <div className="chart-card">
               <span className="explore-compare-label">Current Portfolio</span>
-              <ExposureBarChart factors={previewData.current.exposure_modes[mode]} mode={mode} />
+              <ExposureBarChart
+                factors={previewData.current.exposure_modes[mode]}
+                mode={mode}
+                factorCatalog={previewData.current.factor_catalog}
+              />
             </div>
             <div className="chart-card">
               <span className="explore-compare-label">Hypothetical Portfolio</span>
@@ -82,6 +86,7 @@ export default function WhatIfPreviewPanel({
                 factors={previewData.hypothetical.exposure_modes[mode]}
                 mode={mode}
                 orderByFactors={currentModeFactorOrder}
+                factorCatalog={previewData.hypothetical.factor_catalog}
               />
             </div>
           </div>
@@ -99,7 +104,7 @@ export default function WhatIfPreviewPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {(["country", "industry", "style", "idio"] as const).map((bucket) => (
+                  {(["market", "industry", "style", "idio"] as const).map((bucket) => (
                     <tr key={bucket}>
                       <td>{bucket}</td>
                       <td className="text-right">{previewData.current.risk_shares[bucket].toFixed(2)}%</td>
@@ -158,11 +163,11 @@ export default function WhatIfPreviewPanel({
                   <th className="text-right">Hypothetical</th>
                   <th className="text-right">Delta</th>
                 </tr>
-              </thead>
-              <tbody>
-                {previewData.diff.factor_deltas[mode].map((row) => (
-                  <tr key={row.factor}>
-                    <td>{shortFactorLabel(row.factor)}</td>
+                </thead>
+                <tbody>
+                  {previewData.diff.factor_deltas[mode].map((row) => (
+                  <tr key={row.factor_id}>
+                    <td>{shortFactorLabel(row.factor_id, previewData.current.factor_catalog)}</td>
                     <td className="text-right">{row.current.toFixed(mode === "risk_contribution" ? 2 : 4)}{mode === "risk_contribution" ? "%" : ""}</td>
                     <td className="text-right">{row.hypothetical.toFixed(mode === "risk_contribution" ? 2 : 4)}{mode === "risk_contribution" ? "%" : ""}</td>
                     <td className={`text-right ${row.delta >= 0 ? "positive" : "negative"}`.trim()}>

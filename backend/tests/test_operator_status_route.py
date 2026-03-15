@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.api.routes import operator as operator_route
+from backend.analytics import pipeline
 
 
 def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
@@ -105,7 +106,7 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
 
     def _fake_cache_get(key: str):
         if key == "risk_engine_meta":
-            return {"method_version": "v4_trbc_l2_country_us_dummy_2026_03_08", "factor_returns_latest_date": "2026-03-07"}
+            return {"method_version": pipeline.RISK_ENGINE_METHOD_VERSION, "factor_returns_latest_date": "2026-03-07"}
         if key == "refresh_status":
             return {"status": "idle"}
         if key == "neon_sync_health":

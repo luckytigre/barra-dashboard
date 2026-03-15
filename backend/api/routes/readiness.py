@@ -13,7 +13,6 @@ def cache_not_ready_payload(
     *,
     cache_key: str,
     message: str,
-    refresh_mode: str = "light",
     refresh_profile: str = "serve-refresh",
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
@@ -36,7 +35,6 @@ def raise_cache_not_ready(
     *,
     cache_key: str,
     message: str,
-    refresh_mode: str = "light",
     refresh_profile: str = "serve-refresh",
 ) -> None:
     raise HTTPException(
@@ -44,7 +42,6 @@ def raise_cache_not_ready(
         detail=cache_not_ready_payload(
             cache_key=cache_key,
             message=message,
-            refresh_mode=refresh_mode,
             refresh_profile=refresh_profile,
         ),
     )

@@ -135,8 +135,8 @@ def test_cloud_refresh_defaults_to_serve_refresh_when_profile_omitted(monkeypatc
             True,
             {
                 "status": "running",
-                "profile": kwargs.get("profile"),
-                "mode": kwargs.get("mode"),
+                "profile": kwargs.get("profile") or "serve-refresh",
+                "mode": "light",
             },
         ),
     )

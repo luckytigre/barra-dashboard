@@ -60,7 +60,6 @@ async def get_universe_ticker(ticker: str):
         raise_cache_not_ready(
             cache_key="universe_loadings",
             message="Universe cache is not ready yet. Run refresh and try again.",
-            refresh_mode="light",
         )
     by_ticker = data.get("by_ticker") or {}
     item = by_ticker.get(str(ticker).upper().strip())
@@ -79,7 +78,6 @@ def get_universe_ticker_history(
         raise_cache_not_ready(
             cache_key="universe_loadings",
             message="Universe cache is not ready yet. Run refresh and try again.",
-            refresh_mode="light",
         )
     clean_ticker = str(ticker).upper().strip()
     item = (data.get("by_ticker") or {}).get(clean_ticker)
@@ -134,7 +132,6 @@ async def search_universe(
         raise_cache_not_ready(
             cache_key="universe_loadings",
             message="Universe search is unavailable until cache is built.",
-            refresh_mode="light",
         )
 
     needle = q.strip().upper()
@@ -167,6 +164,5 @@ async def get_universe_factors():
         raise_cache_not_ready(
             cache_key="universe_factors",
             message="Universe factor cache is not ready yet.",
-            refresh_mode="light",
         )
     return {**data, "_cached": True}

@@ -41,10 +41,10 @@ def test_risk_route_uses_persisted_payload_when_cache_incomplete(monkeypatch) ->
     def _fake_payload(key: str):
         if key == "risk":
             return {
-                "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
+                "cov_matrix": {"factors": ["style_beta_score"], "correlation": [[1.0]]},
                 "risk_engine": {"specific_risk_ticker_count": 10},
-                "risk_shares": {"country": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
-                "component_shares": {"country": 0.0, "industry": 0.4, "style": 0.6},
+                "risk_shares": {"market": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
+                "component_shares": {"market": 0.0, "industry": 0.4, "style": 0.6},
                 "factor_details": [],
                 "r_squared": 0.4,
             }
@@ -65,22 +65,22 @@ def test_exposures_route_uses_persisted_payload_when_cache_missing(monkeypatch) 
     monkeypatch.setattr(
         exposures_routes,
         "load_current_payload",
-        lambda key: {"raw": [{"factor": "Beta", "value": 1.0}], "sensitivity": [], "risk_contribution": []}
+        lambda key: {"raw": [{"factor_id": "style_beta_score", "value": 1.0}], "sensitivity": [], "risk_contribution": []}
         if key == "exposures"
         else None,
     )
     client = TestClient(app)
     res = client.get("/api/exposures?mode=raw")
     assert res.status_code == 200
-    assert res.json()["factors"][0]["factor"] == "Beta"
+    assert res.json()["factors"][0]["factor_id"] == "style_beta_score"
 
 
 def test_universe_routes_use_persisted_payload_when_cache_missing(monkeypatch) -> None:
     payload = {
         "index": [{"ticker": "JPM", "name": "JPMORGAN CHASE", "ric": "JPM.N"}],
         "by_ticker": {"JPM": {"ticker": "JPM", "ric": "JPM.N", "name": "JPMORGAN CHASE"}},
-        "factors": ["Beta"],
-        "factor_vols": {"Beta": 0.1},
+        "factors": ["style_beta_score"],
+        "factor_vols": {"style_beta_score": 0.1},
         "ticker_count": 1,
         "eligible_ticker_count": 1,
     }
@@ -99,7 +99,7 @@ def test_universe_routes_use_persisted_payload_when_cache_missing(monkeypatch) -
     assert factors.status_code == 200
     assert search.json()["results"][0]["ric"] == "JPM.N"
     assert ticker.json()["item"]["ticker"] == "JPM"
-    assert factors.json()["factors"] == ["Beta"]
+    assert factors.json()["factors"] == ["style_beta_score"]
 
 
 def test_portfolio_route_prefers_persisted_payload_in_serving_outputs_mode(monkeypatch) -> None:
@@ -144,10 +144,10 @@ def test_risk_route_prefers_persisted_payload_in_serving_outputs_mode(monkeypatc
     def _fake_payload(key: str):
         if key == "risk":
             return {
-                "cov_matrix": {"factors": ["Beta"], "correlation": [[1.0]]},
+                "cov_matrix": {"factors": ["style_beta_score"], "correlation": [[1.0]]},
                 "risk_engine": {"specific_risk_ticker_count": 10},
-                "risk_shares": {"country": 1.0, "industry": 20.0, "style": 30.0, "idio": 49.0},
-                "component_shares": {"country": 0.02, "industry": 0.4, "style": 0.58},
+                "risk_shares": {"market": 1.0, "industry": 20.0, "style": 30.0, "idio": 49.0},
+                "component_shares": {"market": 0.02, "industry": 0.4, "style": 0.58},
                 "factor_details": [],
                 "r_squared": 0.4,
             }

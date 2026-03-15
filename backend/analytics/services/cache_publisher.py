@@ -15,6 +15,7 @@ from backend.analytics.contracts import (
     CovariancePayload,
     EligibilitySummaryPayload,
     ExposureModesPayload,
+    FactorCatalogEntryPayload,
     FactorDetailPayload,
     ModelSanityPayload,
     PositionPayload,
@@ -86,10 +87,10 @@ def build_model_sanity_report(
         )
 
     industry_pct = _finite_float(risk_shares.get("industry"), 0.0)
-    country_pct = _finite_float(risk_shares.get("country"), 0.0)
+    market_pct = _finite_float(risk_shares.get("market"), 0.0)
     style_pct = _finite_float(risk_shares.get("style"), 0.0)
-    if country_pct > 90.0:
-        warnings.append(f"Country risk share is highly concentrated at {country_pct:.1f}% of total risk.")
+    if market_pct > 90.0:
+        warnings.append(f"Market risk share is highly concentrated at {market_pct:.1f}% of total risk.")
     if industry_pct > 90.0:
         warnings.append(f"Industry risk share is highly concentrated at {industry_pct:.1f}% of total risk.")
     if style_pct > 90.0:
@@ -123,9 +124,14 @@ def build_model_sanity_report(
         "update_available": bool(used_older_than_latest),
         "checks": {
             "factor_sign_mismatch_count": int(sign_mismatch),
-            "country_risk_share_pct": round(country_pct, 2),
+            "market_risk_share_pct": round(market_pct, 2),
             "latest_regression_coverage_pct": round(regression_cov * 100.0, 2),
             "latest_structural_eligible_n": int(eligibility_summary.get("structural_eligible_n", 0) or 0),
+            "latest_core_structural_eligible_n": int(
+                eligibility_summary.get("core_structural_eligible_n", 0) or 0
+            ),
+            "latest_projectable_n": int(eligibility_summary.get("projectable_n", 0) or 0),
+            "latest_projected_only_n": int(eligibility_summary.get("projected_only_n", 0) or 0),
             "industry_risk_share_pct": round(industry_pct, 2),
             "style_risk_share_pct": round(style_pct, 2),
             "idio_risk_share_pct": round(_finite_float(risk_shares.get("idio"), 0.0), 2),
@@ -136,10 +142,27 @@ def build_model_sanity_report(
 def load_latest_eligibility_summary(cache_db: Path) -> EligibilitySummaryPayload:
     conn = sqlite3.connect(str(cache_db))
     try:
+        elig_cols = {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info(daily_universe_eligibility_summary)").fetchall()
+        }
+        core_structural_expr = (
+            "core_structural_eligible_n" if "core_structural_eligible_n" in elig_cols else "structural_eligible_n"
+        )
+        projectable_expr = "projectable_n" if "projectable_n" in elig_cols else "regression_member_n"
+        projected_only_expr = "projected_only_n" if "projected_only_n" in elig_cols else "0"
+        projectable_coverage_expr = (
+            "projectable_coverage" if "projectable_coverage" in elig_cols else "regression_coverage"
+        )
         latest_any = conn.execute(
-            """
+            f"""
             SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                   structural_coverage, regression_coverage, drop_pct_from_prev, alert_level
+                   {core_structural_expr} AS core_structural_eligible_n,
+                   {projectable_expr} AS projectable_n,
+                   {projected_only_expr} AS projected_only_n,
+                   structural_coverage, regression_coverage,
+                   {projectable_coverage_expr} AS projectable_coverage,
+                   drop_pct_from_prev, alert_level
             FROM daily_universe_eligibility_summary
             ORDER BY date DESC
             LIMIT 1
@@ -158,9 +181,14 @@ def load_latest_eligibility_summary(cache_db: Path) -> EligibilitySummaryPayload
         )
 
         row = conn.execute(
-            """
+            f"""
             SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                   structural_coverage, regression_coverage, drop_pct_from_prev, alert_level
+                   {core_structural_expr} AS core_structural_eligible_n,
+                   {projectable_expr} AS projectable_n,
+                   {projected_only_expr} AS projected_only_n,
+                   structural_coverage, regression_coverage,
+                   {projectable_coverage_expr} AS projectable_coverage,
+                   drop_pct_from_prev, alert_level
             FROM daily_universe_eligibility_summary
             WHERE regression_member_n >= ?
             ORDER BY date DESC
@@ -171,9 +199,14 @@ def load_latest_eligibility_summary(cache_db: Path) -> EligibilitySummaryPayload
         selection_mode = "well_covered"
         if row is None:
             row = conn.execute(
-                """
+                f"""
                 SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                       structural_coverage, regression_coverage, drop_pct_from_prev, alert_level
+                       {core_structural_expr} AS core_structural_eligible_n,
+                       {projectable_expr} AS projectable_n,
+                       {projected_only_expr} AS projected_only_n,
+                       structural_coverage, regression_coverage,
+                       {projectable_coverage_expr} AS projectable_coverage,
+                       drop_pct_from_prev, alert_level
                 FROM daily_universe_eligibility_summary
                 WHERE regression_member_n > 0
                 ORDER BY date DESC
@@ -212,10 +245,14 @@ def load_latest_eligibility_summary(cache_db: Path) -> EligibilitySummaryPayload
         "exposure_n": int(row[2] or 0),
         "structural_eligible_n": int(row[3] or 0),
         "regression_member_n": int(row[4] or 0),
-        "structural_coverage": float(row[5] or 0.0),
-        "regression_coverage": float(row[6] or 0.0),
-        "drop_pct_from_prev": float(row[7] or 0.0),
-        "alert_level": str(row[8] or ""),
+        "core_structural_eligible_n": int(row[5] or 0),
+        "projectable_n": int(row[6] or 0),
+        "projected_only_n": int(row[7] or 0),
+        "structural_coverage": float(row[8] or 0.0),
+        "regression_coverage": float(row[9] or 0.0),
+        "projectable_coverage": float(row[10] or 0.0),
+        "drop_pct_from_prev": float(row[11] or 0.0),
+        "alert_level": str(row[12] or ""),
         "selection_mode": selection_mode,
         "max_regression_member_n": int(max_regression_n),
         "coverage_threshold_n": int(coverage_threshold_n),
@@ -246,6 +283,7 @@ def stage_refresh_cache_snapshot(
     latest_r2: float,
     universe_loadings: UniverseLoadingsPayload,
     exposure_modes: ExposureModesPayload,
+    factor_catalog: list[FactorCatalogEntryPayload],
     cuse4_foundation: dict[str, Any],
     light_mode: bool,
     reuse_cached_static_payloads: bool = False,
@@ -281,6 +319,7 @@ def stage_refresh_cache_snapshot(
         "risk_shares": risk_shares,
         "component_shares": component_shares,
         "factor_details": factor_details,
+        "factor_catalog": factor_catalog,
         "cov_matrix": cov_matrix,
         "r_squared": round(float(latest_r2), 4),
         "risk_engine": risk_engine_state,
@@ -295,9 +334,13 @@ def stage_refresh_cache_snapshot(
     universe_factors: UniverseFactorsPayload = {
         "factors": universe_loadings.get("factors", []),
         "factor_vols": universe_loadings.get("factor_vols", {}),
+        "factor_catalog": factor_catalog,
         "r_squared": round(float(latest_r2), 4),
         "ticker_count": universe_loadings.get("ticker_count", 0),
         "eligible_ticker_count": universe_loadings.get("eligible_ticker_count", 0),
+        "core_estimated_ticker_count": universe_loadings.get("core_estimated_ticker_count", 0),
+        "projected_only_ticker_count": universe_loadings.get("projected_only_ticker_count", 0),
+        "ineligible_ticker_count": universe_loadings.get("ineligible_ticker_count", 0),
         "risk_engine": risk_engine_state,
         "refresh_started_at": refresh_started_at,
     }

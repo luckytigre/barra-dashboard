@@ -13,7 +13,6 @@ function parseError(error: unknown): {
   message: string;
   actionMethod?: string;
   actionEndpoint?: string;
-  refreshMode?: "full" | "light" | "cold";
   refreshProfile?: string;
 } {
   if (error instanceof ApiError) {
@@ -25,14 +24,11 @@ function parseError(error: unknown): {
       | null
       | undefined;
     const actionEndpoint = detail?.action?.endpoint;
-    let refreshMode: "full" | "light" | "cold" | undefined;
     let refreshProfile: string | undefined;
     if (actionEndpoint) {
       try {
         const url = new URL(actionEndpoint, "http://localhost");
-        const mode = String(url.searchParams.get("mode") || "").toLowerCase();
         const profile = String(url.searchParams.get("profile") || "").trim();
-        if (mode === "full" || mode === "light" || mode === "cold") refreshMode = mode;
         if (profile) refreshProfile = profile;
       } catch {
         // noop
@@ -42,7 +38,6 @@ function parseError(error: unknown): {
       message: detail?.message || error.message || "Request failed.",
       actionMethod: detail?.action?.method,
       actionEndpoint,
-      refreshMode,
       refreshProfile,
     };
   }
@@ -73,13 +68,7 @@ export default function ApiErrorState({
       } else if (onlyServeRefreshAllowed) {
         await triggerServeRefresh();
       } else {
-        if (parsed.refreshMode === "cold") {
-          await triggerRefreshProfile("cold-core");
-        } else if (parsed.refreshMode === "full") {
-          await triggerDailyMaintenanceRefresh();
-        } else {
-          await triggerServeRefresh();
-        }
+        await triggerDailyMaintenanceRefresh();
       }
       setRefreshState("done");
     } catch {
@@ -104,11 +93,7 @@ export default function ApiErrorState({
                 ? `Run ${parsed.refreshProfile}`
                 : onlyServeRefreshAllowed
                   ? "Run serve-refresh"
-                : parsed.refreshMode === "cold"
-                  ? "Run cold-core"
-                  : parsed.refreshMode === "full"
-                    ? "Run source-daily-plus-core-if-due"
-                    : "Run serve-refresh"}
+                  : "Run source-daily-plus-core-if-due"}
           </button>
           {refreshState === "done" && (
             <div style={{ marginTop: 8, color: "rgba(169,182,210,0.8)", fontSize: 12 }}>

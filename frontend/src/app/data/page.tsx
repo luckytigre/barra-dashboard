@@ -123,10 +123,24 @@ export default function DataPage() {
             </div>
           </div>
           <div className="data-kpi">
-            <div className="data-kpi-label">Regression Universe</div>
+            <div className="data-kpi-label">US Core Universe</div>
+            <div className="data-kpi-value">{fmtInt(elig?.latest?.core_structural_eligible_n)}</div>
+            <div className="data-kpi-desc">
+              Structurally eligible US names in the live core model. This is the maximum pool that can define factor returns.
+            </div>
+          </div>
+          <div className="data-kpi">
+            <div className="data-kpi-label">Regression Members</div>
             <div className="data-kpi-value">{fmtInt(elig?.latest?.regression_member_n)}</div>
             <div className="data-kpi-desc">
-              Securities in the latest cross-sectional regression. This is the effective sample size for estimating factor returns.
+              Securities actually used in the latest cross-sectional regression. This is the effective estimation sample size.
+            </div>
+          </div>
+          <div className="data-kpi">
+            <div className="data-kpi-label">Projected-Only</div>
+            <div className="data-kpi-value">{fmtInt(elig?.latest?.projected_only_n)}</div>
+            <div className="data-kpi-desc">
+              Names carried through the model for portfolio analytics but excluded from core factor-return estimation.
             </div>
           </div>
           <div className="data-kpi">
@@ -258,21 +272,60 @@ export default function DataPage() {
           </div>
 
           <div className="data-metric-card">
-            <h4>Regression Membership</h4>
+            <h4>US Core Estimation Universe</h4>
             <div className="data-metric-desc">
-              The subset of structurally eligible names with sufficient data quality to enter the cross-sectional regression. This is the effective sample size for factor return estimation.
+              The live model estimates factor returns on a US-core universe. These counts separate the full US structural pool from the subset that actually made it into the regression.
             </div>
             <div className="data-metric-row">
               <span className="data-metric-label">Historical min</span>
-              <span className="data-metric-value">{fmtInt(elig?.min_regression_member_n)}</span>
+              <span className="data-metric-value">{fmtInt(elig?.min_core_structural_eligible_n)}</span>
             </div>
             <div className="data-metric-row">
               <span className="data-metric-label">Historical max</span>
-              <span className="data-metric-value">{fmtInt(elig?.max_regression_member_n)}</span>
+              <span className="data-metric-value">{fmtInt(elig?.max_core_structural_eligible_n)}</span>
             </div>
             <div className="data-metric-row">
               <span className="data-metric-label">Latest</span>
+              <span className="data-metric-value">{elig?.latest ? fmtInt(elig.latest.core_structural_eligible_n) : "—"}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Latest regression members</span>
               <span className="data-metric-value">{elig?.latest ? fmtInt(elig.latest.regression_member_n) : "—"}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Regression coverage</span>
+              <span className="data-metric-value">
+                {elig?.latest ? `${Number(elig.latest.regression_coverage_pct || 0).toFixed(1)}%` : "—"}
+              </span>
+            </div>
+          </div>
+
+          <div className="data-metric-card">
+            <h4>Projected Coverage</h4>
+            <div className="data-metric-desc">
+              Structurally eligible names with usable returns that remain in portfolio analytics even when they do not participate in core estimation.
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Historical min projectable</span>
+              <span className="data-metric-value">{fmtInt(elig?.min_projectable_n)}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Historical max projectable</span>
+              <span className="data-metric-value">{fmtInt(elig?.max_projectable_n)}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Latest projectable</span>
+              <span className="data-metric-value">{elig?.latest ? fmtInt(elig.latest.projectable_n) : "—"}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Latest projected-only</span>
+              <span className="data-metric-value">{elig?.latest ? fmtInt(elig.latest.projected_only_n) : "—"}</span>
+            </div>
+            <div className="data-metric-row">
+              <span className="data-metric-label">Projectable coverage</span>
+              <span className="data-metric-value">
+                {elig?.latest ? `${Number(elig.latest.projectable_coverage_pct || 0).toFixed(1)}%` : "—"}
+              </span>
             </div>
           </div>
 

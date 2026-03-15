@@ -41,6 +41,11 @@ from backend.analytics.services.universe_loadings import (
     load_latest_factor_coverage as _load_latest_factor_coverage_impl,
 )
 from backend.data import core_reads, model_outputs, rebuild_cross_section_snapshot, serving_outputs, sqlite
+from backend.risk_model.factor_catalog import (
+    build_factor_catalog_for_factors,
+    factor_id_to_entry_map,
+    factor_name_to_id_map,
+)
 from backend.risk_model import (
     build_factor_covariance_from_cache,
     build_specific_risk_from_cache,
@@ -54,7 +59,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
-RISK_ENGINE_METHOD_VERSION = "v7_country_split_hc1_no_value_factor_2026_03_14"
+RISK_ENGINE_METHOD_VERSION = "v8_use4_us_core_market_one_stage_projected_non_us_2026_03_15"
 _UNIVERSE_REUSE_RISK_KEYS = (
     "status",
     "method_version",
@@ -314,7 +319,6 @@ def run_refresh(
             if bool(config.CUSE4_AUTO_BOOTSTRAP):
                 cuse4_bootstrap = bootstrap_cuse4_source_tables(
                     db_path=DATA_DB,
-                    replace_all=True,
                 )
             estu_asof = (
                 source_dates.get("fundamentals_asof")
@@ -419,6 +423,14 @@ def run_refresh(
         )
 
     specific_risk_by_ticker = _specific_risk_by_ticker_view(specific_risk_by_security)
+    factor_catalog_by_name = build_factor_catalog_for_factors(
+        list(cov.columns),
+        method_version=RISK_ENGINE_METHOD_VERSION,
+    ) if cov is not None and not cov.empty else {}
+    factor_name_to_id = factor_name_to_id_map(factor_catalog_by_name)
+    factor_catalog_by_id = factor_id_to_entry_map(factor_catalog_by_name)
+    if not cov.empty and factor_name_to_id:
+        cov = cov.rename(index=factor_name_to_id, columns=factor_name_to_id)
 
     # 3. Build/cached full-universe loadings first (portfolio is a final projection only).
     universe_loadings_reused = False
@@ -467,6 +479,7 @@ def run_refresh(
             prices_universe_df,
             cov,
             specific_risk_by_ticker=specific_risk_by_ticker,
+            factor_catalog_by_name=factor_catalog_by_name,
         )
         universe_loadings_reuse_reason = "rebuilt"
         logger.info(
@@ -488,20 +501,20 @@ def run_refresh(
         specific_risk_by_ticker=specific_risk_by_ticker,
     )
     risk_shares: RiskSharesPayload = {
-        "country": float(raw_risk_shares.get("country", 0.0)),
+        "market": float(raw_risk_shares.get("market", 0.0)),
         "industry": float(raw_risk_shares.get("industry", 0.0)),
         "style": float(raw_risk_shares.get("style", 0.0)),
         "idio": float(raw_risk_shares.get("idio", 0.0)),
     }
     component_shares: ComponentSharesPayload = {
-        "country": float(raw_component_shares.get("country", 0.0)),
+        "market": float(raw_component_shares.get("market", 0.0)),
         "industry": float(raw_component_shares.get("industry", 0.0)),
         "style": float(raw_component_shares.get("style", 0.0)),
     }
     factor_details: list[FactorDetailPayload] = [dict(row) for row in raw_factor_details]
     logger.info(
-        "Risk decomposition complete: country=%.2f industry=%.2f style=%.2f idio=%.2f factors=%s",
-        float(risk_shares["country"]),
+        "Risk decomposition complete: market=%.2f industry=%.2f style=%.2f idio=%.2f factors=%s",
+        float(risk_shares["market"]),
         float(risk_shares["industry"]),
         float(risk_shares["style"]),
         float(risk_shares["idio"]),
@@ -523,7 +536,7 @@ def run_refresh(
         ticker = str(pos.get("ticker", "")).upper()
         pos["risk_contrib_pct"] = float(position_risk_contrib.get(ticker, 0.0))
         pos["risk_mix"] = dict(position_risk_mix.get(ticker, {
-            "country": 0.0,
+            "market": 0.0,
             "industry": 0.0,
             "style": 0.0,
             "idio": 0.0,
@@ -540,6 +553,12 @@ def run_refresh(
     # 7. Compute exposure modes
     logger.info("Computing exposure modes...")
     coverage_date, factor_coverage = _load_latest_factor_coverage(CACHE_DB)
+    if factor_name_to_id:
+        factor_coverage = {
+            factor_name_to_id[factor_name]: payload
+            for factor_name, payload in factor_coverage.items()
+            if factor_name in factor_name_to_id
+        }
     exposure_modes: ExposureModesPayload = _compute_exposures_modes(
         positions,
         cov,
@@ -560,7 +579,10 @@ def run_refresh(
         cov_matrix = cached_risk_display
     elif not cov.empty:
         all_factors = list(cov.columns)
-        style_idx = [i for i, f in enumerate(all_factors) if f in STYLE_FACTOR_NAMES]
+        style_idx = [
+            i for i, factor_id in enumerate(all_factors)
+            if str(factor_catalog_by_id.get(str(factor_id)).family if factor_catalog_by_id.get(str(factor_id)) else "") == "style"
+        ]
         if style_idx:
             style_factors = [all_factors[i] for i in style_idx]
             sub_cov = cov.to_numpy()[np.ix_(style_idx, style_idx)]
@@ -609,6 +631,7 @@ def run_refresh(
         latest_r2=latest_r2,
         universe_loadings=universe_loadings,
         exposure_modes=exposure_modes,
+        factor_catalog=universe_loadings.get("factor_catalog", []),
         cuse4_foundation=cuse4_foundation,
         light_mode=light_mode,
         reuse_cached_static_payloads=bool(

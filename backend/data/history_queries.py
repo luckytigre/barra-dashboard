@@ -10,6 +10,12 @@ from psycopg.rows import dict_row
 
 from backend import config
 from backend.data.neon import connect, resolve_dsn
+from backend.risk_model.factor_catalog import (
+    STYLE_LABEL_TO_COLUMN,
+    factor_id_for_name,
+    factor_name_from_token,
+    infer_factor_family,
+)
 
 _FACTOR_HISTORY_SURFACE = "factor_history"
 _PRICE_HISTORY_SURFACE = "price_history"
@@ -24,6 +30,81 @@ def _path_matches_config(path: Path, configured: str) -> bool:
         return Path(path).expanduser().resolve() == Path(configured).expanduser().resolve()
     except Exception:
         return False
+
+
+def resolve_factor_history_factor(
+    cache_db: Path,
+    *,
+    factor_token: str,
+) -> tuple[str, str]:
+    """Resolve a factor ID or display name to the stored history factor name."""
+    clean = str(factor_token or "").strip()
+    if not clean:
+        return "", ""
+
+    static_name = factor_name_from_token(clean)
+    if static_name and static_name != clean and not clean.startswith("industry_"):
+        static_family = infer_factor_family(clean or static_name)
+        static_id = factor_id_for_name(
+            static_name,
+            family=static_family,
+            source_column=STYLE_LABEL_TO_COLUMN.get(static_name),
+        )
+        return static_id, static_name
+
+    factor_names: list[str] = []
+    use_neon = _use_neon_surface(_FACTOR_HISTORY_SURFACE) and _path_matches_config(
+        cache_db,
+        config.SQLITE_PATH,
+    )
+    if use_neon:
+        pg_conn = connect(dsn=resolve_dsn(None), autocommit=True)
+        try:
+            with pg_conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT factor_name
+                    FROM model_factor_returns_daily
+                    WHERE factor_name IS NOT NULL
+                    """
+                )
+                factor_names = [str(row.get("factor_name") or "").strip() for row in cur.fetchall()]
+        finally:
+            pg_conn.close()
+    else:
+        conn = sqlite3.connect(str(cache_db))
+        try:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT factor_name
+                FROM daily_factor_returns
+                WHERE factor_name IS NOT NULL
+                """
+            ).fetchall()
+            factor_names = [str(row[0] or "").strip() for row in rows]
+        finally:
+            conn.close()
+
+    for factor_name in factor_names:
+        if not factor_name:
+            continue
+        family = infer_factor_family(factor_name)
+        factor_id = factor_id_for_name(
+            factor_name,
+            family=family,
+            source_column=STYLE_LABEL_TO_COLUMN.get(factor_name),
+        )
+        if clean == factor_name or clean == factor_id:
+            return factor_id, factor_name
+    if static_name and static_name != clean:
+        static_family = infer_factor_family(clean or static_name)
+        static_id = factor_id_for_name(
+            static_name,
+            family=static_family,
+            source_column=STYLE_LABEL_TO_COLUMN.get(static_name),
+        )
+        return static_id, static_name
+    return clean, clean
 
 
 def load_factor_return_history(

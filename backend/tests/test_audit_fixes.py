@@ -8,11 +8,11 @@ import pandas as pd
 import pytest
 
 from backend.risk_model.daily_factor_returns import (
-    _supported_style_score_columns,
     _load_cached_dates,
     _save_daily_results_and_residuals,
     load_specific_residuals,
 )
+from backend.risk_model.regression_frame import _supported_style_score_columns
 from backend.risk_model.raw_cross_section_history import ensure_raw_cross_section_history_table
 from backend.universe.schema import ensure_cuse4_schema
 from backend.data.cross_section_snapshot import ensure_cross_section_snapshot_table

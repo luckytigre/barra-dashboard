@@ -243,13 +243,13 @@ def _build_preview_payload(
         specific_risk_by_ticker=specific_risk_by_ticker,
     )
     risk_shares: RiskSharesPayload = {
-        "country": float(raw_risk_shares.get("country", 0.0)),
+        "market": float(raw_risk_shares.get("market", 0.0)),
         "industry": float(raw_risk_shares.get("industry", 0.0)),
         "style": float(raw_risk_shares.get("style", 0.0)),
         "idio": float(raw_risk_shares.get("idio", 0.0)),
     }
     component_shares: ComponentSharesPayload = {
-        "country": float(raw_component_shares.get("country", 0.0)),
+        "market": float(raw_component_shares.get("market", 0.0)),
         "industry": float(raw_component_shares.get("industry", 0.0)),
         "style": float(raw_component_shares.get("style", 0.0)),
     }
@@ -268,7 +268,7 @@ def _build_preview_payload(
         ticker = str(pos.get("ticker", "")).upper()
         pos["risk_contrib_pct"] = float(position_risk_contrib.get(ticker, 0.0))
         pos["risk_mix"] = dict(position_risk_mix.get(ticker, {
-            "country": 0.0,
+            "market": 0.0,
             "industry": 0.0,
             "style": 0.0,
             "idio": 0.0,
@@ -288,6 +288,7 @@ def _build_preview_payload(
         "component_shares": component_shares,
         "factor_details": factor_details,
         "exposure_modes": exposure_modes,
+        "factor_catalog": list(universe_loadings.get("factor_catalog") or []),
     }
 
 
@@ -298,11 +299,11 @@ def _factor_delta_rows(
     mode: str,
 ) -> list[dict[str, Any]]:
     current_map = {
-        str(row.get("factor")): float(row.get("value") or 0.0)
+        str(row.get("factor_id")): float(row.get("value") or 0.0)
         for row in (current_modes.get(mode) or [])
     }
     hypothetical_map = {
-        str(row.get("factor")): float(row.get("value") or 0.0)
+        str(row.get("factor_id")): float(row.get("value") or 0.0)
         for row in (hypothetical_modes.get(mode) or [])
     }
     rows: list[dict[str, Any]] = []
@@ -311,7 +312,7 @@ def _factor_delta_rows(
         hypothetical_value = float(hypothetical_map.get(factor, 0.0))
         delta_value = hypothetical_value - current_value
         rows.append({
-            "factor": factor,
+            "factor_id": factor,
             "current": round(current_value, 6),
             "hypothetical": round(hypothetical_value, 6),
             "delta": round(delta_value, 6),
@@ -357,7 +358,7 @@ def preview_portfolio_whatif(
             - float(current_preview["risk_shares"].get(bucket, 0.0)),
             2,
         )
-        for bucket in ("country", "industry", "style", "idio")
+        for bucket in ("market", "industry", "style", "idio")
     }
     factor_deltas = {
         mode: _factor_delta_rows(

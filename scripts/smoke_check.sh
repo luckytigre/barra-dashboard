@@ -47,7 +47,6 @@ check_json_key "${BACKEND_ORIGIN}/api/risk" "risk_shares"
 check_json_key "${BACKEND_ORIGIN}/api/operator/status" "lanes"
 
 check_http_follow "${FRONTEND_ORIGIN}/"
-check_http_follow "${FRONTEND_ORIGIN}/overview"
 check_http "${FRONTEND_ORIGIN}/exposures"
 check_http "${FRONTEND_ORIGIN}/data"
 check_http "${FRONTEND_ORIGIN}/positions"

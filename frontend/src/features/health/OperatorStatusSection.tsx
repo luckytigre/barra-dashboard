@@ -77,7 +77,7 @@ export default function OperatorStatusSection({
           {(data?.lanes ?? []).map((lane) => {
             const tone = operatorTone(lane.latest_run.status);
             return (
-              <div key={lane.profile} className={`operator-lane-card ${tone}`}>
+              <div key={lane.profile} className={`operator-lane-card ${tone}`} data-tip={lane.description || undefined}>
                 <div className="operator-lane-label">{lane.label}</div>
                 <div className="operator-lane-status">{lane.latest_run.status}</div>
                 <div className="operator-lane-detail">{laneSummary(lane)}</div>
@@ -98,23 +98,23 @@ export default function OperatorStatusSection({
         <div className="operator-info-card">
           <h4>Source Recency</h4>
           <div className="operator-kv-item">
-            <span className="kv-label">Prices</span>
+            <span className="kv-label" data-tip="Most recent trading-day close prices loaded from the market data vendor.">Prices</span>
             <span className="kv-value">{sourceDates.prices_asof ?? "—"}</span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Fundamentals</span>
+            <span className="kv-label" data-tip="Latest financial statement data (book value, earnings, etc.) used for value and growth factor exposures.">Fundamentals</span>
             <span className="kv-value">{sourceDates.fundamentals_asof ?? "—"}</span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Classification</span>
+            <span className="kv-label" data-tip="Industry and sector classification mappings (e.g. TRBC) assigned to each security in the universe.">Classification</span>
             <span className="kv-value">{sourceDates.classification_asof ?? "—"}</span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Cross Section</span>
+            <span className="kv-label" data-tip="Latest computed factor exposures (betas) for every security in the cross-section.">Cross Section</span>
             <span className="kv-value">{sourceDates.exposures_asof ?? "—"}</span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Factor Returns</span>
+            <span className="kv-label" data-tip="Most recent date for which daily factor returns have been estimated by the risk engine.">Factor Returns</span>
             <span className="kv-value">{data?.risk_engine?.factor_returns_latest_date ?? "—"}</span>
           </div>
         </div>
@@ -122,29 +122,29 @@ export default function OperatorStatusSection({
         <div className="operator-info-card">
           <h4>Runtime Health</h4>
           <div className="operator-kv-item">
-            <span className="kv-label">Refresh</span>
+            <span className="kv-label" data-tip="Whether the pipeline is currently running a data refresh cycle. 'ok' means idle; 'running' means a refresh is in progress.">Refresh</span>
             <span className={`kv-value ${runtimeStatusTone(data?.refresh?.status)}`.trim()}>
               {data?.refresh?.status ?? "—"}
             </span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Holdings</span>
+            <span className="kv-label" data-tip="Whether portfolio holdings are in sync with the database. 'Dirty' means pending changes haven't been processed yet.">Holdings</span>
             <span className={`kv-value ${runtimeStatusTone(holdingsSync?.pending ? "dirty" : "clean")}`.trim()}>
               {holdingsSync?.pending ? `Dirty (${holdingsSync.pending_count || 0})` : "Clean"}
             </span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Neon Mirror</span>
+            <span className="kv-label" data-tip="Sync status between the local database and the Neon cloud mirror. 'match' means they agree; anything else signals drift.">Neon Mirror</span>
             <span className={`kv-value ${runtimeStatusTone(neon?.mirror_status ?? neon?.status)}`.trim()}>
               {neon?.mirror_status ?? neon?.status ?? "—"}
             </span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Snapshot</span>
+            <span className="kv-label" data-tip="The active data snapshot ID currently being used to serve risk analytics and exposures.">Snapshot</span>
             <span className="kv-value">{data?.active_snapshot?.snapshot_id ?? "—"}</span>
           </div>
           <div className="operator-kv-item">
-            <span className="kv-label">Risk Engine</span>
+            <span className="kv-label" data-tip="Version of the regression and risk engine method currently active (e.g. WLS with specific factor set).">Risk Engine</span>
             <span className="kv-value">{data?.risk_engine?.method_version ?? "—"}</span>
           </div>
         </div>

@@ -40,6 +40,41 @@ def _seed_cache_db(path: Path) -> None:
     conn.close()
 
 
+def _seed_eligibility_summary(path: Path) -> None:
+    conn = sqlite3.connect(str(path))
+    conn.execute(
+        """
+        CREATE TABLE daily_universe_eligibility_summary (
+            date TEXT PRIMARY KEY,
+            exp_date TEXT,
+            exposure_n INTEGER NOT NULL DEFAULT 0,
+            structural_eligible_n INTEGER NOT NULL DEFAULT 0,
+            core_structural_eligible_n INTEGER NOT NULL DEFAULT 0,
+            regression_member_n INTEGER NOT NULL DEFAULT 0,
+            projectable_n INTEGER NOT NULL DEFAULT 0,
+            projected_only_n INTEGER NOT NULL DEFAULT 0,
+            structural_coverage REAL NOT NULL DEFAULT 0.0,
+            regression_coverage REAL NOT NULL DEFAULT 0.0,
+            projectable_coverage REAL NOT NULL DEFAULT 0.0,
+            drop_pct_from_prev REAL NOT NULL DEFAULT 0.0,
+            alert_level TEXT NOT NULL DEFAULT ''
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO daily_universe_eligibility_summary (
+            date, exp_date, exposure_n, structural_eligible_n, core_structural_eligible_n,
+            regression_member_n, projectable_n, projected_only_n,
+            structural_coverage, regression_coverage, projectable_coverage, drop_pct_from_prev, alert_level
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("2026-03-03", "2026-03-03", 120, 100, 90, 80, 95, 15, 0.83, 0.89, 0.95, 0.02, ""),
+    )
+    conn.commit()
+    conn.close()
+
+
 def test_data_diagnostics_uses_canonical_source_table_keys(monkeypatch, tmp_path: Path) -> None:
     data_db = tmp_path / "data.db"
     cache_db = tmp_path / "cache.db"
@@ -71,3 +106,26 @@ def test_data_diagnostics_uses_canonical_source_table_keys(monkeypatch, tmp_path
     assert body["truth_surfaces"]["dashboard_serving"]["source"] == "durable_serving_payloads"
     assert body["truth_surfaces"]["operator_status"]["source"] == "runtime_status_and_job_runs"
     assert body["truth_surfaces"]["local_diagnostics"]["source"] == "local_sqlite_and_cache"
+
+
+def test_data_diagnostics_reports_core_and_projected_counts(monkeypatch, tmp_path: Path) -> None:
+    data_db = tmp_path / "data.db"
+    cache_db = tmp_path / "cache.db"
+    _seed_data_db(data_db)
+    _seed_cache_db(cache_db)
+    _seed_eligibility_summary(cache_db)
+
+    monkeypatch.setattr(data_routes, "DATA_DB", data_db)
+    monkeypatch.setattr(data_routes, "CACHE_DB", cache_db)
+    monkeypatch.setattr(data_routes, "cache_get", lambda _key: {})
+
+    client = TestClient(app)
+    res = client.get("/api/data/diagnostics")
+    assert res.status_code == 200
+
+    latest = res.json()["cross_section_usage"]["eligibility_summary"]["latest"]
+    assert latest["core_structural_eligible_n"] == 90
+    assert latest["regression_member_n"] == 80
+    assert latest["projectable_n"] == 95
+    assert latest["projected_only_n"] == 15
+    assert latest["projectable_coverage_pct"] == 95.0

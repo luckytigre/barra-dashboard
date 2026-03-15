@@ -38,6 +38,14 @@ Cold-core lessons now incorporated:
 - staged snapshots can be correct while the live pointer is still stale, so operator observability must show the active snapshot id
 - heavy diagnostics and operator-state surfaces should be separated so the operator view remains useful even when diagnostics are stale
 
+## Known Limitations Still Open
+
+- regression inference currently ships as HC1 robust SE / t-stat; HC2 or HC3 evaluation and explicit leverage diagnostics remain follow-up work for sparse or high-leverage buckets
+- winsorization policy is configurable and improved, but its governance and diagnostic instrumentation are still lighter than ideal
+- durable-serving publish and cache-snapshot publish still use separate stores, so there is no single atomic cross-store commit boundary
+- refresh locking is still process-local rather than cross-process or distributed
+- route contract enforcement is much tighter than before, but still not fully unified across every route surface
+
 ## Objective
 
 Define one explicit operating model for:
@@ -79,11 +87,12 @@ Authority:
 
 Key actions:
 - add new tickers/RICs
-- update metadata / eligibility flags
+- update registry identifiers
 - mark names in or out of the eligible universe
 
 Rule:
 - Universe maintenance is explicit and file-driven.
+- The committed `security_master_seed.csv` is a registry/bootstrap input only; LSEG enrichment is the authority for live identifiers and the source for derived eligibility flags.
 - No separate universe-builder artifacts should be needed at runtime.
 - After approved universe changes, regenerate and commit `data/reference/security_master_seed.csv`.
 
@@ -384,20 +393,24 @@ Current state:
 
 For every new ticker batch:
 
-1. Merge identifiers into `security_master`
-- required: `ric`, `ticker`
+1. Merge identifiers into the committed security registry
+- required: `ric`
+- recommended: `ticker`
 - preferred metadata: `isin`, `exchange_name`
-- set `classification_ok` and `is_equity_eligible` deliberately
+- bootstrap-sync the registry into `security_master`
+- do not set `classification_ok` or `is_equity_eligible` manually; they are populated by canonical LSEG enrichment and derived classification logic
 
 2. Validate the merge
 - duplicate RIC check
-- blank ticker / blank RIC check
-- eligibility count delta
+- blank RIC check
+- registry rows present in `security_master`
+- new rows pending until LSEG enrichment/backfill runs
 
 3. Backfill source-of-truth tables for only the new RICs
 - prices: full retained local history
 - fundamentals: monthly PIT from retained local start to current
 - classification: monthly PIT from retained local start to current
+- explicit subset backfills may target pending names directly; those runs are also responsible for populating live `security_master` identifiers/flags from LSEG
 
 4. Run targeted coverage checks
 - prices coverage by date

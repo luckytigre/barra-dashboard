@@ -19,7 +19,7 @@ def test_persist_current_payloads_roundtrip(tmp_path: Path, monkeypatch) -> None
         refresh_mode="serve-refresh",
         payloads={
             "portfolio": {"positions": [{"ticker": "AAPL"}], "position_count": 1},
-            "risk": {"risk_shares": {"style": 50.0, "industry": 50.0, "country": 0.0, "idio": 0.0}},
+            "risk": {"risk_shares": {"style": 50.0, "industry": 50.0, "market": 0.0, "idio": 0.0}},
         },
     )
 

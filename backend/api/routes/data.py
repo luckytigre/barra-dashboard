@@ -229,10 +229,13 @@ def _resolve_exposure_source(conn: sqlite3.Connection) -> dict[str, Any]:
         latest_asof = row[0] if row else None
     return {
         "table": table,
-        "selection_mode": "canonical_latest_raw_history",
+        "selection_mode": "canonical_well_covered_raw_snapshot",
         "is_dynamic": False,
         "latest_asof": str(latest_asof) if latest_asof is not None else None,
-        "plain_english": "The analytics engine always takes the latest row per RIC from barra_raw_cross_section_history.",
+        "plain_english": (
+            "The analytics engine reads barra_raw_cross_section_history as the canonical raw source, "
+            "then selects a single well-covered exposure snapshot for estimation and serving."
+        ),
     }
 
 
@@ -302,23 +305,47 @@ def get_data_diagnostics(
             "latest": None,
             "min_structural_eligible_n": None,
             "max_structural_eligible_n": None,
+            "min_core_structural_eligible_n": None,
+            "max_core_structural_eligible_n": None,
             "min_regression_member_n": None,
             "max_regression_member_n": None,
+            "min_projectable_n": None,
+            "max_projectable_n": None,
+            "min_projected_only_n": None,
+            "max_projected_only_n": None,
         }
         if _table_exists(cache_conn, "daily_universe_eligibility_summary"):
+            elig_cols = _table_columns(cache_conn, "daily_universe_eligibility_summary")
+            core_structural_expr = (
+                "core_structural_eligible_n" if "core_structural_eligible_n" in elig_cols else "structural_eligible_n"
+            )
+            projectable_expr = "projectable_n" if "projectable_n" in elig_cols else "regression_member_n"
+            projected_only_expr = "projected_only_n" if "projected_only_n" in elig_cols else "0"
+            projectable_coverage_expr = (
+                "projectable_coverage" if "projectable_coverage" in elig_cols else "regression_coverage"
+            )
             latest = cache_conn.execute(
-                """
-                SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                       structural_coverage, regression_coverage, alert_level
+                f"""
+                SELECT date, exp_date, exposure_n, structural_eligible_n,
+                       {core_structural_expr} AS core_structural_eligible_n,
+                       regression_member_n,
+                       {projectable_expr} AS projectable_n,
+                       {projected_only_expr} AS projected_only_n,
+                       structural_coverage, regression_coverage,
+                       {projectable_coverage_expr} AS projectable_coverage,
+                       alert_level
                 FROM daily_universe_eligibility_summary
                 ORDER BY date DESC
                 LIMIT 1
                 """
             ).fetchone()
             mins = cache_conn.execute(
-                """
+                f"""
                 SELECT MIN(structural_eligible_n), MAX(structural_eligible_n),
-                       MIN(regression_member_n), MAX(regression_member_n)
+                       MIN({core_structural_expr}), MAX({core_structural_expr}),
+                       MIN(regression_member_n), MAX(regression_member_n),
+                       MIN({projectable_expr}), MAX({projectable_expr}),
+                       MIN({projected_only_expr}), MAX({projected_only_expr})
                 FROM daily_universe_eligibility_summary
                 """
             ).fetchone()
@@ -329,16 +356,26 @@ def get_data_diagnostics(
                     "exp_date": str(latest[1]) if latest[1] is not None else None,
                     "exposure_n": int(latest[2] or 0),
                     "structural_eligible_n": int(latest[3] or 0),
-                    "regression_member_n": int(latest[4] or 0),
-                    "structural_coverage_pct": round(100.0 * float(latest[5] or 0.0), 2),
-                    "regression_coverage_pct": round(100.0 * float(latest[6] or 0.0), 2),
-                    "alert_level": str(latest[7] or ""),
+                    "core_structural_eligible_n": int(latest[4] or 0),
+                    "regression_member_n": int(latest[5] or 0),
+                    "projectable_n": int(latest[6] or 0),
+                    "projected_only_n": int(latest[7] or 0),
+                    "structural_coverage_pct": round(100.0 * float(latest[8] or 0.0), 2),
+                    "regression_coverage_pct": round(100.0 * float(latest[9] or 0.0), 2),
+                    "projectable_coverage_pct": round(100.0 * float(latest[10] or 0.0), 2),
+                    "alert_level": str(latest[11] or ""),
                 }
             if mins:
                 elig_summary["min_structural_eligible_n"] = int(mins[0] or 0)
                 elig_summary["max_structural_eligible_n"] = int(mins[1] or 0)
-                elig_summary["min_regression_member_n"] = int(mins[2] or 0)
-                elig_summary["max_regression_member_n"] = int(mins[3] or 0)
+                elig_summary["min_core_structural_eligible_n"] = int(mins[2] or 0)
+                elig_summary["max_core_structural_eligible_n"] = int(mins[3] or 0)
+                elig_summary["min_regression_member_n"] = int(mins[4] or 0)
+                elig_summary["max_regression_member_n"] = int(mins[5] or 0)
+                elig_summary["min_projectable_n"] = int(mins[6] or 0)
+                elig_summary["max_projectable_n"] = int(mins[7] or 0)
+                elig_summary["min_projected_only_n"] = int(mins[8] or 0)
+                elig_summary["max_projected_only_n"] = int(mins[9] or 0)
 
         factor_cross_section = {"available": False, "latest": None, "min_cross_section_n": None, "max_cross_section_n": None}
         if _table_exists(cache_conn, "daily_factor_returns"):

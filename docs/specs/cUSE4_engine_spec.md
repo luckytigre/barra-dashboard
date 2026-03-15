@@ -56,15 +56,16 @@ Data-model state:
 ### 3.1 Universe authority and maintenance policy
 
 `security_master` is the only authoritative universe table.
-- Universe updates are explicit (file-driven merge into `security_master`), not auto-regenerated from index constituent builders.
+- Universe updates are explicit (file-driven merge into the committed registry, then bootstrap-sync into `security_master`), not auto-regenerated from index constituent builders.
 - Identity keys and mappings live in `security_master`; they are not duplicated into separate persisted mapping tables.
-- The git-versioned universe artifact is `data/reference/security_master_seed.csv`; live DB state is runtime, not source control.
+- The git-versioned universe artifact is `data/reference/security_master_seed.csv`; it is registry/bootstrap input only, while live identifiers and eligibility flags are runtime DB state.
 
 ### 3.2 Equity-only ingest scope (all canonical time-series)
 
 Use centralized eligibility rules from `security_master` when ingesting/backfilling canonical tables:
 - `classification_ok = 1`
 - `is_equity_eligible = 1`
+- Exception: explicit subset ingests/backfills by `--rics` or requested ticker list may target pending names directly so LSEG enrichment can populate the live identifiers and derived eligibility flags.
 
 ### 3.3 PIT and daily backfill policy
 
@@ -116,13 +117,14 @@ Metadata columns:
 - `updated_at`
 
 LSEG fields:
-- `TR.OrganizationID`
 - `TR.RIC`
 - `TR.TickerSymbol`
 - `TR.ISIN`
-- `TR.InstrumentType`
-- `TR.AssetCategory`
 - `TR.ExchangeName`
+
+Origination policy:
+- `ric`, `ticker`, `isin`, and `exchange_name` are bootstrapped from the committed registry and refreshed from LSEG during canonical ingest/backfill.
+- `classification_ok` and `is_equity_eligible` are derived live from canonical LSEG classification coverage; they are not seed-file authority.
 
 ## 4.2 `security_fundamentals_pit`
 

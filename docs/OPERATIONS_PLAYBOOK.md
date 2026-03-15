@@ -85,7 +85,7 @@ Runtime-role rule:
 - Canonical launcher scripts live under `scripts/local_app/` and write runtime state under `backend/runtime/local_app/`.
 
 ## Key Commands
-- Orchestrated refresh via API (default profile from `mode=full` mapping):
+- Orchestrated refresh via API:
   - `curl -X POST "http://localhost:8000/api/refresh"`
 - API refresh explicit serve-refresh profile:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh"`
@@ -97,8 +97,6 @@ Runtime-role rule:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=core-weekly&force_core=true"`
 - API refresh explicit cold-core rebuild:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=cold-core"`
-- API refresh cold mode shortcut:
-  - `curl -X POST "http://localhost:8000/api/refresh?mode=cold"`
 - API refresh partial stage run:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily-plus-core-if-due&from_stage=ingest&to_stage=risk_model"`
 - Orchestrated refresh via CLI module:
@@ -129,6 +127,7 @@ Runtime-role rule:
 - `risk_engine_cov`: serialized factor covariance matrix (weekly cache).
 - `risk_engine_specific_risk`: stock-level specific risk map (weekly cache).
 - `daily_factor_returns`: factor-return workspace table in `cache.db`, now including `robust_se` and `t_stat`.
+- Health regression diagnostics prefer stored `t_stat`; the older proxy path remains only as a compatibility fallback for historical rows that predate the widened inference fields.
 - `daily_specific_residuals`: residual workspace table in `cache.db`, now storing both `model_residual` and `raw_residual`.
 - `cuse4_foundation`: bootstrap + latest ESTU audit summary for cUSE4 transition layer.
 - `portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `health_diagnostics`, `eligibility`, `refresh_meta`: refreshed on each `/api/refresh` call.

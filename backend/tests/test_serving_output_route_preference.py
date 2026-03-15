@@ -22,22 +22,39 @@ def test_portfolio_prefers_serving_payload_over_cache(monkeypatch) -> None:
 
 
 def test_exposures_prefers_serving_payload_over_cache(monkeypatch) -> None:
-    monkeypatch.setattr(exposures_routes, "load_current_payload", lambda name: {"raw": [{"factor": "Size"}]} if name == "exposures" else None)
-    monkeypatch.setattr(exposures_routes, "cache_get", lambda key: {"raw": [{"factor": "Momentum"}]})
+    monkeypatch.setattr(exposures_routes, "load_current_payload", lambda name: {"raw": [{"factor_id": "style_size_score"}]} if name == "exposures" else None)
+    monkeypatch.setattr(exposures_routes, "cache_get", lambda key: {"raw": [{"factor_id": "style_momentum_score"}]})
 
     client = TestClient(app)
     res = client.get("/api/exposures?mode=raw")
 
     assert res.status_code == 200
-    assert res.json()["factors"][0]["factor"] == "Size"
+    assert res.json()["factors"][0]["factor_id"] == "style_size_score"
+
+
+def test_exposures_normalizes_legacy_factor_field(monkeypatch) -> None:
+    monkeypatch.setattr(
+        exposures_routes,
+        "load_current_payload",
+        lambda name: {"raw": [{"factor": "Momentum", "value": 1.0}], "sensitivity": [], "risk_contribution": []}
+        if name == "exposures"
+        else None,
+    )
+    monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
+
+    client = TestClient(app)
+    res = client.get("/api/exposures?mode=raw")
+
+    assert res.status_code == 200
+    assert res.json()["factors"][0]["factor_id"] == "Momentum"
 
 
 def test_risk_prefers_serving_payload_over_cache(monkeypatch) -> None:
     risk_payload = {
-        "risk_shares": {"country": 1, "industry": 2, "style": 3, "idio": 94},
-        "component_shares": {"country": 1, "industry": 2, "style": 3},
+        "risk_shares": {"market": 1, "industry": 2, "style": 3, "idio": 94},
+        "component_shares": {"market": 1, "industry": 2, "style": 3},
         "factor_details": [],
-        "cov_matrix": {"factors": ["Country: US"], "correlation": [[1.0]]},
+        "cov_matrix": {"factors": ["market"], "correlation": [[1.0]]},
         "r_squared": 0.5,
         "risk_engine": {"specific_risk_ticker_count": 1},
     }
@@ -48,7 +65,35 @@ def test_risk_prefers_serving_payload_over_cache(monkeypatch) -> None:
     res = client.get("/api/risk")
 
     assert res.status_code == 200
-    assert res.json()["risk_shares"]["country"] == 1
+    assert res.json()["risk_shares"]["market"] == 1
+
+
+def test_risk_normalizes_legacy_factor_and_country_fields(monkeypatch) -> None:
+    risk_payload = {
+        "risk_shares": {"country": 1, "industry": 2, "style": 3, "idio": 94},
+        "component_shares": {"country": 0.1, "industry": 0.2, "style": 0.7},
+        "factor_details": [{"factor": "Country: US", "category": "country", "pct_of_total": 1.0}],
+        "cov_matrix": {"factors": ["market"], "correlation": [[1.0]]},
+        "r_squared": 0.5,
+        "risk_engine": {"specific_risk_ticker_count": 1},
+    }
+    monkeypatch.setattr(
+        risk_routes,
+        "load_current_payload",
+        lambda name: risk_payload if name == "risk" else {"status": "ok"} if name == "model_sanity" else None,
+    )
+    monkeypatch.setattr(risk_routes, "cache_get", lambda key: None)
+
+    client = TestClient(app)
+    res = client.get("/api/risk")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["risk_shares"]["market"] == 1
+    assert "country" not in body["risk_shares"]
+    assert body["component_shares"]["market"] == 0.1
+    assert body["factor_details"][0]["factor_id"] == "Country: US"
+    assert body["factor_details"][0]["category"] == "market"
 
 
 def test_health_prefers_serving_payload_over_cache(monkeypatch) -> None:

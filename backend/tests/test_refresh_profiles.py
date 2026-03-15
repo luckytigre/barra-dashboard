@@ -4,29 +4,25 @@ import sqlite3
 import importlib
 from pathlib import Path
 
+import pytest
+
 run_model_pipeline = importlib.import_module("backend.orchestration.run_model_pipeline")
-from backend.services.refresh_manager import _resolve_profile
+from backend.services import refresh_manager
 
 
-def test_mode_cold_maps_to_cold_core_profile() -> None:
-    assert _resolve_profile(None, "cold") == "cold-core"
+def test_default_profile_is_local_daily_plus_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(refresh_manager.config, "APP_RUNTIME_ROLE", "local-ingest")
+    assert refresh_manager._resolve_profile(None) == "source-daily-plus-core-if-due"
 
 
-def test_mode_light_maps_to_serve_refresh_profile() -> None:
-    assert _resolve_profile(None, "light") == "serve-refresh"
-
-
-def test_mode_full_maps_to_source_daily_plus_core_if_due_profile() -> None:
-    assert _resolve_profile(None, "full") == "source-daily-plus-core-if-due"
+def test_default_profile_is_cloud_serve_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(refresh_manager.config, "APP_RUNTIME_ROLE", "cloud-serve")
+    assert refresh_manager._resolve_profile(None) == "serve-refresh"
 
 
 def test_unknown_profile_is_rejected() -> None:
-    try:
-        _resolve_profile("daily-with-core-if-due", None)
-    except ValueError as exc:
-        assert "Invalid profile" in str(exc)
-    else:
-        raise AssertionError("expected ValueError for deprecated alias")
+    with pytest.raises(ValueError, match="Invalid profile"):
+        refresh_manager._resolve_profile("daily-with-core-if-due")
 
 
 def test_cold_profile_config_enables_full_rebuild_and_cache_reset() -> None:
@@ -92,7 +88,7 @@ def test_reset_core_caches_clears_core_tables(tmp_path: Path) -> None:
     conn.close()
 
 
-def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch) -> None:
+def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
     monkeypatch.setattr(
         run_model_pipeline.sqlite,
@@ -113,7 +109,7 @@ def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch) -
     assert reason == "core_due_method_version_change"
 
 
-def test_serving_refresh_skip_risk_engine_allows_current_cache(monkeypatch) -> None:
+def test_serving_refresh_skip_risk_engine_allows_current_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
     monkeypatch.setattr(
         run_model_pipeline.sqlite,

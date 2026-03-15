@@ -1,3 +1,20 @@
+export type ModelStatus = "core_estimated" | "projected_only" | "ineligible";
+export type FactorFamily = "market" | "industry" | "style";
+
+export interface FactorCatalogEntry {
+  factor_id: string;
+  factor_name: string;
+  short_label: string;
+  family: FactorFamily;
+  block: string;
+  source_column?: string | null;
+  display_order?: number;
+  covariance_display?: boolean;
+  exposure_publish?: boolean;
+  active?: boolean;
+  method_version?: string;
+}
+
 export interface Position {
   ticker: string;
   name: string;
@@ -14,10 +31,10 @@ export interface Position {
   trbc_industry_group: string;
   exposures: Record<string, number>;
   risk_contrib_pct: number;
-  eligible_for_model?: boolean;
+  model_status?: ModelStatus;
   eligibility_reason?: string;
   risk_mix?: {
-    country: number;
+    market: number;
     industry: number;
     style: number;
     idio: number;
@@ -66,10 +83,11 @@ export interface WhatIfPreviewSide {
     sensitivity: FactorExposure[];
     risk_contribution: FactorExposure[];
   };
+  factor_catalog?: FactorCatalogEntry[];
 }
 
 export interface WhatIfFactorDeltaRow {
-  factor: string;
+  factor_id: string;
   current: number;
   hypothetical: number;
   delta: number;
@@ -212,7 +230,7 @@ export interface FactorDrilldownItem {
 }
 
 export interface FactorExposure {
-  factor: string;
+  factor_id: string;
   value: number;
   factor_vol?: number;
   coverage_pct?: number;
@@ -235,15 +253,16 @@ export interface FactorHistoryPoint {
 }
 
 export interface FactorHistoryData {
-  factor: string;
+  factor_id: string;
+  factor_name: string;
   years: number;
   points: FactorHistoryPoint[];
   _cached: boolean;
 }
 
 export interface FactorDetail {
-  factor: string;
-  category: "country" | "industry" | "style";
+  factor_id: string;
+  category: FactorFamily;
   exposure: number;
   factor_vol: number;
   sensitivity: number;
@@ -253,7 +272,7 @@ export interface FactorDetail {
 }
 
 export interface RiskShares {
-  country: number;
+  market: number;
   industry: number;
   style: number;
   idio: number;
@@ -269,6 +288,7 @@ export interface RiskData {
   risk_shares: RiskShares;
   component_shares: Omit<RiskShares, "idio">;
   factor_details: FactorDetail[];
+  factor_catalog?: FactorCatalogEntry[];
   cov_matrix: CovMatrix;
   r_squared: number;
   risk_engine?: {
@@ -308,7 +328,7 @@ export interface UniverseTickerItem {
   risk_loading: number | null;
   specific_var?: number | null;
   specific_vol?: number | null;
-  eligible_for_model?: boolean;
+  model_status?: ModelStatus;
   eligibility_reason?: string;
   model_warning?: string;
   as_of_date?: string;
@@ -341,7 +361,7 @@ export interface UniverseSearchItem {
   trbc_industry_group?: string;
   risk_loading: number | null;
   specific_vol?: number | null;
-  eligible_for_model?: boolean;
+  model_status?: ModelStatus;
   eligibility_reason?: string;
 }
 
@@ -355,9 +375,13 @@ export interface UniverseSearchData {
 export interface UniverseFactorsData {
   factors: string[];
   factor_vols: Record<string, number>;
+  factor_catalog?: FactorCatalogEntry[];
   r_squared?: number;
   ticker_count?: number;
   eligible_ticker_count?: number;
+  core_estimated_ticker_count?: number;
+  projected_only_ticker_count?: number;
+  ineligible_ticker_count?: number;
   _cached: boolean;
 }
 
@@ -384,17 +408,17 @@ export interface HealthR2Point {
 }
 
 export interface HealthFactorPctRow {
-  factor: string;
+  factor_id: string;
   value: number;
 }
 
 export interface HealthIncrementalBlockR2Point {
   date: string;
   r2_full: number;
-  r2_industry: number;
+  r2_structural: number;
   r2_style_incremental: number;
   roll60_full: number;
-  roll60_industry: number;
+  roll60_structural: number;
   roll60_style_incremental: number;
 }
 
@@ -410,15 +434,17 @@ export interface HealthBucketBreadthSummary {
 }
 
 export interface HealthPortfolioVarianceSplit {
+  market_pct_total: number;
   industry_pct_total: number;
   style_pct_total: number;
   idio_pct_total: number;
+  market_pct_factor_only: number;
   industry_pct_factor_only: number;
   style_pct_factor_only: number;
 }
 
 export interface HealthExposureStats {
-  factor: string;
+  factor_id: string;
   mean: number;
   std: number;
   p1: number;
@@ -469,6 +495,7 @@ export interface HealthDiagnosticsData {
   status: string;
   as_of: string | null;
   notes: string[];
+  factor_catalog?: FactorCatalogEntry[];
   section1: {
     sampling?: string;
     r2_series: HealthR2Point[];
@@ -574,15 +601,25 @@ export interface DataDiagnosticsData {
         exp_date: string | null;
         exposure_n: number;
         structural_eligible_n: number;
+        core_structural_eligible_n: number;
         regression_member_n: number;
+        projectable_n: number;
+        projected_only_n: number;
         structural_coverage_pct: number;
         regression_coverage_pct: number;
+        projectable_coverage_pct: number;
         alert_level: string;
       } | null;
       min_structural_eligible_n?: number | null;
       max_structural_eligible_n?: number | null;
+      min_core_structural_eligible_n?: number | null;
+      max_core_structural_eligible_n?: number | null;
       min_regression_member_n?: number | null;
       max_regression_member_n?: number | null;
+      min_projectable_n?: number | null;
+      max_projectable_n?: number | null;
+      min_projected_only_n?: number | null;
+      max_projected_only_n?: number | null;
     };
     factor_cross_section: {
       available: boolean;

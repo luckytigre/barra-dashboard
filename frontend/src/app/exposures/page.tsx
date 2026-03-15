@@ -13,6 +13,7 @@ import HelpLabel from "@/components/HelpLabel";
 import ApiErrorState from "@/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import type { FactorDetail } from "@/lib/types";
+import { factorDisplayName } from "@/lib/factorLabels";
 import HoldingsMutationFeedback from "@/features/holdings/components/HoldingsMutationFeedback";
 import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
 
@@ -36,7 +37,8 @@ export default function ExposuresPage() {
   const factors = data?.factors ?? [];
   const positions = portfolioData?.positions ?? [];
   const riskDetails = riskData?.factor_details ?? [];
-  const riskShares = riskData?.risk_shares ?? { country: 0, industry: 0, style: 0, idio: 100 };
+  const factorCatalog = riskData?.factor_catalog ?? [];
+  const riskShares = riskData?.risk_shares ?? { market: 0, industry: 0, style: 0, idio: 100 };
   const cov = riskData?.cov_matrix
     ? {
         factors: riskData.cov_matrix.factors ?? [],
@@ -112,11 +114,18 @@ export default function ExposuresPage() {
   }
 
   const selected = selectedFactor
-    ? factors.find((f) => f.factor === selectedFactor)
+    ? factors.find((f) => f.factor_id === selectedFactor)
     : null;
   const sortedRiskRows = [...riskDetails].sort((a, b) => {
     const av = a[riskSortKey];
     const bv = b[riskSortKey];
+    if (riskSortKey === "factor_id") {
+      const aLabel = factorDisplayName(a.factor_id, factorCatalog);
+      const bLabel = factorDisplayName(b.factor_id, factorCatalog);
+      return riskSortAsc
+        ? aLabel.localeCompare(bLabel)
+        : bLabel.localeCompare(aLabel);
+    }
     if (typeof av === "number" && typeof bv === "number") {
       return riskSortAsc ? av - bv : bv - av;
     }
@@ -158,16 +167,19 @@ export default function ExposuresPage() {
         <ExposureBarChart
           factors={factors}
           mode={mode as "raw" | "sensitivity" | "risk_contribution"}
+          factorCatalog={factorCatalog}
           onBarClick={(f) => setSelectedFactor(f === selectedFactor ? null : f)}
         />
       </div>
 
       {selected && (
         <FactorDrilldown
-          factor={selected.factor}
+          factorId={selected.factor_id}
+          factorName={factorDisplayName(selected.factor_id, factorCatalog)}
           items={selected.drilldown}
           mode={mode}
           factorVol={selected.factor_vol}
+          factorCatalog={factorCatalog}
           onClose={() => setSelectedFactor(null)}
         />
       )}
@@ -256,7 +268,7 @@ export default function ExposuresPage() {
             <table>
               <thead>
                 <tr>
-                  <th onClick={() => handleRiskSort("factor")}>
+                  <th onClick={() => handleRiskSort("factor_id")}>
                     <span className="col-help-wrap">
                       <HelpLabel
                         label="Factor"
@@ -267,15 +279,15 @@ export default function ExposuresPage() {
                           good: "Risk is not unintentionally concentrated in one factor.",
                         }}
                       />
-                      {riskArrow("factor")}
+                      {riskArrow("factor_id")}
                     </span>
                   </th>
                   <th onClick={() => handleRiskSort("category")}>
                     <span className="col-help-wrap">
                       <HelpLabel
                         label="Category"
-                        plain="Whether the factor is country, industry, or style based."
-                        math="Category ∈ {country, industry, style}"
+                        plain="Whether the factor is market, industry, or style based."
+                        math="Category ∈ {market, industry, style}"
                         interpret={{
                           lookFor: "If one category overwhelmingly dominates.",
                           good: "Mix aligns with your intended portfolio construction.",
@@ -360,13 +372,13 @@ export default function ExposuresPage() {
               </thead>
               <tbody>
                 {visibleRiskRows.map((d) => (
-                  <tr key={d.factor}>
-                    <td><strong>{d.factor}</strong></td>
+                  <tr key={d.factor_id}>
+                    <td><strong>{factorDisplayName(d.factor_id, factorCatalog)}</strong></td>
                     <td>
                       <span className={`text-xs ${
                         d.category === "style"
                           ? "text-[#f5bae4]"
-                          : d.category === "country"
+                          : d.category === "market"
                             ? "text-[#58b6c7]"
                             : "text-[#cc3558]"
                       }`}>
@@ -400,7 +412,7 @@ export default function ExposuresPage() {
       <div className="chart-card mb-4" style={{ marginTop: 12 }}>
         <h3>Risk Decomposition</h3>
         <div className="section-subtitle">
-          Share of total portfolio risk split across country, industry, style, and idiosyncratic components.
+          Share of total portfolio risk split across market, industry, style, and idiosyncratic components.
         </div>
         {riskLoading ? (
           <AnalyticsLoadingViz message="Loading portfolio risk mix..." />
@@ -427,7 +439,7 @@ export default function ExposuresPage() {
           fallback={<div className="detail-history-empty">Scroll to load the factor correlation heatmap.</div>}
         >
           <div className="heatmap-centered-70">
-            <CovarianceHeatmap data={cov} />
+            <CovarianceHeatmap data={cov} factorCatalog={factorCatalog} />
           </div>
         </LazyMountOnVisible>
       </div>

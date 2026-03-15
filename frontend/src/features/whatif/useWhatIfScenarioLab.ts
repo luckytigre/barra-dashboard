@@ -239,15 +239,16 @@ export function useWhatIfScenarioLab({
 
   const currentModeFactorOrder = useMemo(() => {
     const currentFactors = previewData?.current.exposure_modes[mode] ?? [];
+    const factorCatalog = previewData?.current.factor_catalog ?? [];
     return [...currentFactors]
       .sort((a, b) => {
-        const tierDiff = factorTier(a.factor) - factorTier(b.factor);
+        const tierDiff = factorTier(a.factor_id, factorCatalog) - factorTier(b.factor_id, factorCatalog);
         if (tierDiff !== 0) return tierDiff;
         const byMagnitude = Math.abs(Number(b.value || 0)) - Math.abs(Number(a.value || 0));
         if (byMagnitude !== 0) return byMagnitude;
-        return a.factor.localeCompare(b.factor);
+        return a.factor_id.localeCompare(b.factor_id);
       })
-      .map((factor) => factor.factor);
+      .map((factor) => factor.factor_id);
   }, [mode, previewData]);
 
   const clearMessages = useCallback(() => {

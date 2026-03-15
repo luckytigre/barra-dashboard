@@ -16,25 +16,6 @@ from backend.services.neon_stage2 import apply_sql_file
 ACCOUNT_ID_RE = re.compile(r"^[a-z0-9_\-]{2,64}$")
 QTY_SCALE = Decimal("0.000001")
 IMPORT_MODES = {"replace_account", "upsert_absolute", "increment_delta"}
-_HOLDINGS_IMPORT_BATCH_MODES = (
-    "replace_account",
-    "upsert_absolute",
-    "increment_delta",
-    "replace_ticker_bucket",
-)
-_HOLDINGS_EVENT_TYPES = (
-    "set_absolute",
-    "increment_delta",
-    "remove_position",
-    "ui_edit",
-    "replace_ticker_bucket_delete",
-    "replace_ticker_bucket_set",
-)
-
-
-def _sql_text_tuple(values: tuple[str, ...]) -> str:
-    escaped = ["'" + str(value).replace("'", "''") + "'" for value in values]
-    return "(" + ", ".join(escaped) + ")"
 
 
 @dataclass(frozen=True)
@@ -92,63 +73,7 @@ def _parse_quantity(value: str | None) -> Decimal:
 
 
 def ensure_holdings_schema(pg_conn, *, schema_sql_path: Path) -> dict[str, Any]:
-    out = apply_sql_file(pg_conn, sql_path=schema_sql_path)
-    ensure_holdings_runtime_compat(pg_conn)
-    return out
-
-
-def ensure_holdings_runtime_compat(pg_conn) -> None:
-    mode_values = _sql_text_tuple(_HOLDINGS_IMPORT_BATCH_MODES)
-    event_values = _sql_text_tuple(_HOLDINGS_EVENT_TYPES)
-    with pg_conn.cursor() as cur:
-        cur.execute(
-            """
-            ALTER TABLE holdings_import_batches
-            DROP CONSTRAINT IF EXISTS chk_holdings_import_mode
-            """
-        )
-        cur.execute(
-            f"""
-            ALTER TABLE holdings_import_batches
-            ADD CONSTRAINT chk_holdings_import_mode
-            CHECK (mode IN {mode_values})
-            """
-        )
-        cur.execute(
-            """
-            ALTER TABLE holdings_position_events
-            DROP CONSTRAINT IF EXISTS chk_holdings_event_type
-            """
-        )
-        cur.execute(
-            f"""
-            ALTER TABLE holdings_position_events
-            ADD CONSTRAINT chk_holdings_event_type
-            CHECK (event_type IN {event_values})
-            """
-        )
-        cur.execute(
-            """
-            ALTER TABLE holdings_position_events
-            DROP CONSTRAINT IF EXISTS chk_holdings_events_quantity_after
-            """
-        )
-        cur.execute(
-            """
-            ALTER TABLE holdings_position_events
-            ADD CONSTRAINT chk_holdings_events_quantity_after
-            CHECK (
-                (
-                    event_type IN ('remove_position', 'replace_ticker_bucket_delete')
-                    AND quantity_after = 0
-                )
-                OR (
-                    event_type NOT IN ('remove_position', 'replace_ticker_bucket_delete')
-                    AND quantity_after <> 0
-                )
-            )
-            """
-        )
+    return apply_sql_file(pg_conn, sql_path=schema_sql_path)
 
 
 def _ric_exists(pg_conn, ric: str) -> tuple[bool, str | None]:
@@ -210,94 +135,6 @@ def _resolve_ticker_to_ric(pg_conn, ticker: str) -> tuple[str | None, list[str]]
 def resolve_ticker_to_ric(pg_conn, ticker: str) -> tuple[str | None, list[str]]:
     """Public deterministic ticker->RIC resolver."""
     return _resolve_ticker_to_ric(pg_conn, _normalize_ticker(ticker))
-
-
-def build_rows_from_ticker_quantities(
-    pg_conn,
-    *,
-    account_id: str,
-    ticker_to_qty: dict[str, float],
-    source: str,
-) -> dict[str, Any]:
-    accepted: list[ResolvedImportRow] = []
-    rejected: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    seen: set[tuple[str, str]] = set()
-    acct = _normalize_account_id(account_id)
-    if acct is None:
-        raise ValueError("invalid account_id")
-
-    for idx, (ticker_raw, qty_raw) in enumerate(sorted(ticker_to_qty.items()), start=1):
-        ticker = _normalize_ticker(ticker_raw)
-        if not ticker:
-            rejected.append(
-                {
-                    "row_number": idx,
-                    "reason_code": "unknown_ticker",
-                    "message": f"invalid ticker: {ticker_raw!r}",
-                }
-            )
-            continue
-        try:
-            qty = _parse_quantity(str(qty_raw))
-        except (InvalidOperation, ValueError):
-            rejected.append(
-                {
-                    "row_number": idx,
-                    "reason_code": "invalid_quantity",
-                    "message": f"invalid quantity for {ticker}: {qty_raw!r}",
-                }
-            )
-            continue
-
-        ric, alternatives = _resolve_ticker_to_ric(pg_conn, ticker)
-        if not ric:
-            rejected.append(
-                {
-                    "row_number": idx,
-                    "reason_code": "unknown_ticker",
-                    "message": f"ticker not found in security_master: {ticker}",
-                }
-            )
-            continue
-        if alternatives:
-            warnings.append(
-                f"ticker {ticker} resolved to {ric}; alternatives={','.join(alternatives[:10])}"
-            )
-        key = (acct, ric)
-        if key in seen:
-            rejected.append(
-                {
-                    "row_number": idx,
-                    "reason_code": "duplicate_row_in_file",
-                    "message": f"duplicate account_id+ric: {acct}/{ric}",
-                }
-            )
-            continue
-        seen.add(key)
-        accepted.append(
-            ResolvedImportRow(
-                row_number=idx,
-                account_id=acct,
-                ric=ric,
-                ticker=ticker,
-                quantity=qty,
-                source=str(source or "seed_mock"),
-            )
-        )
-
-    rejection_counts: dict[str, int] = {}
-    for r in rejected:
-        code = str(r.get("reason_code") or "unknown")
-        rejection_counts[code] = int(rejection_counts.get(code, 0) + 1)
-    return {
-        "accepted": accepted,
-        "rejected": rejected,
-        "warnings": warnings,
-        "rejection_counts": rejection_counts,
-        "mode": "replace_account",
-        "csv_path": "<mock_positions_store>",
-    }
 
 
 def _insert_batch(pg_conn, *, account_id: str, mode: str, filename: str | None, row_count: int, requested_by: str | None, notes: str | None) -> str:

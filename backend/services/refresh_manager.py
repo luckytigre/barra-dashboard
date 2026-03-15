@@ -102,7 +102,11 @@ def get_refresh_status() -> dict[str, Any]:
     return _snapshot()
 
 
-def _resolve_profile(profile: str | None, mode: str | None) -> str:
+def _default_profile() -> str:
+    return "serve-refresh" if config.cloud_mode() else "source-daily-plus-core-if-due"
+
+
+def _resolve_profile(profile: str | None) -> str:
     prof = str(profile or "").strip().lower()
     if prof:
         prof = resolve_profile_name(prof)
@@ -111,14 +115,7 @@ def _resolve_profile(profile: str | None, mode: str | None) -> str:
                 f"Invalid profile '{profile}'. Valid profiles: {', '.join(sorted(PROFILE_CONFIG.keys()))}"
             )
         return prof
-    clean_mode = str(mode or "full").strip().lower()
-    if clean_mode == "light":
-        return "serve-refresh"
-    if clean_mode == "cold":
-        return "cold-core"
-    if clean_mode == "full":
-        return "source-daily-plus-core-if-due"
-    raise ValueError("Invalid mode. Expected 'full', 'light', or 'cold' when profile is omitted.")
+    return _default_profile()
 
 
 def _runtime_allowed_profiles() -> set[str]:
@@ -241,7 +238,6 @@ def _run_in_background(
 
 def start_refresh(
     *,
-    mode: str,
     force_risk_recompute: bool,
     profile: str | None = None,
     refresh_scope: str | None = None,
@@ -252,8 +248,9 @@ def start_refresh(
     force_core: bool = False,
 ) -> tuple[bool, dict[str, Any]]:
     """Start refresh in a background thread. Returns (started, status)."""
-    resolved_profile = _resolve_profile(profile, mode)
+    resolved_profile = _resolve_profile(profile)
     _assert_profile_allowed(resolved_profile)
+    mode = "light" if resolved_profile == "serve-refresh" else "full"
     stage_from = _normalize_stage(from_stage)
     stage_to = _normalize_stage(to_stage)
     force_core_effective = bool(force_core or force_risk_recompute)
