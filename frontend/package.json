@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev -H 127.0.0.1 -p 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typegen": "next typegen",
+    "typecheck": "npm run typegen && tsc --noEmit --incremental false",
+    "test:explore-whatif": "node scripts/explore_whatif_refresh_regression.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.0",
@@ -20,6 +23,7 @@
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.0",
+    "playwright": "^1.51.1",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.0"

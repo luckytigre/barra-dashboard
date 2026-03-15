@@ -16,6 +16,25 @@ from backend.services.neon_stage2 import apply_sql_file
 ACCOUNT_ID_RE = re.compile(r"^[a-z0-9_\-]{2,64}$")
 QTY_SCALE = Decimal("0.000001")
 IMPORT_MODES = {"replace_account", "upsert_absolute", "increment_delta"}
+_HOLDINGS_IMPORT_BATCH_MODES = (
+    "replace_account",
+    "upsert_absolute",
+    "increment_delta",
+    "replace_ticker_bucket",
+)
+_HOLDINGS_EVENT_TYPES = (
+    "set_absolute",
+    "increment_delta",
+    "remove_position",
+    "ui_edit",
+    "replace_ticker_bucket_delete",
+    "replace_ticker_bucket_set",
+)
+
+
+def _sql_text_tuple(values: tuple[str, ...]) -> str:
+    escaped = ["'" + str(value).replace("'", "''") + "'" for value in values]
+    return "(" + ", ".join(escaped) + ")"
 
 
 @dataclass(frozen=True)
@@ -73,7 +92,63 @@ def _parse_quantity(value: str | None) -> Decimal:
 
 
 def ensure_holdings_schema(pg_conn, *, schema_sql_path: Path) -> dict[str, Any]:
-    return apply_sql_file(pg_conn, sql_path=schema_sql_path)
+    out = apply_sql_file(pg_conn, sql_path=schema_sql_path)
+    ensure_holdings_runtime_compat(pg_conn)
+    return out
+
+
+def ensure_holdings_runtime_compat(pg_conn) -> None:
+    mode_values = _sql_text_tuple(_HOLDINGS_IMPORT_BATCH_MODES)
+    event_values = _sql_text_tuple(_HOLDINGS_EVENT_TYPES)
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            """
+            ALTER TABLE holdings_import_batches
+            DROP CONSTRAINT IF EXISTS chk_holdings_import_mode
+            """
+        )
+        cur.execute(
+            f"""
+            ALTER TABLE holdings_import_batches
+            ADD CONSTRAINT chk_holdings_import_mode
+            CHECK (mode IN {mode_values})
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE holdings_position_events
+            DROP CONSTRAINT IF EXISTS chk_holdings_event_type
+            """
+        )
+        cur.execute(
+            f"""
+            ALTER TABLE holdings_position_events
+            ADD CONSTRAINT chk_holdings_event_type
+            CHECK (event_type IN {event_values})
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE holdings_position_events
+            DROP CONSTRAINT IF EXISTS chk_holdings_events_quantity_after
+            """
+        )
+        cur.execute(
+            """
+            ALTER TABLE holdings_position_events
+            ADD CONSTRAINT chk_holdings_events_quantity_after
+            CHECK (
+                (
+                    event_type IN ('remove_position', 'replace_ticker_bucket_delete')
+                    AND quantity_after = 0
+                )
+                OR (
+                    event_type NOT IN ('remove_position', 'replace_ticker_bucket_delete')
+                    AND quantity_after <> 0
+                )
+            )
+            """
+        )
 
 
 def _ric_exists(pg_conn, ric: str) -> tuple[bool, str | None]:
@@ -283,6 +358,41 @@ def _load_current_positions(pg_conn, *, account_id: str) -> dict[str, dict[str, 
             "ticker": (_normalize_ticker(ticker) if ticker is not None else None),
             "quantity": Decimal(str(qty)).quantize(QTY_SCALE, rounding=ROUND_HALF_UP),
         }
+    return out
+
+
+def _load_current_positions_for_ticker(pg_conn, *, account_id: str, ticker: str) -> list[dict[str, Any]]:
+    acct = _normalize_account_id(account_id)
+    tkr = _normalize_ticker(ticker)
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                p.ric,
+                COALESCE(NULLIF(TRIM(p.ticker), ''), sm.ticker) AS ticker,
+                p.quantity,
+                p.source
+            FROM holdings_positions_current p
+            LEFT JOIN security_master sm
+              ON sm.ric = p.ric
+            WHERE p.account_id = %s
+              AND UPPER(COALESCE(NULLIF(TRIM(p.ticker), ''), sm.ticker)) = %s
+            ORDER BY p.ric
+            """,
+            (acct, tkr),
+        )
+        rows = cur.fetchall()
+    out: list[dict[str, Any]] = []
+    for ric, row_ticker, qty, source in rows:
+        out.append(
+            {
+                "account_id": str(acct),
+                "ric": _normalize_ric(ric),
+                "ticker": _normalize_ticker(row_ticker),
+                "quantity": Decimal(str(qty)).quantize(QTY_SCALE, rounding=ROUND_HALF_UP),
+                "source": str(source or ""),
+            }
+        )
     return out
 
 
@@ -702,6 +812,223 @@ def apply_holdings_import(
     }
 
 
+def apply_ticker_bucket_scenario(
+    pg_conn,
+    *,
+    scenario_rows: list[dict[str, Any]],
+    requested_by: str | None = None,
+    default_source: str = "what_if",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    accepted_rows: list[dict[str, Any]] = []
+    rejected_rows: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    seen_keys: set[tuple[str, str]] = set()
+
+    for idx, raw in enumerate(list(scenario_rows or []), start=1):
+        account_id = _normalize_account_id(raw.get("account_id"))
+        ticker = _normalize_ticker(raw.get("ticker"))
+        if account_id is None:
+            rejected_rows.append(
+                {
+                    "row_number": idx,
+                    "reason_code": "invalid_account_id",
+                    "message": "account_id missing or invalid",
+                }
+            )
+            continue
+        if not ticker:
+            rejected_rows.append(
+                {
+                    "row_number": idx,
+                    "reason_code": "missing_identifier",
+                    "message": "need ticker",
+                }
+            )
+            continue
+        try:
+            qty = _parse_quantity(str(raw.get("quantity")))
+        except (InvalidOperation, ValueError):
+            rejected_rows.append(
+                {
+                    "row_number": idx,
+                    "reason_code": "invalid_quantity",
+                    "message": f"invalid quantity: {raw.get('quantity')!r}",
+                }
+            )
+            continue
+        dup_key = (account_id, ticker)
+        if dup_key in seen_keys:
+            rejected_rows.append(
+                {
+                    "row_number": idx,
+                    "reason_code": "duplicate_row_in_file",
+                    "message": f"duplicate account_id+ticker in payload: {account_id}/{ticker}",
+                }
+            )
+            continue
+        seen_keys.add(dup_key)
+        resolved_ric, alternatives = _resolve_ticker_to_ric(pg_conn, ticker)
+        if not resolved_ric:
+            rejected_rows.append(
+                {
+                    "row_number": idx,
+                    "reason_code": "unknown_ticker",
+                    "message": f"Ticker not found in security_master: {ticker}",
+                }
+            )
+            continue
+        if alternatives:
+            warnings.append(
+                f"row {idx}: ticker {ticker} resolved to {resolved_ric}; alternatives={','.join(alternatives[:10])}"
+            )
+        accepted_rows.append(
+            {
+                "row_number": idx,
+                "account_id": account_id,
+                "ticker": ticker,
+                "ric": resolved_ric,
+                "quantity": qty,
+                "source": str(raw.get("source") or default_source).strip() or str(default_source),
+            }
+        )
+
+    rejection_counts: dict[str, int] = {}
+    for row in rejected_rows:
+        code = str(row.get("reason_code") or "unknown")
+        rejection_counts[code] = int(rejection_counts.get(code, 0) + 1)
+
+    if rejected_rows:
+        if dry_run:
+            pg_conn.rollback()
+        return {
+            "status": "rejected",
+            "accepted_rows": len(accepted_rows),
+            "rejected_rows": len(rejected_rows),
+            "rejection_counts": rejection_counts,
+            "warnings": warnings,
+            "applied_upserts": 0,
+            "applied_deletes": 0,
+            "row_results": [],
+            "rejected": rejected_rows,
+        }
+
+    batches_by_account: dict[str, str] = {}
+    for account_id in sorted({str(row["account_id"]) for row in accepted_rows}):
+        _ensure_account(pg_conn, account_id=account_id)
+        batches_by_account[account_id] = _insert_batch(
+            pg_conn,
+            account_id=account_id,
+            mode="replace_ticker_bucket",
+            filename="<what_if_apply>",
+            row_count=sum(1 for row in accepted_rows if str(row["account_id"]) == account_id),
+            requested_by=requested_by,
+            notes="Apply staged what-if scenario rows",
+        )
+
+    applied_upserts = 0
+    applied_deletes = 0
+    row_results: list[dict[str, Any]] = []
+
+    for row in accepted_rows:
+        account_id = str(row["account_id"])
+        ticker = str(row["ticker"])
+        resolved_ric = str(row["ric"])
+        delta_qty = Decimal(str(row["quantity"])).quantize(QTY_SCALE, rounding=ROUND_HALF_UP)
+        source = str(row["source"])
+        batch_id = batches_by_account[account_id]
+        existing_rows = _load_current_positions_for_ticker(pg_conn, account_id=account_id, ticker=ticker)
+        current_total = sum((Decimal(str(item["quantity"])) for item in existing_rows), start=Decimal("0")).quantize(QTY_SCALE, rounding=ROUND_HALF_UP)
+        target_qty = (current_total + delta_qty).quantize(QTY_SCALE, rounding=ROUND_HALF_UP)
+
+        if len(existing_rows) == 1 and str(existing_rows[0]["ric"]) == resolved_ric and current_total == target_qty:
+            row_results.append(
+                {
+                    "account_id": account_id,
+                    "ticker": ticker,
+                    "ric": resolved_ric,
+                    "current_quantity": float(current_total),
+                    "applied_quantity": float(target_qty),
+                    "delta_quantity": float(delta_qty),
+                    "action": "none",
+                }
+            )
+            continue
+
+        for existing in existing_rows:
+            _delete_position(pg_conn, account_id=account_id, ric=str(existing["ric"]))
+            _insert_event(
+                pg_conn,
+                import_batch_id=batch_id,
+                account_id=account_id,
+                ric=str(existing["ric"]),
+                ticker=ticker,
+                event_type="replace_ticker_bucket_delete",
+                quantity_before=Decimal(str(existing["quantity"])),
+                quantity_delta=Decimal(str(existing["quantity"])) * Decimal("-1"),
+                quantity_after=Decimal("0"),
+                created_by=requested_by,
+            )
+            applied_deletes += 1
+
+        action = "remove" if abs(target_qty) <= 0 else "replace"
+        if abs(target_qty) > 0:
+            _upsert_position(
+                pg_conn,
+                account_id=account_id,
+                ric=resolved_ric,
+                ticker=ticker,
+                quantity=target_qty,
+                source=source,
+                import_batch_id=batch_id,
+            )
+            _insert_event(
+                pg_conn,
+                import_batch_id=batch_id,
+                account_id=account_id,
+                ric=resolved_ric,
+                ticker=ticker,
+                event_type="replace_ticker_bucket_set",
+                quantity_before=current_total,
+                quantity_delta=delta_qty,
+                quantity_after=target_qty,
+                created_by=requested_by,
+            )
+            applied_upserts += 1
+
+        row_results.append(
+            {
+                "account_id": account_id,
+                "ticker": ticker,
+                "ric": resolved_ric,
+                "current_quantity": float(current_total),
+                "applied_quantity": float(target_qty),
+                "delta_quantity": float(delta_qty),
+                "action": action,
+            }
+        )
+
+    if dry_run:
+        pg_conn.rollback()
+        status = "dry_run"
+    else:
+        pg_conn.commit()
+        status = "ok"
+
+    return {
+        "status": status,
+        "accepted_rows": len(accepted_rows),
+        "rejected_rows": len(rejected_rows),
+        "rejection_counts": rejection_counts,
+        "warnings": warnings,
+        "applied_upserts": int(applied_upserts),
+        "applied_deletes": int(applied_deletes),
+        "row_results": row_results,
+        "rejected": rejected_rows,
+        "import_batch_ids": batches_by_account,
+    }
+
+
 def parse_holdings_rows(
     pg_conn,
     *,
@@ -870,7 +1197,6 @@ def list_holdings_positions(pg_conn, *, account_id: str | None = None) -> list[d
                     p.ric,
                     COALESCE(NULLIF(TRIM(p.ticker), ''), sm.ticker) AS ticker,
                     p.quantity,
-                    sm.instrument_type,
                     p.source,
                     p.updated_at
                 FROM holdings_positions_current p
@@ -889,7 +1215,6 @@ def list_holdings_positions(pg_conn, *, account_id: str | None = None) -> list[d
                     p.ric,
                     COALESCE(NULLIF(TRIM(p.ticker), ''), sm.ticker) AS ticker,
                     p.quantity,
-                    sm.instrument_type,
                     p.source,
                     p.updated_at
                 FROM holdings_positions_current p
@@ -900,14 +1225,13 @@ def list_holdings_positions(pg_conn, *, account_id: str | None = None) -> list[d
             )
         rows = cur.fetchall()
     out: list[dict[str, Any]] = []
-    for account_id, ric, ticker, quantity, instrument_type, source, updated_at in rows:
+    for account_id, ric, ticker, quantity, source, updated_at in rows:
         out.append(
             {
                 "account_id": str(account_id),
                 "ric": _normalize_ric(ric),
                 "ticker": _normalize_ticker(ticker),
                 "quantity": float(quantity or 0.0),
-                "instrument_type": str(instrument_type) if instrument_type is not None else None,
                 "source": str(source or ""),
                 "updated_at": str(updated_at) if updated_at is not None else None,
             }

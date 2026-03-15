@@ -48,7 +48,7 @@ Use local SQLite as the full historical ingest/source authority while Neon opera
 - If Neon holdings reads fail during serving projection, refresh now fails instead of publishing an empty successful portfolio.
 
 ### 4b) Durable serving-output cutover
-- `serving_payload_current` now holds the latest persisted dashboard-serving payloads (`portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `model_sanity`, `refresh_meta`, `eligibility`).
+- `serving_payload_current` now holds the latest persisted dashboard-serving payloads (`portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `model_sanity`, `refresh_meta`, `eligibility`, `health_diagnostics`).
 - This table is written during refresh publish in SQLite and also upserted directly into Neon.
 - In `cloud-serve` mode, this durable layer is the effective primary serving authority.
 - `SERVING_OUTPUTS_PRIMARY_READS=true` still exists for staged local rehearsal, but cloud mode no longer depends on it being manually flipped.

@@ -23,7 +23,7 @@ def test_load_factor_return_history_returns_latest_and_rows(tmp_path: Path) -> N
         [
             ("2026-01-02", "Beta", 0.01),
             ("2026-01-03", "Beta", -0.02),
-            ("2026-01-03", "Value", 0.03),
+            ("2026-01-03", "Book-to-Price", 0.03),
         ],
     )
     conn.commit()

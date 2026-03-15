@@ -4,11 +4,7 @@
 CREATE TABLE IF NOT EXISTS security_master (
     ric TEXT PRIMARY KEY,
     ticker TEXT,
-    sid TEXT,
-    permid TEXT,
     isin TEXT,
-    instrument_type TEXT,
-    asset_category_description TEXT,
     exchange_name TEXT,
     classification_ok SMALLINT NOT NULL DEFAULT 0 CHECK (classification_ok IN (0, 1)),
     is_equity_eligible SMALLINT NOT NULL DEFAULT 0 CHECK (is_equity_eligible IN (0, 1)),
@@ -88,7 +84,7 @@ CREATE TABLE IF NOT EXISTS barra_raw_cross_section_history (
     price_volume DOUBLE PRECISION,
     shares_outstanding DOUBLE PRECISION,
     trbc_economic_sector_short TEXT,
-    trbc_industry_group TEXT,
+    trbc_business_sector TEXT,
     beta_raw DOUBLE PRECISION,
     momentum_raw DOUBLE PRECISION,
     size_raw DOUBLE PRECISION,
@@ -120,7 +116,6 @@ CREATE TABLE IF NOT EXISTS barra_raw_cross_section_history (
     liquidity_score DOUBLE PRECISION,
     book_to_price_score DOUBLE PRECISION,
     earnings_yield_score DOUBLE PRECISION,
-    value_score DOUBLE PRECISION,
     leverage_score DOUBLE PRECISION,
     growth_score DOUBLE PRECISION,
     profitability_score DOUBLE PRECISION,
@@ -143,6 +138,8 @@ CREATE TABLE IF NOT EXISTS model_factor_returns_daily (
     date DATE NOT NULL,
     factor_name TEXT NOT NULL,
     factor_return DOUBLE PRECISION NOT NULL,
+    robust_se DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    t_stat DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     r_squared DOUBLE PRECISION,
     residual_vol DOUBLE PRECISION,
     cross_section_n INTEGER,
@@ -162,8 +159,6 @@ CREATE TABLE IF NOT EXISTS serving_payload_current (
 );
 
 CREATE INDEX IF NOT EXISTS idx_security_master_ticker ON security_master (ticker);
-CREATE INDEX IF NOT EXISTS idx_security_master_permid ON security_master (permid);
-CREATE INDEX IF NOT EXISTS idx_security_master_sid ON security_master (sid);
 
 CREATE INDEX IF NOT EXISTS idx_security_prices_eod_date ON security_prices_eod (date);
 CREATE INDEX IF NOT EXISTS idx_security_fundamentals_pit_asof ON security_fundamentals_pit (as_of_date);

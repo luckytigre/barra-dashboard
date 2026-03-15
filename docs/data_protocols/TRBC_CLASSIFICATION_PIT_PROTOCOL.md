@@ -29,5 +29,6 @@ Ensure each (`ric`, `as_of_date`) used by the model has point-in-time TRBC class
 ## Modeling Behavior
 - Eligibility and regressions read TRBC PIT classes from `security_classification_pit`.
 - Industry dummy factors are built at TRBC L2 (`trbc_business_sector`) in current modeling.
+- Model-internal residual and raw-cross-section tables now name the L2 field `trbc_business_sector` directly; the old misnamed `trbc_industry_group` alias was removed from those paths.
 - Output payloads can still include both L2 and L3 labels for interpretability.
 - No separate `ticker_ric_map` or standalone `trbc_industry_history` table is required in current runtime flow.

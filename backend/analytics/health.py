@@ -50,6 +50,13 @@ def _hist(values: np.ndarray, *, bins: int = 40, lo: float | None = None, hi: fl
 def _load_daily_factor_returns(cache_db: Path, *, years: int = 10) -> pd.DataFrame:
     conn = sqlite3.connect(str(cache_db))
     try:
+        cols = {
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info(daily_factor_returns)").fetchall()
+        }
+        required_cols = {"date", "factor_name", "factor_return", "robust_se", "t_stat", "r_squared", "residual_vol"}
+        if not required_cols.issubset(cols):
+            return pd.DataFrame()
         latest_row = conn.execute("SELECT MAX(date) FROM daily_factor_returns").fetchone()
         latest = latest_row[0] if latest_row and latest_row[0] else None
         if latest is None:
@@ -58,7 +65,14 @@ def _load_daily_factor_returns(cache_db: Path, *, years: int = 10) -> pd.DataFra
         start_dt = latest_dt - timedelta(days=365 * years)
         df = pd.read_sql_query(
             """
-            SELECT date, factor_name, factor_return, r_squared, residual_vol
+            SELECT
+                date,
+                factor_name,
+                factor_return,
+                COALESCE(robust_se, 0.0) AS robust_se,
+                COALESCE(t_stat, 0.0) AS t_stat,
+                r_squared,
+                residual_vol
             FROM daily_factor_returns
             WHERE date >= ?
             ORDER BY date, factor_name
@@ -66,6 +80,8 @@ def _load_daily_factor_returns(cache_db: Path, *, years: int = 10) -> pd.DataFra
             conn,
             params=(start_dt.isoformat(),),
         )
+    except sqlite3.OperationalError:
+        return pd.DataFrame()
     finally:
         conn.close()
     if df.empty:
@@ -73,6 +89,8 @@ def _load_daily_factor_returns(cache_db: Path, *, years: int = 10) -> pd.DataFra
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
     df["factor_name"] = df["factor_name"].astype(str)
     df["factor_return"] = pd.to_numeric(df["factor_return"], errors="coerce").fillna(0.0)
+    df["robust_se"] = pd.to_numeric(df["robust_se"], errors="coerce").fillna(0.0)
+    df["t_stat"] = pd.to_numeric(df["t_stat"], errors="coerce").fillna(0.0)
     df["r_squared"] = pd.to_numeric(df["r_squared"], errors="coerce").fillna(0.0)
     df["residual_vol"] = pd.to_numeric(df["residual_vol"], errors="coerce").fillna(0.0)
     return df.dropna(subset=["date"])
@@ -182,7 +200,7 @@ def _compute_incremental_r2_by_block(
         .fillna(0.0)
     )
 
-    residuals = load_specific_residuals(cache_db, lookback_days=0)
+    residuals = load_specific_residuals(cache_db, lookback_days=0, residual_kind="model")
     if residuals.empty:
         return []
     residuals["date"] = pd.to_datetime(residuals["date"], errors="coerce")
@@ -198,8 +216,8 @@ def _compute_incremental_r2_by_block(
     residuals["ticker"] = residuals["ticker"].astype(str).str.upper()
     residuals["residual"] = pd.to_numeric(residuals["residual"], errors="coerce")
     residuals["market_cap"] = pd.to_numeric(residuals["market_cap"], errors="coerce")
-    residuals["trbc_industry_group"] = (
-        residuals["trbc_industry_group"]
+    residuals["trbc_business_sector"] = (
+        residuals["trbc_business_sector"]
         .fillna("")
         .astype(str)
         .str.strip()
@@ -240,7 +258,7 @@ def _compute_incremental_r2_by_block(
         valid_security_ids = security_ids.loc[valid_idx]
         caps_valid = caps.loc[valid_idx]
         resid_full_valid = resid_full.loc[valid_idx].to_numpy(dtype=float)
-        inds = g.loc[valid_idx, "trbc_industry_group"].fillna("").astype(str).str.strip()
+        inds = g.loc[valid_idx, "trbc_business_sector"].fillna("").astype(str).str.strip()
         non_empty_ind = inds.str.len() > 0
         if int(non_empty_ind.sum()) < 20:
             continue
@@ -292,9 +310,9 @@ def _compute_incremental_r2_by_block(
             sst = sse_full / denom
             sse_ind = float(np.sum(ww * (resid_ind_only ** 2)))
             r2_ind = 1.0 - (sse_ind / sst if sst > 0 else 0.0)
-        r2_ind = float(np.clip(r2_ind, 0.0, 1.0))
-        r2_full = float(np.clip(r2_full, 0.0, 1.0))
-        r2_style_inc = float(np.clip(r2_full - r2_ind, 0.0, 1.0))
+        r2_ind = float(r2_ind)
+        r2_full = float(r2_full)
+        r2_style_inc = float(r2_full - r2_ind)
 
         out.append({
             "date": dstr,
@@ -534,6 +552,22 @@ def _portfolio_forecast_vol(
     return float(np.sqrt(var))
 
 
+def _deserialize_full_covariance(payload: Any) -> pd.DataFrame:
+    if not isinstance(payload, dict):
+        return pd.DataFrame()
+    factors = [str(f) for f in (payload.get("factors") or []) if str(f).strip()]
+    matrix = payload.get("matrix") or []
+    if not factors or not isinstance(matrix, list):
+        return pd.DataFrame()
+    try:
+        arr = np.asarray(matrix, dtype=float)
+    except Exception:
+        return pd.DataFrame()
+    if arr.ndim != 2 or arr.shape != (len(factors), len(factors)):
+        return pd.DataFrame()
+    return pd.DataFrame(arr, index=factors, columns=factors)
+
+
 def _is_textish_type(col_type: str) -> bool:
     ctype = str(col_type or "").upper()
     return ("CHAR" in ctype) or ("TEXT" in ctype) or ("CLOB" in ctype)
@@ -754,18 +788,36 @@ def _filter_active_equity_rows(
     return out.drop(columns=["__ticker", "__min_date", "__max_date"], errors="ignore")
 
 
-def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
+def compute_health_diagnostics(
+    data_db: Path,
+    cache_db: Path,
+    *,
+    risk_payload: dict[str, Any] | None = None,
+    portfolio_payload: dict[str, Any] | None = None,
+    universe_payload: dict[str, Any] | None = None,
+    covariance_payload: dict[str, Any] | None = None,
+    source_dates: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    snapshot_id: str | None = None,
+) -> dict[str, Any]:
     """Compute and return diagnostics payload for the Health tab."""
     df_ret = _load_daily_factor_returns(cache_db, years=10)
     if df_ret.empty:
         return {
             "status": "no-data",
-            "notes": ["No daily_factor_returns history available."],
+            "notes": [
+                "No compatible daily_factor_returns history available.",
+                "Health diagnostics require persisted robust factor t-stats (`robust_se`, `t_stat`).",
+                "Rebuild factor-return history with the current estimator/cache schema before using this page.",
+            ],
             "as_of": None,
         }
 
     style_names = set(FULL_STYLE_FACTORS.keys())
-    risk_cache = cache_get("risk") or {}
+    risk_cache = dict(risk_payload or (cache_get("risk") or {}))
+    portfolio_cache = dict(portfolio_payload or (cache_get("portfolio") or {}))
+    universe_cache = dict(universe_payload or (cache_get("universe_loadings") or {}))
+    cov_payload = dict(covariance_payload or (cache_get("risk_engine_cov") or {}))
     week_end_dates = _week_end_sample_dates(df_ret["date"])
     week_end_str = {_to_date_str(d) for d in week_end_dates}
 
@@ -783,13 +835,12 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
     r2_daily["roll60"] = r2_daily["r2"].rolling(window=12, min_periods=4).mean()
     r2_daily["roll252"] = r2_daily["r2"].rolling(window=52, min_periods=8).mean()
 
-    t_proxy = df_ret.copy()
-    t_proxy["t_stat"] = t_proxy["factor_return"] / t_proxy["residual_vol"].clip(lower=1e-8)
-    t_proxy["is_style"] = t_proxy["factor_name"].isin(style_names)
+    t_stat_df = df_ret.copy()
+    t_stat_df["is_style"] = t_stat_df["factor_name"].isin(style_names)
 
-    t_hist = _hist(t_proxy["t_stat"].to_numpy(dtype=float), bins=48, lo=-6.0, hi=6.0)
+    t_hist = _hist(t_stat_df["t_stat"].to_numpy(dtype=float), bins=48, lo=-6.0, hi=6.0)
     hit_rate = (
-        t_proxy.groupby("factor_name", as_index=False)["t_stat"]
+        t_stat_df.groupby("factor_name", as_index=False)["t_stat"]
         .apply(lambda s: float(np.mean(np.abs(s.to_numpy(dtype=float)) > 2.0) * 100.0))
         .rename(columns={"t_stat": "pct_days_abs_t_gt_2"})
         .sort_values("pct_days_abs_t_gt_2", ascending=False)
@@ -804,8 +855,8 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
         sample_dates=week_end_str,
     )
     breadth_rows = []
-    t_proxy_sampled = t_proxy[t_proxy["date"].dt.date.astype(str).isin(week_end_str)].copy() if week_end_str else t_proxy
-    for dt, g in t_proxy_sampled.groupby("date", sort=True):
+    t_stat_sampled = t_stat_df[t_stat_df["date"].dt.date.astype(str).isin(week_end_str)].copy() if week_end_str else t_stat_df
+    for dt, g in t_stat_sampled.groupby("date", sort=True):
         style_t = np.abs(g.loc[g["is_style"], "t_stat"].to_numpy(dtype=float))
         ind_t = np.abs(g.loc[~g["is_style"], "t_stat"].to_numpy(dtype=float))
         style_mean = float(np.mean(style_t)) if style_t.size else 0.0
@@ -816,8 +867,8 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
             "style_mean_abs_t": style_mean,
         })
 
-    industry_t_all = np.abs(t_proxy_sampled.loc[~t_proxy_sampled["is_style"], "t_stat"].to_numpy(dtype=float))
-    style_t_all = np.abs(t_proxy_sampled.loc[t_proxy_sampled["is_style"], "t_stat"].to_numpy(dtype=float))
+    industry_t_all = np.abs(t_stat_sampled.loc[~t_stat_sampled["is_style"], "t_stat"].to_numpy(dtype=float))
+    style_t_all = np.abs(t_stat_sampled.loc[t_stat_sampled["is_style"], "t_stat"].to_numpy(dtype=float))
     breadth_summary = {
         "industry_mean_abs_t": float(np.mean(industry_t_all)) if industry_t_all.size else 0.0,
         "style_mean_abs_t": float(np.mean(style_t_all)) if style_t_all.size else 0.0,
@@ -904,17 +955,10 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
     }
 
     # SECTION 4 — Covariance quality
-    portfolio_cache = cache_get("portfolio") or {}
-    universe_cache = cache_get("universe_loadings") or {}
     factor_details = {str(d.get("factor")): d for d in (risk_cache.get("factor_details") or [])}
-    corr_obj = (risk_cache.get("cov_matrix") or {})
-    cov_factors = [str(f) for f in (corr_obj.get("factors") or [])]
-    corr_arr = np.array(corr_obj.get("correlation") or [], dtype=float)
-    vols = np.array([float((factor_details.get(f) or {}).get("factor_vol", 0.0) or 0.0) for f in cov_factors], dtype=float)
-    if corr_arr.size and vols.size == len(cov_factors):
-        cov_mat = corr_arr * np.outer(vols, vols)
-    else:
-        cov_mat = np.zeros((0, 0), dtype=float)
+    cov_df = _deserialize_full_covariance(cov_payload)
+    cov_factors = [str(f) for f in cov_df.columns]
+    cov_mat = cov_df.to_numpy(dtype=float) if not cov_df.empty else np.zeros((0, 0), dtype=float)
     eigvals: list[float] = []
     if cov_mat.size:
         try:
@@ -1087,12 +1131,16 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
     return {
         "status": "ok",
         "as_of": _to_date_str(df_ret["date"].max()),
+        "run_id": str(run_id) if run_id else None,
+        "snapshot_id": str(snapshot_id) if snapshot_id else None,
+        "source_dates": dict(source_dates or {}),
         "notes": [
-            "Daily factor t-stat uses a practical proxy: factor_return / residual_vol (not exact coefficient SE-based t-stat).",
+            "Daily factor t-stat uses stored heteroskedasticity-robust coefficient statistics from the estimator layer.",
             "Incremental block R² is reconstructed from cached full residuals plus canonicalized style-fitted returns.",
             "Computationally intensive Section 1 time-series are sampled at week-end over 10 years.",
             "Exposure turnover is normalized by elapsed calendar days between snapshots, then smoothed with a 60-observation rolling mean.",
             "Section 2 uses strict structural eligibility only (no cap fill-ins, no unmapped industry bucket).",
+            "Section 4 forecast-vs-realized uses the full model covariance from risk_engine_cov, not the style-only display correlation matrix.",
         ],
         "section1": {
             "sampling": "weekly_week_end",
@@ -1132,7 +1180,6 @@ def compute_health_diagnostics(data_db: Path, cache_db: Path) -> dict[str, Any]:
         },
         "section4": {
             "eigenvalues": eigvals,
-            "condition_number": float(risk_cache.get("condition_number", 0.0) or 0.0),
             "forecast_vs_realized": fv,
             "rolling_avg_factor_vol": avg_factor_vol_series,
         },

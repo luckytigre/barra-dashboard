@@ -49,11 +49,7 @@ def _create_security_master_table(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS {SECURITY_MASTER_TABLE} (
             ric TEXT PRIMARY KEY,
             ticker TEXT,
-            sid TEXT,
-            permid TEXT,
             isin TEXT,
-            instrument_type TEXT,
-            asset_category_description TEXT,
             exchange_name TEXT,
             classification_ok INTEGER NOT NULL DEFAULT 0,
             is_equity_eligible INTEGER NOT NULL DEFAULT 0,
@@ -66,12 +62,8 @@ def _create_security_master_table(conn: sqlite3.Connection) -> None:
     conn.execute(
         f"CREATE INDEX IF NOT EXISTS idx_{SECURITY_MASTER_TABLE}_ticker ON {SECURITY_MASTER_TABLE}(ticker)"
     )
-    conn.execute(
-        f"CREATE INDEX IF NOT EXISTS idx_{SECURITY_MASTER_TABLE}_permid ON {SECURITY_MASTER_TABLE}(permid)"
-    )
-    conn.execute(
-        f"CREATE INDEX IF NOT EXISTS idx_{SECURITY_MASTER_TABLE}_sid ON {SECURITY_MASTER_TABLE}(sid)"
-    )
+    _drop_index_if_exists(conn, f"idx_{SECURITY_MASTER_TABLE}_permid")
+    _drop_index_if_exists(conn, f"idx_{SECURITY_MASTER_TABLE}_sid")
 
 
 def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
@@ -84,11 +76,7 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
     expected_cols = {
         "ric",
         "ticker",
-        "sid",
-        "permid",
         "isin",
-        "instrument_type",
-        "asset_category_description",
         "exchange_name",
         "classification_ok",
         "is_equity_eligible",
@@ -101,26 +89,32 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
         # Remove stale migration artifacts so index names can be reused on active table.
         _drop_table_if_exists(conn, f"{SECURITY_MASTER_TABLE}__legacy_pre_ric_pk")
         _create_security_master_table(conn)
-        # Normalize synthetic placeholder values even in already-migrated schemas.
-        conn.execute(
-            f"""
-            UPDATE {SECURITY_MASTER_TABLE}
-            SET
-                sid = CASE
-                    WHEN sid IS NULL OR TRIM(sid) = '' THEN NULL
-                    WHEN UPPER(TRIM(sid)) = 'PERMID::' || UPPER(TRIM(ric)) THEN NULL
-                    WHEN UPPER(TRIM(sid)) = 'RIC::' || UPPER(TRIM(ric)) THEN NULL
-                    ELSE TRIM(sid)
-                END,
-                permid = CASE
-                    WHEN permid IS NULL OR TRIM(permid) = '' THEN NULL
-                    WHEN UPPER(TRIM(permid)) = UPPER(TRIM(ric)) THEN NULL
-                    WHEN UPPER(TRIM(permid)) = 'RIC::' || UPPER(TRIM(ric)) THEN NULL
-                    WHEN UPPER(TRIM(permid)) = 'PERMID::' || UPPER(TRIM(ric)) THEN NULL
-                    ELSE TRIM(permid)
-                END
-            """
-        )
+        if {"sid", "permid", "instrument_type", "asset_category_description"} & cols:
+            legacy = f"{SECURITY_MASTER_TABLE}__legacy_pre_trim"
+            conn.execute(f"DROP TABLE IF EXISTS {legacy}")
+            conn.execute(f"ALTER TABLE {SECURITY_MASTER_TABLE} RENAME TO {legacy}")
+            _create_security_master_table(conn)
+            conn.execute(
+                f"""
+                INSERT OR REPLACE INTO {SECURITY_MASTER_TABLE} (
+                    ric, ticker, isin, exchange_name, classification_ok,
+                    is_equity_eligible, source, job_run_id, updated_at
+                )
+                SELECT
+                    UPPER(TRIM(ric)) AS ric,
+                    NULLIF(UPPER(TRIM(ticker)), '') AS ticker,
+                    NULLIF(TRIM(isin), '') AS isin,
+                    NULLIF(TRIM(exchange_name), '') AS exchange_name,
+                    COALESCE(CAST(classification_ok AS INTEGER), 0) AS classification_ok,
+                    COALESCE(CAST(is_equity_eligible AS INTEGER), 0) AS is_equity_eligible,
+                    NULLIF(TRIM(source), '') AS source,
+                    NULLIF(TRIM(job_run_id), '') AS job_run_id,
+                    COALESCE(NULLIF(TRIM(updated_at), ''), datetime('now')) AS updated_at
+                FROM {legacy}
+                WHERE ric IS NOT NULL AND TRIM(ric) <> ''
+                """
+            )
+            _drop_table_if_exists(conn, legacy)
         return
 
     legacy = f"{SECURITY_MASTER_TABLE}__legacy_pre_ric_pk"
@@ -129,38 +123,12 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
     _create_security_master_table(conn)
 
     lcols = _table_columns(conn, legacy)
-    sid_expr = "NULL"
-    if "sid" in lcols:
-        sid_expr = (
-            "CASE "
-            "WHEN sid IS NULL OR TRIM(sid) = '' THEN NULL "
-            "WHEN UPPER(TRIM(sid)) = 'PERMID::' || UPPER(TRIM(ric)) THEN NULL "
-            "WHEN UPPER(TRIM(sid)) = 'RIC::' || UPPER(TRIM(ric)) THEN NULL "
-            "ELSE TRIM(sid) END"
-        )
-    permid_expr = "NULL"
-    if "permid" in lcols:
-        permid_expr = (
-            "CASE "
-            "WHEN permid IS NULL OR TRIM(permid) = '' THEN NULL "
-            "WHEN UPPER(TRIM(permid)) = UPPER(TRIM(ric)) THEN NULL "
-            "WHEN UPPER(TRIM(permid)) = 'RIC::' || UPPER(TRIM(ric)) THEN NULL "
-            "WHEN UPPER(TRIM(permid)) = 'PERMID::' || UPPER(TRIM(ric)) THEN NULL "
-            "ELSE TRIM(permid) END"
-        )
-
     ticker_expr = "NULL"
     if "ticker" in lcols:
         ticker_expr = "NULLIF(UPPER(TRIM(ticker)), '')"
     isin_expr = "NULL"
     if "isin" in lcols:
         isin_expr = "NULLIF(TRIM(isin), '')"
-    instrument_expr = "NULL"
-    if "instrument_type" in lcols:
-        instrument_expr = "NULLIF(TRIM(instrument_type), '')"
-    asset_expr = "NULL"
-    if "asset_category_description" in lcols:
-        asset_expr = "NULLIF(TRIM(asset_category_description), '')"
     exchange_expr = "NULL"
     if "exchange_name" in lcols:
         exchange_expr = "NULLIF(TRIM(exchange_name), '')"
@@ -185,21 +153,17 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         f"""
         INSERT OR REPLACE INTO {SECURITY_MASTER_TABLE} (
-            ric, ticker, sid, permid, isin, instrument_type, asset_category_description,
-            exchange_name, classification_ok, is_equity_eligible, source, job_run_id, updated_at
+            ric, ticker, isin, exchange_name, classification_ok,
+            is_equity_eligible, source, job_run_id, updated_at
         )
         SELECT
-            ric, ticker, sid, permid, isin, instrument_type, asset_category_description,
-            exchange_name, classification_ok, is_equity_eligible, source, job_run_id, updated_at
+            ric, ticker, isin, exchange_name, classification_ok,
+            is_equity_eligible, source, job_run_id, updated_at
         FROM (
             SELECT
                 UPPER(TRIM(ric)) AS ric,
                 {ticker_expr} AS ticker,
-                {sid_expr} AS sid,
-                {permid_expr} AS permid,
                 {isin_expr} AS isin,
-                {instrument_expr} AS instrument_type,
-                {asset_expr} AS asset_category_description,
                 {exchange_expr} AS exchange_name,
                 {class_expr} AS classification_ok,
                 {equity_expr} AS is_equity_eligible,

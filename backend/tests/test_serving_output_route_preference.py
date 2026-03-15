@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.api.routes import exposures as exposures_routes
+from backend.api.routes import health as health_routes
 from backend.api.routes import portfolio as portfolio_routes
 from backend.api.routes import risk as risk_routes
 from backend.api.routes import universe as universe_routes
@@ -38,7 +39,6 @@ def test_risk_prefers_serving_payload_over_cache(monkeypatch) -> None:
         "factor_details": [],
         "cov_matrix": {"factors": ["Country: US"], "correlation": [[1.0]]},
         "r_squared": 0.5,
-        "condition_number": 10,
         "risk_engine": {"specific_risk_ticker_count": 1},
     }
     monkeypatch.setattr(risk_routes, "load_current_payload", lambda name: risk_payload if name == "risk" else {"status": "ok"} if name == "model_sanity" else None)
@@ -49,6 +49,27 @@ def test_risk_prefers_serving_payload_over_cache(monkeypatch) -> None:
 
     assert res.status_code == 200
     assert res.json()["risk_shares"]["country"] == 1
+
+
+def test_health_prefers_serving_payload_over_cache(monkeypatch) -> None:
+    monkeypatch.setattr(health_routes, "require_role", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        health_routes,
+        "load_current_payload",
+        lambda name: {"status": "ok", "as_of": "2026-03-03", "notes": ["fresh"]} if name == "health_diagnostics" else None,
+    )
+    monkeypatch.setattr(
+        health_routes,
+        "cache_get",
+        lambda key: {"status": "ok", "as_of": "2020-01-01", "notes": ["stale"]} if key == "health_diagnostics" else None,
+    )
+
+    client = TestClient(app)
+    res = client.get("/api/health/diagnostics")
+
+    assert res.status_code == 200
+    assert res.json()["as_of"] == "2026-03-03"
+    assert res.json()["notes"] == ["fresh"]
 
 
 def test_universe_search_prefers_serving_payload_over_cache(monkeypatch) -> None:

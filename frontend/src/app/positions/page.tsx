@@ -128,7 +128,6 @@ export default function PositionsPage() {
         ric: entry.ric || "",
         ticker: entry.ticker || "",
         quantity: 0,
-        instrument_type: null,
         source: entry.source,
         updated_at: "staged",
       }));

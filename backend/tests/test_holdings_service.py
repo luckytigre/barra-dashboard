@@ -4,8 +4,11 @@ from backend.services import holdings_service
 
 
 class _FakeConn:
+    def __init__(self) -> None:
+        self.closed = False
+
     def close(self) -> None:
-        return None
+        self.closed = True
 
     def rollback(self) -> None:
         return None
@@ -152,3 +155,35 @@ def test_run_position_remove_records_dirty_and_refresh(monkeypatch) -> None:
     assert out["action"] == "removed"
     assert calls["dirty"] == 1
     assert calls["refresh"] == 1
+
+
+def test_run_whatif_apply_ensures_runtime_compat_before_mutation(monkeypatch) -> None:
+    calls = {"compat": 0}
+    conn = _FakeConn()
+
+    monkeypatch.setattr(holdings_service, "resolve_dsn", lambda _dsn=None: "postgres://example")
+    monkeypatch.setattr(holdings_service, "connect", lambda **kwargs: conn)
+    monkeypatch.setattr(
+        holdings_service,
+        "ensure_holdings_runtime_compat",
+        lambda _conn: calls.__setitem__("compat", calls["compat"] + 1),
+    )
+    monkeypatch.setattr(
+        holdings_service,
+        "apply_ticker_bucket_scenario",
+        lambda *args, **kwargs: {
+            "status": "ok",
+            "applied_upserts": 1,
+            "applied_deletes": 0,
+            "import_batch_ids": {"acct_a": "batch_1"},
+        },
+    )
+    monkeypatch.setattr(holdings_service, "record_holdings_dirty", lambda **kwargs: None)
+
+    out = holdings_service.run_whatif_apply(
+        scenario_rows=[{"account_id": "acct_a", "ticker": "AAA", "quantity": 10.0}],
+    )
+
+    assert out["status"] == "ok"
+    assert calls["compat"] == 1
+    assert conn.closed is True

@@ -160,6 +160,14 @@ def cache_get_live(key: str) -> Any | None:
     return _run_with_lock_retry(_work)
 
 
+def cache_get_live_first(key: str) -> Any | None:
+    """Retrieve the raw cache value first, then fall back to the active snapshot."""
+    live_value = cache_get_live(key)
+    if live_value is not None:
+        return live_value
+    return cache_get(key)
+
+
 def cache_set(key: str, value: Any, *, snapshot_id: str | None = None) -> None:
     """Store a JSON-serializable value in the cache."""
     _ensure_schema()

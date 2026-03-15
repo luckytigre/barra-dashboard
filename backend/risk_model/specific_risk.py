@@ -33,15 +33,15 @@ def build_specific_risk_from_cache(
     min_obs: int = 40,
 ) -> dict[str, dict[str, float | int | str]]:
     """Build annualized specific variances from cached stock residual returns."""
-    resid_df = load_specific_residuals(cache_db, lookback_days=lookback_days)
+    resid_df = load_specific_residuals(cache_db, lookback_days=lookback_days, residual_kind="raw")
     if resid_df.empty:
         return {}
 
     resid_df["ric"] = resid_df["ric"].astype(str).str.upper()
     resid_df["ticker"] = resid_df["ticker"].astype(str).str.upper()
     resid_df["residual"] = pd.to_numeric(resid_df["residual"], errors="coerce")
-    resid_df["trbc_industry_group"] = (
-        resid_df["trbc_industry_group"]
+    resid_df["trbc_business_sector"] = (
+        resid_df["trbc_business_sector"]
         .fillna("")
         .astype(str)
         .str.strip()
@@ -64,15 +64,15 @@ def build_specific_risk_from_cache(
         )
         raw_daily_var = _ewma_variance(values, half_life=half_life)
         raw_var = max(0.0, raw_daily_var * ANNUALIZATION)
-        industry = (
-            str(g["trbc_industry_group"].dropna().iloc[-1])
-            if not g["trbc_industry_group"].dropna().empty
+        business_sector = (
+            str(g["trbc_business_sector"].dropna().iloc[-1])
+            if not g["trbc_business_sector"].dropna().empty
             else ""
         )
         rows.append({
             "ric": str(ric),
             "ticker": str(ticker),
-            "trbc_industry_group": industry,
+            "trbc_business_sector": business_sector,
             "obs": obs,
             "raw_specific_var": raw_var,
         })
@@ -87,7 +87,7 @@ def build_specific_risk_from_cache(
         global_target = 1e-6
 
     industry_targets = (
-        stats.groupby("trbc_industry_group")["raw_specific_var"]
+        stats.groupby("trbc_business_sector")["raw_specific_var"]
         .median()
         .replace([np.inf, -np.inf], np.nan)
         .fillna(global_target)
@@ -98,11 +98,11 @@ def build_specific_risk_from_cache(
     for _, row in stats.iterrows():
         ric = str(row["ric"]).upper()
         ticker = str(row["ticker"])
-        industry = str(row["trbc_industry_group"])
+        business_sector = str(row["trbc_business_sector"])
         obs = int(row["obs"])
         raw_var = float(row["raw_specific_var"])
 
-        industry_target = float(industry_targets.get(industry, global_target))
+        industry_target = float(industry_targets.get(business_sector, global_target))
         target = 0.7 * industry_target + 0.3 * global_target
 
         # More observations => less shrinkage toward structural target.
@@ -116,7 +116,7 @@ def build_specific_risk_from_cache(
             "specific_var": float(specific_var),
             "specific_vol": float(np.sqrt(specific_var)),
             "obs": obs,
-            "trbc_industry_group": industry,
+            "trbc_business_sector": business_sector,
         }
 
     return out

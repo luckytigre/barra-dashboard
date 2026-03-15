@@ -43,6 +43,26 @@ def _pg_table_exists(pg_conn, table: str) -> bool:
         return cur.fetchone() is not None
 
 
+def _sqlite_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return [str(row[1]) for row in rows]
+
+
+def _pg_columns(pg_conn, table: str) -> list[str]:
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = %s
+            ORDER BY ordinal_position
+            """,
+            (table,),
+        )
+        return [str(row[0]) for row in cur.fetchall()]
+
+
 def _sqlite_table_exists(conn: sqlite3.Connection, table: str) -> bool:
     row = conn.execute(
         """
@@ -92,20 +112,19 @@ def sync_factor_returns_to_neon(
         where_sql = ""
         where_params: tuple[Any, ...] = ()
         action = "truncate_and_reload"
-        source_count_sql = f"SELECT COUNT(*) FROM {source_table} WHERE date >= ?"
-        source_count_params: tuple[Any, ...] = (sync_cutoff,)
+        source_count_sql = f"SELECT COUNT(*) FROM {source_table}"
+        source_count_params: tuple[Any, ...] = ()
         if mode_norm == "full":
             with pg_conn.cursor() as cur:
                 cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
-            where_sql = "WHERE date >= ?"
-            where_params = (sync_cutoff,)
+            where_sql = ""
+            where_params = ()
         else:
             with pg_conn.cursor() as cur:
                 cur.execute(
                     sql.SQL(
-                        "SELECT COUNT(*), MAX(date)::text FROM {} WHERE date >= %s"
+                        "SELECT COUNT(*), MAX(date)::text FROM {}"
                     ).format(sql.Identifier(table)),
-                    (sync_cutoff,),
                 )
                 row = cur.fetchone()
                 target_count = int(row[0] or 0) if row else 0
@@ -117,13 +136,13 @@ def sync_factor_returns_to_neon(
                 with pg_conn.cursor() as cur:
                     cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
                 action = "target_empty_truncate_and_reload"
-                where_sql = "WHERE date >= ?"
-                where_params = (sync_cutoff,)
+                where_sql = ""
+                where_params = ()
             elif target_count != source_window_rows:
                 with pg_conn.cursor() as cur:
                     cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
-                where_sql = "WHERE date >= ?"
-                where_params = (sync_cutoff,)
+                where_sql = ""
+                where_params = ()
                 action = "bounded_full_reload_after_count_mismatch"
             else:
                 cutoff = max_date - timedelta(days=max(0, int(overlap_days)))
@@ -150,6 +169,8 @@ def sync_factor_returns_to_neon(
                 date,
                 factor_name,
                 factor_return,
+                COALESCE(robust_se, 0.0) AS robust_se,
+                COALESCE(t_stat, 0.0) AS t_stat,
                 r_squared,
                 residual_vol,
                 cross_section_n,
@@ -166,6 +187,8 @@ def sync_factor_returns_to_neon(
                 date,
                 factor_name,
                 factor_return,
+                robust_se,
+                t_stat,
                 r_squared,
                 residual_vol,
                 cross_section_n,
@@ -173,9 +196,11 @@ def sync_factor_returns_to_neon(
                 coverage,
                 updated_at
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date, factor_name) DO UPDATE SET
                 factor_return = EXCLUDED.factor_return,
+                robust_se = EXCLUDED.robust_se,
+                t_stat = EXCLUDED.t_stat,
                 r_squared = EXCLUDED.r_squared,
                 residual_vol = EXCLUDED.residual_vol,
                 cross_section_n = EXCLUDED.cross_section_n,
@@ -199,6 +224,8 @@ def sync_factor_returns_to_neon(
                         row[5],
                         row[6],
                         row[7],
+                        row[8],
+                        row[9],
                         now_iso,
                     )
                 )
@@ -409,6 +436,256 @@ def _pg_count_window(
     }
 
 
+def _sqlite_non_null_counts(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    columns: list[str],
+    where_sql: str = "",
+    params: tuple[Any, ...] = (),
+) -> dict[str, int]:
+    if not columns:
+        return {}
+    select_sql = ", ".join(
+        f'SUM(CASE WHEN "{col}" IS NOT NULL THEN 1 ELSE 0 END) AS "{col}"'
+        for col in columns
+    )
+    row = conn.execute(f"SELECT {select_sql} FROM {table} {where_sql}", params).fetchone()
+    if not row:
+        return {str(col): 0 for col in columns}
+    return {str(col): int(row[idx] or 0) for idx, col in enumerate(columns)}
+
+
+def _pg_non_null_counts(
+    pg_conn,
+    *,
+    table: str,
+    columns: list[str],
+    date_col: str | None = None,
+    cutoff: str | None = None,
+) -> dict[str, int]:
+    if not columns:
+        return {}
+    where_sql = sql.SQL("")
+    params: list[Any] = []
+    if date_col and cutoff:
+        where_sql = sql.SQL(" WHERE {} >= %s").format(sql.Identifier(date_col))
+        params.append(cutoff)
+    select_sql = sql.SQL(", ").join(
+        sql.SQL("SUM(CASE WHEN {} IS NOT NULL THEN 1 ELSE 0 END) AS {}").format(
+            sql.Identifier(col),
+            sql.Identifier(col),
+        )
+        for col in columns
+    )
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("SELECT {} FROM {}{}").format(
+                select_sql,
+                sql.Identifier(table),
+                where_sql,
+            ),
+            params,
+        )
+        row = cur.fetchone()
+    if not row:
+        return {str(col): 0 for col in columns}
+    return {str(col): int(row[idx] or 0) for idx, col in enumerate(columns)}
+
+
+def _sqlite_recent_dates(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    cutoff: str | None,
+    limit: int = 3,
+) -> list[str]:
+    params: list[Any] = []
+    where = ""
+    if cutoff:
+        where = f" WHERE {date_col} >= ?"
+        params.append(cutoff)
+    rows = conn.execute(
+        f"""
+        SELECT DISTINCT {date_col}
+        FROM {table}
+        {where}
+        ORDER BY {date_col} DESC
+        LIMIT ?
+        """,
+        [*params, int(limit)],
+    ).fetchall()
+    return [str(row[0]) for row in rows if row and row[0] is not None]
+
+
+def _sqlite_factor_return_values(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    dates: list[str],
+) -> dict[tuple[str, str], tuple[float, ...]]:
+    if not dates:
+        return {}
+    placeholders = ",".join("?" for _ in dates)
+    rows = conn.execute(
+        f"""
+        SELECT
+            date,
+            factor_name,
+            factor_return,
+            COALESCE(robust_se, 0.0),
+            COALESCE(t_stat, 0.0),
+            r_squared,
+            residual_vol,
+            COALESCE(cross_section_n, 0),
+            COALESCE(eligible_n, 0),
+            COALESCE(coverage, 0.0)
+        FROM {table}
+        WHERE date IN ({placeholders})
+        ORDER BY date, factor_name
+        """,
+        tuple(dates),
+    ).fetchall()
+    return {
+        (str(row[0]), str(row[1])): (
+            float(row[2] or 0.0),
+            float(row[3] or 0.0),
+            float(row[4] or 0.0),
+            float(row[5] or 0.0),
+            float(row[6] or 0.0),
+            float(row[7] or 0),
+            float(row[8] or 0),
+            float(row[9] or 0.0),
+        )
+        for row in rows
+    }
+
+
+def _pg_factor_return_values(
+    pg_conn,
+    *,
+    table: str,
+    dates: list[str],
+) -> dict[tuple[str, str], tuple[float, ...]]:
+    if not dates:
+        return {}
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT
+                    date::text,
+                    factor_name,
+                    factor_return,
+                    COALESCE(robust_se, 0.0),
+                    COALESCE(t_stat, 0.0),
+                    r_squared,
+                    residual_vol,
+                    COALESCE(cross_section_n, 0),
+                    COALESCE(eligible_n, 0),
+                    COALESCE(coverage, 0.0)
+                FROM {}
+                WHERE date = ANY(%s)
+                ORDER BY date, factor_name
+                """
+            ).format(sql.Identifier(table)),
+            (dates,),
+        )
+        rows = cur.fetchall()
+    return {
+        (str(row[0]), str(row[1])): (
+            float(row[2] or 0.0),
+            float(row[3] or 0.0),
+            float(row[4] or 0.0),
+            float(row[5] or 0.0),
+            float(row[6] or 0.0),
+            float(row[7] or 0),
+            float(row[8] or 0),
+            float(row[9] or 0.0),
+        )
+        for row in rows
+    }
+
+
+def _sqlite_group_count_by_date(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    dates: list[str],
+) -> dict[str, int]:
+    if not dates:
+        return {}
+    placeholders = ",".join("?" for _ in dates)
+    rows = conn.execute(
+        f"""
+        SELECT {date_col}, COUNT(*)
+        FROM {table}
+        WHERE {date_col} IN ({placeholders})
+        GROUP BY {date_col}
+        """,
+        tuple(dates),
+    ).fetchall()
+    return {str(row[0]): int(row[1] or 0) for row in rows}
+
+
+def _pg_group_count_by_date(
+    pg_conn,
+    *,
+    table: str,
+    date_col: str,
+    dates: list[str],
+) -> dict[str, int]:
+    if not dates:
+        return {}
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT {}::text, COUNT(*)
+                FROM {}
+                WHERE {} = ANY(%s)
+                GROUP BY {}
+                """
+            ).format(
+                sql.Identifier(date_col),
+                sql.Identifier(table),
+                sql.Identifier(date_col),
+                sql.Identifier(date_col),
+            ),
+            (dates,),
+        )
+        rows = cur.fetchall()
+    return {str(row[0]): int(row[1] or 0) for row in rows}
+
+
+def _value_maps_match(
+    source: dict[tuple[str, str], tuple[float, ...]],
+    target: dict[tuple[str, str], tuple[float, ...]],
+    *,
+    tolerance: float = 1e-9,
+) -> tuple[bool, list[str]]:
+    issues: list[str] = []
+    for key in sorted(set(source.keys()) | set(target.keys())):
+        if key not in source:
+            issues.append(f"unexpected_target_row:{key[0]}:{key[1]}")
+            continue
+        if key not in target:
+            issues.append(f"missing_target_row:{key[0]}:{key[1]}")
+            continue
+        lhs = source[key]
+        rhs = target[key]
+        if len(lhs) != len(rhs):
+            issues.append(f"shape_mismatch:{key[0]}:{key[1]}")
+            continue
+        for idx, (lv, rv) in enumerate(zip(lhs, rhs, strict=True)):
+            if abs(float(lv) - float(rv)) > tolerance:
+                issues.append(f"value_mismatch:{key[0]}:{key[1]}:col{idx}")
+                break
+    return (not issues), issues
+
+
 def run_bounded_parity_audit(
     *,
     sqlite_path: Path,
@@ -533,6 +810,94 @@ def run_bounded_parity_audit(
                     "cutoff": analytics_cutoff,
                     "status": "ok" if not mismatch else "mismatch",
                 }
+                source_cols = set(_sqlite_columns(cache_conn, source_table))
+                target_cols = set(_pg_columns(pg_conn, target_table))
+                required_cols = {
+                    "date",
+                    "factor_name",
+                    "factor_return",
+                    "robust_se",
+                    "t_stat",
+                    "r_squared",
+                    "residual_vol",
+                    "cross_section_n",
+                    "eligible_n",
+                    "coverage",
+                }
+                source_missing_required = sorted(required_cols - source_cols)
+                target_missing_required = sorted(required_cols - target_cols)
+                if source_missing_required:
+                    out["issues"].append(f"missing_source_columns:{target_table}")
+                if target_missing_required:
+                    out["issues"].append(f"missing_target_columns:{target_table}")
+
+                audit_cols = sorted(required_cols - {"date", "factor_name"})
+                source_non_null = _sqlite_non_null_counts(
+                    cache_conn,
+                    table=source_table,
+                    columns=audit_cols,
+                    where_sql="WHERE date >= ?",
+                    params=(analytics_cutoff,),
+                )
+                target_non_null = _pg_non_null_counts(
+                    pg_conn,
+                    table=target_table,
+                    columns=audit_cols,
+                    date_col="date",
+                    cutoff=analytics_cutoff,
+                )
+                if source_non_null != target_non_null:
+                    out["issues"].append(f"nonnull_mismatch:{target_table}")
+
+                sample_dates = _sqlite_recent_dates(
+                    cache_conn,
+                    table=source_table,
+                    date_col="date",
+                    cutoff=analytics_cutoff,
+                    limit=3,
+                )
+                source_factor_counts = _sqlite_group_count_by_date(
+                    cache_conn,
+                    table=source_table,
+                    date_col="date",
+                    dates=sample_dates,
+                )
+                target_factor_counts = _pg_group_count_by_date(
+                    pg_conn,
+                    table=target_table,
+                    date_col="date",
+                    dates=sample_dates,
+                )
+                if source_factor_counts != target_factor_counts:
+                    out["issues"].append(f"factor_count_mismatch:{target_table}")
+
+                source_values = _sqlite_factor_return_values(
+                    cache_conn,
+                    table=source_table,
+                    dates=sample_dates,
+                )
+                target_values = _pg_factor_return_values(
+                    pg_conn,
+                    table=target_table,
+                    dates=sample_dates,
+                )
+                values_ok, value_issues = _value_maps_match(source_values, target_values)
+                if not values_ok:
+                    out["issues"].append(f"value_mismatch:{target_table}")
+
+                out["tables"][target_table].update(
+                    {
+                        "source_missing_required_columns": source_missing_required,
+                        "target_missing_required_columns": target_missing_required,
+                        "source_non_null_counts": source_non_null,
+                        "target_non_null_counts": target_non_null,
+                        "sample_dates": sample_dates,
+                        "source_factor_counts_by_date": source_factor_counts,
+                        "target_factor_counts_by_date": target_factor_counts,
+                        "value_check_status": "ok" if values_ok else "mismatch",
+                        "value_check_issues": value_issues[:20],
+                    }
+                )
             else:
                 status = "skipped"
                 reason = None

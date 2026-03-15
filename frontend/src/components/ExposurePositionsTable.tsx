@@ -16,7 +16,7 @@ interface ExposurePositionsTableProps {
 
 type SortKey = "ticker" | "trbc_industry_group" | "shares" | "market_value" | "risk_mix";
 type MarketValueSortMode = "abs" | "signed";
-const COLLAPSED_ROWS = 14;
+const COLLAPSED_ROWS = 10;
 
 function fmtMarketValue(n: number): string {
   if (Math.abs(n) >= 1e6) return `${(n / 1e6).toFixed(2)}M`;

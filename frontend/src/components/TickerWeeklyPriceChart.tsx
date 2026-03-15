@@ -20,6 +20,8 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, 
 interface TickerWeeklyPriceChartProps {
   ticker: string;
   points: WeeklyPricePoint[];
+  variant?: "full" | "sparkline";
+  className?: string;
 }
 
 const USD_FORMATTER = new Intl.NumberFormat("en-US", {
@@ -32,10 +34,17 @@ function formatCurrency(value: number): string {
   return USD_FORMATTER.format(value);
 }
 
-export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyPriceChartProps) {
+export default function TickerWeeklyPriceChart({
+  ticker,
+  points,
+  variant = "full",
+  className = "",
+}: TickerWeeklyPriceChartProps) {
+  const isSparkline = variant === "sparkline";
+
   if (!points || points.length === 0) {
     return (
-      <div className="detail-history-empty">
+      <div className={`detail-history-empty${isSparkline ? " compact" : ""}`}>
         No 5Y weekly close history available for {ticker}.
       </div>
     );
@@ -55,13 +64,13 @@ export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyP
         label: "Weekly Close",
         data: values,
         borderColor: lineColor,
-        borderWidth: 1.8,
+        borderWidth: isSparkline ? 1.6 : 1.8,
         pointRadius: 0,
-        pointHoverRadius: 3,
+        pointHoverRadius: isSparkline ? 2 : 3,
         pointHoverBackgroundColor: lineColor,
         pointHoverBorderColor: "#fff",
         pointHoverBorderWidth: 1.5,
-        tension: 0.22,
+        tension: isSparkline ? 0.28 : 0.22,
         fill: true,
         backgroundColor: (ctx: ScriptableContext<"line">) => {
           const { chart } = ctx;
@@ -97,11 +106,11 @@ export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyP
         borderColor: "rgba(154, 171, 214, 0.18)",
         borderWidth: 1,
         cornerRadius: 4,
-        padding: { top: 6, bottom: 6, left: 10, right: 10 },
+        padding: { top: 6, bottom: 6, left: isSparkline ? 8 : 10, right: isSparkline ? 8 : 10 },
         titleColor: "rgba(232, 237, 249, 0.6)",
         bodyColor: "#e8edf9",
-        titleFont: { size: 10, weight: "normal" as const },
-        bodyFont: { size: 11, weight: 500 },
+        titleFont: { size: isSparkline ? 9 : 10, weight: "normal" as const },
+        bodyFont: { size: isSparkline ? 10 : 11, weight: 500 },
         displayColors: false,
         callbacks: {
           title: (items) => String(items[0]?.label ?? ""),
@@ -111,6 +120,7 @@ export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyP
     },
     scales: {
       x: {
+        display: !isSparkline,
         border: { display: false },
         grid: { display: false },
         ticks: {
@@ -125,6 +135,7 @@ export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyP
         },
       },
       y: {
+        display: !isSparkline,
         border: { display: false },
         grid: { color: "rgba(154, 171, 214, 0.10)" },
         ticks: {
@@ -137,7 +148,9 @@ export default function TickerWeeklyPriceChart({ ticker, points }: TickerWeeklyP
   };
 
   return (
-    <div className="detail-history-chart ticker-weekly-history-chart">
+    <div
+      className={`detail-history-chart ticker-weekly-history-chart${isSparkline ? " sparkline" : ""}${className ? ` ${className}` : ""}`}
+    >
       <Line data={data} options={options} />
     </div>
   );

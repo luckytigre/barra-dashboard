@@ -37,6 +37,97 @@ export interface PortfolioData {
   _cached: boolean;
 }
 
+export interface WhatIfScenarioRow {
+  account_id: string;
+  ticker: string;
+  ric?: string | null;
+  quantity: number;
+  source?: string | null;
+}
+
+export interface WhatIfHoldingDelta {
+  account_id: string;
+  ticker: string;
+  ric: string;
+  current_quantity: number;
+  hypothetical_quantity: number;
+  delta_quantity: number;
+}
+
+export interface WhatIfPreviewSide {
+  positions: Position[];
+  total_value: number;
+  position_count: number;
+  risk_shares: RiskShares;
+  component_shares: Omit<RiskShares, "idio">;
+  factor_details: FactorDetail[];
+  exposure_modes: {
+    raw: FactorExposure[];
+    sensitivity: FactorExposure[];
+    risk_contribution: FactorExposure[];
+  };
+}
+
+export interface WhatIfFactorDeltaRow {
+  factor: string;
+  current: number;
+  hypothetical: number;
+  delta: number;
+}
+
+export interface WhatIfPreviewData {
+  scenario_rows: WhatIfScenarioRow[];
+  holding_deltas: WhatIfHoldingDelta[];
+  current: WhatIfPreviewSide;
+  hypothetical: WhatIfPreviewSide;
+  diff: {
+    total_value: number;
+    position_count: number;
+    risk_shares: RiskShares;
+    factor_deltas: {
+      raw: WhatIfFactorDeltaRow[];
+      sensitivity: WhatIfFactorDeltaRow[];
+      risk_contribution: WhatIfFactorDeltaRow[];
+    };
+  };
+  source_dates?: {
+    fundamentals_asof?: string | null;
+    exposures_asof?: string | null;
+    prices_asof?: string | null;
+    classification_asof?: string | null;
+  };
+  _preview_only: boolean;
+}
+
+export interface WhatIfApplyRowResult {
+  account_id: string;
+  ticker: string;
+  ric: string;
+  current_quantity: number;
+  applied_quantity: number;
+  delta_quantity?: number;
+  action: string;
+}
+
+export interface WhatIfApplyRejectedRow {
+  row_number: number;
+  reason_code: string;
+  message: string;
+}
+
+export interface WhatIfApplyResponse {
+  status: "ok" | "dry_run" | "rejected";
+  accepted_rows: number;
+  rejected_rows: number;
+  rejection_counts: Record<string, number>;
+  warnings: string[];
+  applied_upserts: number;
+  applied_deletes: number;
+  row_results: WhatIfApplyRowResult[];
+  rejected: WhatIfApplyRejectedRow[];
+  import_batch_ids?: Record<string, string>;
+}
+
 export type HoldingsImportMode = "replace_account" | "upsert_absolute" | "increment_delta";
 
 export interface HoldingsModeData {
@@ -62,7 +153,6 @@ export interface HoldingsPosition {
   ric: string;
   ticker: string;
   quantity: number;
-  instrument_type?: string | null;
   source: string;
   updated_at: string | null;
 }
@@ -159,6 +249,7 @@ export interface FactorDetail {
   sensitivity: number;
   marginal_var_contrib: number;
   pct_of_total: number;
+  pct_of_systematic?: number;
 }
 
 export interface RiskShares {
@@ -170,7 +261,8 @@ export interface RiskShares {
 
 export interface CovMatrix {
   factors: string[];
-  correlation: number[][];
+  correlation?: number[][];
+  matrix?: number[][];
 }
 
 export interface RiskData {
@@ -179,7 +271,6 @@ export interface RiskData {
   factor_details: FactorDetail[];
   cov_matrix: CovMatrix;
   r_squared: number;
-  condition_number: number;
   risk_engine?: {
     status?: string;
     method_version?: string;
@@ -265,7 +356,6 @@ export interface UniverseFactorsData {
   factors: string[];
   factor_vols: Record<string, number>;
   r_squared?: number;
-  condition_number?: number;
   ticker_count?: number;
   eligible_ticker_count?: number;
   _cached: boolean;
@@ -405,7 +495,6 @@ export interface HealthDiagnosticsData {
   };
   section4: {
     eigenvalues: number[];
-    condition_number: number;
     forecast_vs_realized: HealthForecastRealizedRow[];
     rolling_avg_factor_vol: SeriesPoint[];
   };
@@ -534,6 +623,16 @@ export interface RefreshStatusState {
   requested_at: string | null;
   started_at: string | null;
   finished_at: string | null;
+  current_stage?: string | null;
+  stage_index?: number | null;
+  stage_count?: number | null;
+  stage_started_at?: string | null;
+  current_stage_message?: string | null;
+  current_stage_progress_pct?: number | null;
+  current_stage_items_processed?: number | null;
+  current_stage_items_total?: number | null;
+  current_stage_unit?: string | null;
+  current_stage_heartbeat_at?: string | null;
   result: Record<string, unknown> | null;
   error: {
     type?: string;
@@ -554,19 +653,47 @@ export interface OperatorLaneLatestRun {
   started_at: string | null;
   finished_at: string | null;
   updated_at: string | null;
+  duration_seconds?: number | null;
+  duration_delta_seconds?: number | null;
+  duration_delta_pct?: number | null;
   stage_count: number;
   completed_stage_count: number;
   failed_stage_count: number;
   running_stage_count: number;
-  stages: Array<{
+  stage_duration_seconds_total?: number;
+  current_stage?: OperatorLaneStage | null;
+  slowest_stage?: {
     stage_name: string;
-    stage_order: number;
-    status: string;
-    started_at: string | null;
-    completed_at: string | null;
-    error_type: string | null;
-    error_message: string | null;
-  }>;
+    duration_seconds: number;
+  } | null;
+  stages: OperatorLaneStage[];
+}
+
+export interface OperatorLaneStage {
+  stage_name: string;
+  stage_order: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds?: number | null;
+  heartbeat_at?: string | null;
+  details?: {
+    message?: string | null;
+    progress_kind?: string | null;
+    progress_pct?: number | null;
+    items_processed?: number | null;
+    items_total?: number | null;
+    unit?: string | null;
+    current_date?: string | null;
+    current_as_of?: string | null;
+    dates_per_second?: number | null;
+    computed_dates?: number | null;
+    cached_dates?: number | null;
+    skip_counts?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  error_type: string | null;
+  error_message: string | null;
 }
 
 export interface OperatorLaneStatus {

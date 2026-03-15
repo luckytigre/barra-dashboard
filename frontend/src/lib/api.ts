@@ -23,6 +23,8 @@ export class ApiError extends Error {
 
 export const apiPath = {
   portfolio: () => "/api/portfolio",
+  portfolioWhatIf: () => "/api/portfolio/whatif",
+  portfolioWhatIfApply: () => "/api/portfolio/whatif/apply",
   holdingsModes: () => "/api/holdings/modes",
   holdingsAccounts: () => "/api/holdings/accounts",
   holdingsPositions: (accountId?: string | null) =>

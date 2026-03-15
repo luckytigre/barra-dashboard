@@ -14,7 +14,7 @@ interface FactorDrilldownProps {
   factorVol?: number;
   onClose: () => void;
 }
-const COLLAPSED_ROWS = 12;
+const COLLAPSED_ROWS = 10;
 type SortKey = "ticker" | "weight" | "exposure" | "sensitivity" | "contribution";
 
 export default function FactorDrilldown({ factor, items, mode, factorVol, onClose }: FactorDrilldownProps) {
@@ -22,8 +22,8 @@ export default function FactorDrilldown({ factor, items, mode, factorVol, onClos
   const isRiskContribution = mode === "risk_contribution";
   const hints = {
     weight: {
-      plain: "Position Market Value ÷ Total Portfolio Market Value.",
-      math: "wᵢ = MVᵢ / ΣMV",
+      plain: "Signed position market value divided by gross portfolio market value.",
+      math: "wᵢ = MVᵢ / Σ|MV|",
     },
     loading: {
       plain: "Position loading on the selected factor.",
@@ -31,7 +31,7 @@ export default function FactorDrilldown({ factor, items, mode, factorVol, onClos
     },
     sensitivity: isRiskContribution
       ? {
-          plain: "Loading × covariance adjustment for this factor.",
+          plain: "Loading multiplied by the factor's portfolio covariance adjustment.",
           math: "xᵢ,ᶠ × (Fh)ᶠ",
         }
       : {
@@ -40,7 +40,7 @@ export default function FactorDrilldown({ factor, items, mode, factorVol, onClos
         },
     contribution: isRiskContribution
       ? {
-          plain: "Weight × Loading × covariance adjustment, then scaled to factor % of total risk.",
+          plain: "Normalized share of the factor's portfolio risk contribution, not the raw variance term itself.",
           math: "((wᵢ × xᵢ,ᶠ × (Fh)ᶠ) / marginalᶠ) × factor % total",
         }
       : isSensitivity
@@ -166,7 +166,7 @@ export default function FactorDrilldown({ factor, items, mode, factorVol, onClos
                 <span className="col-help-wrap">
                   <HelpLabel
                     label={isRiskContribution
-                      ? "% Risk Contrib (w×x×CovAdj)"
+                      ? "% Risk Contrib (normalized)"
                       : isSensitivity
                         ? "Contribution (w×x×σ)"
                         : "Contribution (w×x)"}

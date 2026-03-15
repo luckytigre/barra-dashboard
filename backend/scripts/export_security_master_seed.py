@@ -19,11 +19,7 @@ def export_seed(*, data_db: Path, output_path: Path) -> int:
             SELECT
                 ric,
                 ticker,
-                sid,
-                permid,
                 isin,
-                instrument_type,
-                asset_category_description,
                 exchange_name,
                 classification_ok,
                 is_equity_eligible,
@@ -43,11 +39,7 @@ def export_seed(*, data_db: Path, output_path: Path) -> int:
         writer.writerow([
             "ric",
             "ticker",
-            "sid",
-            "permid",
             "isin",
-            "instrument_type",
-            "asset_category_description",
             "exchange_name",
             "classification_ok",
             "is_equity_eligible",

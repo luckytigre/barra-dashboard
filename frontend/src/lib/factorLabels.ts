@@ -131,7 +131,7 @@ type FactorTier = 1 | 2 | 3;
 
 export const STYLE_FACTORS = new Set([
   "Size", "Nonlinear Size", "Liquidity", "Beta",
-  "Book-to-Price", "Earnings Yield", "Value", "Leverage",
+  "Book-to-Price", "Earnings Yield", "Leverage",
   "Growth", "Profitability", "Investment", "Dividend Yield",
   "Momentum", "Short-Term Reversal", "Residual Volatility",
 ]);

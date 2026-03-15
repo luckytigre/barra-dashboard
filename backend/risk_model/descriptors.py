@@ -41,12 +41,6 @@ FULL_STYLE_FACTORS: dict[str, dict[str, float]] = {
         "cash_earnings_yield_raw": 0.21,
         "trailing_ep_raw": 0.11,
     },
-    "Value": {
-        "book_to_price_raw": 0.4,
-        "forward_ep_raw": 0.3,
-        "cash_earnings_yield_raw": 0.2,
-        "trailing_ep_raw": 0.1,
-    },
     "Leverage": {
         "debt_to_equity_raw": 0.38,
         "debt_to_assets_raw": 0.35,
@@ -68,6 +62,8 @@ _ORTH_NONE = "none"
 _ORTH_INDUSTRY = "industry"
 _ORTH_SIZE = "size"
 _ORTH_INDUSTRY_SIZE = "industry_size"
+_ORTH_SIZE_BETA = "size_beta"
+_ORTH_MOMENTUM = "momentum"
 
 MVP_STYLE_ORTH_RULES: dict[str, str] = {
     "Size": _ORTH_NONE,
@@ -75,8 +71,8 @@ MVP_STYLE_ORTH_RULES: dict[str, str] = {
     "Earnings Yield": _ORTH_INDUSTRY,
     "Beta": _ORTH_INDUSTRY,
     "Momentum": _ORTH_INDUSTRY_SIZE,
-    "Residual Volatility": _ORTH_INDUSTRY_SIZE,
-    "Short-Term Reversal": _ORTH_INDUSTRY_SIZE,
+    "Residual Volatility": _ORTH_SIZE_BETA,
+    "Short-Term Reversal": _ORTH_MOMENTUM,
 }
 
 FULL_STYLE_ORTH_RULES: dict[str, str] = {
@@ -84,7 +80,6 @@ FULL_STYLE_ORTH_RULES: dict[str, str] = {
     "Nonlinear Size": _ORTH_SIZE,
     "Book-to-Price": _ORTH_INDUSTRY,
     "Earnings Yield": _ORTH_INDUSTRY,
-    "Value": _ORTH_INDUSTRY,
     "Leverage": _ORTH_INDUSTRY,
     "Growth": _ORTH_INDUSTRY,
     "Profitability": _ORTH_INDUSTRY,
@@ -92,8 +87,8 @@ FULL_STYLE_ORTH_RULES: dict[str, str] = {
     "Dividend Yield": _ORTH_INDUSTRY,
     "Beta": _ORTH_INDUSTRY,
     "Momentum": _ORTH_INDUSTRY_SIZE,
-    "Short-Term Reversal": _ORTH_INDUSTRY_SIZE,
-    "Residual Volatility": _ORTH_INDUSTRY_SIZE,
+    "Short-Term Reversal": _ORTH_MOMENTUM,
+    "Residual Volatility": _ORTH_SIZE_BETA,
     "Liquidity": _ORTH_SIZE,
 }
 
@@ -183,6 +178,12 @@ def _orthogonalize_scores(
             control_parts.append(industry_ctrl)
         if rule in {_ORTH_SIZE, _ORTH_INDUSTRY_SIZE} and "Size" in out.columns and factor != "Size":
             control_parts.append(out[["Size"]].astype(float))
+        if rule == _ORTH_SIZE_BETA:
+            for control_name in ("Size", "Beta"):
+                if control_name in out.columns and control_name != factor:
+                    control_parts.append(out[[control_name]].astype(float))
+        if rule == _ORTH_MOMENTUM and "Momentum" in out.columns and factor != "Momentum":
+            control_parts.append(out[["Momentum"]].astype(float))
         if not control_parts:
             out[factor] = _z(out[factor], market_caps)
             continue

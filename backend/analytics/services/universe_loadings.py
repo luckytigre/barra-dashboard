@@ -152,6 +152,12 @@ def build_universe_ticker_loadings(
                     max_count,
                 )
 
+    effective_exposures_df = exposures_df
+    if latest_asof and not exposures_df.empty and "as_of_date" in exposures_df.columns:
+        effective_exposures_df = exposures_df[
+            exposures_df["as_of_date"].astype(str).str.strip() == latest_asof
+        ].copy()
+
     eligibility_df = pd.DataFrame()
     if latest_asof:
         elig_ctx = build_eligibility_context(data_db, dates=[latest_asof])
@@ -170,10 +176,19 @@ def build_universe_ticker_loadings(
 
     # Canonicalize style scores on the structurally eligible cross-section only.
     canonical_style_map: dict[str, dict[str, float]] = {}
-    style_cols_present = [c for c in STYLE_COLUMN_TO_LABEL if c in exposures_df.columns] if not exposures_df.empty else []
-    if not exposures_df.empty and style_cols_present and eligible_rics and "ric" in exposures_df.columns:
+    style_cols_present = (
+        [c for c in STYLE_COLUMN_TO_LABEL if c in effective_exposures_df.columns]
+        if not effective_exposures_df.empty
+        else []
+    )
+    if (
+        not effective_exposures_df.empty
+        and style_cols_present
+        and eligible_rics
+        and "ric" in effective_exposures_df.columns
+    ):
         style_names = [STYLE_COLUMN_TO_LABEL[c] for c in style_cols_present]
-        style_scores = exposures_df[["ric", *style_cols_present]].copy()
+        style_scores = effective_exposures_df[["ric", *style_cols_present]].copy()
         style_scores["ric"] = style_scores["ric"].astype(str).str.upper()
         style_scores = style_scores[style_scores["ric"].isin(eligible_rics)]
         style_scores = style_scores.drop_duplicates(subset=["ric"], keep="last").set_index("ric")
@@ -228,12 +243,13 @@ def build_universe_ticker_loadings(
         }
     )
     universe_by_ticker: dict[str, UniverseTickerPayload] = {}
+    downgraded_missing_exposures: list[str] = []
     for ticker in all_tickers:
         if not ticker:
             continue
 
         ric = str(ric_by_ticker.get(ticker, "")).upper()
-        eligible = bool(ric in eligible_rics) if ric else bool(ticker in eligible_tickers)
+        structurally_eligible = bool(ric in eligible_rics) if ric else bool(ticker in eligible_tickers)
         trbc_economic_sector_short = str(
             (
                 eligibility_df.loc[ric, "trbc_economic_sector_short"]
@@ -264,23 +280,42 @@ def build_universe_ticker_loadings(
         )
 
         exposures: dict[str, float] = {}
-        if eligible and ticker in canonical_style_map:
+        if structurally_eligible and ticker in canonical_style_map:
             exposures.update(canonical_style_map[ticker])
             if hq_country_code:
                 exposures[COUNTRY_FACTOR] = 1.0 if hq_country_code == "US" else 0.0
             if trbc_business_sector:
                 exposures[trbc_business_sector] = 1.0
 
+        has_factor_exposures = bool(exposures)
+        model_eligible = bool(structurally_eligible and has_factor_exposures)
+        if structurally_eligible and not has_factor_exposures:
+            downgraded_missing_exposures.append(ticker)
+
         sensitivities = {
             factor: round(_finite_float(exposures.get(factor), 0.0) * _finite_float(vol, 0.0), 6)
             for factor, vol in factor_vol_map.items()
         }
-        risk_loading = round(float(sum(abs(v) for v in sensitivities.values())), 6) if eligible else None
+        risk_loading = round(float(sum(abs(v) for v in sensitivities.values())), 6) if model_eligible else None
         spec = (specific_risk_by_ticker or {}).get(ric, {}) if ric else {}
         if not spec:
             spec = (specific_risk_by_ticker or {}).get(ticker, {})
-        spec_var = _finite_float(spec.get("specific_var"), np.nan) if eligible else np.nan
-        spec_vol = _finite_float(spec.get("specific_vol"), np.nan) if eligible else np.nan
+        spec_var = _finite_float(spec.get("specific_var"), np.nan) if model_eligible else np.nan
+        spec_vol = _finite_float(spec.get("specific_vol"), np.nan) if model_eligible else np.nan
+
+        if model_eligible:
+            eligibility_reason = ""
+            model_warning = ""
+        elif structurally_eligible:
+            eligibility_reason = "missing_factor_exposures"
+            selected_date = latest_asof or "current"
+            model_warning = (
+                "Ticker is structurally eligible but missing factor exposures "
+                f"on selected as-of date {selected_date}."
+            )
+        else:
+            eligibility_reason = ineligible_reason.get(ticker, "ineligible")
+            model_warning = "Ticker is ineligible for strict equity model; analytics shown as N/A."
 
         universe_by_ticker[ticker] = {
             "ticker": ticker,
@@ -297,11 +332,20 @@ def build_universe_ticker_loadings(
             "risk_loading": risk_loading,
             "specific_var": round(spec_var, 8) if np.isfinite(spec_var) else None,
             "specific_vol": round(spec_vol, 6) if np.isfinite(spec_vol) else None,
-            "eligible_for_model": eligible,
-            "eligibility_reason": "" if eligible else ineligible_reason.get(ticker, "ineligible"),
-            "model_warning": "" if eligible else "Ticker is ineligible for strict equity model; analytics shown as N/A.",
+            "eligible_for_model": model_eligible,
+            "eligibility_reason": eligibility_reason,
+            "model_warning": model_warning,
             "as_of_date": latest_asof,
         }
+
+    if downgraded_missing_exposures:
+        sample = ", ".join(sorted(downgraded_missing_exposures)[:10])
+        logger.warning(
+            "Downgraded %s structurally eligible tickers missing factor exposures on %s: %s",
+            len(downgraded_missing_exposures),
+            latest_asof or "<unknown>",
+            sample,
+        )
 
     # Lightweight search index for instant lookup
     search_index = [

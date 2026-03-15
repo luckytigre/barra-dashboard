@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
-RISK_ENGINE_METHOD_VERSION = "v4_trbc_l2_country_us_dummy_2026_03_08"
+RISK_ENGINE_METHOD_VERSION = "v7_country_split_hc1_no_value_factor_2026_03_14"
 _UNIVERSE_REUSE_RISK_KEYS = (
     "status",
     "method_version",
@@ -103,21 +103,14 @@ def _can_reuse_cached_universe_loadings(
     return True, "source_and_risk_engine_match"
 
 
-def _load_cached_risk_display_payload() -> tuple[CovarianceMatrixPayload, float] | None:
+def _load_cached_risk_display_payload() -> CovarianceMatrixPayload | None:
     cached_risk = sqlite.cache_get("risk")
     if not isinstance(cached_risk, dict):
         return None
     cov_matrix = cached_risk.get("cov_matrix")
-    condition_number = cached_risk.get("condition_number")
     if not isinstance(cov_matrix, dict):
         return None
-    try:
-        clean_condition = _finite_float(condition_number, np.nan)
-    except Exception:
-        clean_condition = np.nan
-    if not np.isfinite(clean_condition):
-        return None
-    return dict(cov_matrix), float(clean_condition)
+    return dict(cov_matrix)
 
 
 def _parse_iso_date(value: Any) -> date | None:
@@ -348,8 +341,7 @@ def run_refresh(
 
     # 2. Weekly risk-engine recompute gate.
     risk_engine_meta: RiskEngineMetaPayload = (
-        sqlite.cache_get_live("risk_engine_meta")
-        or sqlite.cache_get("risk_engine_meta")
+        sqlite.cache_get_live_first("risk_engine_meta")
         or {}
     )
     should_recompute, recompute_reason = _risk_recompute_due(risk_engine_meta, today_utc=today_utc)
@@ -363,14 +355,8 @@ def run_refresh(
         should_recompute = True
         recompute_reason = "force_risk_recompute"
 
-    cov = _deserialize_covariance(
-        sqlite.cache_get_live("risk_engine_cov")
-        or sqlite.cache_get("risk_engine_cov")
-    )
-    cached_specific = (
-        sqlite.cache_get_live("risk_engine_specific_risk")
-        or sqlite.cache_get("risk_engine_specific_risk")
-    )
+    cov = _deserialize_covariance(sqlite.cache_get_live_first("risk_engine_cov"))
+    cached_specific = sqlite.cache_get_live_first("risk_engine_specific_risk")
     specific_risk_by_security: dict[str, SpecificRiskPayload] = (
         cached_specific if isinstance(cached_specific, dict) else {}
     )
@@ -551,18 +537,7 @@ def run_refresh(
     )
     cached_risk_display = _load_cached_risk_display_payload() if reuse_cached_risk_display else None
 
-    # 7. Compute condition number from cov matrix
-    condition_number = 0.0
-    if cached_risk_display is not None:
-        condition_number = float(cached_risk_display[1])
-    elif not cov.empty:
-        try:
-            cn = float(np.linalg.cond(cov.to_numpy()))
-            condition_number = cn if np.isfinite(cn) else 9999.99
-        except Exception:
-            pass
-
-    # 8. Compute exposure modes
+    # 7. Compute exposure modes
     logger.info("Computing exposure modes...")
     coverage_date, factor_coverage = _load_latest_factor_coverage(CACHE_DB)
     exposure_modes: ExposureModesPayload = _compute_exposures_modes(
@@ -573,16 +548,16 @@ def run_refresh(
         coverage_date=coverage_date,
     )
 
-    # 9. Build covariance matrix for frontend (correlation) — style factors only
+    # 8. Build covariance matrix for frontend (correlation) — style factors only
     STYLE_FACTOR_NAMES = {
         "Size", "Nonlinear Size", "Liquidity", "Beta",
-        "Book-to-Price", "Earnings Yield", "Value", "Leverage",
+        "Book-to-Price", "Earnings Yield", "Leverage",
         "Growth", "Profitability", "Investment", "Dividend Yield",
         "Momentum", "Short-Term Reversal", "Residual Volatility",
     }
     cov_matrix: CovarianceMatrixPayload = {}
     if cached_risk_display is not None:
-        cov_matrix = cached_risk_display[0]
+        cov_matrix = cached_risk_display
     elif not cov.empty:
         all_factors = list(cov.columns)
         style_idx = [i for i, f in enumerate(all_factors) if f in STYLE_FACTOR_NAMES]
@@ -598,7 +573,7 @@ def run_refresh(
                 "correlation": [[round(float(v), 4) for v in row] for row in corr],
             }
 
-    # 10. Sanitize non-finite floats (NaN/Inf break JSON serialization)
+    # 9. Sanitize non-finite floats (NaN/Inf break JSON serialization)
     def _safe(v):
         if isinstance(v, float) and not np.isfinite(v):
             return 0.0
@@ -612,7 +587,7 @@ def run_refresh(
     for k in component_shares:
         component_shares[k] = _safe(component_shares[k])
 
-    # 11. Cache everything
+    # 10. Cache everything
     logger.info("Caching results...")
     staged = stage_refresh_cache_snapshot(
         run_id=run_id,
@@ -632,7 +607,6 @@ def run_refresh(
         factor_details=factor_details,
         cov_matrix=cov_matrix,
         latest_r2=latest_r2,
-        condition_number=condition_number,
         universe_loadings=universe_loadings,
         exposure_modes=exposure_modes,
         cuse4_foundation=cuse4_foundation,
@@ -706,6 +680,7 @@ def run_refresh(
             snapshot_id=snapshot_id,
             refresh_mode=refresh_mode,
             payloads=persisted_payloads,
+            replace_all=True,
         )
         neon_write = serving_outputs_write.get("neon_write") if isinstance(serving_outputs_write, dict) else None
         if (

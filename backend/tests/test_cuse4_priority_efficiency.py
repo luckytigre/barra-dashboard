@@ -13,17 +13,17 @@ def test_ensure_cache_version_invalidates_on_cross_section_age_change(tmp_path: 
     cache_db = tmp_path / "cache.db"
     conn = sqlite3.connect(str(cache_db))
     conn.execute(
-        "CREATE TABLE daily_factor_returns (date TEXT, factor_name TEXT, factor_return REAL, r_squared REAL, residual_vol REAL, cross_section_n INTEGER, eligible_n INTEGER, coverage REAL)"
+        "CREATE TABLE daily_factor_returns (date TEXT, factor_name TEXT, factor_return REAL, robust_se REAL, t_stat REAL, r_squared REAL, residual_vol REAL, cross_section_n INTEGER, eligible_n INTEGER, coverage REAL)"
     )
     conn.execute(
-        "CREATE TABLE daily_specific_residuals (date TEXT, ric TEXT, ticker TEXT, residual REAL, market_cap REAL, trbc_industry_group TEXT)"
+        "CREATE TABLE daily_specific_residuals (date TEXT, ric TEXT, ticker TEXT, model_residual REAL, raw_residual REAL, market_cap REAL, trbc_business_sector TEXT)"
     )
     conn.execute(
         "CREATE TABLE daily_universe_eligibility_summary (date TEXT, exp_date TEXT, exposure_n INTEGER, structural_eligible_n INTEGER, regression_member_n INTEGER, structural_coverage REAL, regression_coverage REAL, drop_pct_from_prev REAL, alert_level TEXT, missing_style_n INTEGER, missing_market_cap_n INTEGER, missing_trbc_economic_sector_short_n INTEGER, missing_trbc_industry_n INTEGER, non_equity_n INTEGER, missing_return_n INTEGER)"
     )
     conn.execute("CREATE TABLE daily_factor_returns_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.3, 0.2, 50, 50, 1.0)")
-    conn.execute("INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 100.0, 'Tech')")
+    conn.execute("INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.0, 0.0, 0.3, 0.2, 50, 50, 1.0)")
+    conn.execute("INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 0.1, 100.0, 'Tech')")
     conn.execute("INSERT INTO daily_universe_eligibility_summary VALUES ('2026-03-03', '2026-03-03', 50, 50, 50, 1.0, 1.0, 0.0, '', 0, 0, 0, 0, 0, 0)")
     conn.execute("INSERT INTO daily_factor_returns_meta VALUES ('method_version', ?)", (dfr.CACHE_METHOD_VERSION,))
     conn.execute("INSERT INTO daily_factor_returns_meta VALUES ('cross_section_min_age_days', '5')")
@@ -44,17 +44,17 @@ def test_ensure_cache_version_backfills_missing_cross_section_age_without_reset(
     cache_db = tmp_path / "cache.db"
     conn = sqlite3.connect(str(cache_db))
     conn.execute(
-        "CREATE TABLE daily_factor_returns (date TEXT, factor_name TEXT, factor_return REAL, r_squared REAL, residual_vol REAL, cross_section_n INTEGER, eligible_n INTEGER, coverage REAL)"
+        "CREATE TABLE daily_factor_returns (date TEXT, factor_name TEXT, factor_return REAL, robust_se REAL, t_stat REAL, r_squared REAL, residual_vol REAL, cross_section_n INTEGER, eligible_n INTEGER, coverage REAL)"
     )
     conn.execute(
-        "CREATE TABLE daily_specific_residuals (date TEXT, ric TEXT, ticker TEXT, residual REAL, market_cap REAL, trbc_industry_group TEXT)"
+        "CREATE TABLE daily_specific_residuals (date TEXT, ric TEXT, ticker TEXT, model_residual REAL, raw_residual REAL, market_cap REAL, trbc_business_sector TEXT)"
     )
     conn.execute(
         "CREATE TABLE daily_universe_eligibility_summary (date TEXT, exp_date TEXT, exposure_n INTEGER, structural_eligible_n INTEGER, regression_member_n INTEGER, structural_coverage REAL, regression_coverage REAL, drop_pct_from_prev REAL, alert_level TEXT, missing_style_n INTEGER, missing_market_cap_n INTEGER, missing_trbc_economic_sector_short_n INTEGER, missing_trbc_industry_n INTEGER, non_equity_n INTEGER, missing_return_n INTEGER)"
     )
     conn.execute("CREATE TABLE daily_factor_returns_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    conn.execute("INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.3, 0.2, 50, 50, 1.0)")
-    conn.execute("INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 100.0, 'Tech')")
+    conn.execute("INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.0, 0.0, 0.3, 0.2, 50, 50, 1.0)")
+    conn.execute("INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 0.1, 100.0, 'Tech')")
     conn.execute("INSERT INTO daily_universe_eligibility_summary VALUES ('2026-03-03', '2026-03-03', 50, 50, 50, 1.0, 1.0, 0.0, '', 0, 0, 0, 0, 0, 0)")
     conn.execute("INSERT INTO daily_factor_returns_meta VALUES ('method_version', ?)", (dfr.CACHE_METHOD_VERSION,))
     conn.commit()
@@ -80,10 +80,10 @@ def test_load_cached_dates_requires_eligibility_rows(tmp_path: Path) -> None:
     conn.execute(dfr._DAILY_RESIDUALS_SCHEMA)
     conn.execute(dfr._DAILY_ELIGIBILITY_SUMMARY_SCHEMA)
     conn.execute(
-        "INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.3, 0.2, 50, 50, 1.0)"
+        "INSERT INTO daily_factor_returns VALUES ('2026-03-03', 'Beta', 0.01, 0.0, 0.0, 0.3, 0.2, 50, 50, 1.0)"
     )
     conn.execute(
-        "INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 100.0, 'Tech')"
+        "INSERT INTO daily_specific_residuals VALUES ('2026-03-03', 'AAPL.OQ', 'AAPL', 0.1, 0.1, 100.0, 'Tech')"
     )
     conn.commit()
     conn.close()
@@ -143,7 +143,7 @@ def test_compute_daily_factor_returns_bounds_price_window_and_eligibility_dates(
         {
             "ticker": ["AAPL", "MSFT"],
             "size_score": [0.1, -0.1],
-            "trbc_industry_group": ["Tech", "Tech"],
+            "trbc_business_sector": ["Tech", "Tech"],
         },
         index=pd.Index(["AAPL.OQ", "MSFT.OQ"], name="ric"),
     )
@@ -181,9 +181,12 @@ def test_compute_daily_factor_returns_bounds_price_window_and_eligibility_dates(
         "estimate_factor_returns_two_phase",
         lambda **kwargs: SimpleNamespace(
             factor_returns={"Size": 0.01},
+            robust_se={"Size": 0.0},
+            t_stats={"Size": 0.0},
             r_squared=0.5,
             residual_vol=0.2,
             residuals=[0.01, -0.01],
+            raw_residuals=[0.01, -0.01],
         ),
     )
     monkeypatch.setattr(dfr, "MIN_CROSS_SECTION_SIZE", 1)
@@ -207,7 +210,7 @@ def test_load_all_from_cache_respects_model_history_start(tmp_path: Path) -> Non
     conn.execute(dfr._DAILY_FR_SCHEMA)
     conn.execute(dfr._DAILY_FR_META_SCHEMA)
     conn.executemany(
-        "INSERT INTO daily_factor_returns VALUES (?, 'Beta', 0.01, 0.3, 0.2, 50, 50, 1.0)",
+        "INSERT INTO daily_factor_returns VALUES (?, 'Beta', 0.01, 0.0, 0.0, 0.3, 0.2, 50, 50, 1.0)",
         [
             ("2020-12-31",),
             ("2021-01-11",),

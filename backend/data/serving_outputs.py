@@ -62,6 +62,7 @@ def persist_current_payloads(
     snapshot_id: str,
     refresh_mode: str,
     payloads: dict[str, Any],
+    replace_all: bool = False,
 ) -> dict[str, Any]:
     now_iso = datetime.now(timezone.utc).isoformat()
     rows = [
@@ -81,6 +82,15 @@ def persist_current_payloads(
     conn.execute("PRAGMA busy_timeout=120000")
     try:
         _ensure_sqlite_schema(conn)
+        if replace_all:
+            if rows:
+                placeholders = ",".join("?" for _ in rows)
+                conn.execute(
+                    f"DELETE FROM serving_payload_current WHERE payload_name NOT IN ({placeholders})",
+                    [row[0] for row in rows],
+                )
+            else:
+                conn.execute("DELETE FROM serving_payload_current")
         conn.executemany(
             """
             INSERT OR REPLACE INTO serving_payload_current (
@@ -100,9 +110,10 @@ def persist_current_payloads(
             "snapshot_id": str(snapshot_id),
             "row_count": len(rows),
             "payload_names": sorted(str(k) for k in payloads.keys()),
+            "replace_all": bool(replace_all),
         }
         if config.neon_surface_enabled(SURFACE_NAME):
-            result["neon_write"] = _persist_current_payloads_neon(rows)
+            result["neon_write"] = _persist_current_payloads_neon(rows, replace_all=replace_all)
         return result
     finally:
         conn.close()
@@ -173,7 +184,11 @@ def _load_current_payload_neon(payload_name: str) -> dict[str, Any] | list[Any] 
     return json.loads(str(raw))
 
 
-def _persist_current_payloads_neon(rows: list[tuple[str, str, str, str, str, str]]) -> dict[str, Any]:
+def _persist_current_payloads_neon(
+    rows: list[tuple[str, str, str, str, str, str]],
+    *,
+    replace_all: bool,
+) -> dict[str, Any]:
     try:
         conn = connect(dsn=resolve_dsn(None), autocommit=False)
     except Exception as exc:
@@ -184,6 +199,17 @@ def _persist_current_payloads_neon(rows: list[tuple[str, str, str, str, str, str
     try:
         _ensure_postgres_schema(conn)
         with conn.cursor() as cur:
+            if replace_all:
+                if rows:
+                    cur.execute(
+                        """
+                        DELETE FROM serving_payload_current
+                        WHERE payload_name <> ALL(%s)
+                        """,
+                        ([row[0] for row in rows],),
+                    )
+                else:
+                    cur.execute("DELETE FROM serving_payload_current")
             cur.executemany(
                 """
                 INSERT INTO serving_payload_current (
@@ -204,7 +230,7 @@ def _persist_current_payloads_neon(rows: list[tuple[str, str, str, str, str, str
                 rows,
             )
         conn.commit()
-        return {"status": "ok", "row_count": len(rows)}
+        return {"status": "ok", "row_count": len(rows), "replace_all": bool(replace_all)}
     except Exception as exc:
         conn.rollback()
         return {

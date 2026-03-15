@@ -47,7 +47,6 @@ def test_risk_route_uses_persisted_payload_when_cache_incomplete(monkeypatch) ->
                 "component_shares": {"country": 0.0, "industry": 0.4, "style": 0.6},
                 "factor_details": [],
                 "r_squared": 0.4,
-                "condition_number": 10.0,
             }
         if key == "model_sanity":
             return {"status": "ok", "warnings": [], "checks": {}}
@@ -151,7 +150,6 @@ def test_risk_route_prefers_persisted_payload_in_serving_outputs_mode(monkeypatc
                 "component_shares": {"country": 0.02, "industry": 0.4, "style": 0.58},
                 "factor_details": [],
                 "r_squared": 0.4,
-                "condition_number": 10.0,
             }
         if key == "model_sanity":
             return {"status": "ok", "warnings": [], "checks": {"source": "durable"}}

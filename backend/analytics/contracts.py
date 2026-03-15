@@ -178,7 +178,6 @@ class UniverseFactorsPayload(TypedDict, total=False):
     factors: list[str]
     factor_vols: dict[str, float]
     r_squared: float
-    condition_number: float
     ticker_count: int
     eligible_ticker_count: int
     risk_engine: RiskEngineStatePayload

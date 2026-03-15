@@ -1,7 +1,11 @@
 """FastAPI app for Barra Factor Risk Dashboard."""
 
+import math
+
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from backend import config
 from backend.api import API_ROUTERS
@@ -17,6 +21,24 @@ app.add_middleware(
 
 for _router in API_ROUTERS:
     app.include_router(_router, prefix="/api")
+
+
+def _sanitize_validation_payload(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, list):
+        return [_sanitize_validation_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _sanitize_validation_payload(val) for key, val in value.items()}
+    return value
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(_, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": _sanitize_validation_payload(exc.errors())},
+    )
 
 
 @app.get("/api/health")
