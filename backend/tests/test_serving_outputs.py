@@ -131,6 +131,38 @@ def test_persist_current_payloads_dual_writes_to_neon_when_surface_enabled(tmp_p
     assert out["neon_write"]["replace_all"] is True
 
 
+def test_persist_current_payloads_neon_verification_failure_bubbles_up(tmp_path: Path, monkeypatch) -> None:
+    data_db = tmp_path / "data.db"
+    monkeypatch.setattr(serving_outputs, "DATA_DB", data_db)
+    monkeypatch.setattr(serving_outputs.config, "neon_surface_enabled", lambda surface: surface == "serving_outputs")
+    monkeypatch.setattr(
+        serving_outputs,
+        "_persist_current_payloads_neon",
+        lambda rows, *, replace_all: {
+            "status": "error",
+            "row_count": len(rows),
+            "replace_all": bool(replace_all),
+            "verification": {
+                "status": "error",
+                "issues": ["missing_payload:risk"],
+            },
+        },
+    )
+
+    out = serving_outputs.persist_current_payloads(
+        data_db=data_db,
+        run_id="run_2",
+        snapshot_id="snap_2",
+        refresh_mode="serve-refresh",
+        payloads={"portfolio": {"positions": [], "position_count": 0}},
+        replace_all=True,
+    )
+
+    assert out["status"] == "ok"
+    assert out["neon_write"]["status"] == "error"
+    assert out["neon_write"]["verification"]["issues"] == ["missing_payload:risk"]
+
+
 def test_load_current_payload_does_not_fallback_to_sqlite_when_neon_is_primary(tmp_path: Path, monkeypatch) -> None:
     data_db = tmp_path / "data.db"
     monkeypatch.setattr(serving_outputs, "DATA_DB", data_db)

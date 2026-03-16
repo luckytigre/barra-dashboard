@@ -52,6 +52,24 @@ TABLE_CONFIGS: dict[str, TableConfig] = {
         date_col="as_of_date",
         overlap_days=14,
     ),
+    "model_factor_covariance_daily": TableConfig(
+        name="model_factor_covariance_daily",
+        pk_cols=("as_of_date", "factor_name", "factor_name_2"),
+        date_col="as_of_date",
+        overlap_days=14,
+    ),
+    "model_specific_risk_daily": TableConfig(
+        name="model_specific_risk_daily",
+        pk_cols=("as_of_date", "ric"),
+        date_col="as_of_date",
+        overlap_days=14,
+    ),
+    "model_run_metadata": TableConfig(
+        name="model_run_metadata",
+        pk_cols=("run_id",),
+        date_col="completed_at",
+        overlap_days=31,
+    ),
     "serving_payload_current": TableConfig(
         name="serving_payload_current",
         pk_cols=("payload_name",),
@@ -552,6 +570,57 @@ def _duplicate_group_count_pg(pg_conn, cfg: TableConfig) -> int:
     return int(row[0] or 0) if row else 0
 
 
+def _sqlite_count_from_date(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    min_date: str,
+) -> int:
+    row = conn.execute(
+        f"SELECT COUNT(*) FROM {table} WHERE {date_col} >= ?",
+        (min_date,),
+    ).fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _expected_retention_gap(
+    conn: sqlite3.Connection,
+    *,
+    cfg: TableConfig,
+    source: dict[str, Any],
+    target: dict[str, Any],
+) -> dict[str, Any] | None:
+    if not cfg.date_col:
+        return None
+    source_min = str(source.get("min_date") or "").strip()
+    target_min = str(target.get("min_date") or "").strip()
+    source_max = str(source.get("max_date") or "").strip()
+    target_max = str(target.get("max_date") or "").strip()
+    if not source_min or not target_min or not source_max or not target_max:
+        return None
+    if target_min <= source_min:
+        return None
+    if source_max != target_max:
+        return None
+
+    source_rows_in_target_window = _sqlite_count_from_date(
+        conn,
+        table=cfg.name,
+        date_col=str(cfg.date_col),
+        min_date=target_min,
+    )
+    target_row_count = int(target.get("row_count") or 0)
+    status = "ok" if source_rows_in_target_window == target_row_count else "mismatch"
+    return {
+        "status": status,
+        "source_archive_min_date": source_min,
+        "target_retained_min_date": target_min,
+        "source_rows_in_target_window": int(source_rows_in_target_window),
+        "target_row_count": target_row_count,
+    }
+
+
 def _orphan_ric_sqlite(conn: sqlite3.Connection, table: str) -> int:
     row = conn.execute(
         f"""
@@ -582,6 +651,14 @@ def _orphan_ric_pg(pg_conn, table: str) -> int:
     return int(row[0] or 0) if row else 0
 
 
+def _has_ric_column_sqlite(conn: sqlite3.Connection, table: str) -> bool:
+    return "ric" in set(_sqlite_columns(conn, table))
+
+
+def _has_ric_column_pg(pg_conn, table: str) -> bool:
+    return "ric" in set(_pg_columns(pg_conn, table))
+
+
 def run_parity_audit(
     *,
     sqlite_path: Path,
@@ -603,6 +680,7 @@ def run_parity_audit(
         "sqlite_path": str(db),
         "tables": {},
         "issues": [],
+        "notes": [],
     }
 
     sqlite_conn = sqlite3.connect(str(db))
@@ -636,8 +714,24 @@ def run_parity_audit(
                     "target": int(dup_tgt),
                 },
             }
+            retention_gap = _expected_retention_gap(
+                sqlite_conn,
+                cfg=cfg,
+                source=src,
+                target=tgt,
+            )
+            expected_retention_gap = bool(
+                isinstance(retention_gap, dict)
+                and str(retention_gap.get("status") or "") == "ok"
+            )
+            if retention_gap is not None:
+                table_out["retention_gap"] = retention_gap
+                if expected_retention_gap:
+                    out["notes"].append(
+                        f"expected_retention_gap:{cfg.name}:{retention_gap['source_archive_min_date']}->{retention_gap['target_retained_min_date']}"
+                    )
 
-            if cfg.name != "security_master":
+            if cfg.name != "security_master" and _has_ric_column_sqlite(sqlite_conn, cfg.name) and _has_ric_column_pg(pg_conn, cfg.name):
                 orphan_src = _orphan_ric_sqlite(sqlite_conn, cfg.name)
                 orphan_tgt = _orphan_ric_pg(pg_conn, cfg.name)
                 table_out["orphan_ric_rows"] = {
@@ -647,12 +741,16 @@ def run_parity_audit(
                 if orphan_src != orphan_tgt:
                     out["issues"].append(f"orphan_mismatch:{cfg.name}:{orphan_src}!={orphan_tgt}")
 
-            if int(src.get("row_count") or 0) != int(tgt.get("row_count") or 0):
+            if int(src.get("row_count") or 0) != int(tgt.get("row_count") or 0) and not expected_retention_gap:
                 out["issues"].append(
                     f"row_count_mismatch:{cfg.name}:{src.get('row_count')}!={tgt.get('row_count')}"
                 )
             if cfg.date_col:
-                for key in ("min_date", "max_date", "latest_distinct_ric"):
+                if src.get("min_date") != tgt.get("min_date") and not expected_retention_gap:
+                    out["issues"].append(
+                        f"min_date_mismatch:{cfg.name}:{src.get('min_date')}!={tgt.get('min_date')}"
+                    )
+                for key in ("max_date", "latest_distinct_ric"):
                     if src.get(key) != tgt.get(key):
                         out["issues"].append(
                             f"{key}_mismatch:{cfg.name}:{src.get(key)}!={tgt.get(key)}"

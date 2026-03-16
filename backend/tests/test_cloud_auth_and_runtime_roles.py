@@ -69,7 +69,11 @@ def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> 
 def test_cloud_expensive_diagnostics_require_operator_token(monkeypatch) -> None:
     monkeypatch.setattr(auth_module.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(auth_module.config, "OPERATOR_API_TOKEN", "op-secret")
-    monkeypatch.setattr(health_routes, "cache_get", lambda key: {"status": "ok"} if key == "health_diagnostics" else None)
+    monkeypatch.setattr(
+        health_routes,
+        "load_runtime_payload",
+        lambda key, fallback_loader=None: {"status": "ok"} if key == "health_diagnostics" else None,
+    )
 
     client = TestClient(app)
     assert client.get("/api/data/diagnostics?include_expensive_checks=true").status_code == 401
