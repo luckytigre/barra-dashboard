@@ -17,7 +17,7 @@ import HoldingsLedgerSection from "@/features/holdings/components/HoldingsLedger
 import HoldingsMutationFeedback from "@/features/holdings/components/HoldingsMutationFeedback";
 import ManualPositionEditor from "@/features/holdings/components/ManualPositionEditor";
 import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
-import { formatAsOfDate, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
+import { buildAnalyticsTruthBanner, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
 
 function modeLabel(m: HoldingsImportMode): string {
   if (m === "replace_account") return "Full Replace Account";
@@ -122,6 +122,7 @@ export default function PositionsPage() {
     () => summarizeAnalyticsTruth({ portfolio, risk: riskData }),
     [portfolio, riskData],
   );
+  const truthBanner = useMemo(() => buildAnalyticsTruthBanner(truth), [truth]);
   const snapshotMismatch = !truth.snapshotsCoherent && truth.snapshotIds.length > 1;
 
   const modelVsLiveDiffs = useMemo(() => {
@@ -353,18 +354,8 @@ export default function PositionsPage() {
                 lineHeight: 1.55,
               }}
             >
-              <div>
-                Published snapshot {truth.snapshotId ?? "—"} is serving exposures as of {formatAsOfDate(truth.exposuresServedAsOf)} and the
-                core model as of {formatAsOfDate(truth.modelAsOf)}.
-              </div>
-              <div>
-                Latest raw cross-section available is {formatAsOfDate(truth.exposuresLatestAvailableAsOf)}.
-                {truth.updateAvailable
-                  ? " Newer authoritative factor loadings exist than the current served snapshot. Run a serving refresh to publish them."
-                  : truth.modelLaggingServedLoadings
-                    ? " Served factor loadings are current. The core model can lag them by design between weekly rebuilds."
-                    : " The modeled snapshot is current with the latest authoritative source dates."}
-              </div>
+              <div>{truthBanner.headline}</div>
+              <div>{truthBanner.detail}</div>
             </div>
             <div className="data-metric-grid" style={{ marginTop: 12 }}>
               <div className="data-metric-card">

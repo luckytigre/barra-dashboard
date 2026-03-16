@@ -15,7 +15,7 @@ import ApiErrorState from "@/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import type { FactorDetail } from "@/lib/types";
 import { factorDisplayName } from "@/lib/factorLabels";
-import { formatAsOfDate, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
+import { buildAnalyticsTruthBanner, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
 
 const MODES = [
   { key: "raw", label: "Exposure" },
@@ -61,6 +61,7 @@ export default function ExposuresPage() {
     () => summarizeAnalyticsTruth({ portfolio: portfolioData, risk: riskData, exposures: data }),
     [data, portfolioData, riskData],
   );
+  const truthBanner = useMemo(() => buildAnalyticsTruthBanner(truth), [truth]);
   const snapshotMismatch = !truth.snapshotsCoherent && truth.snapshotIds.length > 1;
 
   if (isLoading) {
@@ -155,18 +156,8 @@ export default function ExposuresPage() {
             lineHeight: 1.55,
           }}
         >
-          <div>
-            Published snapshot {truth.snapshotId ?? "—"} serves exposures as of {formatAsOfDate(truth.exposuresServedAsOf)}.
-            Core model is as of {formatAsOfDate(truth.modelAsOf)}.
-          </div>
-          <div>
-            Latest raw cross-section available is {formatAsOfDate(truth.exposuresLatestAvailableAsOf)}.
-            {truth.updateAvailable
-              ? " Newer authoritative factor loadings exist than the current served snapshot. Run a serving refresh to publish them."
-              : truth.modelLaggingServedLoadings
-                ? " Served factor loadings are current. The core model can lag them by design between weekly rebuilds."
-                : " Current authoritative source dates and served analytics are aligned."}
-          </div>
+          <div>{truthBanner.headline}</div>
+          <div>{truthBanner.detail}</div>
         </div>
         <ExposureBarChart
           factors={factors}
