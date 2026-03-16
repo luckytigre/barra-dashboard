@@ -410,7 +410,7 @@ def test_current_xnys_session_uses_latest_completed_session_before_evening_cutof
 
     monkeypatch.setattr(run_model_pipeline, "datetime", _FakeDateTime)
 
-    assert run_model_pipeline._current_xnys_session() == "2026-03-13"
+    assert run_model_pipeline.stage_planning.current_xnys_session(datetime_cls=run_model_pipeline.datetime) == "2026-03-13"
 
 
 def test_cli_profile_choices_are_canonical_only() -> None:
@@ -682,7 +682,7 @@ def test_serving_refresh_stage_only_requests_deep_diagnostics_for_core_lanes(
 ) -> None:
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(run_model_pipeline, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "cached"))
+    monkeypatch.setattr(run_model_pipeline.runtime_support, "serving_refresh_skip_risk_engine", lambda **kwargs: (True, "cached"))
     monkeypatch.setattr(run_model_pipeline.core_reads, "core_read_backend", lambda backend: nullcontext())
     monkeypatch.setattr(
         run_model_pipeline,
@@ -752,7 +752,7 @@ def test_reset_core_caches_clears_core_tables(tmp_path: Path) -> None:
     conn.commit()
     conn.close()
 
-    summary = run_model_pipeline._reset_core_caches(cache_db)
+    summary = run_model_pipeline.runtime_support.reset_core_caches(cache_db)
 
     assert summary["daily_factor_returns"] == 1
     assert summary["daily_specific_residuals"] == 1
@@ -770,15 +770,19 @@ def test_reset_core_caches_clears_core_tables(tmp_path: Path) -> None:
 
 
 def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
-    monkeypatch.setattr(run_model_pipeline.analytics_pipeline, "_resolve_effective_risk_engine_meta", lambda **kwargs: ({"method_version": "stale", "last_recompute_date": "2026-03-01"}, "runtime_state"))
+    monkeypatch.setattr(run_model_pipeline.runtime_support, "risk_cache_ready", lambda **_kwargs: True)
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_risk_recompute_due",
-        lambda meta, *, today_utc: (True, "method_version_change"),
+        run_model_pipeline.runtime_support.analytics_pipeline,
+        "_resolve_effective_risk_engine_meta",
+        lambda **kwargs: ({"method_version": "stale", "last_recompute_date": "2026-03-01"}, "runtime_state"),
+    )
+    monkeypatch.setattr(
+        run_model_pipeline.runtime_support,
+        "risk_recompute_due",
+        lambda meta, **_kwargs: (True, "method_version_change"),
     )
 
-    skip, reason = run_model_pipeline._serving_refresh_skip_risk_engine(
+    skip, reason = run_model_pipeline.runtime_support.serving_refresh_skip_risk_engine(
         today_utc=run_model_pipeline.date(2026, 3, 14)
     )
 
@@ -787,15 +791,19 @@ def test_serving_refresh_skip_risk_engine_requires_current_method(monkeypatch: p
 
 
 def test_serving_refresh_skip_risk_engine_allows_current_cache(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
-    monkeypatch.setattr(run_model_pipeline.analytics_pipeline, "_resolve_effective_risk_engine_meta", lambda **kwargs: ({"method_version": "current", "last_recompute_date": "2026-03-13"}, "model_run_metadata"))
+    monkeypatch.setattr(run_model_pipeline.runtime_support, "risk_cache_ready", lambda **_kwargs: True)
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_risk_recompute_due",
-        lambda meta, *, today_utc: (False, "within_interval"),
+        run_model_pipeline.runtime_support.analytics_pipeline,
+        "_resolve_effective_risk_engine_meta",
+        lambda **kwargs: ({"method_version": "current", "last_recompute_date": "2026-03-13"}, "model_run_metadata"),
+    )
+    monkeypatch.setattr(
+        run_model_pipeline.runtime_support,
+        "risk_recompute_due",
+        lambda meta, **_kwargs: (False, "within_interval"),
     )
 
-    skip, reason = run_model_pipeline._serving_refresh_skip_risk_engine(
+    skip, reason = run_model_pipeline.runtime_support.serving_refresh_skip_risk_engine(
         today_utc=run_model_pipeline.date(2026, 3, 14)
     )
 
@@ -804,9 +812,9 @@ def test_serving_refresh_skip_risk_engine_allows_current_cache(monkeypatch: pyte
 
 
 def test_serving_refresh_skip_risk_engine_prefers_persisted_model_state(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(run_model_pipeline, "_risk_cache_ready", lambda: True)
+    monkeypatch.setattr(run_model_pipeline.runtime_support, "risk_cache_ready", lambda **_kwargs: True)
     monkeypatch.setattr(
-        run_model_pipeline.analytics_pipeline,
+        run_model_pipeline.runtime_support.analytics_pipeline,
         "_resolve_effective_risk_engine_meta",
         lambda **kwargs: (
             {
@@ -818,12 +826,12 @@ def test_serving_refresh_skip_risk_engine_prefers_persisted_model_state(monkeypa
         ),
     )
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_risk_recompute_due",
-        lambda meta, *, today_utc: (False, "within_interval"),
+        run_model_pipeline.runtime_support,
+        "risk_recompute_due",
+        lambda meta, **_kwargs: (False, "within_interval"),
     )
 
-    skip, reason = run_model_pipeline._serving_refresh_skip_risk_engine(
+    skip, reason = run_model_pipeline.runtime_support.serving_refresh_skip_risk_engine(
         today_utc=run_model_pipeline.date(2026, 3, 16)
     )
 

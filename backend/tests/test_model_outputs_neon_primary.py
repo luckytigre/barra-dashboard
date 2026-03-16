@@ -58,17 +58,17 @@ def test_persist_model_outputs_writes_neon_first_when_configured(
 ) -> None:
     calls: list[str] = []
 
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_enabled", lambda: True)
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_required", lambda: True)
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "postgresql://example")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: True)
     monkeypatch.setattr(model_outputs, "connect", lambda **_kwargs: _DummyPgConn())
     monkeypatch.setattr(model_outputs, "resolve_dsn", lambda _dsn=None: "postgresql://example")
-    monkeypatch.setattr(model_outputs, "_ensure_postgres_schema", lambda _pg_conn: None)
+    monkeypatch.setattr(model_outputs.writers, "ensure_postgres_schema", lambda _pg_conn: None)
     monkeypatch.setattr(
-        model_outputs,
-        "_factor_returns_load_start_postgres",
+        model_outputs.state,
+        "factor_returns_load_start_postgres",
         lambda _pg_conn, *, as_of_date, risk_engine_state: ("2026-03-03", "incremental"),
     )
-    monkeypatch.setattr(model_outputs, "_load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
+    monkeypatch.setattr(model_outputs.payloads, "load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
 
     def _fake_pg_write(_pg_conn, **kwargs):
         calls.append("neon")
@@ -81,8 +81,8 @@ def test_persist_model_outputs_writes_neon_first_when_configured(
         assert kwargs["as_of_date"] == "2026-03-03"
         return {"status": "ok"}
 
-    monkeypatch.setattr(model_outputs, "_write_model_outputs_postgres", _fake_pg_write)
-    monkeypatch.setattr(model_outputs, "_write_model_outputs_sqlite", _fake_sqlite_write)
+    monkeypatch.setattr(model_outputs.writers, "write_model_outputs_postgres", _fake_pg_write)
+    monkeypatch.setattr(model_outputs.writers, "write_model_outputs_sqlite", _fake_sqlite_write)
 
     out = model_outputs.persist_model_outputs(
         data_db=tmp_path / "data.db",
@@ -119,25 +119,25 @@ def test_persist_model_outputs_raises_when_required_neon_write_fails(
 ) -> None:
     calls: list[str] = []
 
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_enabled", lambda: True)
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_required", lambda: True)
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "postgresql://example")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: True)
     monkeypatch.setattr(model_outputs, "connect", lambda **_kwargs: _DummyPgConn())
     monkeypatch.setattr(model_outputs, "resolve_dsn", lambda _dsn=None: "postgresql://example")
-    monkeypatch.setattr(model_outputs, "_ensure_postgres_schema", lambda _pg_conn: None)
+    monkeypatch.setattr(model_outputs.writers, "ensure_postgres_schema", lambda _pg_conn: None)
     monkeypatch.setattr(
-        model_outputs,
-        "_factor_returns_load_start_postgres",
+        model_outputs.state,
+        "factor_returns_load_start_postgres",
         lambda _pg_conn, *, as_of_date, risk_engine_state: (None, "full"),
     )
-    monkeypatch.setattr(model_outputs, "_load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
+    monkeypatch.setattr(model_outputs.payloads, "load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
     monkeypatch.setattr(
-        model_outputs,
-        "_write_model_outputs_postgres",
+        model_outputs.writers,
+        "write_model_outputs_postgres",
         lambda _pg_conn, **_kwargs: calls.append("neon") or (_ for _ in ()).throw(RuntimeError("boom")),
     )
     monkeypatch.setattr(
-        model_outputs,
-        "_write_model_outputs_sqlite",
+        model_outputs.writers,
+        "write_model_outputs_sqlite",
         lambda _conn, **_kwargs: calls.append("sqlite") or {"status": "ok"},
     )
 
@@ -163,25 +163,25 @@ def test_persist_model_outputs_falls_back_to_sqlite_when_neon_optional(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_enabled", lambda: True)
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_required", lambda: False)
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "postgresql://example")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: False)
     monkeypatch.setattr(model_outputs, "connect", lambda **_kwargs: _DummyPgConn())
     monkeypatch.setattr(model_outputs, "resolve_dsn", lambda _dsn=None: "postgresql://example")
-    monkeypatch.setattr(model_outputs, "_ensure_postgres_schema", lambda _pg_conn: None)
+    monkeypatch.setattr(model_outputs.writers, "ensure_postgres_schema", lambda _pg_conn: None)
     monkeypatch.setattr(
-        model_outputs,
-        "_factor_returns_load_start_postgres",
+        model_outputs.state,
+        "factor_returns_load_start_postgres",
         lambda _pg_conn, *, as_of_date, risk_engine_state: (None, "full"),
     )
-    monkeypatch.setattr(model_outputs, "_load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
+    monkeypatch.setattr(model_outputs.payloads, "load_factor_returns", lambda *_args, **_kwargs: _factor_returns_df())
     monkeypatch.setattr(
-        model_outputs,
-        "_write_model_outputs_postgres",
+        model_outputs.writers,
+        "write_model_outputs_postgres",
         lambda _pg_conn, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     monkeypatch.setattr(
-        model_outputs,
-        "_write_model_outputs_sqlite",
+        model_outputs.writers,
+        "write_model_outputs_sqlite",
         lambda _conn, **_kwargs: {"status": "ok"},
     )
 

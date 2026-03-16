@@ -17,8 +17,15 @@ from backend.risk_model.raw_cross_section_history import ensure_raw_cross_sectio
 from backend.universe.schema import ensure_cuse4_schema
 from backend.data.cross_section_snapshot import ensure_cross_section_snapshot_table
 from backend.data.model_outputs import persist_model_outputs
+from backend.data import model_outputs
 from backend.data import job_runs
 run_model_pipeline = importlib.import_module("backend.orchestration.run_model_pipeline")
+
+
+@pytest.fixture(autouse=True)
+def _disable_neon_model_output_writes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: False)
 
 
 def _pk_cols(conn: sqlite3.Connection, table: str) -> list[str]:

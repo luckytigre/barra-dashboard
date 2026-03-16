@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
-import sqlite3
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
+from backend.analytics import health_payloads, refresh_metadata
 from backend.analytics.contracts import (
     ComponentSharesPayload,
     CovarianceMatrixPayload,
@@ -36,28 +32,7 @@ from backend.analytics.health import compute_health_diagnostics
 from backend.data import sqlite
 
 logger = logging.getLogger(__name__)
-ELIGIBILITY_WELL_COVERED_RATIO = 0.50
-ELIGIBILITY_WELL_COVERED_MIN_N = 100
-HEALTH_DIAGNOSTICS_CACHE_VERSION = "2026_03_15_v1"
-
-
-def _finite_float(value: Any, default: float = 0.0) -> float:
-    try:
-        out = float(value)
-    except (TypeError, ValueError):
-        return float(default)
-    return out if np.isfinite(out) else float(default)
-
-
-def _max_iso_date(*values: Any) -> str | None:
-    clean = sorted(
-        {
-            str(value).strip()
-            for value in values
-            if str(value or "").strip()
-        }
-    )
-    return clean[-1] if clean else None
+HEALTH_DIAGNOSTICS_CACHE_VERSION = health_payloads.HEALTH_DIAGNOSTICS_CACHE_VERSION
 
 
 def build_risk_engine_state(
@@ -66,36 +41,11 @@ def build_risk_engine_state(
     recomputed_this_refresh: bool,
     recompute_reason: str,
 ) -> RiskEngineStatePayload:
-    return {
-        "status": str(risk_engine_meta.get("status") or "unknown"),
-        "method_version": str(risk_engine_meta.get("method_version") or ""),
-        "last_recompute_date": str(risk_engine_meta.get("last_recompute_date") or ""),
-        "factor_returns_latest_date": risk_engine_meta.get("factor_returns_latest_date"),
-        "cross_section_min_age_days": int(risk_engine_meta.get("cross_section_min_age_days") or 0),
-        "recompute_interval_days": int(risk_engine_meta.get("recompute_interval_days") or 0),
-        "lookback_days": int(risk_engine_meta.get("lookback_days") or 0),
-        "specific_risk_ticker_count": int(risk_engine_meta.get("specific_risk_ticker_count") or 0),
-        "recomputed_this_refresh": bool(recomputed_this_refresh),
-        "recompute_reason": str(recompute_reason),
-    }
-
-
-def _positions_fingerprint(positions: list[PositionPayload]) -> str:
-    normalized = []
-    for row in positions:
-        if not isinstance(row, dict):
-            continue
-        normalized.append(
-            {
-                "ticker": str(row.get("ticker") or "").upper(),
-                "weight": round(_finite_float(row.get("weight"), 0.0), 10),
-                "market_value": round(_finite_float(row.get("market_value"), 0.0), 4),
-                "quantity": round(_finite_float(row.get("quantity"), 0.0), 6),
-            }
-        )
-    normalized.sort(key=lambda item: item["ticker"])
-    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    return refresh_metadata.build_risk_engine_state(
+        risk_engine_meta=risk_engine_meta,
+        recomputed_this_refresh=recomputed_this_refresh,
+        recompute_reason=recompute_reason,
+    )
 
 
 def _health_reuse_signature(
@@ -105,28 +55,12 @@ def _health_reuse_signature(
     positions: list[PositionPayload],
     total_value: float,
 ) -> dict[str, Any]:
-    return {
-        "cache_version": HEALTH_DIAGNOSTICS_CACHE_VERSION,
-        "source_dates": {
-            "fundamentals_asof": source_dates.get("fundamentals_asof"),
-            "classification_asof": source_dates.get("classification_asof"),
-            "prices_asof": source_dates.get("prices_asof"),
-            "exposures_latest_available_asof": (
-                source_dates.get("exposures_latest_available_asof")
-                or source_dates.get("exposures_asof")
-            ),
-            "exposures_served_asof": source_dates.get("exposures_served_asof"),
-        },
-        "risk_engine": {
-            "method_version": str(risk_engine_state.get("method_version") or ""),
-            "last_recompute_date": str(risk_engine_state.get("last_recompute_date") or ""),
-            "factor_returns_latest_date": str(risk_engine_state.get("factor_returns_latest_date") or ""),
-            "lookback_days": int(risk_engine_state.get("lookback_days") or 0),
-            "specific_risk_ticker_count": int(risk_engine_state.get("specific_risk_ticker_count") or 0),
-        },
-        "positions_fingerprint": _positions_fingerprint(positions),
-        "total_value": round(_finite_float(total_value, 0.0), 2),
-    }
+    return health_payloads.health_reuse_signature(
+        source_dates=source_dates,
+        risk_engine_state=risk_engine_state,
+        positions=positions,
+        total_value=total_value,
+    )
 
 
 def _serving_source_dates(
@@ -135,38 +69,11 @@ def _serving_source_dates(
     universe_loadings: UniverseLoadingsPayload,
     eligibility_summary: EligibilitySummaryPayload | None = None,
 ) -> SourceDatesPayload:
-    out: SourceDatesPayload = dict(source_dates or {})
-    latest_available = _max_iso_date(
-        out.get("exposures_latest_available_asof"),
-        out.get("exposures_asof"),
-        universe_loadings.get("latest_available_asof"),
-        (eligibility_summary or {}).get("latest_available_date"),
+    return refresh_metadata.serving_source_dates(
+        source_dates=source_dates,
+        universe_loadings=universe_loadings,
+        eligibility_summary=eligibility_summary,
     )
-    served_asof = str(
-        universe_loadings.get("as_of_date")
-        or (eligibility_summary or {}).get("date")
-        or out.get("exposures_served_asof")
-        or ""
-    ).strip() or None
-    if latest_available is not None:
-        out["exposures_asof"] = latest_available
-        out["exposures_latest_available_asof"] = latest_available
-    if served_asof is not None:
-        out["exposures_served_asof"] = served_asof
-    return out
-
-
-def _can_reuse_cached_health_payload(
-    cached_payload: Any,
-    *,
-    signature: dict[str, Any],
-) -> bool:
-    if not isinstance(cached_payload, dict):
-        return False
-    cached_signature = cached_payload.get("_reuse_signature")
-    if not isinstance(cached_signature, dict):
-        return False
-    return cached_signature == signature
 
 
 def _carry_forward_health_payload(
@@ -178,41 +85,13 @@ def _carry_forward_health_payload(
     source_dates: SourceDatesPayload,
     risk_engine_state: RiskEngineStatePayload,
 ) -> tuple[dict[str, Any], str]:
-    if isinstance(cached_payload, dict):
-        out = dict(cached_payload)
-        out["diagnostics_refresh_state"] = "carried_forward"
-        out["diagnostics_generated_from_run_id"] = str(
-            out.get("diagnostics_generated_from_run_id")
-            or out.get("run_id")
-            or ""
-        )
-        out["diagnostics_generated_from_snapshot_id"] = str(
-            out.get("diagnostics_generated_from_snapshot_id")
-            or out.get("snapshot_id")
-            or ""
-        )
-        out["run_id"] = str(run_id)
-        out["snapshot_id"] = str(snapshot_id)
-        out["refresh_started_at"] = str(refresh_started_at)
-        out["source_dates"] = dict(source_dates or {})
-        out["risk_engine"] = dict(risk_engine_state or {})
-        return out, "carried_forward"
-
-    return (
-        {
-            "status": "deferred",
-            "message": "Deep health diagnostics were not recomputed on this refresh.",
-            "diagnostics_refresh_state": "deferred",
-            "diagnostics_generated_from_run_id": None,
-            "diagnostics_generated_from_snapshot_id": None,
-            "run_id": str(run_id),
-            "snapshot_id": str(snapshot_id),
-            "refresh_started_at": str(refresh_started_at),
-            "source_dates": dict(source_dates or {}),
-            "risk_engine": dict(risk_engine_state or {}),
-            "cache_version": HEALTH_DIAGNOSTICS_CACHE_VERSION,
-        },
-        "deferred",
+    return health_payloads.carry_forward_health_payload(
+        cached_payload,
+        run_id=run_id,
+        snapshot_id=snapshot_id,
+        refresh_started_at=refresh_started_at,
+        source_dates=source_dates,
+        risk_engine_state=risk_engine_state,
     )
 
 
@@ -222,194 +101,15 @@ def build_model_sanity_report(
     factor_details: list[FactorDetailPayload],
     eligibility_summary: EligibilitySummaryPayload,
 ) -> ModelSanityPayload:
-    warnings: list[str] = []
-
-    regression_cov = _finite_float(eligibility_summary.get("regression_coverage"), 0.0)
-    if regression_cov < 0.20:
-        warnings.append(
-            f"Low regression coverage on latest usable date: {regression_cov * 100.0:.1f}%."
-        )
-
-    drop_pct = _finite_float(eligibility_summary.get("drop_pct_from_prev"), 0.0)
-    if drop_pct > 0.10:
-        warnings.append(
-            f"Eligible universe dropped {drop_pct * 100.0:.1f}% vs previous cross-section."
-        )
-
-    industry_pct = _finite_float(risk_shares.get("industry"), 0.0)
-    market_pct = _finite_float(risk_shares.get("market"), 0.0)
-    style_pct = _finite_float(risk_shares.get("style"), 0.0)
-    if market_pct > 90.0:
-        warnings.append(f"Market risk share is highly concentrated at {market_pct:.1f}% of total risk.")
-    if industry_pct > 90.0:
-        warnings.append(f"Industry risk share is highly concentrated at {industry_pct:.1f}% of total risk.")
-    if style_pct > 90.0:
-        warnings.append(f"Style risk share is highly concentrated at {style_pct:.1f}% of total risk.")
-
-    sign_mismatch = 0
-    for row in factor_details:
-        exp = _finite_float(row.get("exposure"), 0.0)
-        sens = _finite_float(row.get("sensitivity"), 0.0)
-        if abs(exp) > 1e-12 and abs(sens) > 1e-12 and (exp * sens) < 0:
-            sign_mismatch += 1
-    if sign_mismatch > 0:
-        warnings.append(
-            f"{sign_mismatch} factors have exposure/sensitivity sign mismatch; expected same sign."
-        )
-
-    coverage_date = str(eligibility_summary.get("date") or "")
-    latest_available_date = str(eligibility_summary.get("latest_available_date") or "")
-    used_older_than_latest = bool(eligibility_summary.get("used_older_than_latest"))
-    if used_older_than_latest and coverage_date and latest_available_date:
-        warnings.append(
-            f"Using latest well-covered date {coverage_date} (latest source date is {latest_available_date})."
-        )
-
-    return {
-        "status": "warn" if warnings else "ok",
-        "warnings": warnings,
-        "coverage_date": coverage_date or None,
-        "latest_available_date": latest_available_date or None,
-        "selection_mode": str(eligibility_summary.get("selection_mode") or ""),
-        "update_available": bool(used_older_than_latest),
-        "checks": {
-            "factor_sign_mismatch_count": int(sign_mismatch),
-            "market_risk_share_pct": round(market_pct, 2),
-            "latest_regression_coverage_pct": round(regression_cov * 100.0, 2),
-            "latest_structural_eligible_n": int(eligibility_summary.get("structural_eligible_n", 0) or 0),
-            "latest_core_structural_eligible_n": int(
-                eligibility_summary.get("core_structural_eligible_n", 0) or 0
-            ),
-            "latest_projectable_n": int(eligibility_summary.get("projectable_n", 0) or 0),
-            "latest_projected_only_n": int(eligibility_summary.get("projected_only_n", 0) or 0),
-            "industry_risk_share_pct": round(industry_pct, 2),
-            "style_risk_share_pct": round(style_pct, 2),
-            "idio_risk_share_pct": round(_finite_float(risk_shares.get("idio"), 0.0), 2),
-        },
-    }
+    return refresh_metadata.build_model_sanity_report(
+        risk_shares=risk_shares,
+        factor_details=factor_details,
+        eligibility_summary=eligibility_summary,
+    )
 
 
 def load_latest_eligibility_summary(cache_db: Path) -> EligibilitySummaryPayload:
-    conn = sqlite3.connect(str(cache_db))
-    try:
-        elig_cols = {
-            str(row[1])
-            for row in conn.execute("PRAGMA table_info(daily_universe_eligibility_summary)").fetchall()
-        }
-        core_structural_expr = (
-            "core_structural_eligible_n" if "core_structural_eligible_n" in elig_cols else "structural_eligible_n"
-        )
-        projectable_expr = "projectable_n" if "projectable_n" in elig_cols else "regression_member_n"
-        projected_only_expr = "projected_only_n" if "projected_only_n" in elig_cols else "0"
-        projectable_coverage_expr = (
-            "projectable_coverage" if "projectable_coverage" in elig_cols else "regression_coverage"
-        )
-        latest_any = conn.execute(
-            f"""
-            SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                   {core_structural_expr} AS core_structural_eligible_n,
-                   {projectable_expr} AS projectable_n,
-                   {projected_only_expr} AS projected_only_n,
-                   structural_coverage, regression_coverage,
-                   {projectable_coverage_expr} AS projectable_coverage,
-                   drop_pct_from_prev, alert_level
-            FROM daily_universe_eligibility_summary
-            ORDER BY date DESC
-            LIMIT 1
-            """
-        ).fetchone()
-        max_row = conn.execute(
-            """
-            SELECT MAX(regression_member_n)
-            FROM daily_universe_eligibility_summary
-            """
-        ).fetchone()
-        max_regression_n = int(max_row[0] or 0) if max_row else 0
-        coverage_threshold_n = max(
-            ELIGIBILITY_WELL_COVERED_MIN_N,
-            int(ELIGIBILITY_WELL_COVERED_RATIO * max_regression_n),
-        )
-
-        row = conn.execute(
-            f"""
-            SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                   {core_structural_expr} AS core_structural_eligible_n,
-                   {projectable_expr} AS projectable_n,
-                   {projected_only_expr} AS projected_only_n,
-                   structural_coverage, regression_coverage,
-                   {projectable_coverage_expr} AS projectable_coverage,
-                   drop_pct_from_prev, alert_level
-            FROM daily_universe_eligibility_summary
-            WHERE regression_member_n >= ?
-            ORDER BY date DESC
-            LIMIT 1
-            """,
-            (coverage_threshold_n,),
-        ).fetchone()
-        selection_mode = "well_covered"
-        if row is None:
-            row = conn.execute(
-                f"""
-                SELECT date, exp_date, exposure_n, structural_eligible_n, regression_member_n,
-                       {core_structural_expr} AS core_structural_eligible_n,
-                       {projectable_expr} AS projectable_n,
-                       {projected_only_expr} AS projected_only_n,
-                       structural_coverage, regression_coverage,
-                       {projectable_coverage_expr} AS projectable_coverage,
-                       drop_pct_from_prev, alert_level
-                FROM daily_universe_eligibility_summary
-                WHERE regression_member_n > 0
-                ORDER BY date DESC
-                LIMIT 1
-                """
-            ).fetchone()
-            selection_mode = "latest_positive"
-        if row is None:
-            row = latest_any
-            selection_mode = "latest_any"
-    except sqlite3.OperationalError:
-        latest_any = None
-        max_regression_n = 0
-        coverage_threshold_n = ELIGIBILITY_WELL_COVERED_MIN_N
-        selection_mode = "none"
-        row = None
-    finally:
-        conn.close()
-    if not row:
-        return {
-            "status": "no-data",
-            "selection_mode": "none",
-            "max_regression_member_n": int(max_regression_n),
-            "coverage_threshold_n": int(coverage_threshold_n),
-            "latest_available_date": str(latest_any[0]) if latest_any and latest_any[0] is not None else None,
-        }
-
-    latest_available_date = str(latest_any[0]) if latest_any and latest_any[0] is not None else str(row[0])
-    selected_date = str(row[0])
-    selected_well_covered = bool(selection_mode == "well_covered")
-    used_older_than_latest = bool(latest_available_date and latest_available_date > selected_date)
-    return {
-        "status": "ok",
-        "date": selected_date,
-        "exp_date": str(row[1]) if row[1] is not None else None,
-        "exposure_n": int(row[2] or 0),
-        "structural_eligible_n": int(row[3] or 0),
-        "regression_member_n": int(row[4] or 0),
-        "core_structural_eligible_n": int(row[5] or 0),
-        "projectable_n": int(row[6] or 0),
-        "projected_only_n": int(row[7] or 0),
-        "structural_coverage": float(row[8] or 0.0),
-        "regression_coverage": float(row[9] or 0.0),
-        "projectable_coverage": float(row[10] or 0.0),
-        "drop_pct_from_prev": float(row[11] or 0.0),
-        "alert_level": str(row[12] or ""),
-        "selection_mode": selection_mode,
-        "max_regression_member_n": int(max_regression_n),
-        "coverage_threshold_n": int(coverage_threshold_n),
-        "latest_available_date": latest_available_date,
-        "selected_well_covered": selected_well_covered,
-        "used_older_than_latest": used_older_than_latest,
-    }
+    return refresh_metadata.load_latest_eligibility_summary(cache_db)
 
 
 def stage_refresh_cache_snapshot(

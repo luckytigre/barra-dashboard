@@ -7,13 +7,22 @@ run_model_pipeline = importlib.import_module("backend.orchestration.run_model_pi
 
 def _patch_lightweight_pipeline(monkeypatch) -> None:
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_resolved_as_of_date",
+        run_model_pipeline.stage_planning,
+        "resolved_as_of_date",
         lambda _value, **_kwargs: "2026-03-04",
     )
-    monkeypatch.setattr(run_model_pipeline, "_risk_recompute_due", lambda *_args, **_kwargs: (False, "within_interval"))
-    monkeypatch.setattr(run_model_pipeline, "_stage_window", lambda *_args, **_kwargs: ["feature_build"])
-    monkeypatch.setattr(run_model_pipeline, "_run_stage", lambda **_kwargs: {"status": "ok"})
+    monkeypatch.setattr(run_model_pipeline.runtime_support, "risk_recompute_due", lambda *_args, **_kwargs: (False, "within_interval"))
+    monkeypatch.setattr(
+        run_model_pipeline.stage_execution,
+        "run_selected_stages",
+        lambda **_kwargs: {
+            "overall_status": "ok",
+            "stage_results": [{"stage": "feature_build", "status": "completed", "details": {"status": "ok"}}],
+            "workspace_paths": None,
+            "neon_mirror_sqlite_path": run_model_pipeline.DATA_DB,
+            "neon_mirror_cache_path": run_model_pipeline.CACHE_DB,
+        },
+    )
     monkeypatch.setattr(run_model_pipeline.sqlite, "cache_get", lambda _k: {})
     monkeypatch.setattr(run_model_pipeline.sqlite, "cache_set", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(run_model_pipeline.job_runs, "ensure_schema", lambda *_args, **_kwargs: None)
@@ -23,8 +32,8 @@ def _patch_lightweight_pipeline(monkeypatch) -> None:
     monkeypatch.setattr(run_model_pipeline.job_runs, "finish_stage", lambda **_kwargs: None)
     monkeypatch.setattr(run_model_pipeline.job_runs, "run_rows", lambda **_kwargs: [])
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_write_neon_mirror_artifact",
+        run_model_pipeline.post_run_publish,
+        "write_neon_mirror_artifact",
         lambda **_kwargs: "/tmp/neon_mirror_report.json",
     )
 
@@ -150,11 +159,25 @@ def test_run_model_pipeline_publishes_health_when_required_serving_write_fails(m
     monkeypatch.setattr(run_model_pipeline.config, "DATA_BACKEND", "neon")
     monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTO_SYNC_ENABLED", True)
     monkeypatch.setattr(
-        run_model_pipeline,
-        "_run_stage",
-        lambda **kwargs: (_ for _ in ()).throw(
-            RuntimeError("Serving payload persistence failed: RuntimeError: Serving payload Neon write failed: {'status': 'error'}")
-        ),
+        run_model_pipeline.stage_execution,
+        "run_selected_stages",
+        lambda **_kwargs: {
+            "overall_status": "failed",
+            "stage_results": [
+                {
+                    "stage": "serving_refresh",
+                    "status": "failed",
+                    "details": {},
+                    "error": {
+                        "type": "RuntimeError",
+                        "message": "Serving payload persistence failed: RuntimeError: Serving payload Neon write failed: {'status': 'error'}",
+                    },
+                }
+            ],
+            "workspace_paths": None,
+            "neon_mirror_sqlite_path": run_model_pipeline.DATA_DB,
+            "neon_mirror_cache_path": run_model_pipeline.CACHE_DB,
+        },
     )
 
     out = run_model_pipeline.run_model_pipeline(profile="serve-refresh")

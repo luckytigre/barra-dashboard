@@ -9,7 +9,11 @@ from backend.data import core_reads
 def test_load_raw_cross_section_latest_prefers_well_covered_asof(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(core_reads, "_exposure_source_table_required", lambda: "barra_raw_cross_section_history")
+    monkeypatch.setattr(
+        core_reads.source_reads,
+        "exposure_source_table_required",
+        lambda **_kwargs: "barra_raw_cross_section_history",
+    )
 
     def _fake_fetch(sql: str, params=None):
         if "COUNT(*) AS row_count" in sql:
@@ -27,7 +31,7 @@ def test_load_raw_cross_section_latest_prefers_well_covered_asof(monkeypatch) ->
             }
         ]
 
-    monkeypatch.setattr(core_reads, "_fetch_rows", _fake_fetch)
+    monkeypatch.setattr(core_reads.core_backend, "fetch_rows", lambda sql, params=None, **_kwargs: _fake_fetch(sql, params))
 
     out = core_reads.load_raw_cross_section_latest(tickers=["laz"])
 
@@ -68,7 +72,7 @@ def test_load_latest_prices_sqlite_refreshes_latest_price_cache(monkeypatch, tmp
     conn.close()
 
     monkeypatch.setattr(core_reads, "DATA_DB", data_db)
-    monkeypatch.setattr(core_reads, "_use_neon_core_reads", lambda: False)
+    monkeypatch.setattr(core_reads.core_backend, "use_neon_core_reads", lambda: False)
 
     first = core_reads.load_latest_prices()
     assert first.to_dict("records") == [
@@ -101,16 +105,20 @@ def test_core_read_backend_override_can_force_local_or_neon(monkeypatch) -> None
 
 def test_load_source_dates_exposes_explicit_latest_available_exposure_date(monkeypatch) -> None:
     monkeypatch.setattr(
-        core_reads,
-        "_table_exists",
-        lambda table: table in {
+        core_reads.core_backend,
+        "table_exists",
+        lambda table, **_kwargs: table in {
             "security_fundamentals_pit",
             "security_classification_pit",
             "security_prices_eod",
             "barra_raw_cross_section_history",
         },
     )
-    monkeypatch.setattr(core_reads, "_exposure_source_table_required", lambda: "barra_raw_cross_section_history")
+    monkeypatch.setattr(
+        core_reads.source_reads,
+        "exposure_source_table_required",
+        lambda **_kwargs: "barra_raw_cross_section_history",
+    )
 
     def _fake_fetch(sql: str, params=None):
         if "security_fundamentals_pit" in sql:
@@ -123,7 +131,7 @@ def test_load_source_dates_exposes_explicit_latest_available_exposure_date(monke
             return [{"latest": "2026-03-04"}]
         return []
 
-    monkeypatch.setattr(core_reads, "_fetch_rows", _fake_fetch)
+    monkeypatch.setattr(core_reads.core_backend, "fetch_rows", lambda sql, params=None, **_kwargs: _fake_fetch(sql, params))
 
     out = core_reads.load_source_dates()
 

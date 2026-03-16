@@ -1308,9 +1308,10 @@ def test_resolved_as_of_date_uses_local_source_archive_when_requested(monkeypatc
         lambda surface: surface == "core_reads",
     )
 
-    out = run_model_pipeline_module._resolved_as_of_date(
+    out = run_model_pipeline_module.stage_planning.resolved_as_of_date(
         None,
         prefer_local_source_archive=True,
+        current_xnys_session_resolver=lambda: "2026-03-14",
     )
 
     assert out == "2026-03-13"
@@ -1335,8 +1336,16 @@ def test_source_daily_defaults_ingest_to_current_session_not_stored_source_date(
         "load_source_dates",
         lambda: {"fundamentals_asof": "2026-03-04", "exposures_asof": "2026-03-04"},
     )
-    monkeypatch.setattr(run_model_pipeline_module, "_current_xnys_session", lambda: "2026-03-14")
-    monkeypatch.setattr(run_model_pipeline_module, "_risk_recompute_due", lambda *_args, **_kwargs: (False, "within_interval"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.stage_planning,
+        "current_xnys_session",
+        lambda **_kwargs: "2026-03-14",
+    )
+    monkeypatch.setattr(
+        run_model_pipeline_module.runtime_support,
+        "risk_recompute_due",
+        lambda *_args, **_kwargs: (False, "within_interval"),
+    )
     monkeypatch.setattr(run_model_pipeline_module, "mark_refresh_finished", lambda **kwargs: None)
     monkeypatch.setattr(run_model_pipeline_module.config, "NEON_DATABASE_URL", "")
     monkeypatch.setattr(run_model_pipeline_module.config, "DATA_BACKEND", "sqlite")
@@ -1344,11 +1353,17 @@ def test_source_daily_defaults_ingest_to_current_session_not_stored_source_date(
     monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_PARITY_ENABLED", False)
     monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_PRUNE_ENABLED", False)
 
-    def _run_stage(**kwargs):
-        captured.setdefault("as_of_dates", []).append(kwargs["as_of_date"])
-        return {"status": "ok"}
+    def _run_selected_stages(**kwargs):
+        captured.setdefault("as_of_dates", []).append(kwargs["as_of"])
+        return {
+            "overall_status": "ok",
+            "stage_results": [{"stage": "ingest", "status": "completed", "details": {"status": "ok"}}],
+            "workspace_paths": None,
+            "neon_mirror_sqlite_path": run_model_pipeline_module.DATA_DB,
+            "neon_mirror_cache_path": run_model_pipeline_module.CACHE_DB,
+        }
 
-    monkeypatch.setattr(run_model_pipeline_module, "_run_stage", _run_stage)
+    monkeypatch.setattr(run_model_pipeline_module.stage_execution, "run_selected_stages", _run_selected_stages)
 
     out = run_model_pipeline_module.run_model_pipeline(profile="source-daily")
 
@@ -1362,7 +1377,11 @@ def test_run_stage_serving_refresh_uses_local_source_archive_for_local_publish_p
 ) -> None:
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(run_model_pipeline_module, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "risk_cache_current"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.runtime_support,
+        "serving_refresh_skip_risk_engine",
+        lambda **kwargs: (True, "risk_cache_current"),
+    )
     monkeypatch.setattr(
         run_model_pipeline_module.core_reads.config,
         "neon_surface_enabled",
@@ -1398,7 +1417,11 @@ def test_run_stage_serving_refresh_keeps_neon_backend_for_canonical_serve_refres
 ) -> None:
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(run_model_pipeline_module, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "risk_cache_current"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.runtime_support,
+        "serving_refresh_skip_risk_engine",
+        lambda **kwargs: (True, "risk_cache_current"),
+    )
     monkeypatch.setattr(
         run_model_pipeline_module.core_reads.config,
         "neon_surface_enabled",
@@ -1434,7 +1457,11 @@ def test_run_stage_serving_refresh_uses_local_backend_during_core_rebuild(
 ) -> None:
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr(run_model_pipeline_module, "_serving_refresh_skip_risk_engine", lambda **kwargs: (False, "core_due"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.runtime_support,
+        "serving_refresh_skip_risk_engine",
+        lambda **kwargs: (False, "core_due"),
+    )
     monkeypatch.setattr(
         run_model_pipeline_module.core_reads.config,
         "neon_surface_enabled",
@@ -1475,7 +1502,7 @@ def test_temporary_runtime_paths_updates_core_reads_data_db(
     new_cache_db.touch()
     original = run_model_pipeline_module.core_reads.DATA_DB
 
-    with run_model_pipeline_module._temporary_runtime_paths(
+    with run_model_pipeline_module.runtime_support.temporary_runtime_paths(
         data_db=new_data_db,
         cache_db=new_cache_db,
     ):

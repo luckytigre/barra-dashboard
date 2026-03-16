@@ -1,23 +1,22 @@
-"""Relational persistence for Layer B model outputs."""
+"""Durable model-output persistence facade."""
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from backend import config
-from backend.data.neon import connect, resolve_dsn
-
-
-_CANONICAL_SCHEMA_SQL = (
-    Path(__file__).resolve().parents[2] / "docs" / "migrations" / "neon" / "NEON_CANONICAL_SCHEMA.sql"
+from backend.data import (
+    model_output_payloads as payloads,
+    model_output_schema as schema,
+    model_output_state as state,
+    model_output_writers as writers,
 )
+from backend.data.neon import connect, resolve_dsn
 
 
 def _neon_model_output_writes_enabled() -> bool:
@@ -30,399 +29,6 @@ def _neon_model_output_writes_required() -> bool:
         and config.neon_primary_model_data_enabled()
     )
 
-def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
-    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
-    return {str(r[1]) for r in rows}
-
-
-def _drop_if_columns_missing(conn: sqlite3.Connection, *, table: str, required: set[str]) -> None:
-    cols = _table_columns(conn, table)
-    if cols and not required.issubset(cols):
-        conn.execute(f"DROP TABLE IF EXISTS {table}")
-
-
-def _ensure_schema(conn: sqlite3.Connection) -> None:
-    _drop_if_columns_missing(
-        conn,
-        table="model_factor_returns_daily",
-        required={"date", "factor_name", "factor_return", "robust_se", "t_stat", "r_squared", "residual_vol", "run_id", "updated_at"},
-    )
-    _drop_if_columns_missing(
-        conn,
-        table="model_specific_risk_daily",
-        required={"as_of_date", "ric", "ticker", "specific_var", "specific_vol", "obs", "trbc_business_sector", "run_id", "updated_at"},
-    )
-
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS model_factor_returns_daily (
-            date TEXT NOT NULL,
-            factor_name TEXT NOT NULL,
-            factor_return REAL NOT NULL,
-            robust_se REAL NOT NULL DEFAULT 0.0,
-            t_stat REAL NOT NULL DEFAULT 0.0,
-            r_squared REAL NOT NULL,
-            residual_vol REAL NOT NULL,
-            cross_section_n INTEGER NOT NULL DEFAULT 0,
-            eligible_n INTEGER NOT NULL DEFAULT 0,
-            coverage REAL NOT NULL DEFAULT 0.0,
-            run_id TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (date, factor_name)
-        )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS model_factor_covariance_daily (
-            as_of_date TEXT NOT NULL,
-            factor_name TEXT NOT NULL,
-            factor_name_2 TEXT NOT NULL,
-            covariance REAL NOT NULL,
-            run_id TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (as_of_date, factor_name, factor_name_2)
-        )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS model_specific_risk_daily (
-            as_of_date TEXT NOT NULL,
-            ric TEXT NOT NULL,
-            ticker TEXT,
-            specific_var REAL NOT NULL,
-            specific_vol REAL NOT NULL,
-            obs INTEGER NOT NULL DEFAULT 0,
-            trbc_business_sector TEXT,
-            run_id TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY (as_of_date, ric)
-        )
-        """
-    )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS model_run_metadata (
-            run_id TEXT PRIMARY KEY,
-            refresh_mode TEXT NOT NULL,
-            status TEXT NOT NULL,
-            started_at TEXT NOT NULL,
-            completed_at TEXT NOT NULL,
-            factor_returns_asof TEXT,
-            source_dates_json TEXT NOT NULL,
-            params_json TEXT NOT NULL,
-            risk_engine_state_json TEXT NOT NULL,
-            row_counts_json TEXT NOT NULL,
-            error_type TEXT,
-            error_message TEXT,
-            updated_at TEXT NOT NULL
-        )
-        """
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_factor_returns_daily_date ON model_factor_returns_daily(date)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_factor_covariance_daily_asof ON model_factor_covariance_daily(as_of_date)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_specific_risk_daily_asof ON model_specific_risk_daily(as_of_date)"
-    )
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_model_run_metadata_completed ON model_run_metadata(completed_at)"
-    )
-    # Residual history is intentionally cache-only (daily_specific_residuals in cache.db).
-    # Remove deprecated duplicated persistence table from data.db when present.
-    conn.execute("DROP TABLE IF EXISTS model_specific_residuals_daily")
-
-
-def _load_factor_returns(cache_db: Path, *, date_from: str | None = None) -> pd.DataFrame:
-    conn = sqlite3.connect(str(cache_db))
-    try:
-        cols = _table_columns(conn, "daily_factor_returns")
-        if not cols:
-            return pd.DataFrame()
-        coverage_col = "coverage" if "coverage" in cols else None
-        cross_col = "cross_section_n" if "cross_section_n" in cols else None
-        elig_col = "eligible_n" if "eligible_n" in cols else None
-        where_sql = ""
-        params: list[Any] = []
-        if date_from:
-            where_sql = "WHERE date >= ?"
-            params.append(str(date_from))
-        df = pd.read_sql_query(
-            f"""
-            SELECT
-                date,
-                factor_name,
-                factor_return,
-                {('robust_se' if 'robust_se' in cols else '0.0')} AS robust_se,
-                {('t_stat' if 't_stat' in cols else '0.0')} AS t_stat,
-                r_squared,
-                residual_vol,
-                {cross_col if cross_col else '0'} AS cross_section_n,
-                {elig_col if elig_col else '0'} AS eligible_n,
-                {coverage_col if coverage_col else '0.0'} AS coverage
-            FROM daily_factor_returns
-            {where_sql}
-            ORDER BY date, factor_name
-            """,
-            conn,
-            params=params,
-        )
-    finally:
-        conn.close()
-    if df.empty:
-        return df
-    df["date"] = df["date"].astype(str)
-    df["factor_name"] = df["factor_name"].astype(str)
-    for col in ["factor_return", "robust_se", "t_stat", "r_squared", "residual_vol", "coverage"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").replace([np.inf, -np.inf], np.nan)
-    for col in ["cross_section_n", "eligible_n"]:
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
-    return df.dropna(subset=["date", "factor_name", "factor_return", "r_squared", "residual_vol"])
-
-
-def _upsert_factor_returns(
-    conn: sqlite3.Connection,
-    *,
-    rows: pd.DataFrame,
-    run_id: str,
-    updated_at: str,
-) -> int:
-    if rows.empty:
-        return 0
-    min_date = str(rows["date"].min())
-    conn.execute("DELETE FROM model_factor_returns_daily WHERE date >= ?", (min_date,))
-    payload = [
-        (
-            str(r.date),
-            str(r.factor_name),
-            float(r.factor_return),
-            float(r.robust_se),
-            float(r.t_stat),
-            float(r.r_squared),
-            float(r.residual_vol),
-            int(r.cross_section_n),
-            int(r.eligible_n),
-            float(r.coverage),
-            run_id,
-            updated_at,
-        )
-        for r in rows.itertuples(index=False)
-    ]
-    conn.executemany(
-        """
-        INSERT OR REPLACE INTO model_factor_returns_daily (
-            date, factor_name, factor_return, robust_se, t_stat, r_squared, residual_vol,
-            cross_section_n, eligible_n, coverage, run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        payload,
-    )
-    return len(payload)
-
-
-def _upsert_covariance(
-    conn: sqlite3.Connection,
-    *,
-    as_of_date: str,
-    cov: pd.DataFrame,
-    run_id: str,
-    updated_at: str,
-) -> int:
-    if cov is None or cov.empty:
-        return 0
-    factors = [str(c) for c in cov.columns]
-    placeholders = ",".join("?" for _ in factors)
-    if placeholders:
-        conn.execute(
-            f"""
-            DELETE FROM model_factor_covariance_daily
-            WHERE factor_name NOT IN ({placeholders})
-               OR factor_name_2 NOT IN ({placeholders})
-            """,
-            [*factors, *factors],
-        )
-    conn.execute("DELETE FROM model_factor_covariance_daily WHERE as_of_date = ?", (as_of_date,))
-    payload: list[tuple[Any, ...]] = []
-    for f1 in factors:
-        for f2 in factors:
-            payload.append(
-                (
-                    as_of_date,
-                    f1,
-                    f2,
-                    float(cov.loc[f1, f2]),
-                    run_id,
-                    updated_at,
-                )
-            )
-    conn.executemany(
-        """
-        INSERT OR REPLACE INTO model_factor_covariance_daily (
-            as_of_date, factor_name, factor_name_2, covariance, run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        payload,
-    )
-    return len(payload)
-
-
-def _upsert_specific_risk(
-    conn: sqlite3.Connection,
-    *,
-    as_of_date: str,
-    specific_risk_by_ticker: dict[str, dict[str, float | int | str]],
-    run_id: str,
-    updated_at: str,
-) -> int:
-    if not specific_risk_by_ticker:
-        return 0
-    conn.execute("DELETE FROM model_specific_risk_daily WHERE as_of_date = ?", (as_of_date,))
-    payload: list[tuple[Any, ...]] = []
-    for key, row in specific_risk_by_ticker.items():
-        ric = str(row.get("ric") or key or "").upper().strip()
-        ticker = str(row.get("ticker") or "").upper().strip()
-        if not ric:
-            continue
-        spec_var = float(row.get("specific_var", 0.0) or 0.0)
-        spec_vol = float(row.get("specific_vol", 0.0) or 0.0)
-        obs = int(row.get("obs", 0) or 0)
-        business_sector = str(row.get("trbc_business_sector") or "").strip()
-        payload.append(
-            (
-                as_of_date,
-                ric,
-                ticker or None,
-                spec_var,
-                spec_vol,
-                obs,
-                business_sector,
-                run_id,
-                updated_at,
-            )
-        )
-    if not payload:
-        return 0
-    conn.executemany(
-        """
-        INSERT OR REPLACE INTO model_specific_risk_daily (
-            as_of_date, ric, ticker, specific_var, specific_vol, obs, trbc_business_sector, run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        payload,
-    )
-    return len(payload)
-
-
-def _latest_date(conn: sqlite3.Connection, *, table: str, col: str) -> str | None:
-    row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
-    if not row or row[0] is None:
-        return None
-    return str(row[0])
-
-
-def _latest_risk_engine_state(conn: sqlite3.Connection) -> dict[str, Any]:
-    row = conn.execute(
-        """
-        SELECT risk_engine_state_json
-        FROM model_run_metadata
-        WHERE status = 'ok'
-        ORDER BY completed_at DESC, updated_at DESC
-        LIMIT 1
-        """
-    ).fetchone()
-    if not row or row[0] is None:
-        return {}
-    try:
-        decoded = json.loads(str(row[0]))
-    except Exception:
-        return {}
-    return decoded if isinstance(decoded, dict) else {}
-
-
-def _factor_returns_load_start_from_state(
-    *,
-    latest_persisted_date: str | None,
-    previous_state: dict[str, Any],
-    as_of_date: str,
-    risk_engine_state: dict[str, Any],
-) -> tuple[str | None, str]:
-    if not latest_persisted_date:
-        return None, "full"
-
-    previous_method_version = str(previous_state.get("method_version") or "").strip()
-    current_method_version = str(risk_engine_state.get("method_version") or "").strip()
-    if current_method_version and previous_method_version and current_method_version != previous_method_version:
-        return None, "full"
-    if current_method_version and not previous_method_version:
-        return None, "full"
-
-    if as_of_date and as_of_date < latest_persisted_date:
-        return str(as_of_date), "incremental"
-    return str(latest_persisted_date), "incremental"
-
-
-def _factor_returns_load_start_sqlite(
-    conn: sqlite3.Connection,
-    *,
-    as_of_date: str,
-    risk_engine_state: dict[str, Any],
-) -> tuple[str | None, str]:
-    return _factor_returns_load_start_from_state(
-        latest_persisted_date=_latest_date(conn, table="model_factor_returns_daily", col="date"),
-        previous_state=_latest_risk_engine_state(conn),
-        as_of_date=as_of_date,
-        risk_engine_state=risk_engine_state,
-    )
-
-
-def _pg_latest_date(pg_conn, *, table: str, col: str) -> str | None:
-    with pg_conn.cursor() as cur:
-        cur.execute(f"SELECT MAX({col})::text FROM {table}")
-        row = cur.fetchone()
-    if not row or row[0] is None:
-        return None
-    return str(row[0])
-
-
-def _pg_latest_risk_engine_state(pg_conn) -> dict[str, Any]:
-    with pg_conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT risk_engine_state_json
-            FROM model_run_metadata
-            WHERE status = 'ok'
-            ORDER BY completed_at DESC, updated_at DESC
-            LIMIT 1
-            """
-        )
-        row = cur.fetchone()
-    if not row or row[0] is None:
-        return {}
-    try:
-        decoded = json.loads(str(row[0]))
-    except Exception:
-        return {}
-    return decoded if isinstance(decoded, dict) else {}
-
-
-def _factor_returns_load_start_postgres(
-    pg_conn,
-    *,
-    as_of_date: str,
-    risk_engine_state: dict[str, Any],
-) -> tuple[str | None, str]:
-    return _factor_returns_load_start_from_state(
-        latest_persisted_date=_pg_latest_date(pg_conn, table="model_factor_returns_daily", col="date"),
-        previous_state=_pg_latest_risk_engine_state(pg_conn),
-        as_of_date=as_of_date,
-        risk_engine_state=risk_engine_state,
-    )
-
-
 def load_latest_persisted_risk_engine_state() -> dict[str, Any]:
     data_db = Path(config.DATA_DB_PATH)
     if not data_db.exists():
@@ -430,8 +36,8 @@ def load_latest_persisted_risk_engine_state() -> dict[str, Any]:
     else:
         conn = sqlite3.connect(str(data_db))
         try:
-            _ensure_schema(conn)
-            local_state = _latest_risk_engine_state(conn)
+            schema.ensure_schema(conn)
+            local_state = state.latest_risk_engine_state(conn)
         finally:
             conn.close()
         if local_state:
@@ -440,348 +46,12 @@ def load_latest_persisted_risk_engine_state() -> dict[str, Any]:
         try:
             conn = connect(dsn=resolve_dsn(None), autocommit=True)
             try:
-                return _pg_latest_risk_engine_state(conn)
+                return state.pg_latest_risk_engine_state(conn)
             finally:
                 conn.close()
         except Exception:
             pass
     return {}
-
-
-def _factor_returns_payload(
-    *,
-    rows: pd.DataFrame,
-    run_id: str,
-    updated_at: str,
-) -> list[tuple[Any, ...]]:
-    if rows.empty:
-        return []
-    return [
-        (
-            str(r.date),
-            str(r.factor_name),
-            float(r.factor_return),
-            float(r.robust_se),
-            float(r.t_stat),
-            float(r.r_squared),
-            float(r.residual_vol),
-            int(r.cross_section_n),
-            int(r.eligible_n),
-            float(r.coverage),
-            run_id,
-            updated_at,
-        )
-        for r in rows.itertuples(index=False)
-    ]
-
-
-def _covariance_payload(
-    *,
-    as_of_date: str,
-    cov: pd.DataFrame,
-    run_id: str,
-    updated_at: str,
-) -> tuple[list[str], list[tuple[Any, ...]]]:
-    if cov is None or cov.empty:
-        return [], []
-    factors = [str(c) for c in cov.columns]
-    payload: list[tuple[Any, ...]] = []
-    for f1 in factors:
-        for f2 in factors:
-            payload.append(
-                (
-                    as_of_date,
-                    f1,
-                    f2,
-                    float(cov.loc[f1, f2]),
-                    run_id,
-                    updated_at,
-                )
-            )
-    return factors, payload
-
-
-def _specific_risk_payload(
-    *,
-    as_of_date: str,
-    specific_risk_by_ticker: dict[str, dict[str, float | int | str]],
-    run_id: str,
-    updated_at: str,
-) -> list[tuple[Any, ...]]:
-    if not specific_risk_by_ticker:
-        return []
-    payload: list[tuple[Any, ...]] = []
-    for key, row in specific_risk_by_ticker.items():
-        ric = str(row.get("ric") or key or "").upper().strip()
-        ticker = str(row.get("ticker") or "").upper().strip()
-        if not ric:
-            continue
-        payload.append(
-            (
-                as_of_date,
-                ric,
-                ticker or None,
-                float(row.get("specific_var", 0.0) or 0.0),
-                float(row.get("specific_vol", 0.0) or 0.0),
-                int(row.get("obs", 0) or 0),
-                str(row.get("trbc_business_sector") or "").strip() or None,
-                run_id,
-                updated_at,
-            )
-        )
-    return payload
-
-
-def _quality_gate_errors(
-    *,
-    status: str,
-    n_factor: int,
-    n_cov: int,
-    n_spec: int,
-) -> list[str]:
-    quality_errors: list[str] = []
-    if str(status).lower() == "ok":
-        if n_factor <= 0:
-            quality_errors.append("factor_returns_empty")
-        if n_cov <= 0:
-            quality_errors.append("factor_covariance_empty")
-        if n_spec <= 0:
-            quality_errors.append("specific_risk_empty")
-    return quality_errors
-
-
-def _metadata_values(
-    *,
-    run_id: str,
-    refresh_mode: str,
-    status: str,
-    started_at: str,
-    completed_at: str,
-    factor_returns_asof: str,
-    source_dates: dict[str, Any],
-    params: dict[str, Any],
-    risk_engine_state: dict[str, Any],
-    row_counts: dict[str, int],
-    error: dict[str, str] | None,
-    updated_at: str,
-) -> tuple[Any, ...]:
-    return (
-        run_id,
-        str(refresh_mode),
-        str(status),
-        str(started_at),
-        str(completed_at),
-        factor_returns_asof,
-        json.dumps(source_dates or {}, sort_keys=True),
-        json.dumps(params or {}, sort_keys=True),
-        json.dumps(risk_engine_state or {}, sort_keys=True),
-        json.dumps(row_counts, sort_keys=True),
-        (error or {}).get("type"),
-        (error or {}).get("message"),
-        updated_at,
-    )
-
-
-def _ensure_postgres_schema(pg_conn) -> None:
-    script = _CANONICAL_SCHEMA_SQL.read_text(encoding="utf-8")
-    with pg_conn.cursor() as cur:
-        cur.execute(script)
-
-
-def _write_model_outputs_sqlite(
-    conn: sqlite3.Connection,
-    *,
-    factor_returns_payload: list[tuple[Any, ...]],
-    factor_returns_min_date: str | None,
-    covariance_factors: list[str],
-    covariance_payload: list[tuple[Any, ...]],
-    specific_risk_payload: list[tuple[Any, ...]],
-    metadata_values: tuple[Any, ...],
-    as_of_date: str,
-) -> dict[str, Any]:
-    _ensure_schema(conn)
-    if factor_returns_payload and factor_returns_min_date:
-        conn.execute("DELETE FROM model_factor_returns_daily WHERE date >= ?", (factor_returns_min_date,))
-        conn.executemany(
-            """
-            INSERT OR REPLACE INTO model_factor_returns_daily (
-                date, factor_name, factor_return, robust_se, t_stat, r_squared, residual_vol,
-                cross_section_n, eligible_n, coverage, run_id, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            factor_returns_payload,
-        )
-
-    if covariance_payload:
-        if covariance_factors:
-            placeholders = ",".join("?" for _ in covariance_factors)
-            conn.execute(
-                f"""
-                DELETE FROM model_factor_covariance_daily
-                WHERE factor_name NOT IN ({placeholders})
-                   OR factor_name_2 NOT IN ({placeholders})
-                """,
-                [*covariance_factors, *covariance_factors],
-            )
-        conn.execute("DELETE FROM model_factor_covariance_daily WHERE as_of_date = ?", (as_of_date,))
-        conn.executemany(
-            """
-            INSERT OR REPLACE INTO model_factor_covariance_daily (
-                as_of_date, factor_name, factor_name_2, covariance, run_id, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            covariance_payload,
-        )
-
-    if specific_risk_payload:
-        conn.execute("DELETE FROM model_specific_risk_daily WHERE as_of_date = ?", (as_of_date,))
-        conn.executemany(
-            """
-            INSERT OR REPLACE INTO model_specific_risk_daily (
-                as_of_date, ric, ticker, specific_var, specific_vol, obs, trbc_business_sector, run_id, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            specific_risk_payload,
-        )
-
-    conn.execute(
-        """
-        INSERT OR REPLACE INTO model_run_metadata (
-            run_id,
-            refresh_mode,
-            status,
-            started_at,
-            completed_at,
-            factor_returns_asof,
-            source_dates_json,
-            params_json,
-            risk_engine_state_json,
-            row_counts_json,
-            error_type,
-            error_message,
-            updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        metadata_values,
-    )
-    conn.commit()
-    return {"status": "ok"}
-
-
-def _write_model_outputs_postgres(
-    pg_conn,
-    *,
-    factor_returns_payload: list[tuple[Any, ...]],
-    factor_returns_min_date: str | None,
-    covariance_factors: list[str],
-    covariance_payload: list[tuple[Any, ...]],
-    specific_risk_payload: list[tuple[Any, ...]],
-    metadata_values: tuple[Any, ...],
-    as_of_date: str,
-) -> dict[str, Any]:
-    _ensure_postgres_schema(pg_conn)
-    with pg_conn.cursor() as cur:
-        if factor_returns_payload and factor_returns_min_date:
-            cur.execute("DELETE FROM model_factor_returns_daily WHERE date >= %s", (factor_returns_min_date,))
-            cur.executemany(
-                """
-                INSERT INTO model_factor_returns_daily (
-                    date, factor_name, factor_return, robust_se, t_stat, r_squared, residual_vol,
-                    cross_section_n, eligible_n, coverage, run_id, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date, factor_name) DO UPDATE SET
-                    factor_return = EXCLUDED.factor_return,
-                    robust_se = EXCLUDED.robust_se,
-                    t_stat = EXCLUDED.t_stat,
-                    r_squared = EXCLUDED.r_squared,
-                    residual_vol = EXCLUDED.residual_vol,
-                    cross_section_n = EXCLUDED.cross_section_n,
-                    eligible_n = EXCLUDED.eligible_n,
-                    coverage = EXCLUDED.coverage,
-                    run_id = EXCLUDED.run_id,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                factor_returns_payload,
-            )
-
-        if covariance_payload:
-            if covariance_factors:
-                cur.execute(
-                    """
-                    DELETE FROM model_factor_covariance_daily
-                    WHERE factor_name <> ALL(%s)
-                       OR factor_name_2 <> ALL(%s)
-                    """,
-                    (covariance_factors, covariance_factors),
-                )
-            cur.execute("DELETE FROM model_factor_covariance_daily WHERE as_of_date = %s", (as_of_date,))
-            cur.executemany(
-                """
-                INSERT INTO model_factor_covariance_daily (
-                    as_of_date, factor_name, factor_name_2, covariance, run_id, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (as_of_date, factor_name, factor_name_2) DO UPDATE SET
-                    covariance = EXCLUDED.covariance,
-                    run_id = EXCLUDED.run_id,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                covariance_payload,
-            )
-
-        if specific_risk_payload:
-            cur.execute("DELETE FROM model_specific_risk_daily WHERE as_of_date = %s", (as_of_date,))
-            cur.executemany(
-                """
-                INSERT INTO model_specific_risk_daily (
-                    as_of_date, ric, ticker, specific_var, specific_vol, obs, trbc_business_sector, run_id, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (as_of_date, ric) DO UPDATE SET
-                    ticker = EXCLUDED.ticker,
-                    specific_var = EXCLUDED.specific_var,
-                    specific_vol = EXCLUDED.specific_vol,
-                    obs = EXCLUDED.obs,
-                    trbc_business_sector = EXCLUDED.trbc_business_sector,
-                    run_id = EXCLUDED.run_id,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                specific_risk_payload,
-            )
-
-        cur.execute(
-            """
-            INSERT INTO model_run_metadata (
-                run_id,
-                refresh_mode,
-                status,
-                started_at,
-                completed_at,
-                factor_returns_asof,
-                source_dates_json,
-                params_json,
-                risk_engine_state_json,
-                row_counts_json,
-                error_type,
-                error_message,
-                updated_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (run_id) DO UPDATE SET
-                refresh_mode = EXCLUDED.refresh_mode,
-                status = EXCLUDED.status,
-                started_at = EXCLUDED.started_at,
-                completed_at = EXCLUDED.completed_at,
-                factor_returns_asof = EXCLUDED.factor_returns_asof,
-                source_dates_json = EXCLUDED.source_dates_json,
-                params_json = EXCLUDED.params_json,
-                risk_engine_state_json = EXCLUDED.risk_engine_state_json,
-                row_counts_json = EXCLUDED.row_counts_json,
-                error_type = EXCLUDED.error_type,
-                error_message = EXCLUDED.error_message,
-                updated_at = EXCLUDED.updated_at
-            """,
-            metadata_values,
-        )
-    pg_conn.commit()
-    return {"status": "ok"}
 
 
 def persist_model_outputs(
@@ -814,8 +84,8 @@ def persist_model_outputs(
         try:
             pg_conn = connect(dsn=resolve_dsn(None), autocommit=False)
             try:
-                _ensure_postgres_schema(pg_conn)
-                factor_returns_date_from, factor_returns_mode = _factor_returns_load_start_postgres(
+                writers.ensure_postgres_schema(pg_conn)
+                factor_returns_date_from, factor_returns_mode = state.factor_returns_load_start_postgres(
                     pg_conn,
                     as_of_date=as_of_date,
                     risk_engine_state=risk_engine_state,
@@ -830,8 +100,8 @@ def persist_model_outputs(
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA busy_timeout=120000")
             try:
-                _ensure_schema(conn)
-                factor_returns_date_from, factor_returns_mode = _factor_returns_load_start_sqlite(
+                schema.ensure_schema(conn)
+                factor_returns_date_from, factor_returns_mode = state.factor_returns_load_start_sqlite(
                     conn,
                     as_of_date=as_of_date,
                     risk_engine_state=risk_engine_state,
@@ -844,8 +114,8 @@ def persist_model_outputs(
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=120000")
         try:
-            _ensure_schema(conn)
-            factor_returns_date_from, factor_returns_mode = _factor_returns_load_start_sqlite(
+            schema.ensure_schema(conn)
+            factor_returns_date_from, factor_returns_mode = state.factor_returns_load_start_sqlite(
                 conn,
                 as_of_date=as_of_date,
                 risk_engine_state=risk_engine_state,
@@ -853,20 +123,20 @@ def persist_model_outputs(
         finally:
             conn.close()
 
-    factor_returns = _load_factor_returns(cache_db, date_from=factor_returns_date_from)
-    factor_returns_payload = _factor_returns_payload(
+    factor_returns = payloads.load_factor_returns(cache_db, date_from=factor_returns_date_from)
+    factor_returns_payload = payloads.factor_returns_payload(
         rows=factor_returns,
         run_id=run_id,
         updated_at=now_iso,
     )
     factor_returns_min_date = str(factor_returns["date"].min()) if not factor_returns.empty else None
-    covariance_factors, covariance_payload = _covariance_payload(
+    covariance_factors, covariance_payload = payloads.covariance_payload(
         as_of_date=as_of_date,
         cov=cov,
         run_id=run_id,
         updated_at=now_iso,
     )
-    specific_risk_payload = _specific_risk_payload(
+    specific_risk_payload = payloads.specific_risk_payload(
         as_of_date=as_of_date,
         specific_risk_by_ticker=specific_risk_by_ticker,
         run_id=run_id,
@@ -877,7 +147,7 @@ def persist_model_outputs(
         "model_factor_covariance_daily": int(len(covariance_payload)),
         "model_specific_risk_daily": int(len(specific_risk_payload)),
     }
-    quality_errors = _quality_gate_errors(
+    quality_errors = payloads.quality_gate_errors(
         status=str(status),
         n_factor=row_counts["model_factor_returns_daily"],
         n_cov=row_counts["model_factor_covariance_daily"],
@@ -890,7 +160,7 @@ def persist_model_outputs(
             "type": "quality_gate_failed",
             "message": " | ".join(quality_errors),
         }
-    metadata_values = _metadata_values(
+    metadata_values = payloads.metadata_values(
         run_id=run_id,
         refresh_mode=refresh_mode,
         status=effective_status,
@@ -913,7 +183,7 @@ def persist_model_outputs(
         authority_store = "neon"
         pg_conn = connect(dsn=resolve_dsn(None), autocommit=False)
         try:
-            neon_write = _write_model_outputs_postgres(
+            neon_write = writers.write_model_outputs_postgres(
                 pg_conn,
                 factor_returns_payload=factor_returns_payload,
                 factor_returns_min_date=factor_returns_min_date,
@@ -950,7 +220,7 @@ def persist_model_outputs(
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.execute("PRAGMA busy_timeout=120000")
             try:
-                sqlite_mirror_write = _write_model_outputs_sqlite(
+                sqlite_mirror_write = writers.write_model_outputs_sqlite(
                     conn,
                     factor_returns_payload=factor_returns_payload,
                     factor_returns_min_date=factor_returns_min_date,
@@ -976,7 +246,7 @@ def persist_model_outputs(
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA busy_timeout=120000")
         try:
-            sqlite_mirror_write = _write_model_outputs_sqlite(
+            sqlite_mirror_write = writers.write_model_outputs_sqlite(
                 conn,
                 factor_returns_payload=factor_returns_payload,
                 factor_returns_min_date=factor_returns_min_date,

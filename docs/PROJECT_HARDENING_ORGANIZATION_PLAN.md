@@ -2,7 +2,9 @@
 
 Date: 2026-03-16
 Owner: Codex
-Status: Active audit-driven hardening plan
+Status: Completed precursor to `docs/architecture/restructure-plan.md`
+
+This file is kept for context. Use `docs/architecture/restructure-plan.md` as the active repository-structure tracker.
 
 ## Purpose
 

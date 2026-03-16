@@ -11,10 +11,6 @@ import numpy as np
 import pandas as pd
 
 from backend import config
-from backend.analytics.refresh_policy import (
-    latest_factor_return_date as _latest_factor_return_date_impl,
-    risk_recompute_due as _risk_recompute_due_impl,
-)
 from backend.analytics.contracts import (
     ComponentSharesPayload,
     CovarianceMatrixPayload,
@@ -31,6 +27,7 @@ from backend.analytics.contracts import (
     SpecificRiskPayload,
     UniverseLoadingsPayload,
 )
+from backend.analytics import publish_payloads, refresh_context, refresh_persistence, reuse_policy
 from backend.analytics.services.cache_publisher import stage_refresh_cache_snapshot
 from backend.analytics.services.risk_views import (
     build_positions_from_universe as _build_positions_from_universe_impl,
@@ -62,39 +59,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
-RISK_ENGINE_METHOD_VERSION = "v8_use4_us_core_market_one_stage_projected_non_us_2026_03_15"
-_UNIVERSE_REUSE_RISK_KEYS = (
-    "status",
-    "method_version",
-    "last_recompute_date",
-    "factor_returns_latest_date",
-    "cross_section_min_age_days",
-    "lookback_days",
-    "specific_risk_ticker_count",
-)
-_PUBLISH_ONLY_PAYLOAD_NAMES = (
-    "eligibility",
-    "exposures",
-    "health_diagnostics",
-    "model_sanity",
-    "portfolio",
-    "refresh_meta",
-    "risk",
-    "risk_engine_cov",
-    "risk_engine_specific_risk",
-    "universe_factors",
-    "universe_loadings",
-)
-_PUBLISH_METADATA_PAYLOAD_NAMES = {
-    "exposures",
-    "health_diagnostics",
-    "model_sanity",
-    "portfolio",
-    "refresh_meta",
-    "risk",
-    "universe_factors",
-    "universe_loadings",
-}
+RISK_ENGINE_METHOD_VERSION = refresh_context.RISK_ENGINE_METHOD_VERSION
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -106,47 +71,15 @@ def _finite_float(value: Any, default: float = 0.0) -> float:
 
 
 def _risk_engine_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
-    meta = dict(payload or {})
-    return {key: meta.get(key) for key in _UNIVERSE_REUSE_RISK_KEYS}
-
-
-def _risk_engine_meta_score(payload: dict[str, Any] | None) -> tuple[int, str, str, int]:
-    meta = dict(payload or {})
-    return (
-        1 if str(meta.get("method_version") or "") == str(RISK_ENGINE_METHOD_VERSION) else 0,
-        str(meta.get("factor_returns_latest_date") or ""),
-        str(meta.get("last_recompute_date") or ""),
-        int(meta.get("specific_risk_ticker_count") or 0),
-    )
-
+    return refresh_context.risk_engine_reuse_signature(payload)
 
 def _resolve_effective_risk_engine_meta(
     *,
     fallback_loader,
 ) -> tuple[RiskEngineMetaPayload, str]:
-    runtime_meta = runtime_state.load_runtime_state(
-        "risk_engine_meta",
+    return refresh_context.resolve_effective_risk_engine_meta(
         fallback_loader=fallback_loader,
-    ) or {}
-    persisted_meta = model_outputs.load_latest_persisted_risk_engine_state() or {}
-    runtime_score = _risk_engine_meta_score(runtime_meta)
-    persisted_score = _risk_engine_meta_score(persisted_meta)
-    if persisted_score > runtime_score:
-        return persisted_meta, "model_run_metadata"
-    return runtime_meta, "runtime_state"
-
-
-def _source_dates_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
-    source_dates = dict(payload or {})
-    return {
-        "fundamentals_asof": source_dates.get("fundamentals_asof"),
-        "classification_asof": source_dates.get("classification_asof"),
-        "prices_asof": source_dates.get("prices_asof"),
-        "exposures_latest_available_asof": (
-            source_dates.get("exposures_latest_available_asof")
-            or source_dates.get("exposures_asof")
-        ),
-    }
+    )
 
 
 def _can_reuse_cached_universe_loadings(
@@ -155,45 +88,23 @@ def _can_reuse_cached_universe_loadings(
     source_dates: SourceDatesPayload,
     risk_engine_meta: RiskEngineMetaPayload,
 ) -> tuple[bool, str]:
-    if not isinstance(cached_payload, dict):
-        return False, "missing_cached_payload"
-    by_ticker = cached_payload.get("by_ticker")
-    if not isinstance(by_ticker, dict) or not by_ticker:
-        return False, "missing_by_ticker"
-    cached_source_dates = cached_payload.get("source_dates")
-    if not isinstance(cached_source_dates, dict):
-        return False, "missing_cached_source_dates"
-    if _source_dates_reuse_signature(cached_source_dates) != _source_dates_reuse_signature(source_dates):
-        return False, "source_dates_changed"
-    cached_risk = cached_payload.get("risk_engine")
-    if not isinstance(cached_risk, dict):
-        return False, "missing_cached_risk_engine"
-    if _risk_engine_reuse_signature(cached_risk) != _risk_engine_reuse_signature(risk_engine_meta):
-        return False, "risk_engine_state_changed"
-    return True, "source_and_risk_engine_match"
-
-
-def _load_cached_risk_display_payload() -> CovarianceMatrixPayload | None:
-    cached_risk = sqlite.cache_get("risk")
-    if not isinstance(cached_risk, dict):
-        return None
-    cov_matrix = cached_risk.get("cov_matrix")
-    if not isinstance(cov_matrix, dict):
-        return None
-    return dict(cov_matrix)
-
-
-def _risk_recompute_due(meta: dict[str, Any], *, today_utc: date) -> tuple[bool, str]:
-    return _risk_recompute_due_impl(
-        meta,
-        today_utc=today_utc,
-        method_version=RISK_ENGINE_METHOD_VERSION,
-        interval_days=config.RISK_RECOMPUTE_INTERVAL_DAYS,
+    return reuse_policy.can_reuse_cached_universe_loadings(
+        cached_payload,
+        source_dates=source_dates,
+        risk_engine_meta=risk_engine_meta,
     )
 
 
+def _load_cached_risk_display_payload() -> CovarianceMatrixPayload | None:
+    return reuse_policy.load_cached_risk_display_payload()
+
+
+def _risk_recompute_due(meta: dict[str, Any], *, today_utc: date) -> tuple[bool, str]:
+    return refresh_context.risk_recompute_due(meta, today_utc=today_utc)
+
+
 def _latest_factor_return_date(cache_db: Path) -> str | None:
-    return _latest_factor_return_date_impl(cache_db)
+    return refresh_context.latest_factor_return_date(cache_db)
 
 
 def _serialize_covariance(cov: pd.DataFrame) -> CovariancePayload:
@@ -208,18 +119,7 @@ def _serialize_covariance(cov: pd.DataFrame) -> CovariancePayload:
 
 
 def _load_publishable_payloads() -> tuple[dict[str, Any], list[str]]:
-    payloads: dict[str, Any] = {}
-    missing: list[str] = []
-    for payload_name in _PUBLISH_ONLY_PAYLOAD_NAMES:
-        payload = serving_outputs.load_runtime_payload(
-            payload_name,
-            fallback_loader=sqlite.cache_get,
-        )
-        if payload is None:
-            missing.append(payload_name)
-            continue
-        payloads[payload_name] = payload
-    return payloads, missing
+    return publish_payloads.load_publishable_payloads()
 
 
 def _restamp_publishable_payloads(
@@ -229,33 +129,16 @@ def _restamp_publishable_payloads(
     snapshot_id: str,
     refresh_started_at: str,
 ) -> dict[str, Any]:
-    restamped: dict[str, Any] = {}
-    for payload_name, payload in payloads.items():
-        if payload_name not in _PUBLISH_METADATA_PAYLOAD_NAMES or not isinstance(payload, dict):
-            restamped[payload_name] = payload
-            continue
-        stamped = dict(payload)
-        stamped["run_id"] = str(run_id)
-        stamped["snapshot_id"] = str(snapshot_id)
-        stamped["refresh_started_at"] = str(refresh_started_at)
-        restamped[payload_name] = stamped
-    return restamped
+    return publish_payloads.restamp_publishable_payloads(
+        payloads,
+        run_id=run_id,
+        snapshot_id=snapshot_id,
+        refresh_started_at=refresh_started_at,
+    )
 
 
 def _deserialize_covariance(payload: Any) -> pd.DataFrame:
-    if not isinstance(payload, dict):
-        return pd.DataFrame()
-    factors = [str(f) for f in (payload.get("factors") or []) if str(f).strip()]
-    matrix = payload.get("matrix") or []
-    if not factors or not isinstance(matrix, list):
-        return pd.DataFrame()
-    try:
-        arr = np.asarray(matrix, dtype=float)
-    except Exception:
-        return pd.DataFrame()
-    if arr.ndim != 2 or arr.shape[0] != len(factors) or arr.shape[1] != len(factors):
-        return pd.DataFrame()
-    return pd.DataFrame(arr, index=factors, columns=factors)
+    return reuse_policy.deserialize_covariance(payload)
 
 
 def _specific_risk_by_ticker_view(
@@ -796,82 +679,26 @@ def run_refresh(
     health_refresh_state = str(staged.get("health_refresh_state") or ("recomputed" if health_refreshed else "deferred"))
     persisted_payloads = dict(staged.get("persisted_payloads") or {})
 
-    model_outputs_write: dict[str, Any] = {"status": "skipped"}
-    serving_outputs_write: dict[str, Any] = {"status": "skipped"}
-    skip_model_outputs_persistence = not recomputed_this_refresh
-    try:
-        if skip_model_outputs_persistence:
-            model_outputs_write = {
-                "status": "skipped",
-                "reason": "risk_engine_reused",
-                "run_id": run_id,
-            }
-        else:
-            model_outputs_write = model_outputs.persist_model_outputs(
-                data_db=DATA_DB,
-                cache_db=CACHE_DB,
-                run_id=run_id,
-                refresh_mode=refresh_mode,
-                status="ok",
-                started_at=refresh_started_at,
-                completed_at=datetime.now(timezone.utc).isoformat(),
-                source_dates=source_dates,
-                params={
-                    "force_risk_recompute": bool(force_risk_recompute),
-                    "mode": refresh_mode,
-                    "lookback_days": int(config.LOOKBACK_DAYS),
-                    "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
-                    "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
-                    "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
-                },
-                risk_engine_state=risk_engine_state,
-                cov=cov,
-                specific_risk_by_ticker=specific_risk_by_security,
-            )
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to persist relational model outputs")
-        model_outputs_write = {
-            "status": "error",
-            "run_id": run_id,
-            "error": {"type": type(exc).__name__, "message": str(exc)},
-        }
-        sqlite.cache_set("model_outputs_write", model_outputs_write)
-        raise RuntimeError(f"Relational model output persistence failed: {type(exc).__name__}: {exc}") from exc
-    sqlite.cache_set("model_outputs_write", model_outputs_write)
-    try:
-        serving_outputs_write = serving_outputs.persist_current_payloads(
-            data_db=DATA_DB,
-            run_id=run_id,
-            snapshot_id=snapshot_id,
-            refresh_mode=refresh_mode,
-            payloads=persisted_payloads,
-            replace_all=True,
-        )
-        neon_write = serving_outputs_write.get("neon_write") if isinstance(serving_outputs_write, dict) else None
-        if (
-            config.serving_payload_neon_write_required()
-            and isinstance(neon_write, dict)
-            and str(neon_write.get("status") or "") != "ok"
-        ):
-            raise RuntimeError(f"Serving payload Neon write failed: {neon_write}")
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Failed to persist serving payloads")
-        serving_outputs_write = {
-            "status": "error",
-            "run_id": run_id,
-            "error": {"type": type(exc).__name__, "message": str(exc)},
-        }
-        sqlite.cache_set("serving_outputs_write", serving_outputs_write)
-        raise RuntimeError(f"Serving payload persistence failed: {type(exc).__name__}: {exc}") from exc
-    sqlite.cache_set("serving_outputs_write", serving_outputs_write)
-    runtime_state.persist_runtime_state(
-        "risk_engine_meta",
-        risk_engine_meta,
-        fallback_writer=lambda key, value: sqlite.cache_set(key, value),
-    )
-    runtime_state.publish_active_snapshot(
-        snapshot_id,
-        fallback_publisher=sqlite.cache_publish_snapshot,
+    model_outputs_write, serving_outputs_write = refresh_persistence.persist_refresh_outputs(
+        data_db=DATA_DB,
+        run_id=run_id,
+        snapshot_id=snapshot_id,
+        refresh_mode=refresh_mode,
+        refresh_started_at=refresh_started_at,
+        recomputed_this_refresh=bool(recomputed_this_refresh),
+        params={
+            "force_risk_recompute": bool(force_risk_recompute),
+            "mode": refresh_mode,
+            "lookback_days": int(config.LOOKBACK_DAYS),
+            "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
+            "risk_recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
+            "cross_section_snapshot_mode": str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
+        },
+        source_dates=source_dates,
+        risk_engine_state=risk_engine_state,
+        cov=cov,
+        specific_risk_by_security=specific_risk_by_security,
+        persisted_payloads=persisted_payloads,
     )
 
     logger.info("Refresh complete.")

@@ -5,12 +5,9 @@ Owner: Codex
 Status: Canonical reference document
 
 Related planning document:
-- `docs/NEON_AUTHORITATIVE_REBUILD_PLAN.md` tracks the active migration toward Neon-authoritative rebuilds with local SQLite retained as the local-only LSEG ingest/archive reservoir.
-- the same plan document now also carries the post-SQLite migration sequence for removing scratch/local SQLite from ordinary rebuild and runtime work.
-- `docs/NEON_STANDALONE_EXECUTION_PLAN.md` is the concrete phase-by-phase implementation and review program for completing that migration.
-- `docs/NEON_MAIN_PLATFORM_PLAN.md` is the focused plan for making Neon the actual main durable platform rather than a partial mirror or transitional authority.
-- `docs/NEON_LEAN_CONSOLIDATION_PLAN.md` governs the current simplification pass so the Neon migration does not accumulate unnecessary weight for a hobby tool.
-- `docs/PROJECT_HARDENING_ORGANIZATION_PLAN.md` is the active audit-driven hardening plan for consolidating truth surfaces, reducing oversized modules, and keeping docs/frontend readouts aligned with the real operating model.
+- `docs/architecture/` is the active repository-structure package. `docs/architecture/restructure-plan.md` is the live master tracker for architectural cleanup and follow-up structure work.
+- `docs/NEON_AUTHORITATIVE_REBUILD_PLAN.md`, `docs/NEON_STANDALONE_EXECUTION_PLAN.md`, and `docs/NEON_MAIN_PLATFORM_PLAN.md` are still the relevant focused Neon migration plans.
+- `docs/NEON_LEAN_CONSOLIDATION_PLAN.md`, `docs/HEALTH_DIAGNOSTICS_REFRESH_PLAN.md`, and `docs/PROJECT_HARDENING_ORGANIZATION_PLAN.md` are completed or subordinate execution notes kept for context rather than as competing master plans.
 
 ## Current Implementation Status
 
@@ -23,10 +20,16 @@ Implemented now:
 - `/api/operator/status` now distinguishes authoritative operating source dates from the local SQLite ingest/archive dates on the LSEG machine
 - `/api/operator/status` also carries backend-authoritative holdings dirty state and runtime warnings
 - operator-status and data-diagnostics payload assembly now live in dedicated backend services instead of route-local construction blocks
+- exposures, risk, and portfolio serving-payload assembly now also live in a dedicated backend service rather than route-local load/normalize blocks
+- refresh-context policy, universe-loadings reuse checks, publish-only payload stamping, and durable refresh persistence now live in dedicated analytics modules rather than inside one monolithic `analytics/pipeline.py`
+- serving-source-date assembly, eligibility-summary loading, model-sanity reporting, and health-diagnostics carry-forward now also live in dedicated analytics helpers rather than one oversized `cache_publisher.py`
+- canonical source reads now use a thin `core_reads.py` facade over explicit transport/source-date/source-query modules
+- durable model-output persistence now uses a thin `model_outputs.py` facade over explicit schema/state/payload/writer helpers
 - Health page now acts as the live operator control deck and freshness/model-quality surface
 - Data page now acts as the source-table/cache diagnostics surface
 - Health page is now split into a shell plus lazily mounted diagnostics sections so heavy chart bundles load only after explicit user intent
 - Exposures and Positions now share one frontend truth-summary helper for snapshot id, served loadings date, latest available loadings date, and core-model date instead of recomputing that banner separately per page
+- frontend API contracts are now split by domain behind a stable `src/lib/types.ts` barrel so feature ownership is clearer without changing import paths
 - Health page now treats Operator Status as the primary source-recency/control-room surface and uses served risk payloads only for served-model facts like current factor-return fit
 - header refresh controls are now reduced to one context-aware quick action (`SYNC` / `RECALC`) so the same `serve-refresh` action is not exposed twice with different labels
 - source recency now explicitly tracks prices, fundamentals, classification, and raw cross-section dates
@@ -52,6 +55,7 @@ Implemented now:
 - operator/health runtime truth keys now have a Neon-backed `runtime_state_current` surface with local SQLite fallback retained only for transitional local-ingest recovery
 - the runtime-state surface is intentionally narrow: `risk_engine_meta`, `neon_sync_health`, and the active snapshot pointer are the only durable runtime-state keys in Neon for this phase
 - `/api/health` and `/api/operator/status` now expose runtime-state status and source metadata so missing or degraded runtime truth is visible instead of silently reading as healthy
+- post-run Neon sync health publication now preserves a local fallback health signal even if the Neon runtime-state write fails, so operator observability does not disappear on the ingest machine during a Neon incident
 - the active model now carries 45 factors in total, including 14 style factors; there is no standalone `Value` factor in the live style set
 
 Cold-core lessons now incorporated:

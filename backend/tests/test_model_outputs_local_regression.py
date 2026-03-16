@@ -14,8 +14,8 @@ def test_model_outputs_quality_gate_fails_on_empty_payload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_enabled", lambda: False)
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_required", lambda: False)
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: False)
     data_db = tmp_path / "data.db"
     cache_db = tmp_path / "cache.db"
 
@@ -49,8 +49,8 @@ def test_model_outputs_persist_incremental_rows_only_without_neon(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_enabled", lambda: False)
-    monkeypatch.setattr(model_outputs, "_neon_model_output_writes_required", lambda: False)
+    monkeypatch.setattr(model_outputs.config, "neon_dsn", lambda: "")
+    monkeypatch.setattr(model_outputs.config, "neon_primary_model_data_enabled", lambda: False)
     data_db = tmp_path / "data.db"
     cache_db = tmp_path / "cache.db"
 

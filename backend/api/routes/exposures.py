@@ -11,6 +11,10 @@ from backend.api.routes.readiness import raise_cache_not_ready
 from backend.data.history_queries import load_factor_return_history, resolve_factor_history_factor
 from backend.data.serving_outputs import load_runtime_payload
 from backend.data.sqlite import cache_get
+from backend.services.dashboard_payload_service import (
+    DashboardPayloadNotReady,
+    load_exposures_response,
+)
 
 router = APIRouter()
 
@@ -37,49 +41,20 @@ def _resolve_factor_name(factor_id: str) -> tuple[str, str]:
         factor_token=clean,
     )
 
-
-def _normalize_factor_rows(rows) -> list[dict]:
-    if not isinstance(rows, list):
-        return []
-    out: list[dict] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        clean = dict(row)
-        factor_token = str(
-            clean.get("factor_id")
-            or clean.get("factor")
-            or clean.get("factor_name")
-            or ""
-        ).strip()
-        if factor_token:
-            clean["factor_id"] = factor_token
-            clean.setdefault("factor_name", factor_token)
-        if not isinstance(clean.get("drilldown"), list):
-            clean["drilldown"] = []
-        out.append(clean)
-    return out
-
-
 @router.get("/exposures")
 async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk_contribution)$")):
-    data = load_runtime_payload("exposures", fallback_loader=cache_get)
-    if data is None:
-        raise_cache_not_ready(
-            cache_key="exposures",
-            message="Exposure cache is not ready yet. Run refresh and try again.",
+    try:
+        return load_exposures_response(
+            mode=mode,
+            payload_loader=load_runtime_payload,
+            fallback_loader=cache_get,
         )
-    factors = _normalize_factor_rows(data.get(mode, []))
-    response = {
-        "mode": mode,
-        "factors": factors,
-        "_cached": True,
-    }
-    for key in ("run_id", "snapshot_id", "refresh_started_at", "source_dates"):
-        value = data.get(key)
-        if value is not None:
-            response[key] = value
-    return response
+    except DashboardPayloadNotReady as exc:
+        raise_cache_not_ready(
+            cache_key=exc.cache_key,
+            message=exc.message,
+            refresh_profile=exc.refresh_profile,
+        )
 
 
 @router.get("/exposures/history")

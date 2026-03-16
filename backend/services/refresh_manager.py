@@ -11,11 +11,13 @@ from typing import Any
 
 from backend import config
 from backend.data.cache import cache_get, cache_set
-from backend.orchestration.run_model_pipeline import (
+from backend.orchestration.profiles import (
     PROFILE_CONFIG,
     STAGES,
     planned_stages_for_profile,
     resolve_profile_name,
+)
+from backend.orchestration.run_model_pipeline import (
     run_model_pipeline,
 )
 from backend.services.holdings_runtime_state import mark_refresh_started
