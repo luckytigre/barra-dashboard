@@ -41,6 +41,26 @@ def _parse_iso_date(value: str | None) -> date | None:
         return None
 
 
+def _canonical_date_key(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if len(text) == 10 and text[4] == "-" and text[7] == "-":
+        return text
+    normalized = text.replace("Z", "+00:00")
+    if len(normalized) >= 3 and normalized[-3:] in {"+00", "-00"}:
+        normalized = f"{normalized}:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return text
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed.isoformat()
+
+
 def _pit_latest_closed_anchor(*, frequency: str) -> str:
     ny_date = datetime.now(ZoneInfo("America/New_York")).date()
     if frequency == "quarterly":
@@ -576,6 +596,7 @@ def _sqlite_count_window(
     count = int(row[0] or 0) if row else 0
 
     min_date = max_date = None
+    raw_max_date = None
     latest_distinct = None
     if date_col:
         row = conn.execute(
@@ -583,12 +604,13 @@ def _sqlite_count_window(
             params,
         ).fetchone()
         if row:
-            min_date = str(row[0]) if row[0] is not None else None
-            max_date = str(row[1]) if row[1] is not None else None
-        if max_date and distinct_col:
+            min_date = _canonical_date_key(row[0])
+            max_date = _canonical_date_key(row[1])
+            raw_max_date = row[1]
+        if raw_max_date is not None and distinct_col:
             latest_row = conn.execute(
                 f"SELECT COUNT(DISTINCT {distinct_col}) FROM {table} WHERE {date_col} = ?",
-                (max_date,),
+                (raw_max_date,),
             ).fetchone()
             latest_distinct = int(latest_row[0] or 0) if latest_row else 0
 
@@ -623,6 +645,7 @@ def _pg_count_window(
         count = int(cur.fetchone()[0] or 0)
 
         min_date = max_date = None
+        raw_max_date = None
         latest_distinct = None
         if date_col:
             cur.execute(
@@ -632,16 +655,17 @@ def _pg_count_window(
             )
             row = cur.fetchone()
             if row:
-                min_date = str(row[0]) if row[0] is not None else None
-                max_date = str(row[1]) if row[1] is not None else None
-            if max_date and distinct_col:
+                min_date = _canonical_date_key(row[0])
+                max_date = _canonical_date_key(row[1])
+                raw_max_date = row[1]
+            if raw_max_date is not None and distinct_col:
                 cur.execute(
                     sql.SQL("SELECT COUNT(DISTINCT {}) FROM {} WHERE {} = %s").format(
                         sql.Identifier(str(distinct_col)),
                         sql.Identifier(table),
                         sql.Identifier(date_col),
                     ),
-                    (max_date,),
+                    (raw_max_date,),
                 )
                 latest_distinct = int(cur.fetchone()[0] or 0)
 
@@ -733,7 +757,13 @@ def _sqlite_recent_dates(
         """,
         [*params, int(limit)],
     ).fetchall()
-    return [str(row[0]) for row in rows if row and row[0] is not None]
+    return [
+        canonical
+        for row in rows
+        if row and row[0] is not None
+        for canonical in [_canonical_date_key(row[0])]
+        if canonical is not None
+    ]
 
 
 def _sqlite_factor_return_values(
@@ -844,7 +874,12 @@ def _sqlite_group_count_by_date(
         """,
         tuple(dates),
     ).fetchall()
-    return {str(row[0]): int(row[1] or 0) for row in rows}
+    return {
+        str(canonical): int(row[1] or 0)
+        for row in rows
+        for canonical in [_canonical_date_key(row[0])]
+        if canonical is not None
+    }
 
 
 def _pg_group_count_by_date(
@@ -874,7 +909,12 @@ def _pg_group_count_by_date(
             (dates,),
         )
         rows = cur.fetchall()
-    return {str(row[0]): int(row[1] or 0) for row in rows}
+    return {
+        str(canonical): int(row[1] or 0)
+        for row in rows
+        for canonical in [_canonical_date_key(row[0])]
+        if canonical is not None
+    }
 
 
 def _value_maps_match(

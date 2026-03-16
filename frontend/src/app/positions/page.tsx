@@ -360,8 +360,10 @@ export default function PositionsPage() {
               <div>
                 Latest raw cross-section available is {formatAsOfDate(truth.exposuresLatestAvailableAsOf)}.
                 {truth.updateAvailable
-                  ? " Newer authoritative source data exists than the current model. That lag is expected until the next core rebuild publishes a newer Neon snapshot."
-                  : " The modeled snapshot is current with the latest authoritative source dates."}
+                  ? " Newer authoritative factor loadings exist than the current served snapshot. Run a serving refresh to publish them."
+                  : truth.modelLaggingServedLoadings
+                    ? " Served factor loadings are current. The core model can lag them by design between weekly rebuilds."
+                    : " The modeled snapshot is current with the latest authoritative source dates."}
               </div>
             </div>
             <div className="data-metric-grid" style={{ marginTop: 12 }}>

@@ -53,6 +53,8 @@ Cold-core lessons now incorporated:
 - serving refresh must read live risk-engine cache keys, not only the active published snapshot
 - staged snapshots can be correct while the live pointer is still stale, so operator observability must show the active snapshot id
 - heavy diagnostics and operator-state surfaces should be separated so the operator view remains useful even when diagnostics are stale
+- during local/workspace rebuilds, `serving_refresh` must read from the same local/workspace source tables that produced the new raw history; otherwise it can publish stale Neon loadings beside fresh local core-model outputs
+- during light `serve-refresh`, weekly core-state should resolve from the latest durable `model_run_metadata` before runtime-state fallback; otherwise a stale runtime key can overwrite the current core model while republishing fresh loadings
 
 ## Known Limitations Still Open
 
@@ -91,6 +93,7 @@ This plan is intentionally operational rather than theoretical. It maps directly
   - `security_classification_pit`
 - cUSE4 core model state is slower-moving than source data.
 - Frontend-facing caches are cheap projections and should refresh more often than the core model.
+- Served holdings, prices, and factor loadings may move ahead of the core risk engine between weekly rebuilds; that is intentional and should not be treated as drift by itself.
 - Holdings changes, price updates, source-data refreshes, and core model recalculations must be treated as different operational events.
 - A factor-set change is a core-model change. `serve-refresh` may reuse risk-engine artifacts only when the live cache is both present and current for the active method version.
 
@@ -214,6 +217,7 @@ Efficiency rules now in force:
 Key rule:
 - Serving refreshes should be cheap and frequent.
 - They should not trigger full cUSE4 recompute unless explicitly requested.
+- Their job is to publish the latest holdings, prices, and factor-loadings projection against the currently accepted core risk-engine state.
 - The currently active serving payload set should be durable and mirrorable (`serving_payload_current`), not only present in the local cache layer.
 
 ## Canonical Event Types

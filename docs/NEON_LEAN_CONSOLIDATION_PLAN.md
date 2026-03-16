@@ -336,6 +336,9 @@ Implemented:
   - `neon_sync_health`
   - `__cache_snapshot_active`
 - updated `backend/main.py` and `backend/api/routes/operator.py` to expose runtime-state status/source instead of treating missing runtime truth as implicitly healthy
+- fixed rebuild-time `serving_refresh` so core/cold-core publish from the same local/workspace source tables that just produced rebuilt raw history instead of reading stale Neon source surfaces mid-run
+- fixed light `serve-refresh` so stale runtime-state cannot overwrite the current weekly core model: effective core-state now falls back to the latest durable `model_run_metadata` before reusing or republishing loadings
+- tightened serving payload source-date assembly so published loadings dates are derived from rebuilt payload/eligibility truth rather than stale upstream date fields
 - updated canonical docs to describe the lean contract and remaining transitional seams
 
 Deliberately left out of this pass:

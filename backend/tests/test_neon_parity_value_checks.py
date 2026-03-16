@@ -85,6 +85,12 @@ def _fake_pg_columns(table: str) -> list[str]:
     return ["ric", "date"]
 
 
+def test_canonical_date_key_normalizes_timestamp_text() -> None:
+    assert neon_mirror._canonical_date_key("2026-03-15T17:04:51.946548+00:00") == "2026-03-15T17:04:51.946548+00:00"
+    assert neon_mirror._canonical_date_key("2026-03-15 17:04:51.946548+00") == "2026-03-15T17:04:51.946548+00:00"
+    assert neon_mirror._canonical_date_key("2026-03-15") == "2026-03-15"
+
+
 def _create_sqlite_runtime(db_path: Path, cache_path: Path) -> None:
     conn = sqlite3.connect(str(db_path))
     conn.execute("CREATE TABLE security_master (ric TEXT PRIMARY KEY)")

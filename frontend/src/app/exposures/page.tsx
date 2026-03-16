@@ -89,28 +89,6 @@ export default function ExposuresPage() {
             This page withholds analytics until RECALC finishes or the page reloads into one coherent publish.
           </div>
         </div>
-        <div className="chart-card" style={{ marginTop: 12 }}>
-          <h3>Holdings Edits</h3>
-          <div
-            style={{
-              padding: "12px 14px",
-              border: "1px solid rgba(88, 182, 199, 0.2)",
-              background: "rgba(88, 182, 199, 0.05)",
-              color: "rgba(232, 237, 249, 0.86)",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
-            This page is read-only for holdings. Make account-routed portfolio edits on{" "}
-            <Link
-              href="/positions"
-              style={{ color: "rgba(88, 182, 199, 0.95)", textDecoration: "underline" }}
-            >
-              Positions
-            </Link>{" "}
-            or use Explore what-if and apply from there.
-          </div>
-        </div>
       </div>
     );
   }
@@ -184,8 +162,10 @@ export default function ExposuresPage() {
           <div>
             Latest raw cross-section available is {formatAsOfDate(truth.exposuresLatestAvailableAsOf)}.
             {truth.updateAvailable
-              ? " Newer authoritative source data exists than the current model. That lag is expected until the next core rebuild publishes a newer Neon-served snapshot."
-              : " Current authoritative source dates and served analytics are aligned."}
+              ? " Newer authoritative factor loadings exist than the current served snapshot. Run a serving refresh to publish them."
+              : truth.modelLaggingServedLoadings
+                ? " Served factor loadings are current. The core model can lag them by design between weekly rebuilds."
+                : " Current authoritative source dates and served analytics are aligned."}
           </div>
         </div>
         <ExposureBarChart
@@ -210,26 +190,6 @@ export default function ExposuresPage() {
 
       <div className="chart-card" style={{ marginTop: 12 }}>
         <h3>Positions (Barra Risk Mix)</h3>
-        <div
-          style={{
-            marginBottom: 12,
-            padding: "12px 14px",
-            border: "1px solid rgba(88, 182, 199, 0.2)",
-            background: "rgba(88, 182, 199, 0.05)",
-            color: "rgba(232, 237, 249, 0.86)",
-            fontSize: 13,
-            lineHeight: 1.5,
-          }}
-        >
-          This page is read-only for holdings. Make account-routed portfolio edits on{" "}
-          <Link
-            href="/positions"
-            style={{ color: "rgba(88, 182, 199, 0.95)", textDecoration: "underline" }}
-          >
-            Positions
-          </Link>{" "}
-          or use Explore what-if and apply from there.
-        </div>
         {portfolioLoading ? (
           <div className="detail-history-empty loading-pulse">Loading positions...</div>
         ) : (

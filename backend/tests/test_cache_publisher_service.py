@@ -235,3 +235,102 @@ def test_stage_refresh_cache_snapshot_reuses_matching_health_payload(monkeypatch
     )
 
     assert staged_second["health_refreshed"] is False
+
+
+def test_stage_refresh_cache_snapshot_upgrades_stale_exposure_source_dates(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    cache_db = tmp_path / "cache.db"
+    data_db = tmp_path / "data.db"
+    data_db.touch()
+
+    monkeypatch.setattr(config, "SQLITE_PATH", str(cache_db))
+    monkeypatch.setattr(cache_sqlite, "_SCHEMA_READY", False)
+    monkeypatch.setattr(cache_sqlite, "_SCHEMA_READY_PATH", None)
+    monkeypatch.setattr(
+        cache_publisher,
+        "compute_health_diagnostics",
+        lambda *args, **kwargs: {"status": "ok"},
+    )
+    monkeypatch.setattr(
+        cache_publisher,
+        "load_latest_eligibility_summary",
+        lambda _cache_db: {
+            "status": "ok",
+            "date": "2026-03-13",
+            "latest_available_date": "2026-03-13",
+            "regression_coverage": 0.997,
+            "structural_eligible_n": 3651,
+            "core_structural_eligible_n": 3455,
+            "projectable_n": 3639,
+            "projected_only_n": 193,
+            "drop_pct_from_prev": 0.0,
+            "alert_level": "",
+            "selection_mode": "well_covered",
+        },
+    )
+
+    staged = cache_publisher.stage_refresh_cache_snapshot(
+        run_id="run_stage_fresh_dates",
+        refresh_mode="full",
+        refresh_started_at="2026-03-16T08:45:26Z",
+        source_dates={
+            "fundamentals_asof": "2026-02-27",
+            "classification_asof": "2026-02-27",
+            "prices_asof": "2026-03-13",
+            "exposures_asof": "2026-03-04",
+            "exposures_latest_available_asof": "2026-03-04",
+            "exposures_served_asof": "2026-03-03",
+        },
+        snapshot_build={"status": "skipped"},
+        risk_engine_meta={
+            "status": "ok",
+            "method_version": "v8",
+            "last_recompute_date": "2026-03-16",
+            "factor_returns_latest_date": "2026-03-13",
+            "cross_section_min_age_days": 7,
+            "recompute_interval_days": 7,
+            "lookback_days": 504,
+            "specific_risk_ticker_count": 3736,
+        },
+        recomputed_this_refresh=True,
+        recompute_reason="method_version_change",
+        cov_payload={"factors": ["style_beta_score"], "matrix": [[1.0]]},
+        specific_risk_by_security={"AAPL.OQ": {"ticker": "AAPL", "specific_var": 0.01}},
+        positions=[{"ticker": "AAPL", "weight": 1.0, "market_value": 100.0, "exposures": {"style_beta_score": 1.1}}],
+        total_value=100.0,
+        risk_shares={"market": 3.0, "industry": 24.0, "style": 11.0, "idio": 62.0},
+        component_shares={"market": 0.1, "industry": 0.2, "style": 0.7},
+        factor_details=[
+            {"factor_id": "style_beta_score", "exposure": 0.1, "sensitivity": 0.01, "factor_vol": 0.05, "pct_of_total": 3.0}
+        ],
+        cov_matrix={"factors": ["style_beta_score"], "correlation": [[1.0]]},
+        latest_r2=0.35,
+        universe_loadings={
+            "as_of_date": "2026-03-13",
+            "latest_available_asof": "2026-03-13",
+            "factors": ["style_beta_score"],
+            "factor_vols": {"style_beta_score": 0.05},
+            "factor_catalog": [],
+            "ticker_count": 1,
+            "eligible_ticker_count": 1,
+            "core_estimated_ticker_count": 1,
+            "projected_only_ticker_count": 0,
+            "ineligible_ticker_count": 0,
+            "by_ticker": {"AAPL": {"ticker": "AAPL", "price": 100.0, "exposures": {"style_beta_score": 1.1}}},
+        },
+        exposure_modes={"raw": [], "sensitivity": [], "risk_contribution": []},
+        factor_catalog=[],
+        cuse4_foundation={"status": "skipped"},
+        light_mode=False,
+        data_db=data_db,
+        cache_db=cache_db,
+    )
+
+    cache_sqlite.cache_publish_snapshot(staged["snapshot_id"])
+
+    refresh_meta = cache_sqlite.cache_get("refresh_meta")
+    assert isinstance(refresh_meta, dict)
+    assert refresh_meta["source_dates"]["exposures_served_asof"] == "2026-03-13"
+    assert refresh_meta["source_dates"]["exposures_latest_available_asof"] == "2026-03-13"

@@ -110,6 +110,32 @@ def _risk_engine_reuse_signature(payload: dict[str, Any] | None) -> dict[str, An
     return {key: meta.get(key) for key in _UNIVERSE_REUSE_RISK_KEYS}
 
 
+def _risk_engine_meta_score(payload: dict[str, Any] | None) -> tuple[int, str, str, int]:
+    meta = dict(payload or {})
+    return (
+        1 if str(meta.get("method_version") or "") == str(RISK_ENGINE_METHOD_VERSION) else 0,
+        str(meta.get("factor_returns_latest_date") or ""),
+        str(meta.get("last_recompute_date") or ""),
+        int(meta.get("specific_risk_ticker_count") or 0),
+    )
+
+
+def _resolve_effective_risk_engine_meta(
+    *,
+    fallback_loader,
+) -> tuple[RiskEngineMetaPayload, str]:
+    runtime_meta = runtime_state.load_runtime_state(
+        "risk_engine_meta",
+        fallback_loader=fallback_loader,
+    ) or {}
+    persisted_meta = model_outputs.load_latest_persisted_risk_engine_state() or {}
+    runtime_score = _risk_engine_meta_score(runtime_meta)
+    persisted_score = _risk_engine_meta_score(persisted_meta)
+    if persisted_score > runtime_score:
+        return persisted_meta, "model_run_metadata"
+    return runtime_meta, "runtime_state"
+
+
 def _source_dates_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
     source_dates = dict(payload or {})
     return {
@@ -458,12 +484,8 @@ def run_refresh(
             }
 
     # 2. Weekly risk-engine recompute gate.
-    risk_engine_meta: RiskEngineMetaPayload = (
-        runtime_state.load_runtime_state(
-            "risk_engine_meta",
-            fallback_loader=sqlite.cache_get_live_first,
-        )
-        or {}
+    risk_engine_meta, risk_engine_meta_source = _resolve_effective_risk_engine_meta(
+        fallback_loader=sqlite.cache_get_live_first,
     )
     should_recompute, recompute_reason = _risk_recompute_due(risk_engine_meta, today_utc=today_utc)
     if skip_risk_engine:
@@ -538,6 +560,8 @@ def run_refresh(
             "Skipping risk-engine recompute (%s). Reusing cached covariance/specific risk.",
             recompute_reason,
         )
+        if risk_engine_meta_source == "model_run_metadata":
+            logger.info("Using persisted model-run metadata as effective risk-engine state for refresh.")
 
     specific_risk_by_ticker = _specific_risk_by_ticker_view(specific_risk_by_security)
     factor_catalog_by_name = build_factor_catalog_for_factors(

@@ -86,6 +86,8 @@ export interface AnalyticsTruthSummary {
   exposuresLatestAvailableAsOf: string | null;
   modelAsOf: string | null;
   updateAvailable: boolean;
+  servedLoadingsBehindLatestSource: boolean;
+  modelLaggingServedLoadings: boolean;
 }
 
 export function summarizeAnalyticsTruth({
@@ -129,6 +131,14 @@ export function summarizeAnalyticsTruth({
     risk?.risk_engine?.factor_returns_latest_date,
     exposuresServedAsOf,
   );
+  const servedLoadingsBehindLatestSource = compareIsoDate(
+    exposuresLatestAvailableAsOf,
+    exposuresServedAsOf,
+  ) > 0;
+  const modelLaggingServedLoadings = compareIsoDate(
+    exposuresServedAsOf,
+    modelAsOf,
+  ) > 0;
   return {
     sourceDates,
     snapshotId: snapshotIds[0] ?? null,
@@ -144,9 +154,8 @@ export function summarizeAnalyticsTruth({
     exposuresServedAsOf,
     exposuresLatestAvailableAsOf,
     modelAsOf,
-    updateAvailable: Boolean(
-      risk?.model_sanity?.update_available
-      || compareIsoDate(exposuresLatestAvailableAsOf, modelAsOf) > 0,
-    ),
+    updateAvailable: Boolean(risk?.model_sanity?.update_available || servedLoadingsBehindLatestSource),
+    servedLoadingsBehindLatestSource,
+    modelLaggingServedLoadings,
   };
 }

@@ -58,12 +58,11 @@ export default function HealthPage() {
   const allowedProfiles = new Set(operatorData?.runtime?.allowed_profiles ?? []);
   const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
   const neonAuthoritativeRebuilds = Boolean(operatorData?.runtime?.neon_authoritative_rebuilds);
+  const coreDue = Boolean(operatorData?.core_due?.due);
+  const servedLoadingsBehind = Boolean(riskData?.model_sanity?.update_available);
   const updateAvailable = Boolean(
     !dismissUpdatePrompt
-    && (
-      riskData?.model_sanity?.update_available
-      || (modelAsOf && latestSourceAsOf && latestSourceAsOf > modelAsOf)
-    ),
+    && (servedLoadingsBehind || coreDue),
   );
 
   async function handleRefreshPrompt() {
@@ -115,8 +114,17 @@ export default function HealthPage() {
     <div className="update-banner">
       <div className="update-banner-title">Update Available</div>
       <div className="update-banner-body">
-        Newer {neonAuthoritativeRebuilds ? "authoritative Neon" : "source"} data exists for <strong>{fmtAsOfDate(latestSourceAsOf)}</strong>,
-        while the model currently uses the latest well-covered date <strong>{fmtAsOfDate(modelAsOf)}</strong>.
+        {servedLoadingsBehind ? (
+          <>
+            Newer {neonAuthoritativeRebuilds ? "authoritative Neon" : "source"} factor loadings exist for <strong>{fmtAsOfDate(latestSourceAsOf)}</strong>,
+            while the currently served well-covered loadings are older. A serving refresh can publish them without recomputing the full core model.
+          </>
+        ) : coreDue ? (
+          <>
+            The core model is due for a rebuild{operatorData?.core_due?.reason ? ` (${operatorData.core_due.reason})` : ""}.
+            The current factor-return fit is <strong>{fmtAsOfDate(modelAsOf)}</strong>.
+          </>
+        ) : null}
         {!onlyServeRefreshAllowed && (
           <> The maintenance lane will sync local LSEG updates first, then rebuild core only if cadence or policy requires it.</>
         )}

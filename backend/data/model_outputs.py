@@ -329,6 +329,7 @@ def _latest_risk_engine_state(conn: sqlite3.Connection) -> dict[str, Any]:
         """
         SELECT risk_engine_state_json
         FROM model_run_metadata
+        WHERE status = 'ok'
         ORDER BY completed_at DESC, updated_at DESC
         LIMIT 1
         """
@@ -393,6 +394,7 @@ def _pg_latest_risk_engine_state(pg_conn) -> dict[str, Any]:
             """
             SELECT risk_engine_state_json
             FROM model_run_metadata
+            WHERE status = 'ok'
             ORDER BY completed_at DESC, updated_at DESC
             LIMIT 1
             """
@@ -419,6 +421,31 @@ def _factor_returns_load_start_postgres(
         as_of_date=as_of_date,
         risk_engine_state=risk_engine_state,
     )
+
+
+def load_latest_persisted_risk_engine_state() -> dict[str, Any]:
+    data_db = Path(config.DATA_DB_PATH)
+    if not data_db.exists():
+        local_state: dict[str, Any] = {}
+    else:
+        conn = sqlite3.connect(str(data_db))
+        try:
+            _ensure_schema(conn)
+            local_state = _latest_risk_engine_state(conn)
+        finally:
+            conn.close()
+        if local_state:
+            return local_state
+    if _neon_model_output_writes_enabled():
+        try:
+            conn = connect(dsn=resolve_dsn(None), autocommit=True)
+            try:
+                return _pg_latest_risk_engine_state(conn)
+            finally:
+                conn.close()
+        except Exception:
+            pass
+    return {}
 
 
 def _factor_returns_payload(

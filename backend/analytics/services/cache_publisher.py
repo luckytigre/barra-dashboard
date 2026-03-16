@@ -49,6 +49,17 @@ def _finite_float(value: Any, default: float = 0.0) -> float:
     return out if np.isfinite(out) else float(default)
 
 
+def _max_iso_date(*values: Any) -> str | None:
+    clean = sorted(
+        {
+            str(value).strip()
+            for value in values
+            if str(value or "").strip()
+        }
+    )
+    return clean[-1] if clean else None
+
+
 def build_risk_engine_state(
     *,
     risk_engine_meta: RiskEngineMetaPayload,
@@ -125,17 +136,16 @@ def _serving_source_dates(
     eligibility_summary: EligibilitySummaryPayload | None = None,
 ) -> SourceDatesPayload:
     out: SourceDatesPayload = dict(source_dates or {})
-    latest_available = str(
-        out.get("exposures_latest_available_asof")
-        or out.get("exposures_asof")
-        or universe_loadings.get("latest_available_asof")
-        or (eligibility_summary or {}).get("latest_available_date")
-        or ""
-    ).strip() or None
+    latest_available = _max_iso_date(
+        out.get("exposures_latest_available_asof"),
+        out.get("exposures_asof"),
+        universe_loadings.get("latest_available_asof"),
+        (eligibility_summary or {}).get("latest_available_date"),
+    )
     served_asof = str(
-        out.get("exposures_served_asof")
-        or universe_loadings.get("as_of_date")
+        universe_loadings.get("as_of_date")
         or (eligibility_summary or {}).get("date")
+        or out.get("exposures_served_asof")
         or ""
     ).strip() or None
     if latest_available is not None:

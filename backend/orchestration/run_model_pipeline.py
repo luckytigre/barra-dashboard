@@ -415,10 +415,9 @@ def _risk_cache_ready() -> bool:
 def _serving_refresh_skip_risk_engine(*, today_utc: date) -> tuple[bool, str]:
     if not _risk_cache_ready():
         return False, "risk_cache_missing"
-    risk_engine_meta = runtime_state.load_runtime_state(
-        "risk_engine_meta",
+    risk_engine_meta, _ = analytics_pipeline._resolve_effective_risk_engine_meta(
         fallback_loader=sqlite.cache_get_live_first,
-    ) or {}
+    )
     should_recompute, recompute_reason = _risk_recompute_due(
         risk_engine_meta,
         today_utc=today_utc,
@@ -445,10 +444,12 @@ def _temporary_runtime_paths(*, data_db: Path, cache_db: Path):
     old_cache_db_path = str(config.SQLITE_PATH)
     old_pipeline_data_db = analytics_pipeline.DATA_DB
     old_pipeline_cache_db = analytics_pipeline.CACHE_DB
+    old_core_reads_data_db = core_reads.DATA_DB
     config.DATA_DB_PATH = str(data_db_path)
     config.SQLITE_PATH = str(cache_db_path)
     analytics_pipeline.DATA_DB = data_db_path
     analytics_pipeline.CACHE_DB = cache_db_path
+    core_reads.DATA_DB = data_db_path
     try:
         yield
     finally:
@@ -456,6 +457,7 @@ def _temporary_runtime_paths(*, data_db: Path, cache_db: Path):
         config.SQLITE_PATH = old_cache_db_path
         analytics_pipeline.DATA_DB = old_pipeline_data_db
         analytics_pipeline.CACHE_DB = old_pipeline_cache_db
+        core_reads.DATA_DB = old_core_reads_data_db
 
 
 def _resolved_as_of_date(
@@ -1170,13 +1172,21 @@ def _run_stage(
     if stage == "serving_refresh":
         if progress_callback is not None:
             progress_callback({"message": "Publishing serving payloads", "progress_kind": "stage"})
+
+        force_local_core_reads = bool(
+            prefer_local_source_archive
+            or should_run_core
+            or Path(data_db).resolve() != DATA_DB.resolve()
+            or Path(cache_db).resolve() != CACHE_DB.resolve()
+        )
+
         def _run_refresh_inner() -> dict[str, Any]:
             skip_risk_engine, skip_reason = _serving_refresh_skip_risk_engine(
                 today_utc=datetime.fromisoformat(
                     previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
                 ).date()
             )
-            if prefer_local_source_archive:
+            if force_local_core_reads:
                 with core_reads.core_read_backend("local"):
                     out = run_refresh(
                         mode=serving_mode,
