@@ -1195,6 +1195,7 @@ def _run_stage(
                         skip_snapshot_rebuild=True,
                         skip_cuse4_foundation=True,
                         skip_risk_engine=bool(skip_risk_engine),
+                        refresh_deep_health_diagnostics=bool(should_run_core),
                     )
                     out["_skip_risk_engine_reason"] = str(skip_reason)
                     out["_skip_risk_engine"] = bool(skip_risk_engine)
@@ -1206,6 +1207,7 @@ def _run_stage(
                 skip_snapshot_rebuild=True,
                 skip_cuse4_foundation=True,
                 skip_risk_engine=bool(skip_risk_engine),
+                refresh_deep_health_diagnostics=bool(should_run_core),
             )
             out["_skip_risk_engine_reason"] = str(skip_reason)
             out["_skip_risk_engine"] = bool(skip_risk_engine)

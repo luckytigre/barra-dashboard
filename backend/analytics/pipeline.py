@@ -350,6 +350,7 @@ def run_refresh(
     skip_snapshot_rebuild: bool = False,
     skip_cuse4_foundation: bool = False,
     skip_risk_engine: bool = False,
+    refresh_deep_health_diagnostics: bool = False,
 ) -> dict[str, Any]:
     """Pipeline refresh with serving-oriented modes:
     - full: weekly-gated risk engine + all downstream caches
@@ -388,6 +389,7 @@ def run_refresh(
         refresh_meta = dict(payloads.get("refresh_meta") or {})
         risk_payload = dict(payloads.get("risk") or {})
         portfolio_payload = dict(payloads.get("portfolio") or {})
+        health_payload = dict(payloads.get("health_diagnostics") or {})
         serving_outputs_write = serving_outputs.persist_current_payloads(
             data_db=DATA_DB,
             run_id=run_id,
@@ -423,6 +425,11 @@ def run_refresh(
             "model_sanity": dict(payloads.get("model_sanity") or {"status": "unknown"}),
             "cuse4_foundation": dict(refresh_meta.get("cuse4_foundation") or {"status": "reused"}),
             "health_refreshed": False,
+            "health_refresh_state": str(
+                health_payload.get("diagnostics_refresh_state")
+                or refresh_meta.get("health_refresh_state")
+                or "carried_forward"
+            ),
             "universe_loadings_reused": True,
             "universe_loadings_reuse_reason": "publish_only_cached_payloads",
             "model_outputs_write": model_outputs_write,
@@ -773,7 +780,7 @@ def run_refresh(
         exposure_modes=exposure_modes,
         factor_catalog=universe_loadings.get("factor_catalog", []),
         cuse4_foundation=cuse4_foundation,
-        light_mode=light_mode,
+        recompute_health_diagnostics=bool(refresh_deep_health_diagnostics or recomputed_this_refresh),
         reuse_cached_static_payloads=bool(
             light_mode
             and universe_loadings_reused
@@ -786,6 +793,7 @@ def run_refresh(
     risk_engine_state = dict(staged.get("risk_engine_state") or {})
     sanity = dict(staged.get("sanity") or {"status": "no-data", "warnings": [], "checks": {}})
     health_refreshed = bool(staged.get("health_refreshed", False))
+    health_refresh_state = str(staged.get("health_refresh_state") or ("recomputed" if health_refreshed else "deferred"))
     persisted_payloads = dict(staged.get("persisted_payloads") or {})
 
     model_outputs_write: dict[str, Any] = {"status": "skipped"}
@@ -880,6 +888,7 @@ def run_refresh(
         "model_sanity": sanity,
         "cuse4_foundation": cuse4_foundation,
         "health_refreshed": bool(health_refreshed),
+        "health_refresh_state": str(health_refresh_state),
         "universe_loadings_reused": bool(universe_loadings_reused),
         "universe_loadings_reuse_reason": str(universe_loadings_reuse_reason),
         "model_outputs_write": model_outputs_write,

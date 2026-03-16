@@ -223,35 +223,6 @@ main {
   border-color: rgba(239, 68, 68, 0.45);
 }
 
-.dash-sync-icon-btn {
-  color: #9ea2aa;
-}
-
-.dash-sync-icon-btn:hover {
-  color: #d5d8de;
-}
-
-.dash-sync-icon-btn:disabled {
-  opacity: 0.65;
-}
-
-.dash-sync-icon-btn.failed {
-  color: rgba(239, 149, 174, 0.95);
-}
-
-.dash-sync-icon-btn svg.spin {
-  animation: dash-sync-spin 0.9s linear infinite;
-}
-
-@keyframes dash-sync-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .dash-recompute-btn {
   border: 1px solid rgba(245, 158, 11, 0.45);
   background: rgba(245, 158, 11, 0.14);

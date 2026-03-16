@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from backend.main import app
 from backend.api.routes import data as data_routes
 
+svc = data_routes.data_diagnostics_service
+
 
 def _seed_data_db(path: Path) -> None:
     conn = sqlite3.connect(str(path))
@@ -81,9 +83,9 @@ def test_data_diagnostics_uses_canonical_source_table_keys(monkeypatch, tmp_path
     _seed_data_db(data_db)
     _seed_cache_db(cache_db)
 
-    monkeypatch.setattr(data_routes, "DATA_DB", data_db)
-    monkeypatch.setattr(data_routes, "CACHE_DB", cache_db)
-    monkeypatch.setattr(data_routes, "cache_get", lambda _key: {})
+    monkeypatch.setattr(svc, "DATA_DB", data_db)
+    monkeypatch.setattr(svc, "CACHE_DB", cache_db)
+    monkeypatch.setattr(svc, "cache_get", lambda _key: {})
 
     client = TestClient(app)
     res = client.get("/api/data/diagnostics")
@@ -115,9 +117,9 @@ def test_data_diagnostics_reports_core_and_projected_counts(monkeypatch, tmp_pat
     _seed_cache_db(cache_db)
     _seed_eligibility_summary(cache_db)
 
-    monkeypatch.setattr(data_routes, "DATA_DB", data_db)
-    monkeypatch.setattr(data_routes, "CACHE_DB", cache_db)
-    monkeypatch.setattr(data_routes, "cache_get", lambda _key: {})
+    monkeypatch.setattr(svc, "DATA_DB", data_db)
+    monkeypatch.setattr(svc, "CACHE_DB", cache_db)
+    monkeypatch.setattr(svc, "cache_get", lambda _key: {})
 
     client = TestClient(app)
     res = client.get("/api/data/diagnostics")

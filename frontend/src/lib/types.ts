@@ -504,6 +504,9 @@ export interface HealthDiagnosticsData {
   status: string;
   as_of: string | null;
   notes: string[];
+  diagnostics_refresh_state?: string;
+  diagnostics_generated_from_run_id?: string | null;
+  diagnostics_generated_from_snapshot_id?: string | null;
   factor_catalog?: FactorCatalogEntry[];
   section1: {
     sampling?: string;

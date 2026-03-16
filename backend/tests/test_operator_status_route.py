@@ -9,10 +9,12 @@ from backend.main import app
 from backend.api.routes import operator as operator_route
 from backend.analytics import pipeline
 
+svc = operator_route.operator_status_service
+
 
 def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "profile_catalog",
         lambda: [
             {
@@ -29,7 +31,7 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
         ],
     )
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "serve-refresh": {
@@ -51,7 +53,7 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
         },
     )
     monkeypatch.setattr(
-        operator_route.core_reads,
+        svc.core_reads,
         "load_source_dates",
         lambda: {
             "prices_asof": "2026-03-07",
@@ -60,9 +62,9 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
             "exposures_asof": "2026-03-07",
         },
     )
-    monkeypatch.setattr(operator_route, "_today_session_date", lambda: operator_route.datetime(2026, 3, 8).date())
-    monkeypatch.setattr(operator_route, "_risk_recompute_due", lambda meta, today_utc: (False, "within_interval"))
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {"status": "idle"})
+    monkeypatch.setattr(svc, "_today_session_date", lambda: datetime(2026, 3, 8).date())
+    monkeypatch.setattr(svc, "_risk_recompute_due", lambda meta, today_utc: (False, "within_interval"))
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {"status": "idle"})
 
     def _fake_cache_get(key: str):
         if key == "risk_engine_meta":
@@ -74,12 +76,12 @@ def test_operator_status_route_returns_lane_matrix(monkeypatch) -> None:
         return None
 
     monkeypatch.setattr(
-        operator_route.runtime_state,
+        svc.runtime_state,
         "read_runtime_state",
         lambda key, fallback_loader=None: {"status": "ok", "source": "neon", "value": _fake_cache_get(key)},
     )
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", _fake_cache_get)
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", _fake_cache_get)
+    monkeypatch.setattr(svc.sqlite, "cache_get", _fake_cache_get)
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", _fake_cache_get)
 
     client = TestClient(app)
     res = client.get("/api/operator/status")
@@ -112,16 +114,16 @@ def test_latest_run_summary_by_profile_handles_empty_db(tmp_path) -> None:
 def test_operator_status_reports_cloud_allowed_profiles(monkeypatch) -> None:
     monkeypatch.setattr(operator_route.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(operator_route.config, "OPERATOR_API_TOKEN", "op-secret")
-    monkeypatch.setattr(operator_route.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
     monkeypatch.setattr(
-        operator_route.runtime_state,
+        svc.runtime_state,
         "read_runtime_state",
         lambda key, fallback_loader=None: {"status": "missing", "source": "neon", "value": None},
     )
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
 
     client = TestClient(app)
     res = client.get("/api/operator/status", headers={"X-Operator-Token": "op-secret"})
@@ -136,20 +138,20 @@ def test_operator_status_source_dates_use_authoritative_backend_and_expose_local
 
     monkeypatch.setattr(operator_route.config, "APP_RUNTIME_ROLE", "local-ingest")
     monkeypatch.setattr(
-        operator_route.core_reads.config,
+        svc.core_reads.config,
         "neon_surface_enabled",
         lambda surface: surface == "core_reads",
     )
 
     def _load_source_dates():
-        backend = operator_route.core_reads.core_read_backend_name()
+        backend = svc.core_reads.core_read_backend_name()
         captured.setdefault("backends", []).append(backend)
         return {"prices_asof": "2026-03-14" if backend == "local" else "2026-03-13"}
 
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", _load_source_dates)
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", _load_source_dates)
 
-    authoritative = operator_route._load_authoritative_operator_source_dates()
-    local_archive = operator_route._load_local_archive_source_dates()
+    authoritative = svc._load_authoritative_operator_source_dates()
+    local_archive = svc._load_local_archive_source_dates()
 
     assert authoritative == {"prices_asof": "2026-03-13"}
     assert local_archive == {"prices_asof": "2026-03-14"}
@@ -157,20 +159,20 @@ def test_operator_status_source_dates_use_authoritative_backend_and_expose_local
 
 
 def test_operator_status_warns_when_local_archive_is_newer_than_authoritative_store(monkeypatch) -> None:
-    monkeypatch.setattr(operator_route.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {"status": "idle"})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.job_runs, "latest_run_summary_by_profile", lambda **kwargs: {})
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {"status": "idle"})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
     monkeypatch.setattr(
-        operator_route.runtime_state,
+        svc.runtime_state,
         "read_runtime_state",
         lambda key, fallback_loader=None: {"status": "missing", "source": "neon", "value": None},
     )
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
     monkeypatch.setattr(operator_route.config, "APP_RUNTIME_ROLE", "local-ingest")
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {"prices_asof": "2026-03-13"})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {"prices_asof": "2026-03-13"})
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "_load_local_archive_source_dates",
         lambda: {"prices_asof": "2026-03-14"},
     )
@@ -185,7 +187,7 @@ def test_operator_status_warns_when_local_archive_is_newer_than_authoritative_st
 
 def test_operator_status_promotes_newer_terminal_run_over_stale_refresh_cache(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "core-weekly": {
@@ -207,7 +209,7 @@ def test_operator_status_promotes_newer_terminal_run_over_stale_refresh_cache(mo
         },
     )
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "get_refresh_status",
         lambda: {
             "status": "failed",
@@ -219,15 +221,15 @@ def test_operator_status_promotes_newer_terminal_run_over_stale_refresh_cache(mo
             "error": {"type": "pipeline_failed", "message": "Orchestrated pipeline returned failed status."},
         },
     )
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
     monkeypatch.setattr(
-        operator_route.runtime_state,
+        svc.runtime_state,
         "read_runtime_state",
         lambda key, fallback_loader=None: {"status": "missing", "source": "neon", "value": None},
     )
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
 
     client = TestClient(app)
     res = client.get("/api/operator/status")
@@ -242,7 +244,7 @@ def test_operator_status_promotes_newer_terminal_run_over_stale_refresh_cache(mo
 
 def test_operator_status_reconciles_running_lane_without_live_worker(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "profile_catalog",
         lambda: [
             {
@@ -259,7 +261,7 @@ def test_operator_status_reconciles_running_lane_without_live_worker(monkeypatch
         ],
     )
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "serve-refresh": {
@@ -288,16 +290,16 @@ def test_operator_status_reconciles_running_lane_without_live_worker(monkeypatch
             }
         },
     )
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {
         "status": "unknown",
         "profile": "source-daily",
         "pipeline_run_id": "api_newer_refresh",
         "finished_at": "2026-03-15T22:27:50+00:00",
     })
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
 
     client = TestClient(app)
     res = client.get("/api/operator/status")
@@ -312,7 +314,7 @@ def test_operator_status_reconciles_running_lane_without_live_worker(monkeypatch
 
 def test_operator_status_keeps_cross_profile_terminal_refresh_from_marking_lane_ok(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "profile_catalog",
         lambda: [
             {
@@ -329,7 +331,7 @@ def test_operator_status_keeps_cross_profile_terminal_refresh_from_marking_lane_
         ],
     )
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "serve-refresh": {
@@ -351,17 +353,17 @@ def test_operator_status_keeps_cross_profile_terminal_refresh_from_marking_lane_
             }
         },
     )
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {
         "status": "ok",
         "profile": "source-daily",
         "pipeline_run_id": "api_source_daily_done",
         "finished_at": "2026-03-15T22:27:50+00:00",
     })
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
-    monkeypatch.setattr(operator_route, "_now_iso", lambda: "2026-03-15T23:00:00+00:00")
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc, "_now_iso", lambda: "2026-03-15T23:00:00+00:00")
 
     client = TestClient(app)
     res = client.get("/api/operator/status")
@@ -377,7 +379,7 @@ def test_operator_status_keeps_cross_profile_terminal_refresh_from_marking_lane_
 
 def test_operator_status_does_not_reconcile_external_running_lane_without_api_prefix(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "profile_catalog",
         lambda: [
             {
@@ -394,7 +396,7 @@ def test_operator_status_does_not_reconcile_external_running_lane_without_api_pr
         ],
     )
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "serve-refresh": {
@@ -416,16 +418,16 @@ def test_operator_status_does_not_reconcile_external_running_lane_without_api_pr
             }
         },
     )
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {
         "status": "unknown",
         "profile": "source-daily",
         "pipeline_run_id": "api_newer_refresh",
         "finished_at": "2026-03-15T22:27:50+00:00",
     })
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
 
     client = TestClient(app)
     res = client.get("/api/operator/status")
@@ -440,7 +442,7 @@ def test_operator_status_does_not_reconcile_external_running_lane_without_api_pr
 
 def test_operator_status_does_not_reconcile_non_serving_api_lane_without_live_worker(monkeypatch) -> None:
     monkeypatch.setattr(
-        operator_route,
+        svc,
         "profile_catalog",
         lambda: [
             {
@@ -457,7 +459,7 @@ def test_operator_status_does_not_reconcile_non_serving_api_lane_without_live_wo
         ],
     )
     monkeypatch.setattr(
-        operator_route.job_runs,
+        svc.job_runs,
         "latest_run_summary_by_profile",
         lambda **kwargs: {
             "source-daily-plus-core-if-due": {
@@ -479,16 +481,16 @@ def test_operator_status_does_not_reconcile_non_serving_api_lane_without_live_wo
             }
         },
     )
-    monkeypatch.setattr(operator_route, "get_refresh_status", lambda: {
+    monkeypatch.setattr(svc, "get_refresh_status", lambda: {
         "status": "unknown",
         "profile": "serve-refresh",
         "pipeline_run_id": "api_other_refresh",
         "finished_at": "2026-03-15T22:27:50+00:00",
     })
-    monkeypatch.setattr(operator_route.core_reads, "load_source_dates", lambda: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get", lambda key: {})
-    monkeypatch.setattr(operator_route.sqlite, "cache_get_live_first", lambda key: {})
-    monkeypatch.setattr(operator_route, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
+    monkeypatch.setattr(svc.core_reads, "load_source_dates", lambda: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(svc.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(svc, "get_holdings_sync_state", lambda: {"pending": False, "pending_count": 0})
 
     client = TestClient(app)
     res = client.get("/api/operator/status")

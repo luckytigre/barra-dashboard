@@ -13,6 +13,7 @@
 - Cross-section recency guard: regressions only use exposure snapshots at least 7 calendar days old (`CROSS_SECTION_MIN_AGE_DAYS=7`).
 - Loadings/UI cache refresh: can run daily; it reuses latest weekly risk-engine state unless recompute is due.
 - This is intentional: served holdings, prices, and factor loadings can be fresher than the weekly core risk engine between rebuilds.
+- The implementation plan for moving deep `health_diagnostics` work off the quick refresh path lives in [HEALTH_DIAGNOSTICS_REFRESH_PLAN.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/barra-dashboard/docs/HEALTH_DIAGNOSTICS_REFRESH_PLAN.md).
 - Current live factor set: 45 total factors, including 14 style factors. `Book-to-Price` and `Earnings Yield` remain; there is no standalone `Value` factor.
 - Execution model: one orchestrator framework with profile-specific cadence:
   - `serve-refresh`
@@ -50,17 +51,20 @@
     - `source_dates`
     - stable risk-engine fingerprint (`method_version`, `last_recompute_date`, `factor_returns_latest_date`, snapshot-age/lookback settings, specific-risk count)
   - on that same fast path, cached `eligibility` and `cov_matrix` are reused when present instead of being rebuilt from unchanged model state
+  - deep `health_diagnostics` are no longer recomputed on the quick path; `serve-refresh` carries forward the last good diagnostics payload or records that diagnostics were deferred
   - when that reuse path is active, relational `model_outputs` persistence is skipped because the core model state is unchanged; serving payload persistence still runs normally
   - manual `serve-refresh` without that scope keeps the existing full serving-refresh behavior.
 - `source-daily`: local LSEG ingest into SQLite for the latest completed XNYS session, repair any missing daily price sessions up to that session, purge open-month PIT rows, backfill any missing closed-month fundamentals/classification anchors, publish the retained working window into Neon, then refresh serving only.
 - `source-daily-plus-core-if-due`: default daily maintenance lane; local ingest + Neon source-sync first, then recompute core only when cadence/version says due.
 - `core-weekly`: force core recompute without rebuilding full raw history.
   - factor-return recompute now determines uncached dates before loading prices and only reads the bounded price window needed for those dates plus the immediately prior session.
+  - this lane now owns deep `health_diagnostics` recompute for the current weekly core model state.
 - `cold-core`: full historical reset for structural data changes (new/changed historical prices, volume, fundamentals, classification, or factor methodology).
   - This path rebuilds `barra_raw_cross_section_history` over full history and clears core cache tables before recomputing factor returns/risk.
   - This lane is an explicit operator/API path; it is not exposed as a one-click dashboard control in the current frontend.
   - During that run, `serving_refresh` must read the local/workspace source tables that just produced the rebuilt raw history; otherwise it can publish stale Neon factor-loadings metadata before the broad Neon mirror catches up.
   - During ordinary `serve-refresh`, the published weekly core-state should come from the latest durable `model_run_metadata` rather than a stale runtime cache key; otherwise a quick refresh can republish fresh loadings with regressed core metadata.
+  - this lane also owns deep `health_diagnostics` recompute for structural rebuilds.
 - `universe-add`: finalization lane after explicit `security_master` merge and targeted source backfills for new names.
 
 Rebuild-authority rule:
@@ -88,6 +92,11 @@ Runtime-role rule:
 - Operator Status and header health are the live runtime truth.
 - Data/Health diagnostics are deeper local-instance maintenance panels and may lag the cloud-serving view.
 - Health now shows compact per-lane status cards plus runtime/source-recency cards.
+- Health page refresh prompts are intentionally split:
+  - fresher loadings can be addressed with `serve-refresh`
+  - core rebuild due states should point the operator to `core-weekly` / `cold-core`, not imply that a quick refresh can fix them
+- Exposures and Positions should rely on the shared frontend truth banner for snapshot/loadings/core dates rather than reassembling those dates independently per page.
+- Header refresh UI is intentionally a single context-aware quick action so `serve-refresh` is not duplicated under multiple top-bar buttons.
 - Lane-specific refresh controls and detailed run-history drilldowns are currently API/CLI-driven rather than exposed directly in the frontend.
 
 ## Local App Lifecycle
@@ -151,7 +160,7 @@ Runtime-role rule:
 - `daily_specific_residuals`: residual workspace table in `cache.db`, now storing both `model_residual` and `raw_residual`.
 - `cuse4_foundation`: bootstrap + latest ESTU audit summary for cUSE4 transition layer.
 - `portfolio`, `risk`, `exposures`, `universe_loadings`, `universe_factors`, `health_diagnostics`, `eligibility`, `refresh_meta`: refreshed on each `/api/refresh` call.
-  - `health_diagnostics` is now recomputed during every refresh staging pass and persisted into the durable serving surface.
+  - `health_diagnostics` is persisted into the durable serving surface, but quick refreshes carry it forward while core lanes refresh it.
   - `/api/health/diagnostics` prefers the durable current payload before falling back to cache.
 - if Neon-backed holdings cannot be read during serving projection, refresh fails instead of publishing an empty-success portfolio payload
 - `model_outputs_write`: latest relational model-output persistence status.

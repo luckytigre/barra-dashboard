@@ -52,7 +52,9 @@ export default function HealthPage() {
   }
 
   const modelAsOf = riskData?.risk_engine?.factor_returns_latest_date || riskData?.model_sanity?.coverage_date || null;
-  const latestSourceAsOf = riskData?.model_sanity?.latest_available_date || latestSourceDate(operatorData?.source_dates);
+  const latestSourceAsOf = operatorData?.source_dates?.exposures_asof
+    || riskData?.model_sanity?.latest_available_date
+    || latestSourceDate(operatorData?.source_dates);
   const lagDays = riskData?.risk_engine?.cross_section_min_age_days;
   const rSquared = riskData?.r_squared;
   const allowedProfiles = new Set(operatorData?.runtime?.allowed_profiles ?? []);
@@ -60,6 +62,8 @@ export default function HealthPage() {
   const neonAuthoritativeRebuilds = Boolean(operatorData?.runtime?.neon_authoritative_rebuilds);
   const coreDue = Boolean(operatorData?.core_due?.due);
   const servedLoadingsBehind = Boolean(riskData?.model_sanity?.update_available);
+  const coreRefreshActionAvailable = coreDue && !onlyServeRefreshAllowed;
+  const canRunRefreshAction = servedLoadingsBehind || coreRefreshActionAvailable;
   const updateAvailable = Boolean(
     !dismissUpdatePrompt
     && (servedLoadingsBehind || coreDue),
@@ -125,18 +129,27 @@ export default function HealthPage() {
             The current factor-return fit is <strong>{fmtAsOfDate(modelAsOf)}</strong>.
           </>
         ) : null}
+        {coreDue && onlyServeRefreshAllowed && (
+          <> Core rebuilds are not available from this runtime. Run `core-weekly` or `cold-core` from the maintenance environment.</>
+        )}
         {!onlyServeRefreshAllowed && (
           <> The maintenance lane will sync local LSEG updates first, then rebuild core only if cadence or policy requires it.</>
         )}
       </div>
       <div className="update-banner-actions">
-        <button
-          className="btn-refresh"
-          onClick={handleRefreshPrompt}
-          disabled={refreshState === "running"}
-        >
-          {refreshState === "running" ? "Refreshing…" : "Run Refresh"}
-        </button>
+        {canRunRefreshAction && (
+          <button
+            className="btn-refresh"
+            onClick={handleRefreshPrompt}
+            disabled={refreshState === "running"}
+          >
+            {refreshState === "running"
+              ? "Refreshing…"
+              : servedLoadingsBehind && onlyServeRefreshAllowed
+                ? "Run Serving Refresh"
+                : "Run Maintenance Refresh"}
+          </button>
+        )}
         <button
           className="btn-dismiss"
           onClick={() => setDismissUpdatePrompt(true)}
@@ -146,7 +159,9 @@ export default function HealthPage() {
       </div>
       {refreshState === "done" && (
         <div className="update-banner-feedback success">
-          {onlyServeRefreshAllowed ? "Refresh completed." : "Refresh started in background."}
+          {servedLoadingsBehind && onlyServeRefreshAllowed
+            ? "Serving refresh completed."
+            : "Refresh started in background."}
         </div>
       )}
       {refreshState === "failed" && (
@@ -193,6 +208,7 @@ export default function HealthPage() {
   }
 
   if (!data || data.status !== "ok") {
+    const diagnosticsDeferred = data?.status === "deferred";
     return (
       <div className="health-wrap">
         {operatorSection}
@@ -203,7 +219,9 @@ export default function HealthPage() {
           <div className="detail-history-empty">
             {isLoading
               ? "Health diagnostics are still loading."
-              : "No diagnostics payload is available yet. Run refresh and reload this page."}
+              : diagnosticsDeferred
+                ? "Deep health diagnostics were deferred on the quick refresh path. Run core-weekly or cold-core to refresh them."
+                : "No diagnostics payload is available yet. Run a core lane and reload this page."}
           </div>
         </div>
       </div>

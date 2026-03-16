@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import importlib
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -665,6 +666,44 @@ def test_neon_readiness_stage_prepares_workspace(monkeypatch: pytest.MonkeyPatch
 
     assert out["status"] == "ok"
     assert out["workspace"]["data_db"].endswith("data.db")
+
+
+@pytest.mark.parametrize(
+    ("should_run_core", "expected_recompute"),
+    [
+        (False, False),
+        (True, True),
+    ],
+)
+def test_serving_refresh_stage_only_requests_deep_diagnostics_for_core_lanes(
+    monkeypatch: pytest.MonkeyPatch,
+    should_run_core: bool,
+    expected_recompute: bool,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(run_model_pipeline, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "cached"))
+    monkeypatch.setattr(run_model_pipeline.core_reads, "core_read_backend", lambda backend: nullcontext())
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "run_refresh",
+        lambda **kwargs: captured.update(kwargs) or {"status": "ok"},
+    )
+
+    out = run_model_pipeline._run_stage(
+        profile="serve-refresh",
+        stage="serving_refresh",
+        as_of_date="2026-03-14",
+        should_run_core=should_run_core,
+        serving_mode="light",
+        force_core=False,
+        core_reason="within_interval",
+        data_db=run_model_pipeline.DATA_DB,
+        cache_db=run_model_pipeline.CACHE_DB,
+    )
+
+    assert out["status"] == "ok"
+    assert captured["refresh_deep_health_diagnostics"] is expected_recompute
 
 
 def test_explicit_neon_core_window_fails_without_neon_readiness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

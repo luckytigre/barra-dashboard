@@ -169,6 +169,53 @@ def _can_reuse_cached_health_payload(
     return cached_signature == signature
 
 
+def _carry_forward_health_payload(
+    cached_payload: dict[str, Any] | None,
+    *,
+    run_id: str,
+    snapshot_id: str,
+    refresh_started_at: str,
+    source_dates: SourceDatesPayload,
+    risk_engine_state: RiskEngineStatePayload,
+) -> tuple[dict[str, Any], str]:
+    if isinstance(cached_payload, dict):
+        out = dict(cached_payload)
+        out["diagnostics_refresh_state"] = "carried_forward"
+        out["diagnostics_generated_from_run_id"] = str(
+            out.get("diagnostics_generated_from_run_id")
+            or out.get("run_id")
+            or ""
+        )
+        out["diagnostics_generated_from_snapshot_id"] = str(
+            out.get("diagnostics_generated_from_snapshot_id")
+            or out.get("snapshot_id")
+            or ""
+        )
+        out["run_id"] = str(run_id)
+        out["snapshot_id"] = str(snapshot_id)
+        out["refresh_started_at"] = str(refresh_started_at)
+        out["source_dates"] = dict(source_dates or {})
+        out["risk_engine"] = dict(risk_engine_state or {})
+        return out, "carried_forward"
+
+    return (
+        {
+            "status": "deferred",
+            "message": "Deep health diagnostics were not recomputed on this refresh.",
+            "diagnostics_refresh_state": "deferred",
+            "diagnostics_generated_from_run_id": None,
+            "diagnostics_generated_from_snapshot_id": None,
+            "run_id": str(run_id),
+            "snapshot_id": str(snapshot_id),
+            "refresh_started_at": str(refresh_started_at),
+            "source_dates": dict(source_dates or {}),
+            "risk_engine": dict(risk_engine_state or {}),
+            "cache_version": HEALTH_DIAGNOSTICS_CACHE_VERSION,
+        },
+        "deferred",
+    )
+
+
 def build_model_sanity_report(
     *,
     risk_shares: RiskSharesPayload,
@@ -388,7 +435,7 @@ def stage_refresh_cache_snapshot(
     exposure_modes: ExposureModesPayload,
     factor_catalog: list[FactorCatalogEntryPayload],
     cuse4_foundation: dict[str, Any],
-    light_mode: bool,
+    recompute_health_diagnostics: bool = False,
     reuse_cached_static_payloads: bool = False,
     data_db: Path,
     cache_db: Path,
@@ -496,11 +543,9 @@ def stage_refresh_cache_snapshot(
     _stage_cache("model_sanity", sanity)
     _stage_cache("cuse4_foundation", cuse4_foundation)
 
-    cached_health_payload = sqlite.cache_get("health_diagnostics") if light_mode else None
-    if _can_reuse_cached_health_payload(cached_health_payload, signature=health_reuse_signature):
-        health_payload = dict(cached_health_payload)
-        health_refreshed = False
-    else:
+    cached_health_payload = sqlite.cache_get("health_diagnostics")
+    health_refresh_state = "deferred"
+    if bool(recompute_health_diagnostics):
         health_payload = compute_health_diagnostics(
             data_db,
             cache_db,
@@ -513,18 +558,39 @@ def stage_refresh_cache_snapshot(
             snapshot_id=snapshot_id,
         )
         health_refreshed = True
+        health_refresh_state = "recomputed"
+    else:
+        health_payload, health_refresh_state = _carry_forward_health_payload(
+            cached_health_payload if isinstance(cached_health_payload, dict) else None,
+            run_id=str(run_id),
+            snapshot_id=str(snapshot_id),
+            refresh_started_at=str(refresh_started_at),
+            source_dates=effective_source_dates,
+            risk_engine_state=risk_engine_state,
+        )
+        health_refreshed = False
     if isinstance(health_payload, dict):
         health_payload = dict(health_payload)
         health_payload["run_id"] = str(run_id)
         health_payload["snapshot_id"] = str(snapshot_id)
         health_payload["_reuse_signature"] = health_reuse_signature
         health_payload["cache_version"] = HEALTH_DIAGNOSTICS_CACHE_VERSION
+        health_payload["diagnostics_refresh_state"] = str(health_refresh_state)
+        health_payload.setdefault(
+            "diagnostics_generated_from_run_id",
+            str(run_id) if bool(recompute_health_diagnostics) else None,
+        )
+        health_payload.setdefault(
+            "diagnostics_generated_from_snapshot_id",
+            str(snapshot_id) if bool(recompute_health_diagnostics) else None,
+        )
     _stage_cache("health_diagnostics", health_payload)
     logger.info(
-        "Staged core payloads: positions=%s factors=%s health_refreshed=%s",
+        "Staged core payloads: positions=%s factors=%s health_refreshed=%s health_refresh_state=%s",
         len(positions),
         len(universe_loadings.get("factors", [])),
         bool(health_refreshed),
+        str(health_refresh_state),
     )
 
     refresh_meta: RefreshMetaPayload = {
@@ -539,6 +605,7 @@ def stage_refresh_cache_snapshot(
         "model_sanity_status": sanity.get("status", "unknown"),
         "cuse4_foundation": cuse4_foundation,
         "health_refreshed": bool(health_refreshed),
+        "health_refresh_state": str(health_refresh_state),
     }
     _stage_cache("refresh_meta", refresh_meta)
 
@@ -547,6 +614,7 @@ def stage_refresh_cache_snapshot(
         "risk_engine_state": risk_engine_state,
         "sanity": sanity,
         "health_refreshed": bool(health_refreshed),
+        "health_refresh_state": str(health_refresh_state),
         "persisted_payloads": {
             "portfolio": portfolio_data,
             "risk": risk_data,

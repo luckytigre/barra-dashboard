@@ -10,6 +10,7 @@ Related planning document:
 - `docs/NEON_STANDALONE_EXECUTION_PLAN.md` is the concrete phase-by-phase implementation and review program for completing that migration.
 - `docs/NEON_MAIN_PLATFORM_PLAN.md` is the focused plan for making Neon the actual main durable platform rather than a partial mirror or transitional authority.
 - `docs/NEON_LEAN_CONSOLIDATION_PLAN.md` governs the current simplification pass so the Neon migration does not accumulate unnecessary weight for a hobby tool.
+- `docs/PROJECT_HARDENING_ORGANIZATION_PLAN.md` is the active audit-driven hardening plan for consolidating truth surfaces, reducing oversized modules, and keeping docs/frontend readouts aligned with the real operating model.
 
 ## Current Implementation Status
 
@@ -21,9 +22,13 @@ Implemented now:
 - `/api/operator/status` exposes lane status, source recency, core-due state, refresh state, and Neon parity health
 - `/api/operator/status` now distinguishes authoritative operating source dates from the local SQLite ingest/archive dates on the LSEG machine
 - `/api/operator/status` also carries backend-authoritative holdings dirty state and runtime warnings
+- operator-status and data-diagnostics payload assembly now live in dedicated backend services instead of route-local construction blocks
 - Health page now acts as the live operator control deck and freshness/model-quality surface
 - Data page now acts as the source-table/cache diagnostics surface
 - Health page is now split into a shell plus lazily mounted diagnostics sections so heavy chart bundles load only after explicit user intent
+- Exposures and Positions now share one frontend truth-summary helper for snapshot id, served loadings date, latest available loadings date, and core-model date instead of recomputing that banner separately per page
+- Health page now treats Operator Status as the primary source-recency/control-room surface and uses served risk payloads only for served-model facts like current factor-return fit
+- header refresh controls are now reduced to one context-aware quick action (`SYNC` / `RECALC`) so the same `serve-refresh` action is not exposed twice with different labels
 - source recency now explicitly tracks prices, fundamentals, classification, and raw cross-section dates
 - `make operator-check` / `scripts/operator_check.sh` provide one-command backend/operator validation
 - holdings serving reads now prefer Neon whenever a Neon DSN is configured; in-code mock positions are bootstrap fallback only
@@ -38,7 +43,7 @@ Implemented now:
 - the Positions page now composes feature-level holdings modules (`features/holdings`) rather than owning CSV parsing, mutation orchestration, and tables inline
 - holdings projection now loads one holdings snapshot per refresh build instead of re-querying holdings metadata repeatedly
 - Neon holdings read failures now stop serving-refresh projection work instead of silently degrading to an empty successful portfolio
-- Health diagnostics are now recomputed on every refresh from staged inputs, then published durably alongside the rest of the serving payload set
+- Deep `health_diagnostics` are now published durably alongside the rest of the serving payload set, but ordinary quick refreshes carry them forward instead of recomputing them
 - factor-return persistence now replaces stale history slices in durable SQLite and Neon instead of only appending from the latest durable date
 - durable covariance persistence now prunes retired factor names so removed factors do not linger in historical covariance rows
 - Neon factor-return parity now checks sampled row values and inference-field coverage, not only row counts and date windows
@@ -55,6 +60,8 @@ Cold-core lessons now incorporated:
 - heavy diagnostics and operator-state surfaces should be separated so the operator view remains useful even when diagnostics are stale
 - during local/workspace rebuilds, `serving_refresh` must read from the same local/workspace source tables that produced the new raw history; otherwise it can publish stale Neon loadings beside fresh local core-model outputs
 - during light `serve-refresh`, weekly core-state should resolve from the latest durable `model_run_metadata` before runtime-state fallback; otherwise a stale runtime key can overwrite the current core model while republishing fresh loadings
+- during ordinary `serve-refresh`, deep model-health diagnostics should be reused or explicitly deferred; they should not be recomputed on the quick path
+- frontend operator/freshness surfaces should stay narrow: one compact banner on user-facing pages, one control-room page for runtime truth, and one deeper diagnostics page for maintenance
 
 ## Known Limitations Still Open
 
@@ -218,6 +225,7 @@ Key rule:
 - Serving refreshes should be cheap and frequent.
 - They should not trigger full cUSE4 recompute unless explicitly requested.
 - Their job is to publish the latest holdings, prices, and factor-loadings projection against the currently accepted core risk-engine state.
+- Deep model-health diagnostics belong to `core-weekly`, `cold-core`, or another explicit diagnostics-producing lane rather than the ordinary quick refresh path.
 - The currently active serving payload set should be durable and mirrorable (`serving_payload_current`), not only present in the local cache layer.
 
 ## Canonical Event Types

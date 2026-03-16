@@ -281,6 +281,7 @@ class RefreshMetaPayload(TypedDict, total=False):
     model_sanity_status: str
     cuse4_foundation: dict[str, Any]
     health_refreshed: bool
+    health_refresh_state: str
 
 
 class StageRefreshSnapshotResult(TypedDict):
@@ -288,3 +289,4 @@ class StageRefreshSnapshotResult(TypedDict):
     risk_engine_state: RiskEngineStatePayload
     sanity: ModelSanityPayload
     health_refreshed: bool
+    health_refresh_state: str

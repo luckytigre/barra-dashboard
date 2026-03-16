@@ -377,19 +377,19 @@ export default function PositionsPage() {
                 <h4>Source Dates</h4>
                 <div className="data-metric-row">
                   <span className="data-metric-label">Prices</span>
-                  <span className="data-metric-value">{portfolio?.source_dates?.prices_asof || "—"}</span>
+                  <span className="data-metric-value">{truth.sourceDates.prices_asof || "—"}</span>
                 </div>
                 <div className="data-metric-row">
                   <span className="data-metric-label">Fundamentals</span>
-                  <span className="data-metric-value">{portfolio?.source_dates?.fundamentals_asof || "—"}</span>
+                  <span className="data-metric-value">{truth.sourceDates.fundamentals_asof || "—"}</span>
                 </div>
                 <div className="data-metric-row">
                   <span className="data-metric-label">Classification</span>
-                  <span className="data-metric-value">{portfolio?.source_dates?.classification_asof || "—"}</span>
+                  <span className="data-metric-value">{truth.sourceDates.classification_asof || "—"}</span>
                 </div>
                 <div className="data-metric-row">
                   <span className="data-metric-label">Served Exposures</span>
-                  <span className="data-metric-value">{portfolio?.source_dates?.exposures_served_asof || "—"}</span>
+                  <span className="data-metric-value">{truth.exposuresServedAsOf || "—"}</span>
                 </div>
               </div>
             </div>
