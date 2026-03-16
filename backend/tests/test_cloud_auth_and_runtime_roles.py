@@ -107,12 +107,15 @@ def test_cloud_runtime_role_blocks_ingest_stage(monkeypatch) -> None:
     )
 
     out = orchestrator._run_stage(
+        profile="source-daily",
         stage="ingest",
         as_of_date="2026-03-09",
         should_run_core=False,
         serving_mode="light",
         force_core=False,
         core_reason="test",
+        data_db=orchestrator.DATA_DB,
+        cache_db=orchestrator.CACHE_DB,
         raw_history_policy="none",
         reset_core_cache=False,
         enable_ingest=True,

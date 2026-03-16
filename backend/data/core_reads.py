@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -21,10 +23,35 @@ _CORE_READ_SURFACE = "core_reads"
 _LATEST_PRICES_TABLE = "security_prices_latest_cache"
 _LATEST_PRICES_META_TABLE = "security_prices_latest_cache_meta"
 logger = logging.getLogger(__name__)
+_CORE_READ_BACKEND_OVERRIDE: ContextVar[str | None] = ContextVar(
+    "core_read_backend_override",
+    default=None,
+)
 
 
 def _use_neon_core_reads() -> bool:
+    override = _CORE_READ_BACKEND_OVERRIDE.get()
+    if override == "local":
+        return False
+    if override == "neon":
+        return True
     return bool(config.neon_surface_enabled(_CORE_READ_SURFACE))
+
+
+def core_read_backend_name() -> str:
+    return "neon" if _use_neon_core_reads() else "local"
+
+
+@contextmanager
+def core_read_backend(backend: str):
+    clean = str(backend or "").strip().lower()
+    if clean not in {"local", "neon"}:
+        raise ValueError("backend must be 'local' or 'neon'")
+    token = _CORE_READ_BACKEND_OVERRIDE.set(clean)
+    try:
+        yield
+    finally:
+        _CORE_READ_BACKEND_OVERRIDE.reset(token)
 
 
 def _to_pg_sql(query: str) -> str:
@@ -495,11 +522,17 @@ def load_source_dates() -> dict[str, str | None]:
             "SELECT MAX(date) AS latest FROM security_prices_eod"
         )
 
+    exposures_latest_available_asof = _max_val(
+        f"SELECT MAX(as_of_date) AS latest FROM {_exposure_source_table_required()}"
+    )
+
     return {
         "fundamentals_asof": fundamentals_asof,
         "classification_asof": classification_asof,
         "prices_asof": prices_asof,
-        "exposures_asof": _max_val(
-            f"SELECT MAX(as_of_date) AS latest FROM {_exposure_source_table_required()}"
-        ),
+        # Keep the legacy field for backward compatibility, but also expose the
+        # explicit latest-available field so served payloads can separately report
+        # the effective well-covered date they actually used.
+        "exposures_asof": exposures_latest_available_asof,
+        "exposures_latest_available_asof": exposures_latest_available_asof,
     }

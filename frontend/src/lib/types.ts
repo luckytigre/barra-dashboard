@@ -41,16 +41,26 @@ export interface Position {
   };
 }
 
-export interface PortfolioData {
+export interface SourceDates {
+  fundamentals_asof?: string | null;
+  exposures_asof?: string | null;
+  exposures_latest_available_asof?: string | null;
+  exposures_served_asof?: string | null;
+  prices_asof?: string | null;
+  classification_asof?: string | null;
+}
+
+export interface ServingSnapshotMeta {
+  run_id?: string | null;
+  snapshot_id?: string | null;
+  refresh_started_at?: string | null;
+}
+
+export interface PortfolioData extends ServingSnapshotMeta {
   positions: Position[];
   total_value: number;
   position_count: number;
-  source_dates?: {
-    fundamentals_asof?: string | null;
-    exposures_asof?: string | null;
-    prices_asof?: string | null;
-    classification_asof?: string | null;
-  };
+  source_dates?: SourceDates;
   _cached: boolean;
 }
 
@@ -108,12 +118,9 @@ export interface WhatIfPreviewData {
       risk_contribution: WhatIfFactorDeltaRow[];
     };
   };
-  source_dates?: {
-    fundamentals_asof?: string | null;
-    exposures_asof?: string | null;
-    prices_asof?: string | null;
-    classification_asof?: string | null;
-  };
+  source_dates?: SourceDates;
+  serving_snapshot?: ServingSnapshotMeta;
+  truth_surface?: string;
   _preview_only: boolean;
 }
 
@@ -240,9 +247,10 @@ export interface FactorExposure {
   drilldown: FactorDrilldownItem[];
 }
 
-export interface ExposuresData {
+export interface ExposuresData extends ServingSnapshotMeta {
   mode: string;
   factors: FactorExposure[];
+  source_dates?: SourceDates;
   _cached: boolean;
 }
 
@@ -284,13 +292,14 @@ export interface CovMatrix {
   matrix?: number[][];
 }
 
-export interface RiskData {
+export interface RiskData extends ServingSnapshotMeta {
   risk_shares: RiskShares;
   component_shares: Omit<RiskShares, "idio">;
   factor_details: FactorDetail[];
   factor_catalog?: FactorCatalogEntry[];
   cov_matrix: CovMatrix;
   r_squared: number;
+  source_dates?: SourceDates;
   risk_engine?: {
     status?: string;
     method_version?: string;
@@ -737,6 +746,11 @@ export interface OperatorLaneStatus {
   reset_core_cache: boolean;
   default_stages: string[];
   enable_ingest: boolean;
+  ingest_policy?: string;
+  rebuild_backend?: string;
+  requires_neon_sync_before_core?: boolean;
+  source_sync_required?: boolean;
+  neon_readiness_required?: boolean;
   latest_run: OperatorLaneLatestRun;
 }
 
@@ -744,12 +758,8 @@ export interface OperatorStatusData {
   status: string;
   generated_at: string;
   lanes: OperatorLaneStatus[];
-  source_dates: {
-    fundamentals_asof?: string | null;
-    classification_asof?: string | null;
-    prices_asof?: string | null;
-    exposures_asof?: string | null;
-  };
+  source_dates: SourceDates;
+  local_archive_source_dates?: SourceDates | null;
   risk_engine: {
     status?: string;
     method_version?: string;
@@ -767,6 +777,7 @@ export interface OperatorStatusData {
   holdings_sync?: {
     pending?: boolean;
     pending_count?: number;
+    dirty_revision?: number;
     dirty_since?: string | null;
     last_mutation_at?: string | null;
     last_mutation_kind?: string | null;
@@ -779,6 +790,7 @@ export interface OperatorStatusData {
     last_refresh_profile?: string | null;
     last_refresh_run_id?: string | null;
     last_refresh_message?: string | null;
+    last_refresh_started_dirty_revision?: number | null;
   } | null;
   neon_sync_health?: {
     status?: string;
@@ -802,6 +814,13 @@ export interface OperatorStatusData {
     canonical_serving_profile?: string;
     dashboard_truth_surface?: string;
     dashboard_truth_plain_english?: string;
+    storage_contract_plain_english?: string;
+    source_authority?: string;
+    source_authority_plain_english?: string;
+    local_archive_enabled?: boolean;
+    local_archive_plain_english?: string;
+    rebuild_authority?: string;
+    rebuild_authority_plain_english?: string;
     diagnostics_scope?: string;
     diagnostics_scope_plain_english?: string;
     data_backend?: string;
@@ -812,6 +831,7 @@ export interface OperatorStatusData {
     neon_auto_parity_enabled_effective?: boolean;
     neon_auto_prune_enabled?: boolean;
     neon_auto_prune_enabled_effective?: boolean;
+    neon_authoritative_rebuilds?: boolean;
     neon_read_surfaces?: string[];
     serving_outputs_primary_reads?: boolean;
     serving_outputs_primary_reads_effective?: boolean;

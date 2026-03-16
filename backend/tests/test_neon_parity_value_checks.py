@@ -230,3 +230,144 @@ def test_run_bounded_parity_audit_reports_factor_return_inference_coverage(
     table_out = out["tables"]["model_factor_returns_daily"]
     assert table_out["source_non_null_counts"]["robust_se"] == 2
     assert table_out["target_non_null_counts"]["robust_se"] == 0
+
+
+def test_run_bounded_parity_audit_detects_open_period_pit_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sqlite_path = tmp_path / "data.db"
+    cache_path = tmp_path / "cache.db"
+    _create_sqlite_runtime(sqlite_path, cache_path)
+
+    monkeypatch.setattr(neon_mirror, "connect", lambda **_kwargs: _DummyPgConn())
+    monkeypatch.setattr(neon_mirror, "resolve_dsn", lambda dsn: dsn)
+    monkeypatch.setattr(neon_mirror, "_pg_table_exists", lambda _pg_conn, _table: False)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_count_window",
+        lambda _pg_conn, *, table, date_col, cutoff, distinct_col="ric": {
+            "row_count": 1,
+            "min_date": "2026-03-01" if date_col else None,
+            "max_date": "2026-03-01" if date_col else None,
+            "latest_distinct": 1 if date_col else None,
+        },
+    )
+    monkeypatch.setattr(neon_mirror, "_pg_duplicate_key_groups", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_pit_period_health",
+        lambda *_args, **_kwargs: {"periods_with_multiple_anchors": 0, "open_period_rows": 1},
+    )
+    monkeypatch.setattr(neon_mirror, "_pit_latest_closed_anchor", lambda **_kwargs: "2026-02-27")
+
+    out = neon_mirror.run_bounded_parity_audit(
+        sqlite_path=sqlite_path,
+        dsn="postgresql://example",
+        source_years=10,
+    )
+
+    assert out["status"] == "mismatch"
+    assert "period_policy_violation:security_fundamentals_pit" in out["issues"]
+    assert "period_policy_violation:security_classification_pit" in out["issues"]
+    assert out["tables"]["security_fundamentals_pit"]["period_policy"]["source"]["open_period_rows"] == 1
+
+
+def test_run_bounded_parity_audit_detects_multiple_monthly_pit_anchors(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sqlite_path = tmp_path / "data.db"
+    cache_path = tmp_path / "cache.db"
+    _create_sqlite_runtime(sqlite_path, cache_path)
+    conn = sqlite3.connect(str(sqlite_path))
+    conn.execute(
+        "INSERT INTO security_fundamentals_pit (ric, as_of_date, stat_date) VALUES ('ABC.N', '2026-02-15', '2025-12-31')"
+    )
+    conn.execute(
+        "INSERT INTO security_fundamentals_pit (ric, as_of_date, stat_date) VALUES ('ABC.N', '2026-02-27', '2025-12-31')"
+    )
+    conn.execute(
+        "INSERT INTO security_classification_pit (ric, as_of_date) VALUES ('ABC.N', '2026-02-15')"
+    )
+    conn.execute(
+        "INSERT INTO security_classification_pit (ric, as_of_date) VALUES ('ABC.N', '2026-02-27')"
+    )
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(neon_mirror, "connect", lambda **_kwargs: _DummyPgConn())
+    monkeypatch.setattr(neon_mirror, "resolve_dsn", lambda dsn: dsn)
+    monkeypatch.setattr(neon_mirror, "_pg_table_exists", lambda _pg_conn, _table: False)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_count_window",
+        lambda _pg_conn, *, table, date_col, cutoff, distinct_col="ric": {
+            "row_count": 2 if table in {"security_fundamentals_pit", "security_classification_pit"} else 1,
+            "min_date": "2026-02-15" if date_col else None,
+            "max_date": "2026-03-01" if date_col else None,
+            "latest_distinct": 1 if date_col else None,
+        },
+    )
+    monkeypatch.setattr(neon_mirror, "_pg_duplicate_key_groups", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_pit_period_health",
+        lambda *_args, **_kwargs: {"periods_with_multiple_anchors": 1, "open_period_rows": 1},
+    )
+    monkeypatch.setattr(neon_mirror, "_pit_latest_closed_anchor", lambda **_kwargs: "2026-02-27")
+
+    out = neon_mirror.run_bounded_parity_audit(
+        sqlite_path=sqlite_path,
+        dsn="postgresql://example",
+        source_years=10,
+    )
+
+    assert out["status"] == "mismatch"
+    assert "period_policy_violation:security_fundamentals_pit" in out["issues"]
+    assert out["tables"]["security_fundamentals_pit"]["period_policy"]["source"]["periods_with_multiple_anchors"] == 1
+
+
+def test_run_bounded_parity_audit_detects_duplicate_price_keys(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    sqlite_path = tmp_path / "data.db"
+    cache_path = tmp_path / "cache.db"
+    _create_sqlite_runtime(sqlite_path, cache_path)
+    conn = sqlite3.connect(str(sqlite_path))
+    conn.execute("INSERT INTO security_prices_eod (ric, date) VALUES ('ABC.N', '2026-03-01')")
+    conn.commit()
+    conn.close()
+
+    monkeypatch.setattr(neon_mirror, "connect", lambda **_kwargs: _DummyPgConn())
+    monkeypatch.setattr(neon_mirror, "resolve_dsn", lambda dsn: dsn)
+    monkeypatch.setattr(neon_mirror, "_pg_table_exists", lambda _pg_conn, _table: False)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_count_window",
+        lambda _pg_conn, *, table, date_col, cutoff, distinct_col="ric": {
+            "row_count": 2 if table == "security_prices_eod" else 1,
+            "min_date": "2026-03-01" if date_col else None,
+            "max_date": "2026-03-01" if date_col else None,
+            "latest_distinct": 1 if date_col else None,
+        },
+    )
+    monkeypatch.setattr(neon_mirror, "_pg_duplicate_key_groups", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(
+        neon_mirror,
+        "_pg_pit_period_health",
+        lambda *_args, **_kwargs: {"periods_with_multiple_anchors": 0, "open_period_rows": 0},
+    )
+    monkeypatch.setattr(neon_mirror, "_pit_latest_closed_anchor", lambda **_kwargs: "2026-02-27")
+
+    out = neon_mirror.run_bounded_parity_audit(
+        sqlite_path=sqlite_path,
+        dsn="postgresql://example",
+        source_years=10,
+    )
+
+    assert out["status"] == "mismatch"
+    assert "duplicate_keys:security_prices_eod" in out["issues"]
+    assert out["tables"]["security_prices_eod"]["duplicate_key_groups"]["source"] == 1
+    assert out["tables"]["security_prices_eod"]["duplicate_key_groups"]["target"] == 1

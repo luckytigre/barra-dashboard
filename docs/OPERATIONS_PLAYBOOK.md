@@ -2,6 +2,8 @@
 
 ## Core Policy
 - Holdings writes and holdings-serving reads are both Neon-authoritative when a Neon DSN is configured.
+- Local SQLite is the only direct LSEG landing zone and the optional deep archive on the local machine.
+- Neon is the intended authoritative operating database for serving and, once enabled, for core/cold-core rebuilds.
 - `RECALC`/holdings-dirty state is backend-persisted, not browser-local.
 - Risk engine recompute cadence: weekly (`RISK_RECOMPUTE_INTERVAL_DAYS=7` by default).
 - Cross-section recency guard: regressions only use exposure snapshots at least 7 calendar days old (`CROSS_SECTION_MIN_AGE_DAYS=7`).
@@ -45,14 +47,25 @@
   - on that same fast path, cached `eligibility` and `cov_matrix` are reused when present instead of being rebuilt from unchanged model state
   - when that reuse path is active, relational `model_outputs` persistence is skipped because the core model state is unchanged; serving payload persistence still runs normally
   - manual `serve-refresh` without that scope keeps the existing full serving-refresh behavior.
-- `source-daily`: latest-source ingest plus serving refresh only.
-- `source-daily-plus-core-if-due`: default daily maintenance lane; recomputes core only when cadence/version says due.
+- `source-daily`: local LSEG ingest into SQLite for the latest completed XNYS session, repair any missing daily price sessions up to that session, purge open-month PIT rows, backfill any missing closed-month fundamentals/classification anchors, publish the retained working window into Neon, then refresh serving only.
+- `source-daily-plus-core-if-due`: default daily maintenance lane; local ingest + Neon source-sync first, then recompute core only when cadence/version says due.
 - `core-weekly`: force core recompute without rebuilding full raw history.
   - factor-return recompute now determines uncached dates before loading prices and only reads the bounded price window needed for those dates plus the immediately prior session.
 - `cold-core`: full historical reset for structural data changes (new/changed historical prices, volume, fundamentals, classification, or factor methodology).
   - This path rebuilds `barra_raw_cross_section_history` over full history and clears core cache tables before recomputing factor returns/risk.
   - This lane is an explicit operator/API path; it is not exposed as a one-click dashboard control in the current frontend.
 - `universe-add`: finalization lane after explicit `security_master` merge and targeted source backfills for new names.
+
+Rebuild-authority rule:
+- While `NEON_AUTHORITATIVE_REBUILDS=false`, `core-weekly` and `cold-core` still rebuild from local SQLite. Run `source-daily` first if you need the latest local ingest reflected.
+- If Neon ever gets ahead of the intended `source-daily` target date because of a premature/invalid session stamp, rerunning `source-daily` now heals that state instead of refusing the publish.
+- When `NEON_AUTHORITATIVE_REBUILDS=true`, those rebuild lanes execute in this order:
+  - `source_sync`: publish source tables from local SQLite into Neon without downgrading newer Neon source dates
+  - `neon_readiness`: validate Neon table coverage/retention and materialize a scratch SQLite rebuild workspace from Neon
+  - core stages run from that Neon-backed scratch workspace
+  - final mirror publishes rebuilt analytics back into Neon
+  - local derived tables/cache are refreshed from the scratch workspace so the private mirror stays congruent
+- In both cases, local SQLite remains the only direct LSEG ingress point.
 
 Runtime-role rule:
 - `local-ingest`: all lanes may be used.
@@ -93,6 +106,7 @@ Runtime-role rule:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=cold-core"`
 - API refresh partial stage run:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily-plus-core-if-due&from_stage=ingest&to_stage=risk_model"`
+  - if `NEON_AUTHORITATIVE_REBUILDS=true` and you target core stages explicitly, include `neon_readiness` in the window or the run will fail closed before core work starts
 - Orchestrated refresh via CLI module:
   - `python3 -m backend.scripts.run_model_pipeline --profile serve-refresh`
 - Orchestrated refresh via script wrapper:
@@ -198,8 +212,13 @@ Runtime-role rule:
   - Confirm:
     - `.runtime.app_runtime_role`
     - `.runtime.allowed_profiles`
+    - `.runtime.source_authority`
+    - `.runtime.rebuild_authority`
+    - lane metadata shows `source_sync_required` / `neon_readiness_required` for Neon-authoritative core lanes
     - `.runtime.serving_outputs_primary_reads_effective`
     - `.runtime.neon_auto_sync_enabled_effective`
+    - `.source_dates` is the authoritative operating view
+    - `.local_archive_source_dates` matches or intentionally exceeds Neon after local ingest
 - One-command operator check:
   - `make operator-check`
   - or `./scripts/operator_check.sh`

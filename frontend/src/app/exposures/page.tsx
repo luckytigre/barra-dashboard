@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useExposures, usePortfolio, useRisk } from "@/hooks/useApi";
 import ExposureBarChart from "@/components/ExposureBarChart";
@@ -14,8 +15,7 @@ import ApiErrorState from "@/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import type { FactorDetail } from "@/lib/types";
 import { factorDisplayName } from "@/lib/factorLabels";
-import HoldingsMutationFeedback from "@/features/holdings/components/HoldingsMutationFeedback";
-import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
+import { formatAsOfDate, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
 
 const MODES = [
   { key: "raw", label: "Exposure" },
@@ -57,60 +57,62 @@ export default function ExposuresPage() {
     const date = factors.find((f) => f.coverage_date)?.coverage_date ?? null;
     return { min, max, date };
   }, [factors]);
-
-  const riskHoldingsRows = useMemo(
-    () =>
-      positions.map((pos) => ({
-        account_id: pos.account,
-        ric: "",
-        ticker: pos.ticker,
-        quantity: pos.shares,
-        source: pos.source,
-        updated_at: null,
-      })),
-    [positions],
+  const truth = useMemo(
+    () => summarizeAnalyticsTruth({ portfolio: portfolioData, risk: riskData, exposures: data }),
+    [data, portfolioData, riskData],
   );
-
-  const {
-    busy: holdingsBusy,
-    draftCount,
-    draftDeleteCount,
-    errorMessage: holdingsErrorMessage,
-    resultMessage: holdingsResultMessage,
-    rejectionPreview: holdingsRejectionPreview,
-    getDraftQuantityText,
-    hasDraftForTarget,
-    isDraftInvalid,
-    handleAdjust,
-    handleApplyDrafts,
-    handleDraftQuantityChange,
-    discardDrafts,
-  } = useHoldingsManager("", riskHoldingsRows);
-
-  const getPositionDraftQuantityText = (pos: (typeof positions)[number]) =>
-    getDraftQuantityText({
-      account_id: pos.account,
-      ticker: pos.ticker,
-      current_quantity: pos.shares,
-    });
-
-  const hasPositionDraft = (pos: (typeof positions)[number]) =>
-    hasDraftForTarget({
-      account_id: pos.account,
-      ticker: pos.ticker,
-    });
-
-  const isPositionDraftInvalid = (pos: (typeof positions)[number]) =>
-    isDraftInvalid({
-      account_id: pos.account,
-      ticker: pos.ticker,
-    });
+  const snapshotMismatch = !truth.snapshotsCoherent && truth.snapshotIds.length > 1;
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading exposures..." />;
   }
   if (error || portfolioError || riskError) {
     return <ApiErrorState title="Risk Data Not Ready" error={error || portfolioError || riskError} />;
+  }
+  if (snapshotMismatch) {
+    return (
+      <div>
+        <div className="chart-card">
+          <h3 style={{ marginTop: 0 }}>Risk Snapshot In Flight</h3>
+          <div
+            style={{
+              marginTop: 12,
+              padding: "12px 14px",
+              border: "1px solid rgba(204, 53, 88, 0.25)",
+              background: "rgba(204, 53, 88, 0.08)",
+              color: "rgba(248, 221, 228, 0.92)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            Portfolio, risk, and exposures are spanning multiple published snapshots right now ({truth.snapshotIds.join(" / ")}).
+            This page withholds analytics until RECALC finishes or the page reloads into one coherent publish.
+          </div>
+        </div>
+        <div className="chart-card" style={{ marginTop: 12 }}>
+          <h3>Holdings Edits</h3>
+          <div
+            style={{
+              padding: "12px 14px",
+              border: "1px solid rgba(88, 182, 199, 0.2)",
+              background: "rgba(88, 182, 199, 0.05)",
+              color: "rgba(232, 237, 249, 0.86)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            This page is read-only for holdings. Make account-routed portfolio edits on{" "}
+            <Link
+              href="/positions"
+              style={{ color: "rgba(88, 182, 199, 0.95)", textDecoration: "underline" }}
+            >
+              Positions
+            </Link>{" "}
+            or use Explore what-if and apply from there.
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const selected = selectedFactor
@@ -164,6 +166,28 @@ export default function ExposuresPage() {
             </span>
           )}
         </div>
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "12px 14px",
+            border: "1px solid rgba(169, 182, 210, 0.18)",
+            background: "rgba(169, 182, 210, 0.05)",
+            color: "rgba(232, 237, 249, 0.84)",
+            fontSize: 13,
+            lineHeight: 1.55,
+          }}
+        >
+          <div>
+            Published snapshot {truth.snapshotId ?? "—"} serves exposures as of {formatAsOfDate(truth.exposuresServedAsOf)}.
+            Core model is as of {formatAsOfDate(truth.modelAsOf)}.
+          </div>
+          <div>
+            Latest raw cross-section available is {formatAsOfDate(truth.exposuresLatestAvailableAsOf)}.
+            {truth.updateAvailable
+              ? " Newer authoritative source data exists than the current model. That lag is expected until the next core rebuild publishes a newer Neon-served snapshot."
+              : " Current authoritative source dates and served analytics are aligned."}
+          </div>
+        </div>
         <ExposureBarChart
           factors={factors}
           mode={mode as "raw" | "sensitivity" | "risk_contribution"}
@@ -186,76 +210,30 @@ export default function ExposuresPage() {
 
       <div className="chart-card" style={{ marginTop: 12 }}>
         <h3>Positions (Barra Risk Mix)</h3>
-        {draftCount > 0 && (
-          <div
-            style={{
-              marginBottom: 12,
-              padding: "12px 14px",
-              border: "1px solid rgba(224, 190, 92, 0.28)",
-              background: "rgba(224, 190, 92, 0.06)",
-              display: "grid",
-              gap: 10,
-            }}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "12px 14px",
+            border: "1px solid rgba(88, 182, 199, 0.2)",
+            background: "rgba(88, 182, 199, 0.05)",
+            color: "rgba(232, 237, 249, 0.86)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          This page is read-only for holdings. Make account-routed portfolio edits on{" "}
+          <Link
+            href="/positions"
+            style={{ color: "rgba(88, 182, 199, 0.95)", textDecoration: "underline" }}
           >
-            <div style={{ color: "rgba(232, 237, 249, 0.9)", fontSize: 13, lineHeight: 1.5 }}>
-              {draftCount} staged edit{draftCount === 1 ? "" : "s"} pending
-              {draftDeleteCount > 0 ? `, including ${draftDeleteCount} staged remove${draftDeleteCount === 1 ? "" : "s"}` : ""}.
-              Nothing is written to Neon until you hit `RECALC`.
-            </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btn-secondary" onClick={() => void handleApplyDrafts()} disabled={holdingsBusy}>
-                {holdingsBusy ? "Applying..." : `RECALC ${draftCount > 0 ? `(${draftCount})` : ""}`}
-              </button>
-              <button className="btn btn-secondary" onClick={discardDrafts} disabled={holdingsBusy}>
-                Discard Drafts
-              </button>
-            </div>
-          </div>
-        )}
+            Positions
+          </Link>{" "}
+          or use Explore what-if and apply from there.
+        </div>
         {portfolioLoading ? (
           <div className="detail-history-empty loading-pulse">Loading positions...</div>
         ) : (
-          <>
-            <ExposurePositionsTable
-              positions={positions}
-              getDraftQuantityText={getPositionDraftQuantityText}
-              hasDraftForPosition={hasPositionDraft}
-              isDraftInvalidForPosition={isPositionDraftInvalid}
-              onDraftQuantityChange={(position, value) =>
-                handleDraftQuantityChange(
-                  {
-                    account_id: position.account,
-                    ric: "",
-                    ticker: position.ticker,
-                    quantity: position.shares,
-                    source: position.source,
-                    updated_at: null,
-                  },
-                  value,
-                )
-              }
-              onAdjust={(position, delta) =>
-                handleAdjust(
-                  {
-                    account_id: position.account,
-                    ric: "",
-                    ticker: position.ticker,
-                    quantity: position.shares,
-                    source: position.source,
-                    updated_at: null,
-                  },
-                  delta,
-                )
-              }
-            />
-            <HoldingsMutationFeedback
-              resultMessage={holdingsResultMessage}
-              errorMessage={holdingsErrorMessage}
-              rejectionPreview={holdingsRejectionPreview}
-              draftCount={draftCount}
-              draftDeleteCount={draftDeleteCount}
-            />
-          </>
+          <ExposurePositionsTable positions={positions} />
         )}
       </div>
 

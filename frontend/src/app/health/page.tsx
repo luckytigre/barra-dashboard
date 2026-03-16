@@ -7,12 +7,14 @@ import ApiErrorState from "@/components/ApiErrorState";
 import KpiCard from "@/components/KpiCard";
 import {
   triggerDailyMaintenanceRefresh,
-  triggerServeRefresh,
   useHealthDiagnostics,
   useOperatorStatus,
   useRisk,
 } from "@/hooks/useApi";
 import OperatorStatusSection from "@/features/health/OperatorStatusSection";
+import { formatAsOfDate } from "@/lib/analyticsTruth";
+import { runServeRefreshAndRevalidate } from "@/lib/refresh";
+import type { SourceDates } from "@/lib/types";
 
 const HealthDiagnosticsRoot = dynamic(() => import("@/features/health/HealthDiagnosticsRoot"), {
   ssr: false,
@@ -21,12 +23,10 @@ const HealthDiagnosticsRoot = dynamic(() => import("@/features/health/HealthDiag
 
 function fmtAsOfDate(isoDate?: string | null): string {
   if (!isoDate) return "N/A";
-  const d = new Date(`${isoDate}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return isoDate;
-  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" });
+  return formatAsOfDate(isoDate);
 }
 
-function latestSourceDate(dates: Record<string, string | null | undefined> | undefined): string {
+function latestSourceDate(dates: SourceDates | undefined): string {
   const rows = Object.values(dates ?? {}).filter((value): value is string => Boolean(value));
   if (rows.length === 0) return "";
   return [...rows].sort().at(-1) ?? "";
@@ -57,6 +57,7 @@ export default function HealthPage() {
   const rSquared = riskData?.r_squared;
   const allowedProfiles = new Set(operatorData?.runtime?.allowed_profiles ?? []);
   const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
+  const neonAuthoritativeRebuilds = Boolean(operatorData?.runtime?.neon_authoritative_rebuilds);
   const updateAvailable = Boolean(
     !dismissUpdatePrompt
     && (
@@ -73,7 +74,7 @@ export default function HealthPage() {
     setRefreshState("running");
     try {
       if (onlyServeRefreshAllowed) {
-        await triggerServeRefresh();
+        await runServeRefreshAndRevalidate();
       } else {
         await triggerDailyMaintenanceRefresh();
       }
@@ -114,8 +115,11 @@ export default function HealthPage() {
     <div className="update-banner">
       <div className="update-banner-title">Update Available</div>
       <div className="update-banner-body">
-        Newer source data exists for <strong>{latestSourceAsOf}</strong>, while the model currently uses the latest
-        well-covered date <strong>{modelAsOf || "n/a"}</strong>.
+        Newer {neonAuthoritativeRebuilds ? "authoritative Neon" : "source"} data exists for <strong>{fmtAsOfDate(latestSourceAsOf)}</strong>,
+        while the model currently uses the latest well-covered date <strong>{fmtAsOfDate(modelAsOf)}</strong>.
+        {!onlyServeRefreshAllowed && (
+          <> The maintenance lane will sync local LSEG updates first, then rebuild core only if cadence or policy requires it.</>
+        )}
       </div>
       <div className="update-banner-actions">
         <button
@@ -134,7 +138,7 @@ export default function HealthPage() {
       </div>
       {refreshState === "done" && (
         <div className="update-banner-feedback success">
-          Refresh started in background.
+          {onlyServeRefreshAllowed ? "Refresh completed." : "Refresh started in background."}
         </div>
       )}
       {refreshState === "failed" && (
@@ -158,7 +162,7 @@ export default function HealthPage() {
               This page runs the heaviest diagnostic study in the app. Sections mount lazily as you scroll so routine dashboard use stays fast.
             </div>
             <div className="section-subtitle" style={{ marginBottom: 0 }}>
-              Operator Status above is the live control-room truth. Diagnostics below are a deeper local maintenance study and may lag the cloud-serving view.
+              Operator Status above is the live control-room truth. Diagnostics below are a deeper local maintenance study of this machine and may lag the Neon-served view.
             </div>
             <button className="health-load-btn" onClick={() => setLoadDiagnostics(true)}>
               Load Diagnostics

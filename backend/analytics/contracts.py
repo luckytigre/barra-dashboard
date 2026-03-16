@@ -22,6 +22,8 @@ class FactorCatalogEntryPayload(TypedDict, total=False):
 class SourceDatesPayload(TypedDict, total=False):
     fundamentals_asof: str | None
     exposures_asof: str | None
+    exposures_latest_available_asof: str | None
+    exposures_served_asof: str | None
     prices_asof: str | None
     classification_asof: str | None
 
@@ -181,6 +183,8 @@ class UniverseLoadingsPayload(TypedDict, total=False):
     core_estimated_ticker_count: int
     projected_only_ticker_count: int
     ineligible_ticker_count: int
+    as_of_date: str | None
+    latest_available_asof: str | None
     factor_count: int
     factors: list[str]
     factor_vols: dict[str, float]
@@ -188,6 +192,8 @@ class UniverseLoadingsPayload(TypedDict, total=False):
     index: list[dict[str, Any]]
     by_ticker: dict[str, UniverseTickerPayload]
     risk_engine: RiskEngineStatePayload
+    run_id: str
+    snapshot_id: str
     refresh_started_at: str
     source_dates: SourceDatesPayload
 
@@ -203,7 +209,10 @@ class UniverseFactorsPayload(TypedDict, total=False):
     projected_only_ticker_count: int
     ineligible_ticker_count: int
     risk_engine: RiskEngineStatePayload
+    run_id: str
+    snapshot_id: str
     refresh_started_at: str
+    source_dates: SourceDatesPayload
 
 
 class EligibilitySummaryPayload(TypedDict, total=False):

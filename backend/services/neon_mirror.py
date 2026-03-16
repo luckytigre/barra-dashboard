@@ -6,11 +6,24 @@ import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from psycopg import sql
 
+from backend import config
 from backend.data.neon import connect, resolve_dsn
-from backend.services.neon_stage2 import canonical_tables, sync_from_sqlite_to_neon
+from backend.trading_calendar import previous_or_same_xnys_session
+from backend.services.neon_stage2 import (
+    apply_sql_file,
+    canonical_tables,
+    ensure_target_columns_from_sqlite,
+    sync_from_sqlite_to_neon,
+)
+
+
+_CANONICAL_SCHEMA_SQL = (
+    Path(__file__).resolve().parents[2] / "docs" / "migrations" / "neon" / "NEON_CANONICAL_SCHEMA.sql"
+)
 
 
 def _cutoff_iso(*, years: int, as_of: date | None = None) -> str:
@@ -26,6 +39,187 @@ def _parse_iso_date(value: str | None) -> date | None:
         return date.fromisoformat(txt[:10])
     except ValueError:
         return None
+
+
+def _pit_latest_closed_anchor(*, frequency: str) -> str:
+    ny_date = datetime.now(ZoneInfo("America/New_York")).date()
+    if frequency == "quarterly":
+        quarter_start_month = (((ny_date.month - 1) // 3) * 3) + 1
+        period_start = date(ny_date.year, quarter_start_month, 1)
+    else:
+        period_start = date(ny_date.year, ny_date.month, 1)
+    return previous_or_same_xnys_session((period_start - timedelta(days=1)).isoformat())
+
+
+def _sqlite_duplicate_key_groups(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    key_cols: list[str],
+    date_col: str | None = None,
+    cutoff: str | None = None,
+) -> int:
+    where_sql = ""
+    params: list[Any] = []
+    if date_col and cutoff:
+        where_sql = f" WHERE {date_col} >= ?"
+        params.append(str(cutoff))
+    key_sql = ", ".join(key_cols)
+    row = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM (
+            SELECT {key_sql}
+            FROM {table}
+            {where_sql}
+            GROUP BY {key_sql}
+            HAVING COUNT(*) > 1
+        )
+        """,
+        params,
+    ).fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _pg_duplicate_key_groups(
+    pg_conn,
+    *,
+    table: str,
+    key_cols: list[str],
+    date_col: str | None = None,
+    cutoff: str | None = None,
+) -> int:
+    params: list[Any] = []
+    where_sql = sql.SQL("")
+    if date_col and cutoff:
+        where_sql = sql.SQL(" WHERE {} >= %s").format(sql.Identifier(date_col))
+        params.append(str(cutoff))
+    group_cols = sql.SQL(", ").join(sql.Identifier(col) for col in key_cols)
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT COUNT(*)
+                FROM (
+                    SELECT {group_cols}
+                    FROM {table}
+                    {where_sql}
+                    GROUP BY {group_cols}
+                    HAVING COUNT(*) > 1
+                ) dupes
+                """
+            ).format(
+                group_cols=group_cols,
+                table=sql.Identifier(table),
+                where_sql=where_sql,
+            ),
+            params,
+        )
+        row = cur.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _sqlite_pit_period_health(
+    conn: sqlite3.Connection,
+    *,
+    table: str,
+    date_col: str,
+    cutoff: str | None,
+    frequency: str,
+    latest_closed_anchor: str,
+) -> dict[str, int]:
+    where_sql = ""
+    params: list[Any] = []
+    if cutoff:
+        where_sql = f"WHERE {date_col} >= ?"
+        params.append(str(cutoff))
+    period_expr = (
+        f"substr({date_col}, 1, 4) || '-Q' || CAST((((CAST(substr({date_col}, 6, 2) AS INTEGER) - 1) / 3) + 1) AS INTEGER)"
+        if frequency == "quarterly"
+        else f"substr({date_col}, 1, 7)"
+    )
+    multi_row = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM (
+            SELECT {period_expr} AS period_key
+            FROM {table}
+            {where_sql}
+            GROUP BY period_key
+            HAVING COUNT(DISTINCT {date_col}) > 1
+        )
+        """,
+        params,
+    ).fetchone()
+    open_row = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM {table}
+        WHERE {date_col} > ?
+        """,
+        (latest_closed_anchor,),
+    ).fetchone()
+    return {
+        "periods_with_multiple_anchors": int(multi_row[0] or 0) if multi_row else 0,
+        "open_period_rows": int(open_row[0] or 0) if open_row else 0,
+    }
+
+
+def _pg_pit_period_health(
+    pg_conn,
+    *,
+    table: str,
+    date_col: str,
+    cutoff: str | None,
+    frequency: str,
+    latest_closed_anchor: str,
+) -> dict[str, int]:
+    params: list[Any] = []
+    where_sql = sql.SQL("")
+    if cutoff:
+        where_sql = sql.SQL("WHERE {} >= %s").format(sql.Identifier(date_col))
+        params.append(str(cutoff))
+    period_expr = (
+        sql.SQL(
+            "LEFT({date_col}::text, 4) || '-Q' || CAST((((EXTRACT(MONTH FROM {date_col})::int - 1) / 3) + 1) AS int)::text"
+        ).format(date_col=sql.Identifier(date_col))
+        if frequency == "quarterly"
+        else sql.SQL("LEFT({date_col}::text, 7)").format(date_col=sql.Identifier(date_col))
+    )
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT COUNT(*)
+                FROM (
+                    SELECT {period_expr} AS period_key
+                    FROM {table}
+                    {where_sql}
+                    GROUP BY period_key
+                    HAVING COUNT(DISTINCT {date_col}) > 1
+                ) anchors
+                """
+            ).format(
+                period_expr=period_expr,
+                table=sql.Identifier(table),
+                where_sql=where_sql,
+                date_col=sql.Identifier(date_col),
+            ),
+            params,
+        )
+        multi_row = cur.fetchone()
+        cur.execute(
+            sql.SQL("SELECT COUNT(*) FROM {} WHERE {} > %s").format(
+                sql.Identifier(table),
+                sql.Identifier(date_col),
+            ),
+            (latest_closed_anchor,),
+        )
+        open_row = cur.fetchone()
+    return {
+        "periods_with_multiple_anchors": int(multi_row[0] or 0) if multi_row else 0,
+        "open_period_rows": int(open_row[0] or 0) if open_row else 0,
+    }
 
 
 def _pg_table_exists(pg_conn, table: str) -> bool:
@@ -76,6 +270,22 @@ def _sqlite_table_exists(conn: sqlite3.Connection, table: str) -> bool:
     return row is not None
 
 
+def ensure_neon_canonical_schema(*, dsn: str | None = None) -> dict[str, Any]:
+    pg_conn = connect(dsn=resolve_dsn(dsn), autocommit=False)
+    try:
+        result = apply_sql_file(pg_conn, sql_path=_CANONICAL_SCHEMA_SQL)
+        return {
+            "status": "ok",
+            "canonical_schema_path": str(_CANONICAL_SCHEMA_SQL),
+            **result,
+        }
+    except Exception:
+        pg_conn.rollback()
+        raise
+    finally:
+        pg_conn.close()
+
+
 def sync_factor_returns_to_neon(
     *,
     cache_path: Path,
@@ -108,27 +318,35 @@ def sync_factor_returns_to_neon(
             }
         if not _pg_table_exists(pg_conn, table):
             raise RuntimeError(f"target table missing in Neon: {table}")
+        schema_update = ensure_target_columns_from_sqlite(
+            sqlite_conn,
+            pg_conn,
+            source_table=source_table,
+            target_table=table,
+        )
 
-        where_sql = ""
-        where_params: tuple[Any, ...] = ()
+        where_sql = "WHERE date >= ?"
+        where_params: tuple[Any, ...] = (sync_cutoff,)
         action = "truncate_and_reload"
-        source_count_sql = f"SELECT COUNT(*) FROM {source_table}"
-        source_count_params: tuple[Any, ...] = ()
+        source_count_sql = f"SELECT COUNT(*) FROM {source_table} WHERE date >= ?"
+        source_count_params: tuple[Any, ...] = (sync_cutoff,)
         if mode_norm == "full":
             with pg_conn.cursor() as cur:
                 cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
-            where_sql = ""
-            where_params = ()
+            action = "truncate_and_reload_window"
         else:
             with pg_conn.cursor() as cur:
                 cur.execute(
-                    sql.SQL(
-                        "SELECT COUNT(*), MAX(date)::text FROM {}"
-                    ).format(sql.Identifier(table)),
+                    sql.SQL("SELECT COUNT(*) FROM {} WHERE date >= %s").format(sql.Identifier(table)),
+                    (sync_cutoff,),
                 )
-                row = cur.fetchone()
-                target_count = int(row[0] or 0) if row else 0
-                max_date_txt = str(row[1]) if row and row[1] is not None else ""
+                target_count_row = cur.fetchone()
+                target_count = int(target_count_row[0] or 0) if target_count_row else 0
+                cur.execute(
+                    sql.SQL("SELECT MAX(date)::text FROM {}").format(sql.Identifier(table)),
+                )
+                max_row = cur.fetchone()
+                max_date_txt = str(max_row[0]) if max_row and max_row[0] is not None else ""
             src_count_row = sqlite_conn.execute(source_count_sql, source_count_params).fetchone()
             source_window_rows = int(src_count_row[0] or 0) if src_count_row else 0
             max_date = _parse_iso_date(max_date_txt)
@@ -136,14 +354,10 @@ def sync_factor_returns_to_neon(
                 with pg_conn.cursor() as cur:
                     cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
                 action = "target_empty_truncate_and_reload"
-                where_sql = ""
-                where_params = ()
             elif target_count != source_window_rows:
                 with pg_conn.cursor() as cur:
                     cur.execute(sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table)))
-                where_sql = ""
-                where_params = ()
-                action = "bounded_full_reload_after_count_mismatch"
+                action = "window_full_reload_after_count_mismatch"
             else:
                 cutoff = max_date - timedelta(days=max(0, int(overlap_days)))
                 cutoff_txt = max(cutoff.isoformat(), sync_cutoff)
@@ -247,6 +461,8 @@ def sync_factor_returns_to_neon(
             "action": action,
             "source_rows": int(source_rows),
             "rows_loaded": int(loaded),
+            "schema_update": schema_update,
+            "window_cutoff": sync_cutoff,
         }
         if where_sql:
             out["where_sql"] = where_sql
@@ -747,6 +963,8 @@ def run_bounded_parity_audit(
         cache_conn = sqlite3.connect(str(cache_db))
     pg_conn = connect(dsn=resolve_dsn(dsn), autocommit=False)
     try:
+        pit_frequency = str(config.SOURCE_DAILY_PIT_FREQUENCY or "monthly").strip().lower()
+        latest_closed_anchor = _pit_latest_closed_anchor(frequency=pit_frequency)
         for label, source_table, date_col, cutoff, distinct_col in data_specs:
             if date_col is None:
                 srow = sqlite_conn.execute(f"SELECT COUNT(*) FROM {source_table}").fetchone()
@@ -779,6 +997,57 @@ def run_bounded_parity_audit(
                 "cutoff": cutoff,
                 "status": "ok" if not mismatch else "mismatch",
             }
+            if label == "security_prices_eod":
+                source_dupes = _sqlite_duplicate_key_groups(
+                    sqlite_conn,
+                    table=source_table,
+                    key_cols=["ric", "date"],
+                    date_col=date_col,
+                    cutoff=cutoff,
+                )
+                target_dupes = _pg_duplicate_key_groups(
+                    pg_conn,
+                    table=label,
+                    key_cols=["ric", "date"],
+                    date_col=date_col,
+                    cutoff=cutoff,
+                )
+                out["tables"][label]["duplicate_key_groups"] = {
+                    "source": source_dupes,
+                    "target": target_dupes,
+                }
+                if source_dupes or target_dupes:
+                    out["issues"].append(f"duplicate_keys:{label}")
+                    out["tables"][label]["status"] = "mismatch"
+            if label in {"security_fundamentals_pit", "security_classification_pit"}:
+                source_health = _sqlite_pit_period_health(
+                    sqlite_conn,
+                    table=source_table,
+                    date_col=date_col,
+                    cutoff=cutoff,
+                    frequency=pit_frequency,
+                    latest_closed_anchor=latest_closed_anchor,
+                )
+                target_health = _pg_pit_period_health(
+                    pg_conn,
+                    table=label,
+                    date_col=date_col,
+                    cutoff=cutoff,
+                    frequency=pit_frequency,
+                    latest_closed_anchor=latest_closed_anchor,
+                )
+                out["tables"][label]["period_policy"] = {
+                    "frequency": pit_frequency,
+                    "latest_closed_anchor": latest_closed_anchor,
+                    "source": source_health,
+                    "target": target_health,
+                }
+                if source_health != target_health:
+                    out["issues"].append(f"period_policy_mismatch:{label}")
+                    out["tables"][label]["status"] = "mismatch"
+                if any(int(v or 0) > 0 for v in source_health.values()) or any(int(v or 0) > 0 for v in target_health.values()):
+                    out["issues"].append(f"period_policy_violation:{label}")
+                    out["tables"][label]["status"] = "mismatch"
 
         if cache_conn is not None:
             source_table = "daily_factor_returns"
@@ -941,11 +1210,14 @@ def run_neon_mirror_cycle(
         "status": "ok",
         "mode": str(mode),
         "tables": selected_tables,
+        "schema_ensure": None,
         "sync": None,
         "factor_returns_sync": None,
         "prune": None,
         "parity": None,
     }
+
+    out["schema_ensure"] = ensure_neon_canonical_schema(dsn=dsn)
 
     out["sync"] = sync_from_sqlite_to_neon(
         sqlite_path=Path(sqlite_path),

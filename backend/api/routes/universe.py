@@ -11,7 +11,7 @@ from backend import config
 from backend.api.routes.presenters import normalize_trbc_sector_fields
 from backend.api.routes.readiness import raise_cache_not_ready
 from backend.data.history_queries import load_price_history_rows
-from backend.data.serving_outputs import load_current_payload
+from backend.data.serving_outputs import load_runtime_payload
 from backend.data.sqlite import cache_get
 
 router = APIRouter()
@@ -47,17 +47,11 @@ def _week_ending_friday(d: date) -> date:
 
 
 def _load_universe_payload():
-    data = load_current_payload("universe_loadings")
-    if data is None and not config.cloud_mode():
-        data = cache_get("universe_loadings")
-    return data
+    return load_runtime_payload("universe_loadings", fallback_loader=cache_get)
 
 
 def _load_universe_factors_payload():
-    data = load_current_payload("universe_factors")
-    if data is None and not config.cloud_mode():
-        data = cache_get("universe_factors")
-    return data
+    return load_runtime_payload("universe_factors", fallback_loader=cache_get)
 
 
 @router.get("/universe/ticker/{ticker}")

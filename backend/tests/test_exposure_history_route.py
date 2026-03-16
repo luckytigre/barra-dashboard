@@ -23,7 +23,11 @@ def test_exposure_history_route_resolves_factor_id_to_factor_name(monkeypatch) -
             return {"factor_catalog": catalog}
         return None
 
-    monkeypatch.setattr(exposures_routes, "load_current_payload", _load_payload)
+    monkeypatch.setattr(
+        exposures_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: _load_payload(name),
+    )
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(
         exposures_routes,
@@ -69,7 +73,7 @@ def test_exposure_history_route_resolves_factor_id_from_history_when_catalog_mis
     conn.commit()
     conn.close()
 
-    monkeypatch.setattr(exposures_routes, "load_current_payload", lambda name: None)
+    monkeypatch.setattr(exposures_routes, "load_runtime_payload", lambda name, *, fallback_loader=None: None)
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(exposures_routes.config, "SQLITE_PATH", str(cache_db))
     monkeypatch.setattr(history_queries, "_use_neon_surface", lambda surface: False)
@@ -112,7 +116,7 @@ def test_exposure_history_route_resolves_punctuated_industry_name_from_history(
     conn.commit()
     conn.close()
 
-    monkeypatch.setattr(exposures_routes, "load_current_payload", lambda name: None)
+    monkeypatch.setattr(exposures_routes, "load_runtime_payload", lambda name, *, fallback_loader=None: None)
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(exposures_routes.config, "SQLITE_PATH", str(cache_db))
     monkeypatch.setattr(history_queries, "_use_neon_surface", lambda surface: False)
@@ -186,8 +190,8 @@ def test_exposure_history_route_returns_market_history_when_neon_surface_is_stal
 
     monkeypatch.setattr(
         exposures_routes,
-        "load_current_payload",
-        lambda name: {"factor_catalog": [{"factor_id": "market", "factor_name": "Market"}]} if name == "risk" else None,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: {"factor_catalog": [{"factor_id": "market", "factor_name": "Market"}]} if name == "risk" else None,
     )
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(exposures_routes.config, "SQLITE_PATH", str(cache_db))

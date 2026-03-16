@@ -89,6 +89,7 @@ if NEON_AUTO_SYNC_MODE not in {"incremental", "full"}:
 NEON_AUTO_SYNC_TABLES = _env_csv("NEON_AUTO_SYNC_TABLES", [])
 NEON_SOURCE_RETENTION_YEARS = max(1, int(os.getenv("NEON_SOURCE_RETENTION_YEARS", "10")))
 NEON_ANALYTICS_RETENTION_YEARS = max(1, int(os.getenv("NEON_ANALYTICS_RETENTION_YEARS", "5")))
+NEON_AUTHORITATIVE_REBUILDS = _env_bool("NEON_AUTHORITATIVE_REBUILDS", False)
 SERVING_OUTPUTS_PRIMARY_READS = _env_bool("SERVING_OUTPUTS_PRIMARY_READS", False)
 NEON_READ_SURFACES = {
     s.strip().lower()
@@ -105,6 +106,9 @@ CUSE4_AUTO_BOOTSTRAP = _env_bool("CUSE4_AUTO_BOOTSTRAP", False)
 
 # Orchestrator ingest stage controls.
 ORCHESTRATOR_ENABLE_INGEST = _env_bool("ORCHESTRATOR_ENABLE_INGEST", False)
+SOURCE_DAILY_PIT_FREQUENCY = str(os.getenv("SOURCE_DAILY_PIT_FREQUENCY", "monthly")).strip().lower()
+if SOURCE_DAILY_PIT_FREQUENCY not in {"monthly", "quarterly"}:
+    SOURCE_DAILY_PIT_FREQUENCY = "monthly"
 
 # CORS
 CORS_ALLOW_ORIGINS = _env_csv(
@@ -143,8 +147,35 @@ def cloud_mode() -> bool:
     return APP_RUNTIME_ROLE == "cloud-serve"
 
 
+def neon_primary_model_data_enabled() -> bool:
+    return DATA_BACKEND == "neon"
+
+
+def neon_authoritative_rebuilds_enabled() -> bool:
+    return bool(NEON_AUTHORITATIVE_REBUILDS and neon_primary_model_data_enabled())
+
+
 def serving_outputs_primary_reads_enabled() -> bool:
-    return bool(SERVING_OUTPUTS_PRIMARY_READS or cloud_mode())
+    return bool(
+        SERVING_OUTPUTS_PRIMARY_READS
+        or cloud_mode()
+        or neon_primary_model_data_enabled()
+    )
+
+
+def serving_outputs_cache_fallback_enabled() -> bool:
+    return not serving_outputs_primary_reads_enabled()
+
+
+def serving_payload_neon_write_required() -> bool:
+    return bool(
+        serving_outputs_primary_reads_enabled()
+        and neon_surface_enabled("serving_outputs")
+    )
+
+
+def neon_mirror_health_required() -> bool:
+    return bool(NEON_AUTO_SYNC_REQUIRED or neon_primary_model_data_enabled())
 
 
 def neon_auto_sync_enabled_effective() -> bool:

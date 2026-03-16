@@ -8,7 +8,8 @@
     "start": "next start",
     "typegen": "next typegen",
     "typecheck": "npm run typegen && tsc --noEmit --incremental false",
-    "test:explore-whatif": "node scripts/explore_whatif_refresh_regression.mjs"
+    "test:explore-whatif": "node scripts/explore_whatif_refresh_regression.mjs",
+    "test:explore-whatif-busy": "node scripts/explore_whatif_refresh_busy_regression.mjs"
   },
   "dependencies": {
     "chart.js": "^4.4.0",

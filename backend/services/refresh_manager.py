@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 _STATUS_CACHE_KEY = "refresh_status"
 _RUN_LOCK = threading.Lock()
 _STATE_LOCK = threading.Lock()
+_ACTIVE_WORKER: threading.Thread | None = None
 
 
 def _now_iso() -> str:
@@ -90,6 +91,17 @@ def _snapshot() -> dict[str, Any]:
         return dict(_STATE)
 
 
+def _set_active_worker(worker: threading.Thread | None) -> None:
+    global _ACTIVE_WORKER
+    with _STATE_LOCK:
+        _ACTIVE_WORKER = worker
+
+
+def _get_active_worker() -> threading.Thread | None:
+    with _STATE_LOCK:
+        return _ACTIVE_WORKER
+
+
 def _set_state(**updates: Any) -> dict[str, Any]:
     with _STATE_LOCK:
         _STATE.update(updates)
@@ -98,9 +110,51 @@ def _set_state(**updates: Any) -> dict[str, Any]:
     return snap
 
 
+def _reconcile_orphaned_running_state() -> dict[str, Any]:
+    snap = _snapshot()
+    if str(snap.get("status") or "") != "running":
+        return snap
+    worker = _get_active_worker()
+    if worker is not None and worker.is_alive():
+        return snap
+    if _RUN_LOCK.locked():
+        try:
+            _RUN_LOCK.release()
+        except RuntimeError:
+            logger.exception("Failed to release orphaned refresh lock")
+    try:
+        mark_refresh_finished(
+            profile=str(snap.get("profile") or "") or None,
+            run_id=str(snap.get("pipeline_run_id") or "") or None,
+            status="unknown",
+            message="Refresh worker is no longer running; state reconciled locally.",
+            clear_pending=False,
+        )
+    except Exception:
+        logger.exception("Failed to reconcile holdings state for orphaned refresh")
+    reconciled = _set_state(
+        status="unknown",
+        finished_at=_now_iso(),
+        current_stage=None,
+        stage_started_at=None,
+        current_stage_message=None,
+        current_stage_progress_pct=None,
+        current_stage_items_processed=None,
+        current_stage_items_total=None,
+        current_stage_unit=None,
+        current_stage_heartbeat_at=None,
+        error={
+            "type": "refresh_worker_missing",
+            "message": "Refresh state was running but no background worker is alive.",
+        },
+    )
+    _set_active_worker(None)
+    return reconciled
+
+
 def get_refresh_status() -> dict[str, Any]:
     """Return current or most recent refresh status."""
-    return _snapshot()
+    return _reconcile_orphaned_running_state()
 
 
 def _default_profile() -> str:
@@ -241,6 +295,7 @@ def _run_in_background(
             },
         )
     finally:
+        _set_active_worker(None)
         _RUN_LOCK.release()
         logger.info("Background refresh %s finished", job_id)
 
@@ -272,7 +327,9 @@ def start_refresh(
     )
 
     if not _RUN_LOCK.acquire(blocking=False):
-        return False, _snapshot()
+        reconciled = _reconcile_orphaned_running_state()
+        if not _RUN_LOCK.acquire(blocking=False):
+            return False, reconciled
 
     job_id = uuid.uuid4().hex[:12]
     pipeline_run_id = (str(resume_run_id).strip() if resume_run_id else f"api_{job_id}")
@@ -331,7 +388,9 @@ def start_refresh(
     )
     try:
         worker.start()
+        _set_active_worker(worker)
     except Exception as exc:  # noqa: BLE001
+        _set_active_worker(None)
         _RUN_LOCK.release()
         try:
             mark_refresh_finished(

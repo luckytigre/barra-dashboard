@@ -68,6 +68,20 @@ def _sqlite_columns(conn: sqlite3.Connection, table: str) -> list[str]:
     return [str(r[1]) for r in rows]
 
 
+def _sqlite_column_defs(conn: sqlite3.Connection, table: str) -> list[dict[str, Any]]:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return [
+        {
+            "name": str(r[1]),
+            "type": str(r[2] or ""),
+            "notnull": bool(r[3]),
+            "default": r[4],
+            "pk": bool(r[5]),
+        }
+        for r in rows
+    ]
+
+
 def _pg_columns(pg_conn, table: str) -> list[str]:
     with pg_conn.cursor() as cur:
         cur.execute(
@@ -81,6 +95,69 @@ def _pg_columns(pg_conn, table: str) -> list[str]:
             (table,),
         )
         return [str(r[0]) for r in cur.fetchall()]
+
+
+def _sqlite_declared_type_to_pg(column_name: str, declared_type: str | None) -> str:
+    clean_name = str(column_name or "").strip().lower()
+    clean_type = str(declared_type or "").strip().upper()
+    if clean_name == "payload_json":
+        return "JSONB"
+    if clean_name in {"date", "as_of_date", "stat_date", "period_end_date"}:
+        return "DATE"
+    if clean_name.endswith("_at"):
+        return "TIMESTAMPTZ"
+    if "BOOL" in clean_type:
+        return "BOOLEAN"
+    if "INT" in clean_type:
+        return "INTEGER"
+    if any(token in clean_type for token in ("REAL", "FLOA", "DOUB", "NUM")):
+        return "DOUBLE PRECISION"
+    return "TEXT"
+
+
+def ensure_target_columns_from_sqlite(
+    sqlite_conn: sqlite3.Connection,
+    pg_conn,
+    *,
+    source_table: str,
+    target_table: str | None = None,
+) -> dict[str, Any]:
+    target = str(target_table or source_table)
+    if not _table_exists_pg(pg_conn, target):
+        raise RuntimeError(f"target table missing in Neon: {target}")
+
+    source_cols = _sqlite_column_defs(sqlite_conn, source_table)
+    if not source_cols:
+        raise RuntimeError(f"source table missing in SQLite: {source_table}")
+    target_cols = set(_pg_columns(pg_conn, target))
+    added_columns: list[dict[str, str]] = []
+    for col in source_cols:
+        name = str(col.get("name") or "").strip()
+        if not name or name in target_cols:
+            continue
+        pg_type = _sqlite_declared_type_to_pg(name, str(col.get("type") or ""))
+        with pg_conn.cursor() as cur:
+            cur.execute(
+                sql.SQL("ALTER TABLE {} ADD COLUMN IF NOT EXISTS {} {}").format(
+                    sql.Identifier(target),
+                    sql.Identifier(name),
+                    sql.SQL(pg_type),
+                )
+            )
+        target_cols.add(name)
+        added_columns.append(
+            {
+                "column": name,
+                "pg_type": pg_type,
+                "sqlite_type": str(col.get("type") or ""),
+            }
+        )
+    return {
+        "status": "ok",
+        "source_table": str(source_table),
+        "target_table": target,
+        "added_columns": added_columns,
+    }
 
 
 def _table_exists_pg(pg_conn, table: str) -> bool:
@@ -301,8 +378,12 @@ def sync_from_sqlite_to_neon(
     try:
         for cfg in selected_cfgs:
             table = cfg.name
-            if not _table_exists_pg(pg_conn, table):
-                raise RuntimeError(f"target table missing in Neon: {table}")
+            schema_update = ensure_target_columns_from_sqlite(
+                sqlite_conn,
+                pg_conn,
+                source_table=table,
+                target_table=table,
+            )
 
             src_cols = _sqlite_columns(sqlite_conn, table)
             tgt_cols = _pg_columns(pg_conn, table)
@@ -331,11 +412,11 @@ def sync_from_sqlite_to_neon(
                     columns=cols,
                     batch_size=max(500, int(batch_size)),
                 )
-                pg_conn.commit()
                 out["tables"][table] = {
                     "action": "upsert",
                     "source_rows": int(src_count),
                     "rows_loaded": int(copied),
+                    "schema_update": schema_update,
                 }
                 continue
 
@@ -389,7 +470,9 @@ def sync_from_sqlite_to_neon(
                 "rows_loaded": int(copied),
                 "where_sql": where_sql or None,
                 "where_params": list(params),
+                "schema_update": schema_update,
             }
+        pg_conn.commit()
     except Exception:
         pg_conn.rollback()
         raise

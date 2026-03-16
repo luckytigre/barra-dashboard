@@ -564,12 +564,15 @@ def test_ingest_stage_is_not_hardcoded_skip(monkeypatch: pytest.MonkeyPatch, tmp
     monkeypatch.setattr(run_model_pipeline, "DATA_DB", tmp_path / "data.db")
 
     out = run_model_pipeline._run_stage(
+        profile="source-daily",
         stage="ingest",
         as_of_date="2026-03-03",
         should_run_core=False,
         serving_mode="light",
         force_core=False,
         core_reason="test",
+        data_db=run_model_pipeline.DATA_DB,
+        cache_db=run_model_pipeline.CACHE_DB,
     )
 
     assert out.get("status") == "ok"

@@ -36,7 +36,10 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
         run_id="run_stage_1",
         refresh_mode="light",
         refresh_started_at="2026-03-05T00:00:00Z",
-        source_dates={"fundamentals_asof": "2026-03-04", "exposures_asof": "2026-03-03"},
+        source_dates={
+            "fundamentals_asof": "2026-03-04",
+            "exposures_asof": "2026-03-04",
+        },
         snapshot_build={"status": "skipped"},
         risk_engine_meta={
             "status": "ok",
@@ -62,6 +65,8 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
         cov_matrix={"factors": ["style_beta_score"], "correlation": [[1.0]]},
         latest_r2=0.35,
         universe_loadings={
+            "as_of_date": "2026-03-03",
+            "latest_available_asof": "2026-03-04",
             "factors": ["style_beta_score"],
             "factor_vols": {"style_beta_score": 0.05},
             "factor_catalog": [],
@@ -88,9 +93,17 @@ def test_stage_refresh_cache_snapshot_is_not_live_until_publish(monkeypatch, tmp
     portfolio_live = cache_sqlite.cache_get("portfolio")
     assert isinstance(portfolio_live, dict)
     assert int(portfolio_live.get("position_count", 0)) == 1
+    assert portfolio_live.get("snapshot_id") == "run_stage_1"
+    assert portfolio_live.get("run_id") == "run_stage_1"
+    assert portfolio_live.get("source_dates", {}).get("exposures_latest_available_asof") == "2026-03-04"
+    assert portfolio_live.get("source_dates", {}).get("exposures_served_asof") == "2026-03-03"
     refresh_meta = cache_sqlite.cache_get("refresh_meta")
     assert isinstance(refresh_meta, dict)
     assert refresh_meta.get("snapshot_id") == "run_stage_1"
+    exposures_live = cache_sqlite.cache_get("exposures")
+    assert isinstance(exposures_live, dict)
+    assert exposures_live.get("snapshot_id") == "run_stage_1"
+    assert exposures_live.get("source_dates", {}).get("exposures_served_asof") == "2026-03-03"
     universe_factors = cache_sqlite.cache_get("universe_factors")
     assert isinstance(universe_factors, dict)
     assert universe_factors.get("core_estimated_ticker_count") == 1
@@ -110,7 +123,11 @@ def test_stage_refresh_cache_snapshot_reuses_matching_health_payload(monkeypatch
         run_id="run_stage_a",
         refresh_mode="light",
         refresh_started_at="2026-03-05T00:00:00Z",
-        source_dates={"fundamentals_asof": "2026-03-04", "exposures_asof": "2026-03-03"},
+        source_dates={
+            "fundamentals_asof": "2026-03-04",
+            "exposures_asof": "2026-03-04",
+            "exposures_latest_available_asof": "2026-03-04",
+        },
         snapshot_build={"status": "skipped"},
         risk_engine_meta={
             "status": "ok",
@@ -136,6 +153,8 @@ def test_stage_refresh_cache_snapshot_reuses_matching_health_payload(monkeypatch
         cov_matrix={"factors": ["style_beta_score"], "correlation": [[1.0]]},
         latest_r2=0.35,
         universe_loadings={
+            "as_of_date": "2026-03-03",
+            "latest_available_asof": "2026-03-04",
             "factors": ["style_beta_score"],
             "factor_vols": {"style_beta_score": 0.05},
             "factor_catalog": [],
@@ -165,7 +184,11 @@ def test_stage_refresh_cache_snapshot_reuses_matching_health_payload(monkeypatch
         run_id="run_stage_b",
         refresh_mode="light",
         refresh_started_at="2026-03-05T01:00:00Z",
-        source_dates={"fundamentals_asof": "2026-03-04", "exposures_asof": "2026-03-03"},
+        source_dates={
+            "fundamentals_asof": "2026-03-04",
+            "exposures_asof": "2026-03-03",
+            "exposures_latest_available_asof": "2026-03-04",
+        },
         snapshot_build={"status": "skipped"},
         risk_engine_meta={
             "status": "ok",
@@ -191,6 +214,8 @@ def test_stage_refresh_cache_snapshot_reuses_matching_health_payload(monkeypatch
         cov_matrix={"factors": ["style_beta_score"], "correlation": [[1.0]]},
         latest_r2=0.35,
         universe_loadings={
+            "as_of_date": "2026-03-03",
+            "latest_available_asof": "2026-03-04",
             "factors": ["style_beta_score"],
             "factor_vols": {"style_beta_score": 0.05},
             "factor_catalog": [],

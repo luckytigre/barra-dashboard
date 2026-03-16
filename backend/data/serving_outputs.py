@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -53,6 +54,20 @@ def _ensure_postgres_schema(pg_conn) -> None:
 
 def _use_neon_reads() -> bool:
     return bool(config.serving_outputs_primary_reads_enabled() and config.neon_surface_enabled(SURFACE_NAME))
+
+
+def load_runtime_payload(
+    payload_name: str,
+    *,
+    fallback_loader: Callable[[str], Any | None] | None = None,
+) -> Any | None:
+    """Load the runtime truth payload, using cache fallback only when policy allows it."""
+    payload = load_current_payload(payload_name)
+    if payload is not None:
+        return payload
+    if fallback_loader is None or not config.serving_outputs_cache_fallback_enabled():
+        return None
+    return fallback_loader(payload_name)
 
 
 def persist_current_payloads(
@@ -125,7 +140,7 @@ def load_current_payload(payload_name: str) -> dict[str, Any] | list[Any] | None
         return None
     if _use_neon_reads():
         payload = _load_current_payload_neon(clean)
-        if payload is not None or config.cloud_mode():
+        if payload is not None or not config.serving_outputs_cache_fallback_enabled():
             return payload
     return _load_current_payload_sqlite(clean)
 

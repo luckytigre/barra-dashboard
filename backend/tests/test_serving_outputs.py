@@ -129,3 +129,26 @@ def test_persist_current_payloads_dual_writes_to_neon_when_surface_enabled(tmp_p
     assert out["neon_write"]["status"] == "ok"
     assert out["neon_write"]["row_count"] == 1
     assert out["neon_write"]["replace_all"] is True
+
+
+def test_load_current_payload_does_not_fallback_to_sqlite_when_neon_is_primary(tmp_path: Path, monkeypatch) -> None:
+    data_db = tmp_path / "data.db"
+    monkeypatch.setattr(serving_outputs, "DATA_DB", data_db)
+    monkeypatch.setattr(serving_outputs.config, "APP_RUNTIME_ROLE", "local-ingest")
+    monkeypatch.setattr(serving_outputs.config, "DATA_BACKEND", "neon")
+    monkeypatch.setattr(serving_outputs.config, "SERVING_OUTPUTS_PRIMARY_READS", False)
+    monkeypatch.setattr(serving_outputs.config, "neon_surface_enabled", lambda surface: surface == "serving_outputs")
+    monkeypatch.setattr(serving_outputs, "_load_current_payload_neon", lambda payload_name: None)
+
+    serving_outputs.persist_current_payloads(
+        data_db=data_db,
+        run_id="run_1",
+        snapshot_id="snap_1",
+        refresh_mode="serve-refresh",
+        payloads={"portfolio": {"positions": [{"ticker": "AAPL"}], "position_count": 1}},
+        replace_all=True,
+    )
+
+    out = serving_outputs.load_current_payload("portfolio")
+
+    assert out is None

@@ -33,6 +33,19 @@ def _row_by_ric(db_path: Path, ric: str) -> sqlite3.Row:
         conn.close()
 
 
+def _import_backfill_prices_range_with_fake_lseg(monkeypatch, fake_lseg_data: types.ModuleType):
+    fake_lseg = types.ModuleType("lseg")
+    fake_lseg.__path__ = []  # Mark the fake top-level module as a package for importlib.
+    fake_lseg_data.__path__ = []  # Keep lazy importers from treating the fake child as a plain module.
+    fake_lseg.data = fake_lseg_data
+    monkeypatch.setitem(sys.modules, "lseg", fake_lseg)
+    monkeypatch.setitem(sys.modules, "lseg.data", fake_lseg_data)
+    sys.modules.pop("backend.scripts.backfill_prices_range_lseg", None)
+    module = importlib.import_module("backend.scripts.backfill_prices_range_lseg")
+    monkeypatch.setattr(module, "rd", fake_lseg_data)
+    return module
+
+
 def test_bootstrap_syncs_seed_registry_without_trusting_seed_flags(tmp_path: Path) -> None:
     data_db = tmp_path / "data.db"
     conn = sqlite3.connect(str(data_db))
@@ -173,15 +186,11 @@ def test_download_from_lseg_updates_security_master_for_pending_explicit_ric(
 
 
 def test_backfill_prices_allows_explicit_pending_ric(monkeypatch, tmp_path: Path) -> None:
-    fake_lseg = types.ModuleType("lseg")
     fake_lseg_data = types.ModuleType("lseg.data")
     fake_lseg_data.open_session = lambda: None
     fake_lseg_data.close_session = lambda: None
     fake_lseg_data.get_data = lambda **kwargs: pd.DataFrame()
-    fake_lseg.data = fake_lseg_data
-    monkeypatch.setitem(sys.modules, "lseg", fake_lseg)
-    monkeypatch.setitem(sys.modules, "lseg.data", fake_lseg_data)
-    backfill_prices_range_lseg = importlib.import_module("backend.scripts.backfill_prices_range_lseg")
+    backfill_prices_range_lseg = _import_backfill_prices_range_with_fake_lseg(monkeypatch, fake_lseg_data)
 
     data_db = tmp_path / "data.db"
     conn = sqlite3.connect(str(data_db))
@@ -363,7 +372,6 @@ def test_download_from_lseg_reports_missing_requested_rics_on_no_data(monkeypatc
 
 
 def test_backfill_prices_skips_rows_with_missing_close(monkeypatch, tmp_path: Path) -> None:
-    fake_lseg = types.ModuleType("lseg")
     fake_lseg_data = types.ModuleType("lseg.data")
     fake_lseg_data.open_session = lambda: None
     fake_lseg_data.close_session = lambda: None
@@ -381,10 +389,7 @@ def test_backfill_prices_skips_rows_with_missing_close(monkeypatch, tmp_path: Pa
             }
         ]
     )
-    fake_lseg.data = fake_lseg_data
-    monkeypatch.setitem(sys.modules, "lseg", fake_lseg)
-    monkeypatch.setitem(sys.modules, "lseg.data", fake_lseg_data)
-    backfill_prices_range_lseg = importlib.import_module("backend.scripts.backfill_prices_range_lseg")
+    backfill_prices_range_lseg = _import_backfill_prices_range_with_fake_lseg(monkeypatch, fake_lseg_data)
 
     data_db = tmp_path / "data.db"
     conn = sqlite3.connect(str(data_db))
@@ -436,15 +441,11 @@ def test_backfill_prices_skips_rows_with_missing_close(monkeypatch, tmp_path: Pa
 
 
 def test_backfill_volume_only_reports_missing_requested_rics_on_no_null_volume(monkeypatch, tmp_path: Path) -> None:
-    fake_lseg = types.ModuleType("lseg")
     fake_lseg_data = types.ModuleType("lseg.data")
     fake_lseg_data.open_session = lambda: None
     fake_lseg_data.close_session = lambda: None
     fake_lseg_data.get_data = lambda **kwargs: pd.DataFrame()
-    fake_lseg.data = fake_lseg_data
-    monkeypatch.setitem(sys.modules, "lseg", fake_lseg)
-    monkeypatch.setitem(sys.modules, "lseg.data", fake_lseg_data)
-    backfill_prices_range_lseg = importlib.import_module("backend.scripts.backfill_prices_range_lseg")
+    backfill_prices_range_lseg = _import_backfill_prices_range_with_fake_lseg(monkeypatch, fake_lseg_data)
 
     data_db = tmp_path / "data.db"
     conn = sqlite3.connect(str(data_db))
@@ -481,15 +482,11 @@ def test_backfill_volume_only_reports_missing_requested_rics_on_no_null_volume(m
 
 
 def test_backfill_reports_missing_requested_rics_on_no_date_windows(monkeypatch, tmp_path: Path) -> None:
-    fake_lseg = types.ModuleType("lseg")
     fake_lseg_data = types.ModuleType("lseg.data")
     fake_lseg_data.open_session = lambda: None
     fake_lseg_data.close_session = lambda: None
     fake_lseg_data.get_data = lambda **kwargs: pd.DataFrame()
-    fake_lseg.data = fake_lseg_data
-    monkeypatch.setitem(sys.modules, "lseg", fake_lseg)
-    monkeypatch.setitem(sys.modules, "lseg.data", fake_lseg_data)
-    backfill_prices_range_lseg = importlib.import_module("backend.scripts.backfill_prices_range_lseg")
+    backfill_prices_range_lseg = _import_backfill_prices_range_with_fake_lseg(monkeypatch, fake_lseg_data)
 
     data_db = tmp_path / "data.db"
     conn = sqlite3.connect(str(data_db))

@@ -140,10 +140,12 @@ def build_universe_ticker_loadings(
                         name_map[ticker] = s
 
     latest_asof = ""
+    latest_available_asof = ""
     if "as_of_date" in exposures_df.columns and not exposures_df.empty:
         asof_series = exposures_df["as_of_date"].astype(str).str.strip()
         asof_counts = asof_series.value_counts()
         if not asof_counts.empty:
+            latest_available_asof = str(asof_series.max())
             max_count = int(asof_counts.max())
             # Guard against thin end-of-day snapshots (for example, incomplete latest date).
             min_coverage = max(100, int(0.50 * max_count))
@@ -154,13 +156,13 @@ def build_universe_ticker_loadings(
             if well_covered_dates:
                 latest_asof = well_covered_dates[-1]
             else:
-                latest_asof = str(asof_series.max())
-            if latest_asof != str(asof_series.max()):
+                latest_asof = latest_available_asof
+            if latest_asof != latest_available_asof:
                 logger.warning(
                     "Using well-covered exposure as-of date %s instead of sparse latest %s "
                     "(coverage threshold=%s, max_count=%s)",
                     latest_asof,
-                    str(asof_series.max()),
+                    latest_available_asof,
                     min_coverage,
                     max_count,
                 )
@@ -488,6 +490,8 @@ def build_universe_ticker_loadings(
         "core_estimated_ticker_count": core_estimated_count,
         "projected_only_ticker_count": projected_only_count,
         "ineligible_ticker_count": ineligible_count,
+        "as_of_date": latest_asof or None,
+        "latest_available_asof": latest_available_asof or None,
         "factor_count": len(factor_vol_map),
         "factors": sorted(factor_vol_map.keys()),
         "factor_vols": {k: round(v, 6) for k, v in factor_vol_map.items()},

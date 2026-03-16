@@ -535,6 +535,48 @@ def test_cached_universe_loadings_reuse_requires_matching_risk_engine_and_source
     assert reason == "risk_engine_state_changed"
 
 
+def test_cached_universe_loadings_reuse_accepts_legacy_source_dates_without_explicit_aliases() -> None:
+    ok, reason = pipeline._can_reuse_cached_universe_loadings(
+        {
+            "by_ticker": {"AAPL": {"ticker": "AAPL"}},
+            "source_dates": {
+                "fundamentals_asof": "2026-03-07",
+                "classification_asof": "2026-03-07",
+                "prices_asof": "2026-03-07",
+                "exposures_asof": "2026-03-07",
+            },
+            "risk_engine": {
+                "status": "ok",
+                "method_version": "v1",
+                "last_recompute_date": "2026-03-07",
+                "factor_returns_latest_date": "2026-03-07",
+                "cross_section_min_age_days": 7,
+                "lookback_days": 504,
+                "specific_risk_ticker_count": 1,
+            },
+        },
+        source_dates={
+            "fundamentals_asof": "2026-03-07",
+            "classification_asof": "2026-03-07",
+            "prices_asof": "2026-03-07",
+            "exposures_asof": "2026-03-07",
+            "exposures_latest_available_asof": "2026-03-07",
+        },
+        risk_engine_meta={
+            "status": "ok",
+            "method_version": "v1",
+            "last_recompute_date": "2026-03-07",
+            "factor_returns_latest_date": "2026-03-07",
+            "cross_section_min_age_days": 7,
+            "lookback_days": 504,
+            "specific_risk_ticker_count": 1,
+        },
+    )
+
+    assert ok is True
+    assert reason == "source_and_risk_engine_match"
+
+
 def test_pipeline_fallback_light_refresh_skips_model_outputs_when_risk_engine_is_reused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -866,19 +908,27 @@ def test_run_refresh_publish_only_republishes_cached_payloads_without_recompute(
 ) -> None:
     captured: dict[str, object] = {}
     payloads = {
-        "portfolio": {"position_count": 2, "total_value": 123.45, "source_dates": {"prices_asof": "2026-03-14"}},
-        "risk": {"risk_engine": {"method_version": "v8"}},
-        "model_sanity": {"status": "ok"},
+        "portfolio": {
+            "position_count": 2,
+            "total_value": 123.45,
+            "source_dates": {"prices_asof": "2026-03-14"},
+            "run_id": "old_run",
+            "snapshot_id": "old_snapshot",
+        },
+        "risk": {"risk_engine": {"method_version": "v8"}, "run_id": "old_run", "snapshot_id": "old_snapshot"},
         "refresh_meta": {
             "cross_section_snapshot": {"status": "reused"},
             "risk_engine": {"method_version": "v8"},
             "cuse4_foundation": {"status": "ok"},
+            "run_id": "old_run",
+            "snapshot_id": "old_snapshot",
         },
+        "model_sanity": {"status": "ok", "run_id": "old_run", "snapshot_id": "old_snapshot"},
         "eligibility": {},
-        "exposures": {},
-        "health_diagnostics": {"status": "ok"},
-        "universe_factors": {},
-        "universe_loadings": {},
+        "exposures": {"run_id": "old_run", "snapshot_id": "old_snapshot"},
+        "health_diagnostics": {"status": "ok", "run_id": "old_run", "snapshot_id": "old_snapshot"},
+        "universe_factors": {"run_id": "old_run", "snapshot_id": "old_snapshot"},
+        "universe_loadings": {"run_id": "old_run", "snapshot_id": "old_snapshot"},
     }
 
     monkeypatch.setattr(pipeline, "_load_publishable_payloads", lambda: (dict(payloads), []))
@@ -904,7 +954,12 @@ def test_run_refresh_publish_only_republishes_cached_payloads_without_recompute(
     assert out["universe_loadings_reuse_reason"] == "publish_only_cached_payloads"
     assert out["health_refreshed"] is False
     assert captured["refresh_mode"] == "publish"
-    assert captured["payloads"] == payloads
+    stamped_payloads = dict(captured["payloads"])
+    assert stamped_payloads["portfolio"]["run_id"] == out["run_id"]
+    assert stamped_payloads["portfolio"]["snapshot_id"] == out["snapshot_id"]
+    assert stamped_payloads["risk"]["run_id"] == out["run_id"]
+    assert stamped_payloads["exposures"]["snapshot_id"] == out["snapshot_id"]
+    assert stamped_payloads["refresh_meta"]["run_id"] == out["run_id"]
 
 
 def test_load_publishable_payloads_prefers_durable_serving_payloads(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -913,8 +968,8 @@ def test_load_publishable_payloads_prefers_durable_serving_payloads(monkeypatch:
 
     monkeypatch.setattr(
         pipeline.serving_outputs,
-        "load_current_payload",
-        lambda name: durable_payload if name == "portfolio" else {"status": name},
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: durable_payload if name == "portfolio" else {"status": name},
     )
     monkeypatch.setattr(
         pipeline.sqlite,
@@ -989,6 +1044,141 @@ def test_run_model_pipeline_serve_refresh_does_not_require_source_dates(monkeypa
 
     assert out["status"] == "ok"
     assert out["stage_results"][0]["details"]["as_of_date"] is not None
+
+
+def test_resolved_as_of_date_uses_local_source_archive_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _load_source_dates():
+        captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
+        return {"fundamentals_asof": "2026-03-14"}
+
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "load_source_dates", _load_source_dates)
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads.config,
+        "neon_surface_enabled",
+        lambda surface: surface == "core_reads",
+    )
+
+    out = run_model_pipeline_module._resolved_as_of_date(
+        None,
+        prefer_local_source_archive=True,
+    )
+
+    assert out == "2026-03-13"
+    assert captured["backend"] == "local"
+
+
+def test_source_daily_defaults_ingest_to_current_session_not_stored_source_date(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "ensure_schema", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "fail_stale_running_stages", lambda *args, **kwargs: 0)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "completed_stages", lambda *args, **kwargs: set())
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "begin_stage", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "finish_stage", lambda *args, **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.job_runs, "run_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(run_model_pipeline_module.sqlite, "cache_get", lambda key: {})
+    monkeypatch.setattr(run_model_pipeline_module.sqlite, "cache_get_live_first", lambda key: {})
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads,
+        "load_source_dates",
+        lambda: {"fundamentals_asof": "2026-03-04", "exposures_asof": "2026-03-04"},
+    )
+    monkeypatch.setattr(run_model_pipeline_module, "_current_xnys_session", lambda: "2026-03-14")
+    monkeypatch.setattr(run_model_pipeline_module, "_risk_recompute_due", lambda *_args, **_kwargs: (False, "within_interval"))
+    monkeypatch.setattr(run_model_pipeline_module, "mark_refresh_finished", lambda **kwargs: None)
+    monkeypatch.setattr(run_model_pipeline_module.config, "NEON_DATABASE_URL", "")
+    monkeypatch.setattr(run_model_pipeline_module.config, "DATA_BACKEND", "sqlite")
+    monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_SYNC_ENABLED", False)
+    monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_PARITY_ENABLED", False)
+    monkeypatch.setattr(run_model_pipeline_module.config, "NEON_AUTO_PRUNE_ENABLED", False)
+
+    def _run_stage(**kwargs):
+        captured.setdefault("as_of_dates", []).append(kwargs["as_of_date"])
+        return {"status": "ok"}
+
+    monkeypatch.setattr(run_model_pipeline_module, "_run_stage", _run_stage)
+
+    out = run_model_pipeline_module.run_model_pipeline(profile="source-daily")
+
+    assert out["status"] == "ok"
+    assert captured["as_of_dates"]
+    assert all(value == "2026-03-14" for value in captured["as_of_dates"])
+
+
+def test_run_stage_serving_refresh_uses_local_source_archive_for_local_publish_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(run_model_pipeline_module, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "risk_cache_current"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads.config,
+        "neon_surface_enabled",
+        lambda surface: surface == "core_reads",
+    )
+
+    def _run_refresh(**kwargs):
+        captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
+        return {"status": "ok"}
+
+    monkeypatch.setattr(run_model_pipeline_module, "run_refresh", _run_refresh)
+
+    out = run_model_pipeline_module._run_stage(
+        profile="source-daily",
+        stage="serving_refresh",
+        as_of_date="2026-03-14",
+        should_run_core=False,
+        serving_mode="light",
+        force_core=False,
+        core_reason="within_interval",
+        data_db=run_model_pipeline_module.DATA_DB,
+        cache_db=run_model_pipeline_module.CACHE_DB,
+        prefer_local_source_archive=True,
+        refresh_scope=None,
+    )
+
+    assert out["status"] == "ok"
+    assert captured["backend"] == "local"
+
+
+def test_run_stage_serving_refresh_keeps_neon_backend_for_canonical_serve_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(run_model_pipeline_module, "_serving_refresh_skip_risk_engine", lambda **kwargs: (True, "risk_cache_current"))
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads.config,
+        "neon_surface_enabled",
+        lambda surface: surface == "core_reads",
+    )
+
+    def _run_refresh(**kwargs):
+        captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
+        return {"status": "ok"}
+
+    monkeypatch.setattr(run_model_pipeline_module, "run_refresh", _run_refresh)
+
+    out = run_model_pipeline_module._run_stage(
+        profile="serve-refresh",
+        stage="serving_refresh",
+        as_of_date="2026-03-14",
+        should_run_core=False,
+        serving_mode="light",
+        force_core=False,
+        core_reason="within_interval",
+        data_db=run_model_pipeline_module.DATA_DB,
+        cache_db=run_model_pipeline_module.CACHE_DB,
+        prefer_local_source_archive=False,
+        refresh_scope=None,
+    )
+
+    assert out["status"] == "ok"
+    assert captured["backend"] == "neon"
 
 
 def test_run_model_pipeline_reports_stage_runtime_details(monkeypatch: pytest.MonkeyPatch) -> None:

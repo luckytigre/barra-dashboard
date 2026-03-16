@@ -4,11 +4,19 @@ Date: 2026-03-08
 Owner: Codex
 Status: Canonical reference document
 
+Related planning document:
+- `docs/NEON_AUTHORITATIVE_REBUILD_PLAN.md` tracks the active migration toward Neon-authoritative rebuilds with local SQLite retained as the local-only LSEG ingest/archive reservoir.
+- the same plan document now also carries the post-SQLite migration sequence for removing scratch/local SQLite from ordinary rebuild and runtime work.
+
 ## Current Implementation Status
 
 Implemented now:
 - canonical orchestrator lane names are live in `run_model_pipeline`
+- Neon-authoritative core lanes now insert explicit `source_sync` and `neon_readiness` stages when `NEON_AUTHORITATIVE_REBUILDS=true`
+- Neon-authoritative core work now runs from a scratch SQLite workspace materialized from Neon, then mirrors derived outputs back into Neon and the local private mirror
+- source-sync now fails closed if the local archive is older than Neon for the source tables it is about to publish
 - `/api/operator/status` exposes lane status, source recency, core-due state, refresh state, and Neon parity health
+- `/api/operator/status` now distinguishes authoritative operating source dates from the local SQLite ingest/archive dates on the LSEG machine
 - `/api/operator/status` also carries backend-authoritative holdings dirty state and runtime warnings
 - Health page now acts as the live operator control deck and freshness/model-quality surface
 - Data page now acts as the source-table/cache diagnostics surface
@@ -40,6 +48,8 @@ Cold-core lessons now incorporated:
 
 ## Known Limitations Still Open
 
+- Neon-authoritative rebuilds still rely on a Neon-backed scratch SQLite workspace because the core math has not yet been ported to run directly on Postgres
+- runtime cache state and several model-persistence paths still write to SQLite first; the active migration plan now breaks that work into separate runtime-state, model-output, read-path, and risk-stage cutovers
 - regression inference currently ships as HC1 robust SE / t-stat; HC2 or HC3 evaluation and explicit leverage diagnostics remain follow-up work for sparse or high-leverage buckets
 - winsorization policy is configurable and improved, but its governance and diagnostic instrumentation are still lighter than ideal
 - durable-serving publish and cache-snapshot publish still use separate stores, so there is no single atomic cross-store commit boundary
@@ -61,8 +71,9 @@ This plan is intentionally operational rather than theoretical. It maps directly
 
 ## Design Principles
 
-- Local SQLite remains the full historical ingest authority.
-- Neon remains the pruned serving database and runtime holdings store.
+- Local SQLite remains the only direct LSEG ingest landing zone and the optional deep archive.
+- Neon is the authoritative operating database for the standalone tool once source sync has published the retained working set.
+- During migration, `NEON_AUTHORITATIVE_REBUILDS` controls whether core/cold-core still rebuild from local SQLite or from Neon.
 - The active Barra model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
 - `security_master` is the only universe authority.
 - The committed universe artifact is `data/reference/security_master_seed.csv`.
@@ -102,8 +113,8 @@ Purpose:
 - Maintain canonical historical prices, PIT fundamentals, and PIT classification.
 
 Authority:
-- local `data.db` first
-- mirrored and pruned into Neon after refresh
+- local `data.db` for direct LSEG landing and deep archive
+- Neon for the retained operating window after publish/sync
 
 Key actions:
 - daily latest-session updates
@@ -111,13 +122,16 @@ Key actions:
 - historical backfills for new names
 
 Rule:
-- Source tables can be current to latest available session.
+- Source tables can be current to the latest completed XNYS session.
 - They are not constrained by the cUSE4 lag policy.
 - Local source archives may intentionally extend beyond the active Barra model window.
+- The app should treat Neon as the authoritative trimmed operating copy after a successful publish.
 - Neon receives a pruned rolling publish window from this layer:
   - source tables: 10 years
   - analytics tables: 5 years
 - Fundamentals and classification PIT backfills run monthly by default.
+- `source-daily` enforces closed-month PIT anchors only; open-month fundamentals/classification rows are purged and missing prior month anchors are backfilled automatically.
+- `source-daily` also repairs missing daily price sessions between the previous local price date and the latest completed session.
 - Only `local-ingest` should publish broad source/model updates into Neon.
 
 ### 3) Core cUSE4 Model Layer
@@ -135,6 +149,8 @@ Key rule:
 - Current policy remains `CROSS_SECTION_MIN_AGE_DAYS=7`.
 - The active Barra model-history horizon is defined by retained `barra_raw_cross_section_history`.
 - Ordinary `core-weekly` recomputes should ignore deeper source/archive history outside that retained model window.
+- The intended rebuild authority is Neon so the tool can run standalone after local LSEG ingest publishes forward.
+- While `NEON_AUTHORITATIVE_REBUILDS=false`, local SQLite still remains the actual rebuild authority for core/cold-core.
 - The risk-model math window is narrower than retained model history:
   - covariance / specific risk use `LOOKBACK_DAYS` (currently ~2 trading years)
   - factor-return / raw cross-section history may be retained for longer (for example ~5 years)
@@ -220,7 +236,7 @@ Examples:
 
 Should do:
 - pull latest eligible-universe source data into local SQLite
-- mirror to Neon
+- publish/sync the retained operating window into Neon
 - rebuild serving outputs
 
 Should usually not do:
@@ -229,6 +245,7 @@ Should usually not do:
 
 Optional:
 - if weekly cadence says core is due, run core recompute afterward
+- under the target contract, that core recompute should run from Neon after the publish step succeeds
 
 ### C) Weekly core update
 
@@ -237,13 +254,17 @@ Examples:
 - manual high-confidence model refresh
 
 Should do:
-- use current source-of-truth history
+- ensure current source-of-truth history has been published into Neon
 - recompute factor returns, covariance, specific risk
 - rebuild serving outputs
 - mirror/prune/parity to Neon
 
 Should not do by default:
 - full historical raw-history rebuild
+
+Migration note:
+- while `NEON_AUTHORITATIVE_REBUILDS=false`, operators should still run a source-syncing lane before `core-weekly` because the rebuild path remains local-SQLite-first
+- once `NEON_AUTHORITATIVE_REBUILDS=true`, `core-weekly` should be treated as a Neon-authoritative rebuild lane with local ingest as its prerequisite
 
 ### D) Structural data change
 
@@ -297,7 +318,9 @@ Purpose:
 - update source-of-truth tables for latest available session without touching core model
 
 Does:
-- LSEG ingest for prices + fundamentals + classification
+- LSEG ingest for the latest completed session
+- contiguous daily price repair for any missing sessions up to that session
+- closed-month PIT maintenance for fundamentals + classification, including automatic backfill of missed month-end anchors
 - serving refresh
 - Neon mirror/parity/prune
 
@@ -311,6 +334,9 @@ Current implemented path:
 - `source-daily`
 - actual live ingest still depends on `ORCHESTRATOR_ENABLE_INGEST=true`
 - orchestrator-driven live ingest is a single full-universe pass; manual sharded runs belong on the direct LSEG ingest script, not the orchestrator lane
+- prices are ingested for the latest completed XNYS session, then missing daily sessions are backfilled from the prior local price date
+- fundamentals/classification are restricted to closed-month anchors only; if open-month PIT rows exist, `source-daily` deletes them before syncing to Neon
+- missing closed-month anchors are backfilled automatically so skipped months do not accumulate silently
 - This lane is intentionally unavailable in `cloud-serve`.
 
 ### 3) `source-daily-plus-core-if-due`
@@ -328,6 +354,10 @@ Primary trigger:
 
 Current implemented path:
 - `source-daily-plus-core-if-due`
+- local ingest still depends on `ORCHESTRATOR_ENABLE_INGEST=true`
+- while `NEON_AUTHORITATIVE_REBUILDS=false`, any due core work still rebuilds from local SQLite
+- once `NEON_AUTHORITATIVE_REBUILDS=true`, this lane now inserts `source_sync` before serving/core work and `neon_readiness` before any due core rebuild
+- the Neon-authoritative core path materializes a scratch SQLite workspace from Neon, runs the existing core math there, then mirrors derived outputs back into Neon and the local private mirror
 
 ### 4) `core-weekly`
 
@@ -346,6 +376,8 @@ Does not:
 
 Current implemented path:
 - `core-weekly`
+- operators should still keep local ingest current, but when `NEON_AUTHORITATIVE_REBUILDS=true` the lane now inserts `source_sync` and `neon_readiness` automatically
+- rebuild authority is local SQLite until `NEON_AUTHORITATIVE_REBUILDS=true`, then the rebuild inputs come from Neon via the scratch workspace
 - daily factor-return recompute now resolves uncached dates before loading prices and only materializes the required price window plus the immediately prior session needed for return calculation
 - factor-return cache invalidation now also keys off the configured minimum exposure-snapshot age (`CROSS_SECTION_MIN_AGE_DAYS`)
 
@@ -369,6 +401,9 @@ Use only when:
 
 Current path:
 - `cold-core`
+- today this still rebuilds from local SQLite unless `NEON_AUTHORITATIVE_REBUILDS=true`
+- on the Neon-authoritative path, `cold-core` fails closed if Neon retention is too shallow for the rebuild horizon instead of silently widening from the local archive
+- under the target contract, operators widen Neon retention first when they want a deeper standalone rebuild window
 
 ### 6) `universe-add`
 

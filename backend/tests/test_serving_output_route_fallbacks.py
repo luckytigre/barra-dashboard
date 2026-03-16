@@ -14,8 +14,8 @@ def test_portfolio_route_uses_persisted_payload_when_cache_missing(monkeypatch) 
     monkeypatch.setattr(portfolio_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(
         portfolio_routes,
-        "load_current_payload",
-        lambda key: {
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: {
             "positions": [{"ticker": "AAPL", "weight": 1.0}],
             "total_value": 100.0,
             "position_count": 1,
@@ -53,7 +53,7 @@ def test_risk_route_uses_persisted_payload_when_cache_incomplete(monkeypatch) ->
         return None
 
     monkeypatch.setattr(risk_routes, "cache_get", _fake_cache)
-    monkeypatch.setattr(risk_routes, "load_current_payload", _fake_payload)
+    monkeypatch.setattr(risk_routes, "load_runtime_payload", lambda key, *, fallback_loader=None: _fake_payload(key))
     client = TestClient(app)
     res = client.get("/api/risk")
     assert res.status_code == 200
@@ -64,8 +64,8 @@ def test_exposures_route_uses_persisted_payload_when_cache_missing(monkeypatch) 
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(
         exposures_routes,
-        "load_current_payload",
-        lambda key: {"raw": [{"factor_id": "style_beta_score", "value": 1.0}], "sensitivity": [], "risk_contribution": []}
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: {"raw": [{"factor_id": "style_beta_score", "value": 1.0}], "sensitivity": [], "risk_contribution": []}
         if key == "exposures"
         else None,
     )
@@ -73,6 +73,78 @@ def test_exposures_route_uses_persisted_payload_when_cache_missing(monkeypatch) 
     res = client.get("/api/exposures?mode=raw")
     assert res.status_code == 200
     assert res.json()["factors"][0]["factor_id"] == "style_beta_score"
+
+
+def test_serving_routes_preserve_snapshot_metadata_when_present(monkeypatch) -> None:
+    portfolio_payload = {
+        "positions": [{"ticker": "AAPL", "weight": 1.0}],
+        "total_value": 100.0,
+        "position_count": 1,
+        "run_id": "run_meta_1",
+        "snapshot_id": "snap_meta_1",
+        "refresh_started_at": "2026-03-15T14:00:00+00:00",
+        "source_dates": {
+            "prices_asof": "2026-03-14",
+            "exposures_asof": "2026-03-15",
+            "exposures_latest_available_asof": "2026-03-15",
+            "exposures_served_asof": "2026-03-13",
+        },
+    }
+    risk_payload = {
+        "cov_matrix": {"factors": ["style_beta_score"], "correlation": [[1.0]]},
+        "risk_engine": {"specific_risk_ticker_count": 10},
+        "risk_shares": {"market": 0.0, "industry": 20.0, "style": 30.0, "idio": 50.0},
+        "component_shares": {"market": 0.0, "industry": 0.4, "style": 0.6},
+        "factor_details": [],
+        "r_squared": 0.4,
+        "run_id": "run_meta_1",
+        "snapshot_id": "snap_meta_1",
+        "refresh_started_at": "2026-03-15T14:00:00+00:00",
+        "source_dates": portfolio_payload["source_dates"],
+    }
+    exposures_payload = {
+        "raw": [{"factor_id": "style_beta_score", "value": 1.0}],
+        "sensitivity": [],
+        "risk_contribution": [],
+        "run_id": "run_meta_1",
+        "snapshot_id": "snap_meta_1",
+        "refresh_started_at": "2026-03-15T14:00:00+00:00",
+        "source_dates": portfolio_payload["source_dates"],
+    }
+
+    monkeypatch.setattr(portfolio_routes, "cache_get", lambda key: None)
+    monkeypatch.setattr(
+        portfolio_routes,
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: portfolio_payload if key == "portfolio" else None,
+    )
+    monkeypatch.setattr(risk_routes, "cache_get", lambda key: None)
+    monkeypatch.setattr(
+        risk_routes,
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: risk_payload if key == "risk" else {"status": "ok", "warnings": [], "checks": {}} if key == "model_sanity" else None,
+    )
+    monkeypatch.setattr(exposures_routes, "cache_get", lambda key: None)
+    monkeypatch.setattr(
+        exposures_routes,
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: exposures_payload if key == "exposures" else None,
+    )
+
+    client = TestClient(app)
+    portfolio_res = client.get("/api/portfolio")
+    risk_res = client.get("/api/risk")
+    exposures_res = client.get("/api/exposures?mode=raw")
+
+    assert portfolio_res.status_code == 200
+    assert risk_res.status_code == 200
+    assert exposures_res.status_code == 200
+    assert portfolio_res.json()["snapshot_id"] == "snap_meta_1"
+    assert risk_res.json()["snapshot_id"] == "snap_meta_1"
+    assert exposures_res.json()["snapshot_id"] == "snap_meta_1"
+    assert portfolio_res.json()["source_dates"]["exposures_served_asof"] == "2026-03-13"
+    assert risk_res.json()["source_dates"]["exposures_latest_available_asof"] == "2026-03-15"
+    assert exposures_res.json()["source_dates"]["exposures_served_asof"] == "2026-03-13"
 
 
 def test_universe_routes_use_persisted_payload_when_cache_missing(monkeypatch) -> None:
@@ -87,8 +159,8 @@ def test_universe_routes_use_persisted_payload_when_cache_missing(monkeypatch) -
     monkeypatch.setattr(universe_routes, "cache_get", lambda key: None)
     monkeypatch.setattr(
         universe_routes,
-        "load_current_payload",
-        lambda key: payload if key == "universe_loadings" else (payload if key == "universe_factors" else None),
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: payload if key == "universe_loadings" else (payload if key == "universe_factors" else None),
     )
     client = TestClient(app)
     search = client.get("/api/universe/search?q=jpm&limit=20")
@@ -115,8 +187,8 @@ def test_portfolio_route_prefers_persisted_payload_in_serving_outputs_mode(monke
     )
     monkeypatch.setattr(
         portfolio_routes,
-        "load_current_payload",
-        lambda key: {"positions": [{"ticker": "LIVE"}], "position_count": 1, "total_value": 100.0}
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: {"positions": [{"ticker": "LIVE"}], "position_count": 1, "total_value": 100.0}
         if key == "portfolio"
         else None,
     )
@@ -156,7 +228,7 @@ def test_risk_route_prefers_persisted_payload_in_serving_outputs_mode(monkeypatc
         return None
 
     monkeypatch.setattr(risk_routes, "cache_get", _fake_cache)
-    monkeypatch.setattr(risk_routes, "load_current_payload", _fake_payload)
+    monkeypatch.setattr(risk_routes, "load_runtime_payload", lambda key, *, fallback_loader=None: _fake_payload(key))
     client = TestClient(app)
     res = client.get("/api/risk")
     assert res.status_code == 200
@@ -178,8 +250,8 @@ def test_portfolio_route_prefers_durable_reads_in_cloud_mode_even_without_flag(m
     )
     monkeypatch.setattr(
         portfolio_routes,
-        "load_current_payload",
-        lambda key: {"positions": [{"ticker": "LIVE"}], "position_count": 1, "total_value": 100.0}
+        "load_runtime_payload",
+        lambda key, *, fallback_loader=None: {"positions": [{"ticker": "LIVE"}], "position_count": 1, "total_value": 100.0}
         if key == "portfolio"
         else None,
     )
@@ -200,7 +272,7 @@ def test_portfolio_route_does_not_fallback_to_cache_in_cloud_mode(monkeypatch) -
         if key == "portfolio"
         else None,
     )
-    monkeypatch.setattr(portfolio_routes, "load_current_payload", lambda key: None)
+    monkeypatch.setattr(portfolio_routes, "load_runtime_payload", lambda key, *, fallback_loader=None: None)
     client = TestClient(app)
     res = client.get("/api/portfolio")
     assert res.status_code == 503

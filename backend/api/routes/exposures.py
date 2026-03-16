@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query
 from backend import config
 from backend.api.routes.readiness import raise_cache_not_ready
 from backend.data.history_queries import load_factor_return_history, resolve_factor_history_factor
-from backend.data.serving_outputs import load_current_payload
+from backend.data.serving_outputs import load_runtime_payload
 from backend.data.sqlite import cache_get
 
 router = APIRouter()
@@ -21,9 +21,7 @@ def _resolve_factor_name(factor_id: str) -> tuple[str, str]:
         return "", ""
     payload_names = ("risk", "universe_factors", "universe_loadings")
     for payload_name in payload_names:
-        payload = load_current_payload(payload_name)
-        if payload is None and not config.cloud_mode():
-            payload = cache_get(payload_name)
+        payload = load_runtime_payload(payload_name, fallback_loader=cache_get)
         catalog = (payload or {}).get("factor_catalog") if isinstance(payload, dict) else None
         if not isinstance(catalog, list):
             continue
@@ -65,16 +63,23 @@ def _normalize_factor_rows(rows) -> list[dict]:
 
 @router.get("/exposures")
 async def get_exposures(mode: str = Query("raw", pattern="^(raw|sensitivity|risk_contribution)$")):
-    data = load_current_payload("exposures")
-    if data is None and not config.cloud_mode():
-        data = cache_get("exposures")
+    data = load_runtime_payload("exposures", fallback_loader=cache_get)
     if data is None:
         raise_cache_not_ready(
             cache_key="exposures",
             message="Exposure cache is not ready yet. Run refresh and try again.",
         )
     factors = _normalize_factor_rows(data.get(mode, []))
-    return {"mode": mode, "factors": factors, "_cached": True}
+    response = {
+        "mode": mode,
+        "factors": factors,
+        "_cached": True,
+    }
+    for key in ("run_id", "snapshot_id", "refresh_started_at", "source_dates"):
+        value = data.get(key)
+        if value is not None:
+            response[key] = value
+    return response
 
 
 @router.get("/exposures/history")

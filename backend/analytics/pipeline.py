@@ -80,9 +80,21 @@ _PUBLISH_ONLY_PAYLOAD_NAMES = (
     "portfolio",
     "refresh_meta",
     "risk",
+    "risk_engine_cov",
+    "risk_engine_specific_risk",
     "universe_factors",
     "universe_loadings",
 )
+_PUBLISH_METADATA_PAYLOAD_NAMES = {
+    "exposures",
+    "health_diagnostics",
+    "model_sanity",
+    "portfolio",
+    "refresh_meta",
+    "risk",
+    "universe_factors",
+    "universe_loadings",
+}
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -96,6 +108,19 @@ def _finite_float(value: Any, default: float = 0.0) -> float:
 def _risk_engine_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
     meta = dict(payload or {})
     return {key: meta.get(key) for key in _UNIVERSE_REUSE_RISK_KEYS}
+
+
+def _source_dates_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
+    source_dates = dict(payload or {})
+    return {
+        "fundamentals_asof": source_dates.get("fundamentals_asof"),
+        "classification_asof": source_dates.get("classification_asof"),
+        "prices_asof": source_dates.get("prices_asof"),
+        "exposures_latest_available_asof": (
+            source_dates.get("exposures_latest_available_asof")
+            or source_dates.get("exposures_asof")
+        ),
+    }
 
 
 def _can_reuse_cached_universe_loadings(
@@ -112,7 +137,7 @@ def _can_reuse_cached_universe_loadings(
     cached_source_dates = cached_payload.get("source_dates")
     if not isinstance(cached_source_dates, dict):
         return False, "missing_cached_source_dates"
-    if dict(cached_source_dates) != dict(source_dates):
+    if _source_dates_reuse_signature(cached_source_dates) != _source_dates_reuse_signature(source_dates):
         return False, "source_dates_changed"
     cached_risk = cached_payload.get("risk_engine")
     if not isinstance(cached_risk, dict):
@@ -160,14 +185,35 @@ def _load_publishable_payloads() -> tuple[dict[str, Any], list[str]]:
     payloads: dict[str, Any] = {}
     missing: list[str] = []
     for payload_name in _PUBLISH_ONLY_PAYLOAD_NAMES:
-        payload = serving_outputs.load_current_payload(payload_name)
-        if payload is None:
-            payload = sqlite.cache_get(payload_name)
+        payload = serving_outputs.load_runtime_payload(
+            payload_name,
+            fallback_loader=sqlite.cache_get,
+        )
         if payload is None:
             missing.append(payload_name)
             continue
         payloads[payload_name] = payload
     return payloads, missing
+
+
+def _restamp_publishable_payloads(
+    payloads: dict[str, Any],
+    *,
+    run_id: str,
+    snapshot_id: str,
+    refresh_started_at: str,
+) -> dict[str, Any]:
+    restamped: dict[str, Any] = {}
+    for payload_name, payload in payloads.items():
+        if payload_name not in _PUBLISH_METADATA_PAYLOAD_NAMES or not isinstance(payload, dict):
+            restamped[payload_name] = payload
+            continue
+        stamped = dict(payload)
+        stamped["run_id"] = str(run_id)
+        stamped["snapshot_id"] = str(snapshot_id)
+        stamped["refresh_started_at"] = str(refresh_started_at)
+        restamped[payload_name] = stamped
+    return restamped
 
 
 def _deserialize_covariance(payload: Any) -> pd.DataFrame:
@@ -307,6 +353,12 @@ def run_refresh(
                 + ", ".join(sorted(missing_payloads))
             )
         snapshot_id = run_id
+        payloads = _restamp_publishable_payloads(
+            payloads,
+            run_id=run_id,
+            snapshot_id=snapshot_id,
+            refresh_started_at=refresh_started_at,
+        )
         refresh_meta = dict(payloads.get("refresh_meta") or {})
         risk_payload = dict(payloads.get("risk") or {})
         portfolio_payload = dict(payloads.get("portfolio") or {})
@@ -320,8 +372,7 @@ def run_refresh(
         )
         neon_write = serving_outputs_write.get("neon_write") if isinstance(serving_outputs_write, dict) else None
         if (
-            config.cloud_mode()
-            and config.neon_surface_enabled("serving_outputs")
+            config.serving_payload_neon_write_required()
             and isinstance(neon_write, dict)
             and str(neon_write.get("status") or "") != "ok"
         ):
@@ -763,8 +814,7 @@ def run_refresh(
         )
         neon_write = serving_outputs_write.get("neon_write") if isinstance(serving_outputs_write, dict) else None
         if (
-            config.cloud_mode()
-            and config.neon_surface_enabled("serving_outputs")
+            config.serving_payload_neon_write_required()
             and isinstance(neon_write, dict)
             and str(neon_write.get("status") or "") != "ok"
         ):

@@ -4,6 +4,7 @@ import type { Ref } from "react";
 import ExposureBarChart from "@/components/ExposureBarChart";
 import { shortFactorLabel } from "@/lib/factorLabels";
 import type { WhatIfPreviewData } from "@/lib/types";
+import { formatAsOfDate } from "@/lib/analyticsTruth";
 import { fmtQty, WHAT_IF_MODES, type WhatIfMode } from "@/features/whatif/whatIfUtils";
 
 interface WhatIfPreviewPanelProps {
@@ -33,6 +34,12 @@ export default function WhatIfPreviewPanel({
     );
   }
 
+  const truthSurface = String(previewData.truth_surface || "").trim();
+  const servedModelPreview = truthSurface === "live_holdings_projected_through_current_served_model";
+  const currentSideDescription = servedModelPreview
+    ? "Current side = live holdings projected through the current served model snapshot"
+    : "Current side = live holdings projected through current published loadings plus live risk-cache fallback";
+
   return (
     <>
       <div
@@ -58,6 +65,17 @@ export default function WhatIfPreviewPanel({
 
       {showResults && (
         <div className="whatif-results-body">
+          <div className="section-subtitle" style={{ marginBottom: 12 }}>
+            {currentSideDescription}
+            {previewData.serving_snapshot?.snapshot_id ? ` ${previewData.serving_snapshot.snapshot_id}` : ""}.
+            {servedModelPreview
+              ? " This preview is exploratory and does not replace the dashboard’s published truth surface."
+              : " Risk inputs are temporarily falling back to live cache because the current published snapshot predates the new durable risk payloads."}
+            Dashboard pages only change after `RECALC` publishes a new snapshot.
+            {previewData.source_dates?.exposures_served_asof
+              ? ` Served exposures are as of ${formatAsOfDate(previewData.source_dates.exposures_served_asof)}.`
+              : ""}
+          </div>
           <div className="explore-mode-toggle">
             {WHAT_IF_MODES.map((entry) => (
               <button
@@ -73,7 +91,7 @@ export default function WhatIfPreviewPanel({
 
           <div className="explore-detail-grid">
             <div className="chart-card">
-              <span className="explore-compare-label">Current Portfolio</span>
+              <span className="explore-compare-label">Live Holdings Preview</span>
               <ExposureBarChart
                 factors={previewData.current.exposure_modes[mode]}
                 mode={mode}

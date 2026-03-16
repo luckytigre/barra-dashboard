@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBackground, type BgMode } from "./BackgroundContext";
-import { triggerServeRefresh, useOperatorStatus } from "@/hooks/useApi";
+import { useOperatorStatus } from "@/hooks/useApi";
+import { runServeRefreshAndRevalidate } from "@/lib/refresh";
 
 const TABS = [
   { href: "/exposures", label: "Risk" },
@@ -132,7 +133,7 @@ export default function TabNav() {
     if (recomputeState === "running" || refreshIsRunning) return;
     setRecomputeState("running");
     try {
-      await triggerServeRefresh();
+      await runServeRefreshAndRevalidate();
       await mutateOperatorStatus();
       setRecomputeState("idle");
     } catch {
@@ -144,7 +145,7 @@ export default function TabNav() {
     if (syncState === "running" || refreshIsRunning) return;
     setSyncState("running");
     try {
-      await triggerServeRefresh();
+      await runServeRefreshAndRevalidate();
       await mutateOperatorStatus();
       setSyncState("idle");
     } catch {

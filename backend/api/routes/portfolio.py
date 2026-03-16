@@ -11,7 +11,7 @@ from backend import config
 from backend.api.auth import require_role
 from backend.api.routes.presenters import normalize_trbc_sector_fields
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.data.serving_outputs import load_current_payload
+from backend.data.serving_outputs import load_runtime_payload
 from backend.data.sqlite import cache_get
 from backend.services import holdings_service
 from backend.services.portfolio_whatif import preview_portfolio_whatif
@@ -40,9 +40,7 @@ class WhatIfApplyRequest(BaseModel):
 
 @router.get("/portfolio")
 async def get_portfolio():
-    data = load_current_payload("portfolio")
-    if data is None and not config.cloud_mode():
-        data = cache_get("portfolio")
+    data = load_runtime_payload("portfolio", fallback_loader=cache_get)
     if data is None:
         raise_cache_not_ready(
             cache_key="portfolio",

@@ -127,7 +127,29 @@ def _find_most_recent(sorted_dates: list[str], target: str) -> str | None:
     return result
 
 
-def _load_style_exposure_snapshots(data_db: Path) -> tuple[list[str], dict[str, pd.DataFrame]]:
+def _load_exposure_dates(data_db: Path) -> list[str]:
+    conn = sqlite3.connect(str(data_db))
+    try:
+        rows = conn.execute(
+            """
+            SELECT DISTINCT as_of_date
+            FROM barra_raw_cross_section_history
+            WHERE as_of_date IS NOT NULL
+            ORDER BY as_of_date
+            """
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+    return [str(row[0]) for row in rows if row and row[0]]
+
+
+def _load_style_exposure_snapshots(
+    data_db: Path,
+    *,
+    required_dates: set[str] | None = None,
+) -> tuple[list[str], dict[str, pd.DataFrame]]:
     conn = sqlite3.connect(str(data_db))
     try:
         cols = [str(r[1]) for r in conn.execute("PRAGMA table_info(barra_raw_cross_section_history)").fetchall()]
@@ -137,18 +159,50 @@ def _load_style_exposure_snapshots(data_db: Path) -> tuple[list[str], dict[str, 
         key_col = "ric" if "ric" in cols else ("ticker" if "ticker" in cols else None)
         if key_col is None:
             return [], {}
-        df = pd.read_sql_query(
-            f"""
-            SELECT UPPER({key_col}) AS security_key, as_of_date, {", ".join(style_cols_present)}
-            FROM barra_raw_cross_section_history
-            ORDER BY as_of_date, UPPER({key_col})
-            """,
-            conn,
-        )
+        exposure_dates = [
+            str(row[0])
+            for row in conn.execute(
+                """
+                SELECT DISTINCT as_of_date
+                FROM barra_raw_cross_section_history
+                ORDER BY as_of_date
+                """
+            ).fetchall()
+            if row and row[0]
+        ]
+        if not exposure_dates:
+            return [], {}
+
+        required = {str(d).strip() for d in (required_dates or set()) if str(d).strip()}
+        dates_to_load: list[str]
+        if required:
+            dates_to_load = [d for d in exposure_dates if d in required]
+            if not dates_to_load:
+                return exposure_dates, {}
+            placeholders = ",".join("?" for _ in dates_to_load)
+            df = pd.read_sql_query(
+                f"""
+                SELECT UPPER({key_col}) AS security_key, as_of_date, {", ".join(style_cols_present)}
+                FROM barra_raw_cross_section_history
+                WHERE as_of_date IN ({placeholders})
+                ORDER BY as_of_date, UPPER({key_col})
+                """,
+                conn,
+                params=tuple(dates_to_load),
+            )
+        else:
+            df = pd.read_sql_query(
+                f"""
+                SELECT UPPER({key_col}) AS security_key, as_of_date, {", ".join(style_cols_present)}
+                FROM barra_raw_cross_section_history
+                ORDER BY as_of_date, UPPER({key_col})
+                """,
+                conn,
+            )
     finally:
         conn.close()
     if df.empty:
-        return [], {}
+        return exposure_dates, {}
     df["security_key"] = df["security_key"].astype(str).str.upper()
     df["as_of_date"] = df["as_of_date"].astype(str)
     for c in style_cols_present:
@@ -163,7 +217,6 @@ def _load_style_exposure_snapshots(data_db: Path) -> tuple[list[str], dict[str, 
             .fillna(0.0)
         )
         snapshots[str(as_of)] = snap
-    exposure_dates = sorted(snapshots.keys())
     return exposure_dates, snapshots
 
 
@@ -229,8 +282,20 @@ def _compute_incremental_r2_by_block(
         .str.strip()
     )
 
-    exposure_dates, exposure_snaps = _load_style_exposure_snapshots(data_db)
-    if not exposure_dates or not exposure_snaps:
+    exposure_dates = _load_exposure_dates(data_db)
+    if not exposure_dates:
+        return []
+    required_exposure_dates = {
+        exp_date
+        for sample_date in sorted(residuals["date_str"].unique().tolist())
+        for exp_date in [_find_most_recent(exposure_dates, str(sample_date))]
+        if exp_date is not None
+    }
+    exposure_dates, exposure_snaps = _load_style_exposure_snapshots(
+        data_db,
+        required_dates=required_exposure_dates,
+    )
+    if not exposure_snaps:
         return []
 
     out: list[dict[str, float | str]] = []
@@ -424,22 +489,31 @@ def _compute_exposure_turnover(
     data_db: Path,
     factor_cols: list[str],
     *,
-    eligibility_ctx=None,
     core_country_codes: set[str] | None = None,
+    sample_dates: list[str] | None = None,
 ) -> list[dict[str, float | str]]:
     if not factor_cols:
         return []
-    ctx = eligibility_ctx or build_eligibility_context(data_db)
-    if not ctx.exposure_dates:
+    exposure_dates = _load_exposure_dates(data_db)
+    if not exposure_dates:
         return []
 
     per_date: dict[str, pd.DataFrame] = {}
-    for d in sorted(ctx.exposure_dates):
-        snap = ctx.exposure_snapshots.get(d)
-        if snap is None or snap.empty:
+    requested_dates = (
+        sorted({str(d).strip() for d in (sample_dates or []) if str(d).strip()})
+        if sample_dates
+        else list(exposure_dates)
+    )
+    for requested_date in requested_dates:
+        target_date = _find_most_recent(exposure_dates, requested_date)
+        if target_date is None or target_date in per_date:
             continue
-        exp_date, eligibility = structural_eligibility_for_date(ctx, d)
+        ctx = build_eligibility_context(data_db, dates=[target_date])
+        exp_date, eligibility = structural_eligibility_for_date(ctx, target_date)
         if exp_date is None or eligibility.empty:
+            continue
+        snap = ctx.exposure_snapshots.get(exp_date)
+        if snap is None or snap.empty:
             continue
         snap_with_ric = snap.reset_index().rename(columns={"index": "ric"})
         m = _build_factor_exposure_matrix(
@@ -450,7 +524,7 @@ def _compute_exposure_turnover(
         if m.empty:
             continue
         m = m.reindex(columns=factor_cols, fill_value=0.0)
-        per_date[d] = m
+        per_date[str(exp_date)] = m
     dates = sorted(per_date.keys())
     if len(dates) < 2:
         return []
@@ -905,10 +979,11 @@ def compute_health_diagnostics(
     }
 
     # SECTION 2 — Exposure diagnostics (latest cross-section)
-    elig_ctx = build_eligibility_context(data_db)
-    exp_as_of = max(elig_ctx.exposure_dates) if elig_ctx.exposure_dates else None
+    exposure_dates = _load_exposure_dates(data_db)
+    exp_as_of = exposure_dates[-1] if exposure_dates else None
     exp_matrix = pd.DataFrame()
     if exp_as_of is not None:
+        elig_ctx = build_eligibility_context(data_db, dates=[exp_as_of])
         exp_date, exp_elig = structural_eligibility_for_date(elig_ctx, exp_as_of)
         snap = elig_ctx.exposure_snapshots.get(exp_date or "")
         if snap is not None and not snap.empty and not exp_elig.empty:
@@ -960,8 +1035,8 @@ def compute_health_diagnostics(
         turnover_series = _compute_exposure_turnover(
             data_db,
             list(exp_matrix.columns),
-            eligibility_ctx=elig_ctx,
             core_country_codes=HEALTH_CORE_COUNTRY_CODES,
+            sample_dates=sorted(week_end_str),
         )
 
     # SECTION 3 — Factor return health

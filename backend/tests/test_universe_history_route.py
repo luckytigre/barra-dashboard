@@ -45,7 +45,11 @@ def test_universe_history_aggregates_to_weekly_closes(monkeypatch, tmp_path: Pat
             "ABC": {"ticker": "ABC", "ric": "ABC.N"},
         }
     }
-    monkeypatch.setattr(universe_routes, "load_current_payload", lambda name: payload if name == "universe_loadings" else None)
+    monkeypatch.setattr(
+        universe_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: payload if name == "universe_loadings" else None,
+    )
     monkeypatch.setattr(universe_routes, "cache_get", lambda key: None)
 
     client = TestClient(app)
@@ -63,7 +67,11 @@ def test_universe_history_aggregates_to_weekly_closes(monkeypatch, tmp_path: Pat
 
 
 def test_universe_history_returns_404_for_missing_ticker(monkeypatch) -> None:
-    monkeypatch.setattr(universe_routes, "load_current_payload", lambda name: {"by_ticker": {}} if name == "universe_loadings" else None)
+    monkeypatch.setattr(
+        universe_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: {"by_ticker": {}} if name == "universe_loadings" else None,
+    )
     monkeypatch.setattr(universe_routes, "cache_get", lambda key: None)
 
     client = TestClient(app)

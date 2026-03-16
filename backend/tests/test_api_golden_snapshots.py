@@ -41,7 +41,11 @@ def test_api_portfolio_matches_golden_snapshot(monkeypatch) -> None:
         "total_value": 1000.0,
         "position_count": 2,
     }
-    monkeypatch.setattr(portfolio_routes, "load_current_payload", lambda name: payload if name == "portfolio" else None)
+    monkeypatch.setattr(
+        portfolio_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: payload if name == "portfolio" else None,
+    )
     monkeypatch.setattr(portfolio_routes, "cache_get", lambda key: payload if key == "portfolio" else None)
     client = TestClient(app)
     res = client.get("/api/portfolio")
@@ -106,8 +110,8 @@ def test_api_risk_matches_golden_snapshot(monkeypatch) -> None:
 
     monkeypatch.setattr(
         risk_routes,
-        "load_current_payload",
-        lambda name: risk_payload if name == "risk" else {"status": "ok", "warnings": [], "checks": {}} if name == "model_sanity" else None,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: risk_payload if name == "risk" else {"status": "ok", "warnings": [], "checks": {}} if name == "model_sanity" else None,
     )
     def _fake_cache_get(key: str):
         return None
@@ -139,7 +143,11 @@ def test_api_exposures_raw_matches_golden_snapshot(monkeypatch) -> None:
         "sensitivity": [],
         "risk_contribution": [],
     }
-    monkeypatch.setattr(exposures_routes, "load_current_payload", lambda name: payload if name == "exposures" else None)
+    monkeypatch.setattr(
+        exposures_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: payload if name == "exposures" else None,
+    )
     monkeypatch.setattr(exposures_routes, "cache_get", lambda key: payload if key == "exposures" else None)
     client = TestClient(app)
     res = client.get("/api/exposures?mode=raw")
@@ -186,7 +194,11 @@ def test_api_universe_factors_matches_golden_snapshot(monkeypatch) -> None:
         "ineligible_ticker_count": 0,
         "factor_count": 2,
     }
-    monkeypatch.setattr(universe_routes, "load_current_payload", lambda name: payload if name == "universe_factors" else None)
+    monkeypatch.setattr(
+        universe_routes,
+        "load_runtime_payload",
+        lambda name, *, fallback_loader=None: payload if name == "universe_factors" else None,
+    )
     monkeypatch.setattr(universe_routes, "cache_get", lambda key: payload if key == "universe_factors" else None)
     client = TestClient(app)
     res = client.get("/api/universe/factors")

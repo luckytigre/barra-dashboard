@@ -411,8 +411,8 @@ def get_data_diagnostics(
             "diagnostic_scope": {
                 "source": "local_sqlite_and_cache",
                 "plain_english": (
-                    "Detailed diagnostics reflect this backend instance's local SQLite/cache state. "
-                    "Use the Health page for live operator truth, lane status, and Neon health."
+                    "Detailed diagnostics reflect this backend instance's local SQLite ingest/archive and cache state. "
+                    "Use the Health page for authoritative operator truth, lane status, and Neon health."
                 ),
             },
             "truth_surfaces": {
@@ -427,14 +427,14 @@ def get_data_diagnostics(
                     "source": "runtime_status_and_job_runs",
                     "plain_english": (
                         "Operator status is the live control-room truth for lane status, holdings dirty state, active snapshot, "
-                        "and Neon mirror/parity health."
+                        "authoritative source recency, and Neon mirror/parity health."
                     ),
                 },
                 "local_diagnostics": {
                     "source": "local_sqlite_and_cache",
                     "plain_english": (
                         "This diagnostics endpoint inspects the current backend instance and its local SQLite/cache files. "
-                        "Treat it as a deep diagnostics panel, not the live operator control room."
+                        "Treat it as a deep local-ingest/archive panel, not the live operator control room."
                     ),
                 },
             },

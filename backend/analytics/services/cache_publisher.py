@@ -96,7 +96,16 @@ def _health_reuse_signature(
 ) -> dict[str, Any]:
     return {
         "cache_version": HEALTH_DIAGNOSTICS_CACHE_VERSION,
-        "source_dates": dict(source_dates or {}),
+        "source_dates": {
+            "fundamentals_asof": source_dates.get("fundamentals_asof"),
+            "classification_asof": source_dates.get("classification_asof"),
+            "prices_asof": source_dates.get("prices_asof"),
+            "exposures_latest_available_asof": (
+                source_dates.get("exposures_latest_available_asof")
+                or source_dates.get("exposures_asof")
+            ),
+            "exposures_served_asof": source_dates.get("exposures_served_asof"),
+        },
         "risk_engine": {
             "method_version": str(risk_engine_state.get("method_version") or ""),
             "last_recompute_date": str(risk_engine_state.get("last_recompute_date") or ""),
@@ -107,6 +116,34 @@ def _health_reuse_signature(
         "positions_fingerprint": _positions_fingerprint(positions),
         "total_value": round(_finite_float(total_value, 0.0), 2),
     }
+
+
+def _serving_source_dates(
+    *,
+    source_dates: SourceDatesPayload,
+    universe_loadings: UniverseLoadingsPayload,
+    eligibility_summary: EligibilitySummaryPayload | None = None,
+) -> SourceDatesPayload:
+    out: SourceDatesPayload = dict(source_dates or {})
+    latest_available = str(
+        out.get("exposures_latest_available_asof")
+        or out.get("exposures_asof")
+        or universe_loadings.get("latest_available_asof")
+        or (eligibility_summary or {}).get("latest_available_date")
+        or ""
+    ).strip() or None
+    served_asof = str(
+        out.get("exposures_served_asof")
+        or universe_loadings.get("as_of_date")
+        or (eligibility_summary or {}).get("date")
+        or ""
+    ).strip() or None
+    if latest_available is not None:
+        out["exposures_asof"] = latest_available
+        out["exposures_latest_available_asof"] = latest_available
+    if served_asof is not None:
+        out["exposures_served_asof"] = served_asof
+    return out
 
 
 def _can_reuse_cached_health_payload(
@@ -358,6 +395,18 @@ def stage_refresh_cache_snapshot(
         recomputed_this_refresh=bool(recomputed_this_refresh),
         recompute_reason=str(recompute_reason),
     )
+    eligibility_summary = (
+        sqlite.cache_get("eligibility")
+        if reuse_cached_static_payloads
+        else None
+    )
+    if not isinstance(eligibility_summary, dict) or not eligibility_summary:
+        eligibility_summary = load_latest_eligibility_summary(cache_db)
+    effective_source_dates = _serving_source_dates(
+        source_dates=source_dates,
+        universe_loadings=universe_loadings,
+        eligibility_summary=eligibility_summary,
+    )
     _stage_cache("risk_engine_cov", cov_payload)
     _stage_cache("risk_engine_specific_risk", specific_risk_by_security)
     _stage_cache("risk_engine_meta", risk_engine_meta)
@@ -366,12 +415,14 @@ def stage_refresh_cache_snapshot(
         "positions": positions,
         "total_value": round(total_value, 2),
         "position_count": len(positions),
+        "run_id": str(run_id),
+        "snapshot_id": snapshot_id,
         "refresh_started_at": refresh_started_at,
-        "source_dates": source_dates,
+        "source_dates": effective_source_dates,
     }
     _stage_cache("portfolio", portfolio_data)
     health_reuse_signature = _health_reuse_signature(
-        source_dates=source_dates,
+        source_dates=effective_source_dates,
         risk_engine_state=risk_engine_state,
         positions=positions,
         total_value=total_value,
@@ -385,13 +436,18 @@ def stage_refresh_cache_snapshot(
         "cov_matrix": cov_matrix,
         "r_squared": round(float(latest_r2), 4),
         "risk_engine": risk_engine_state,
+        "run_id": str(run_id),
+        "snapshot_id": snapshot_id,
         "refresh_started_at": refresh_started_at,
+        "source_dates": effective_source_dates,
     }
     _stage_cache("risk", risk_data)
 
+    universe_loadings["run_id"] = str(run_id)
+    universe_loadings["snapshot_id"] = snapshot_id
     universe_loadings["risk_engine"] = risk_engine_state
     universe_loadings["refresh_started_at"] = refresh_started_at
-    universe_loadings["source_dates"] = source_dates
+    universe_loadings["source_dates"] = effective_source_dates
     _stage_cache("universe_loadings", universe_loadings)
     universe_factors: UniverseFactorsPayload = {
         "factors": universe_loadings.get("factors", []),
@@ -404,18 +460,23 @@ def stage_refresh_cache_snapshot(
         "projected_only_ticker_count": universe_loadings.get("projected_only_ticker_count", 0),
         "ineligible_ticker_count": universe_loadings.get("ineligible_ticker_count", 0),
         "risk_engine": risk_engine_state,
+        "run_id": str(run_id),
+        "snapshot_id": snapshot_id,
         "refresh_started_at": refresh_started_at,
+        "source_dates": effective_source_dates,
     }
     _stage_cache("universe_factors", universe_factors)
-    _stage_cache("exposures", exposure_modes)
-
-    eligibility_summary = (
-        sqlite.cache_get("eligibility")
-        if reuse_cached_static_payloads
-        else None
+    _stage_cache(
+        "exposures",
+        {
+            **exposure_modes,
+            "run_id": str(run_id),
+            "snapshot_id": snapshot_id,
+            "refresh_started_at": refresh_started_at,
+            "source_dates": effective_source_dates,
+        },
     )
-    if not isinstance(eligibility_summary, dict) or not eligibility_summary:
-        eligibility_summary = load_latest_eligibility_summary(cache_db)
+
     _stage_cache("eligibility", eligibility_summary)
     sanity = build_model_sanity_report(
         risk_shares=risk_shares,
@@ -437,7 +498,7 @@ def stage_refresh_cache_snapshot(
             portfolio_payload=portfolio_data,
             universe_payload=universe_loadings,
             covariance_payload=cov_payload,
-            source_dates=source_dates,
+            source_dates=effective_source_dates,
             run_id=run_id,
             snapshot_id=snapshot_id,
         )
@@ -462,7 +523,7 @@ def stage_refresh_cache_snapshot(
         "run_id": run_id,
         "snapshot_id": snapshot_id,
         "refresh_started_at": refresh_started_at,
-        "source_dates": source_dates,
+        "source_dates": effective_source_dates,
         "cross_section_snapshot": snapshot_build,
         "risk_engine": risk_engine_state,
         "model_sanity_status": sanity.get("status", "unknown"),
@@ -479,7 +540,15 @@ def stage_refresh_cache_snapshot(
         "persisted_payloads": {
             "portfolio": portfolio_data,
             "risk": risk_data,
-            "exposures": exposure_modes,
+            "risk_engine_cov": cov_payload,
+            "risk_engine_specific_risk": specific_risk_by_security,
+            "exposures": {
+                **exposure_modes,
+                "run_id": str(run_id),
+                "snapshot_id": snapshot_id,
+                "refresh_started_at": refresh_started_at,
+                "source_dates": effective_source_dates,
+            },
             "universe_loadings": universe_loadings,
             "universe_factors": universe_factors,
             "eligibility": eligibility_summary,
