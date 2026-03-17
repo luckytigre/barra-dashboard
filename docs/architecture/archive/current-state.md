@@ -14,8 +14,8 @@ This diagnosis covers the full repository with emphasis on:
 - current documentation structure
 
 It is grounded in the current codebase and the canonical operating-model docs:
-- [../ARCHITECTURE_AND_OPERATING_MODEL.md](../ARCHITECTURE_AND_OPERATING_MODEL.md)
-- [../OPERATIONS_PLAYBOOK.md](../OPERATIONS_PLAYBOOK.md)
+- [./ARCHITECTURE_AND_OPERATING_MODEL.md](./ARCHITECTURE_AND_OPERATING_MODEL.md)
+- [../operations/OPERATIONS_PLAYBOOK.md](../operations/OPERATIONS_PLAYBOOK.md)
 - [../README.md](../README.md)
 
 ## System Overview

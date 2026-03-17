@@ -102,8 +102,7 @@ Treat these as different timelines:
 Rule:
 - `serve-refresh` may read and project against the stable core package, but it may not compute, persist, or advance that package.
 - canonical historical price writes belong only to approved ingest/history paths, not serving-time logic.
-- top-level Health summary metrics should come from persisted core metadata; if a core metric like `latest_r2` is missing, render it as unavailable rather than coercing it to `0`.
-- deep Health regression diagnostics are still a deferred legacy path; if their R² series is empty, label that state explicitly instead of implying a real zero-fit signal.
+- detailed operating semantics for refresh lanes, health surfaces, and retention live in `../operations/OPERATIONS_PLAYBOOK.md`.
 
 ## Common Drift Mistakes
 
@@ -122,25 +121,7 @@ When extending the system:
 
 ## Semantic Contract Rules
 
-Prefer the canonical names below in new code, docs, and UI labels:
+Canonical contract names and compatibility-alias rules are defined in `architecture-invariants.md`.
 
-- `core_state_through_date`
-- `core_rebuild_date`
-- `estimation_exposure_anchor_date`
-- `exposures_served_asof`
-- `exposures_latest_available_asof`
-- `model_status_reason`
-- `factor_coverage_asof`
-- `served_loadings_asof`
-- `latest_loadings_available_asof`
-
-Compatibility aliases may remain in payloads, but they should be treated as fallback readers only:
-
-- `factor_returns_latest_date`
-- `last_recompute_date`
-- `exposures_asof`
-- `eligibility_reason`
-- `coverage_date`
-- `latest_available_date`
-
-Do not let compatibility aliases drive new UI or documentation semantics.
+Use those canonical names in new code, docs, and UI labels.
+Compatibility aliases may remain only as fallback readers and should not drive new semantics.

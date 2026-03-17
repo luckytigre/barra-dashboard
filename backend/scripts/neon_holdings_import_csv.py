@@ -39,7 +39,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--schema-sql",
         type=Path,
-        default=Path("docs/migrations/neon/NEON_HOLDINGS_SCHEMA.sql"),
+        default=Path("docs/reference/migrations/neon/NEON_HOLDINGS_SCHEMA.sql"),
         help="Holdings schema SQL file",
     )
     p.add_argument(

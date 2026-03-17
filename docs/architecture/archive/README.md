@@ -8,11 +8,9 @@ Use these active architecture docs first:
 - `../architecture-invariants.md`
 - `../dependency-rules.md`
 - `../maintainer-guide.md`
-- `../current-state.md`
-- `../target-architecture.md`
-- `../module-inventory.md`
 
 Archive contents include:
+- historical current-state, target-shape, and inventory snapshots
 - audits and closeout reviews
 - completed restructure/remediation trackers
 - investigation and corrective-pass notes

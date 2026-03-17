@@ -4,8 +4,8 @@ This directory holds historical planning notes, migration plans, and execution l
 
 Use active docs for current guidance:
 - `docs/README.md`
-- `docs/ARCHITECTURE_AND_OPERATING_MODEL.md`
-- `docs/OPERATIONS_PLAYBOOK.md`
+- `docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/operations/OPERATIONS_PLAYBOOK.md`
 - `docs/architecture/architecture-invariants.md`
 - `docs/architecture/dependency-rules.md`
 - `docs/architecture/maintainer-guide.md`

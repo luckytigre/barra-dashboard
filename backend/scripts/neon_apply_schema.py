@@ -17,13 +17,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--canonical-schema",
         type=Path,
-        default=Path("docs/migrations/neon/NEON_CANONICAL_SCHEMA.sql"),
+        default=Path("docs/reference/migrations/neon/NEON_CANONICAL_SCHEMA.sql"),
         help="Canonical source-table schema SQL path",
     )
     p.add_argument(
         "--holdings-schema",
         type=Path,
-        default=Path("docs/migrations/neon/NEON_HOLDINGS_SCHEMA.sql"),
+        default=Path("docs/reference/migrations/neon/NEON_HOLDINGS_SCHEMA.sql"),
         help="Holdings schema SQL path",
     )
     p.add_argument(
