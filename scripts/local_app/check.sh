@@ -20,14 +20,14 @@ retry() {
 backend_status=""
 frontend_head=""
 
-if retry 10 1 bash -lc "curl -fsS http://127.0.0.1:8000/api/health >/tmp/barra_backend_health.json"; then
-  backend_status="$(cat /tmp/barra_backend_health.json)"
+if retry 10 1 bash -lc "curl -fsS http://127.0.0.1:8000/api/health >/tmp/cuse_backend_health.json"; then
+  backend_status="$(cat /tmp/cuse_backend_health.json)"
 else
   backend_status="unreachable"
 fi
 
-if retry 10 1 bash -lc "curl -fsSI http://127.0.0.1:3000 >/tmp/barra_frontend_head.txt"; then
-  frontend_head="$(sed -n '1p' /tmp/barra_frontend_head.txt)"
+if retry 10 1 bash -lc "curl -fsSI http://127.0.0.1:3000 >/tmp/cuse_frontend_head.txt"; then
+  frontend_head="$(sed -n '1p' /tmp/cuse_frontend_head.txt)"
 else
   frontend_head="unreachable"
 fi

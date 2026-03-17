@@ -174,7 +174,7 @@ export default function ExposuresPage() {
       )}
 
       <div className="chart-card" style={{ marginTop: 12 }}>
-        <h3>Positions (Barra Risk Mix)</h3>
+        <h3>Positions (Factor Risk Mix)</h3>
         {portfolioLoading ? (
           <div className="detail-history-empty loading-pulse">Loading positions...</div>
         ) : (

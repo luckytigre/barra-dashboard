@@ -4,6 +4,7 @@ The active docs surface is grouped into four buckets:
 
 ## Architecture
 - `architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`: canonical project architecture, data flow, runtime roles, operating model, and known open limitations.
+  - system identity is `cUSE` / `cUSE4`; any `Barra` wording in active docs should be treated as lineage context only
 - `architecture/`: active architecture package.
   - start with `architecture/architecture-invariants.md`, `architecture/dependency-rules.md`, and `architecture/maintainer-guide.md`
   - deeper historical diagnosis, target-shape, inventory, audits, plans, investigations, and pass summaries live under `architecture/archive/`
@@ -11,7 +12,7 @@ The active docs surface is grouped into four buckets:
 ## Operations
 - `operations/OPERATIONS_PLAYBOOK.md`: runbook for refresh, retention, validation, and recovery.
   - canonical reference for the three horizons:
-    - active Barra model history
+    - active cUSE model history
     - risk-model lookback
     - local/Neon source retention
   - current live model is a 45-factor set with 14 style factors and no standalone `Value` factor

@@ -1,4 +1,4 @@
-"""FastAPI app for Barra Factor Risk Dashboard."""
+"""FastAPI app for the cUSE4 Factor Risk Dashboard."""
 
 import math
 
@@ -12,7 +12,7 @@ from backend.api import API_ROUTERS
 from backend.data import sqlite
 from backend.data import runtime_state
 
-app = FastAPI(title="Barra Factor Risk Dashboard", version="0.1.0")
+app = FastAPI(title="cUSE4 Factor Risk Dashboard", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

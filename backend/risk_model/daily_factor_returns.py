@@ -1,4 +1,4 @@
-"""Daily cross-sectional Barra factor returns via staged migration logic.
+"""Daily cross-sectional cUSE factor returns via staged migration logic.
 
 Runs WLS regression for each trading day:
   1. Carry-forward quarterly exposures to each trading day
@@ -224,7 +224,7 @@ def _load_trading_dates(data_db: Path) -> list[str]:
 
 
 def _active_model_history_start_date(data_db: Path) -> str | None:
-    """Return the active Barra-history floor derived from raw cross-sectional history."""
+    """Return the active cUSE history floor derived from raw cross-sectional history."""
     conn = sqlite3.connect(str(data_db))
     try:
         row = conn.execute(
@@ -565,7 +565,7 @@ def compute_daily_factor_returns(
             }
         )
     if not trading_dates:
-        logger.warning("No trading dates inside active Barra-history window — cannot compute daily factor returns")
+        logger.warning("No trading dates inside active cUSE history window — cannot compute daily factor returns")
         return _load_all_from_cache(
             cache_db,
             lookback_days,

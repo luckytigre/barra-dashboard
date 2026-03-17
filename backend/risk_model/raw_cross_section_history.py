@@ -1,4 +1,4 @@
-"""Build in-project Barra raw cross-section history and style scores."""
+"""Build in-project cUSE raw cross-section history and style scores."""
 
 from __future__ import annotations
 

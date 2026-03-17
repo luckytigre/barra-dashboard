@@ -1,7 +1,7 @@
 [project]
-name = "barra-dashboard-backend"
+name = "cuse-dashboard-backend"
 version = "0.1.0"
-description = "Barra Factor Risk Model Dashboard - Backend"
+description = "cUSE4 Factor Risk Dashboard - Backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.109.0",

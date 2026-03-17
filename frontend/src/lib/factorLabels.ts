@@ -1,6 +1,6 @@
 import type { FactorCatalogEntry, FactorFamily } from "@/lib/types";
 
-/** Short display names for Barra factor labels (style + industry). */
+/** Short display names for cUSE factor labels (style + industry). */
 const SHORT_LABELS: Record<string, string> = {
   Market: "Market",
   "Book-to-Price": "B/P",

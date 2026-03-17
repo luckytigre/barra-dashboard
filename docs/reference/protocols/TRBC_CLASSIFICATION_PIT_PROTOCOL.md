@@ -13,7 +13,7 @@ Ensure each (`ric`, `as_of_date`) used by the model has point-in-time TRBC class
 - Primary key: (`ric`, `as_of_date`)
 - Key columns used by modeling:
   - `trbc_economic_sector`
-  - `trbc_business_sector` (L2; active Barra dummy-factor level)
+  - `trbc_business_sector` (L2; active cUSE industry dummy-factor level)
   - `trbc_industry_group` (L3; retained for output/detail views)
   - `trbc_industry`
   - `trbc_activity`

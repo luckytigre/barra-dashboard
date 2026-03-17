@@ -1,4 +1,4 @@
-"""Environment variable loading for Barra Dashboard backend."""
+"""Environment variable loading for the cUSE dashboard backend."""
 
 import os
 from pathlib import Path

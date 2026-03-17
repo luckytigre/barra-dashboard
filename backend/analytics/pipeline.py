@@ -203,7 +203,7 @@ def _compute_position_risk_mix(
     cov,
     specific_risk_by_ticker: dict[str, SpecificRiskPayload] | None = None,
 ) -> dict[str, PositionRiskMixPayload]:
-    """Per-position risk split using Barra-style factor + specific variance."""
+    """Per-position risk split using cUSE factor plus specific variance."""
     return _compute_position_risk_mix_impl(
         positions,
         cov,

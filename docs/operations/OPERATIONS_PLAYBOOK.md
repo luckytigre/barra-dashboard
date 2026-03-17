@@ -1,4 +1,4 @@
-# Barra Dashboard Operations Playbook
+# cUSE Operations Playbook
 
 ## Core Policy
 - Holdings writes and holdings-serving reads are both Neon-authoritative when a Neon DSN is configured.
@@ -186,10 +186,10 @@ Runtime-role rule:
 
 ## Lookback Retention Policy
 - Treat three horizons separately:
-  - active Barra model history: the retained `barra_raw_cross_section_history` window that drives factor-return recomputes
+  - active cUSE model history: the retained `barra_raw_cross_section_history` window that drives factor-return recomputes
   - risk-model lookback: the rolling covariance/specific-risk window (`LOOKBACK_DAYS`, currently ~2 trading years)
   - source archive retention: deeper local history plus Neon publish retention
-- Ordinary `core-weekly` recomputes respect the active Barra model-history floor from `barra_raw_cross_section_history`; they do not try to backfill the full price archive.
+- Ordinary `core-weekly` recomputes respect the active cUSE model-history floor from `barra_raw_cross_section_history`; they do not try to backfill the full price archive.
 - The first usable factor-return date may be a few sessions later than raw-history start because cross-sectional regressions honor `CROSS_SECTION_MIN_AGE_DAYS`.
 - Think in terms of target factor-return history horizon `H` (years).
 - If you need to recompute and keep `H` years of factor returns, retain at least `H` years in:
@@ -206,7 +206,7 @@ Runtime-role rule:
 - Practical rule:
   - For a 5-year history target (example: as of 2026-03-05, keep data from ~2021-03-05 onward), keep at least 5 years in the source/raw tables.
   - Add extra buffer if you rebuild raw descriptors from prices (rolling feature construction benefits from pre-window data).
-  - Deeper local source archives are allowed and expected; they do not, by themselves, widen the active Barra model window.
+  - Deeper local source archives are allowed and expected; they do not, by themselves, widen the active cUSE model window.
   - Neon is the pruned publish surface:
     - source tables: rolling 10 years
     - analytics tables: rolling 5 years

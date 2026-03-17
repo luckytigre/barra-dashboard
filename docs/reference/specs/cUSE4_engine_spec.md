@@ -1,14 +1,15 @@
-# Barra USE4-Inspired Engine Specification
+# cUSE4 Engine Specification
 
 Date: 2026-03-04
-Project: barra-dashboard
+System identity: cUSE4
+Repository: barra-dashboard (historical repo name)
 
 ## 0) Purpose and Operating Intent
 
 `cUSE4` is an adapted, USE4-inspired risk-model engine for a hobby-grade portfolio analytics platform, focused first on long/short equities. It is intended for non-institutional investing and portfolio management, so the design prioritizes interpretability, actionability, stability, and manageable compute/runtime over maximum factor granularity.
 
 Key design tradeoff:
-- Compared with full institutional Barra-style stacks (often 50+ factors), `cUSE4` intentionally uses a leaner factor set so exposures are easier to interpret and hedge in practice.
+- Compared with full institutional USE4/Barra-style stacks (often 50+ factors), `cUSE4` intentionally uses a leaner factor set so exposures are easier to interpret and hedge in practice.
 
 Operational intent:
 - Data and analytics are stored in a relational database.
@@ -19,6 +20,7 @@ Operational intent:
 
 Scope note:
 - `cUSE4` is USE4-inspired in methodology and discipline, not a proprietary-identical implementation.
+- `Barra` references in this spec describe lineage only, not system identity.
 
 ## 1) Key Decisions Locked
 
@@ -230,7 +232,7 @@ Columns:
 - Legacy migration/resolver scripts are archived under `backend/scripts/_archive/`.
 - Canonical ingest/backfill scripts must write directly to `security_*` source-of-truth tables.
 
-## 5) Barra Factors and Metric Roll-up
+## 5) Factor Definitions and Metric Roll-up
 
 Structural blocks in regression:
 - `market`: explicit `Market` factor for the US-core model

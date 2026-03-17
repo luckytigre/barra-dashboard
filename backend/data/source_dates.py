@@ -21,7 +21,7 @@ def _pit_latest_closed_anchor(*, today: date | None = None) -> str:
     return previous_or_same_xnys_session(previous_day)
 
 
-def resolve_latest_barra_tuple(
+def resolve_latest_model_tuple(
     *,
     fetch_rows_fn: Callable[[str, list[Any] | None], list[dict[str, Any]]],
     exposure_source_table_required_fn: Callable[[], str],

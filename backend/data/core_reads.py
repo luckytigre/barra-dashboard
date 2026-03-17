@@ -1,4 +1,4 @@
-"""Canonical source-read facade for the Barra dashboard."""
+"""Canonical source-read facade for the cUSE dashboard."""
 
 from __future__ import annotations
 
@@ -76,8 +76,8 @@ def _load_latest_prices_sqlite(
     )
 
 
-def _resolve_latest_barra_tuple(*, data_db: Path | None = None) -> dict[str, str] | None:
-    return source_dates.resolve_latest_barra_tuple(
+def _resolve_latest_model_tuple(*, data_db: Path | None = None) -> dict[str, str] | None:
+    return source_dates.resolve_latest_model_tuple(
         fetch_rows_fn=lambda sql, params=None: _fetch_rows(sql, params, data_db=data_db),
         exposure_source_table_required_fn=lambda: _exposure_source_table_required(data_db=data_db),
     )

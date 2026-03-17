@@ -1,4 +1,4 @@
-"""Numerical utilities for Barra-style cross-sectional modeling."""
+"""Numerical utilities for cUSE cross-sectional modeling."""
 
 from __future__ import annotations
 

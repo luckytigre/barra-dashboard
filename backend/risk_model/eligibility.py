@@ -1,4 +1,4 @@
-"""Centralized universe eligibility logic for Barra cross-sections."""
+"""Centralized universe eligibility logic for cUSE cross-sections."""
 
 from __future__ import annotations
 

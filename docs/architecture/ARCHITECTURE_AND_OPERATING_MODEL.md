@@ -36,12 +36,20 @@ Define one explicit operating model for:
 
 This plan is intentionally operational rather than theoretical. It maps directly to the current codebase and identifies the cleanup needed before full cloud cutover.
 
+## System Identity
+
+This system is the cUSE factor model framework.
+
+It is inspired by Barra USE4 methodology but is not a direct implementation.
+
+`Barra` references in this codebase represent lineage only, not system identity.
+
 ## Design Principles
 
 - Local SQLite remains the only direct LSEG ingest landing zone and the optional deep archive.
 - Neon is the authoritative operating database for the standalone tool once source sync has published the retained working set.
 - During migration, `NEON_AUTHORITATIVE_REBUILDS` controls whether core/cold-core still rebuild from local SQLite or from Neon.
-- The active Barra model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
+- The active cUSE model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
 - `security_master` is the only universe authority.
 - The committed universe artifact is `data/reference/security_master_seed.csv`.
 - The three canonical source-of-truth tables are:
@@ -97,7 +105,7 @@ Key actions:
 Rule:
 - Source tables can be current to the latest completed XNYS session.
 - They are not constrained by the cUSE4 lag policy.
-- Local source archives may intentionally extend beyond the active Barra model window.
+- Local source archives may intentionally extend beyond the active cUSE model window.
 - The app should treat Neon as the authoritative trimmed operating copy after a successful publish.
 - Neon receives a pruned rolling publish window from this layer:
   - source tables: 10 years
@@ -120,7 +128,7 @@ Purpose:
 Key rule:
 - Core estimation uses lagged exposures only.
 - Current policy remains `CROSS_SECTION_MIN_AGE_DAYS=7`.
-- The active Barra model-history horizon is defined by retained `barra_raw_cross_section_history`.
+- The active cUSE model-history horizon is defined by retained `barra_raw_cross_section_history`.
 - Ordinary `core-weekly` recomputes should ignore deeper source/archive history outside that retained model window.
 - The intended rebuild authority is Neon so the tool can run standalone after local LSEG ingest publishes forward.
 - While `NEON_AUTHORITATIVE_REBUILDS=false`, local SQLite still remains the actual rebuild authority for core/cold-core.
@@ -286,7 +294,7 @@ Role:
 Policy:
 - keep long/full history locally
 - local source archives may extend beyond Neon's publish window when extra historical context is useful
-- active Barra recomputes should still respect the retained `barra_raw_cross_section_history` floor rather than the deepest local source date
+- active cUSE recomputes should still respect the retained `barra_raw_cross_section_history` floor rather than the deepest local source date
 - do not prune unless deliberately doing local retention work
 
 ### Neon
@@ -301,7 +309,7 @@ Policy:
 - keep only bounded windows:
   - source tables: 10 years
   - analytics tables: 5 years
-- Neon retention is a publish/serving policy, not the definition of the active Barra model horizon
+- Neon retention is a publish/serving policy, not the definition of the active cUSE model horizon
 - parity checks must compare Neon only against the same bounded windows
 - if a Neon DSN is configured, holdings-serving reads should resolve from Neon rather than static mock positions
 

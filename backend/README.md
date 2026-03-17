@@ -7,7 +7,7 @@
 ## Core Domains
 - `api/`: API router registry and HTTP boundary composition.
 - `analytics/`: refresh pipeline, health diagnostics, and service-layer composition.
-- `risk_model/`: Barra-style risk model logic and analytics.
+- `risk_model/`: cUSE4 factor-model logic and analytics.
 - `universe/`: ESTU/foundation data preparation and membership logic.
 - `data/`: data-access boundary for SQLite/Neon history and retention queries.
 - `orchestration/`: profile-based pipeline orchestration.
