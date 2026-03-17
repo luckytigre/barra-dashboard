@@ -78,6 +78,14 @@ def _finite_float(value: Any, default: float = 0.0) -> float:
     return out if np.isfinite(out) else float(default)
 
 
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if np.isfinite(out) else None
+
+
 def _risk_engine_reuse_signature(payload: dict[str, Any] | None) -> dict[str, Any]:
     return refresh_context.risk_engine_reuse_signature(payload)
 
@@ -440,7 +448,7 @@ def run_refresh(
     specific_risk_by_security: dict[str, SpecificRiskPayload] = (
         cached_specific if isinstance(cached_specific, dict) else {}
     )
-    latest_r2 = _finite_float(risk_engine_meta.get("latest_r2"), 0.0)
+    latest_r2 = _finite_float_or_none(risk_engine_meta.get("latest_r2"))
     cached_factor_count = _covariance_factor_count(cov)
     cached_specific_count = _specific_risk_entry_count(specific_risk_by_security)
 
@@ -502,9 +510,10 @@ def run_refresh(
             effective_cache_db,
             min_cross_section_age_days=config.CROSS_SECTION_MIN_AGE_DAYS,
         )
-        cov, latest_r2 = build_factor_covariance_from_cache(
+        cov, latest_r2_value = build_factor_covariance_from_cache(
             effective_cache_db, lookback_days=config.LOOKBACK_DAYS
         )
+        latest_r2 = float(latest_r2_value) if np.isfinite(latest_r2_value) else None
         specific_risk_by_security = build_specific_risk_from_cache(
             effective_cache_db,
             lookback_days=config.LOOKBACK_DAYS,
@@ -517,7 +526,7 @@ def run_refresh(
             "lookback_days": int(config.LOOKBACK_DAYS),
             "cross_section_min_age_days": int(config.CROSS_SECTION_MIN_AGE_DAYS),
             "recompute_interval_days": int(config.RISK_RECOMPUTE_INTERVAL_DAYS),
-            "latest_r2": float(latest_r2),
+            "latest_r2": latest_r2,
             "specific_risk_ticker_count": int(len(specific_risk_by_security)),
         }
         recomputed_this_refresh = True
@@ -525,7 +534,7 @@ def run_refresh(
             "Risk engine recompute complete: factor_count=%s specific_risk_count=%s latest_r2=%.4f",
             int(cov.shape[1]) if cov is not None and not cov.empty else 0,
             int(len(specific_risk_by_security)),
-            float(latest_r2),
+            float(latest_r2 or 0.0),
         )
     else:
         logger.info(

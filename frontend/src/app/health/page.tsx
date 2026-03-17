@@ -65,7 +65,7 @@ export default function HealthPage() {
     || riskData?.model_sanity?.latest_available_date
     || latestSourceDate(operatorData?.source_dates);
   const lagDays = riskData?.risk_engine?.cross_section_min_age_days;
-  const rSquared = riskData?.r_squared;
+  const rSquared = riskData?.r_squared ?? riskData?.risk_engine?.latest_r2 ?? null;
   const allowedProfiles = new Set(operatorData?.runtime?.allowed_profiles ?? []);
   const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
   const neonAuthoritativeRebuilds = Boolean(operatorData?.runtime?.neon_authoritative_rebuilds);

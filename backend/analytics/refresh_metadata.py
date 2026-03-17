@@ -33,6 +33,14 @@ def finite_float(value: Any, default: float = 0.0) -> float:
     return out if np.isfinite(out) else float(default)
 
 
+def finite_float_or_none(value: Any) -> float | None:
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if np.isfinite(out) else None
+
+
 def max_iso_date(*values: Any) -> str | None:
     clean = sorted(
         {
@@ -61,6 +69,7 @@ def build_risk_engine_state(
         "core_rebuild_date": last_recompute_date,
         "core_state_through_date": factor_returns_latest_date,
         "estimation_exposure_anchor_date": estimation_exposure_anchor_date,
+        "latest_r2": finite_float_or_none(risk_engine_meta.get("latest_r2")),
         "cross_section_min_age_days": int(risk_engine_meta.get("cross_section_min_age_days") or 0),
         "recompute_interval_days": int(risk_engine_meta.get("recompute_interval_days") or 0),
         "lookback_days": int(risk_engine_meta.get("lookback_days") or 0),

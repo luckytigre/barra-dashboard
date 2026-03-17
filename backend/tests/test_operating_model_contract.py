@@ -1208,6 +1208,44 @@ def test_resolve_effective_risk_engine_meta_prefers_persisted_model_run_state(
     assert source == "model_run_metadata"
 
 
+def test_resolve_effective_risk_engine_meta_enriches_runtime_with_persisted_latest_r2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_meta = {
+        "status": "ok",
+        "method_version": pipeline.RISK_ENGINE_METHOD_VERSION,
+        "last_recompute_date": "2026-03-16",
+        "factor_returns_latest_date": "2026-03-13",
+        "specific_risk_ticker_count": 3736,
+    }
+    persisted_meta = {
+        "status": "ok",
+        "method_version": pipeline.RISK_ENGINE_METHOD_VERSION,
+        "last_recompute_date": "2026-03-16",
+        "factor_returns_latest_date": "2026-03-13",
+        "specific_risk_ticker_count": 3736,
+        "latest_r2": 0.42,
+    }
+
+    monkeypatch.setattr(
+        pipeline.runtime_state,
+        "load_runtime_state",
+        lambda key, fallback_loader=None: runtime_meta if key == "risk_engine_meta" else None,
+    )
+    monkeypatch.setattr(
+        pipeline.model_outputs,
+        "load_latest_persisted_risk_engine_state",
+        lambda: persisted_meta,
+    )
+
+    out, source = pipeline._resolve_effective_risk_engine_meta(
+        fallback_loader=lambda key: None,
+    )
+
+    assert out["latest_r2"] == pytest.approx(0.42)
+    assert source == "runtime_state_enriched_from_model_run_metadata"
+
+
 def test_run_refresh_light_mode_prefers_persisted_model_run_state_over_stale_runtime_state(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

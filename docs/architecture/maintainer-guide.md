@@ -102,6 +102,8 @@ Treat these as different timelines:
 Rule:
 - `serve-refresh` may read and project against the stable core package, but it may not compute, persist, or advance that package.
 - canonical historical price writes belong only to approved ingest/history paths, not serving-time logic.
+- top-level Health summary metrics should come from persisted core metadata; if a core metric like `latest_r2` is missing, render it as unavailable rather than coercing it to `0`.
+- deep Health regression diagnostics are still a deferred legacy path; if their R² series is empty, label that state explicitly instead of implying a real zero-fit signal.
 
 ## Common Drift Mistakes
 

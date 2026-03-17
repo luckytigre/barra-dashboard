@@ -39,6 +39,9 @@ The weekly stable core package is one coherent unit:
   - date the current stable core package was last rebuilt
 - `estimation_exposure_anchor_date`
   - lagged exposure/eligibility anchor date when available and meaningful
+- `latest_r2`
+  - latest persisted fit statistic for the current stable core package
+  - if unavailable, operator-facing UI should render it as unavailable, not as `0`
 
 Compatibility fields may remain:
 

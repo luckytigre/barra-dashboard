@@ -54,6 +54,16 @@ def resolve_effective_risk_engine_meta(
     persisted_score = risk_engine_meta_score(persisted_meta)
     if persisted_score > runtime_score:
         return persisted_meta, "model_run_metadata"
+    if runtime_meta and persisted_meta:
+        same_core_state = (
+            str(runtime_meta.get("method_version") or "") == str(persisted_meta.get("method_version") or "")
+            and str(runtime_meta.get("factor_returns_latest_date") or "") == str(persisted_meta.get("factor_returns_latest_date") or "")
+            and str(runtime_meta.get("last_recompute_date") or "") == str(persisted_meta.get("last_recompute_date") or "")
+        )
+        if same_core_state and runtime_meta.get("latest_r2") is None and persisted_meta.get("latest_r2") is not None:
+            enriched_meta = dict(runtime_meta)
+            enriched_meta["latest_r2"] = persisted_meta.get("latest_r2")
+            return enriched_meta, "runtime_state_enriched_from_model_run_metadata"
     return runtime_meta, "runtime_state"
 
 
