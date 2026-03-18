@@ -617,6 +617,41 @@ def test_load_specific_residuals_backcompat_ric_fallback(tmp_path: Path) -> None
     assert str(df.iloc[0]["trbc_business_sector"]) == "Software"
 
 
+def test_load_specific_residuals_filters_to_requested_dates(tmp_path: Path) -> None:
+    cache_db = tmp_path / "cache.db"
+    conn = sqlite3.connect(str(cache_db))
+    conn.execute(
+        """
+        CREATE TABLE daily_specific_residuals (
+            date TEXT NOT NULL,
+            ric TEXT NOT NULL,
+            ticker TEXT NOT NULL,
+            model_residual REAL NOT NULL,
+            market_cap REAL NOT NULL,
+            trbc_business_sector TEXT,
+            PRIMARY KEY (date, ric)
+        )
+        """
+    )
+    conn.executemany(
+        """
+        INSERT INTO daily_specific_residuals (date, ric, ticker, model_residual, market_cap, trbc_business_sector)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("2026-03-03", "AAPL.OQ", "AAPL", 0.01, 10.0, "Software"),
+            ("2026-03-10", "AAPL.OQ", "AAPL", 0.02, 10.0, "Software"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    df = load_specific_residuals(cache_db, lookback_days=0, dates=["2026-03-10"])
+
+    assert list(df["date"].astype(str)) == ["2026-03-10"]
+    assert float(df.iloc[0]["residual"]) == 0.02
+
+
 def test_cached_dates_require_factor_and_residual_rows(tmp_path: Path) -> None:
     cache_db = tmp_path / "cache.db"
     conn = sqlite3.connect(str(cache_db))

@@ -121,6 +121,24 @@ def finish_stage(
     conn = _connect(db_path)
     now_iso = _now_iso()
     try:
+        merged_details: dict[str, Any] = {}
+        row = conn.execute(
+            f"""
+            SELECT details_json
+            FROM {TABLE}
+            WHERE run_id = ?
+              AND stage_name = ?
+            """,
+            (str(run_id), str(stage_name)),
+        ).fetchone()
+        if row and row[0]:
+            try:
+                decoded = json.loads(str(row[0]))
+                if isinstance(decoded, dict):
+                    merged_details.update(decoded)
+            except Exception:
+                merged_details = {}
+        merged_details.update(details or {})
         conn.execute(
             f"""
             UPDATE {TABLE}
@@ -137,7 +155,7 @@ def finish_stage(
             (
                 str(status),
                 now_iso,
-                json.dumps(details or {}, sort_keys=True),
+                json.dumps(merged_details, sort_keys=True),
                 (error or {}).get("type"),
                 (error or {}).get("message"),
                 now_iso,

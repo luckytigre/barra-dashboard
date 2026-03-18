@@ -17,6 +17,9 @@ export interface RefreshStatusState {
   started_at: string | null;
   finished_at: string | null;
   current_stage?: string | null;
+  current_stage_substage?: string | null;
+  current_stage_substage_status?: string | null;
+  current_stage_diagnostics_section?: string | null;
   stage_index?: number | null;
   stage_count?: number | null;
   stage_started_at?: string | null;
@@ -26,6 +29,10 @@ export interface RefreshStatusState {
   current_stage_items_total?: number | null;
   current_stage_unit?: string | null;
   current_stage_heartbeat_at?: string | null;
+  serving_publish_completed_at?: string | null;
+  serving_publish_snapshot_id?: string | null;
+  serving_publish_run_id?: string | null;
+  serving_publish_payload_count?: number | null;
   result: Record<string, unknown> | null;
   error: {
     type?: string;

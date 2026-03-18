@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
+import time
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
@@ -23,6 +25,24 @@ from backend.data.sqlite import cache_get
 
 ANNUALIZATION = 252.0
 HEALTH_CORE_COUNTRY_CODES = {"US"}
+logger = logging.getLogger(__name__)
+
+
+def _emit_health_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    message: str,
+    diagnostics_section: str | None = None,
+) -> None:
+    if progress_callback is None:
+        return
+    payload = {
+        "message": str(message),
+        "progress_kind": "analytics",
+    }
+    if diagnostics_section:
+        payload["diagnostics_section"] = str(diagnostics_section)
+    progress_callback(payload)
 
 
 def _to_date_str(dt: Any) -> str:
@@ -259,7 +279,13 @@ def _compute_incremental_r2_by_block(
         .fillna(0.0)
     )
 
-    residuals = load_specific_residuals(cache_db, lookback_days=0, residual_kind="model")
+    sampled_dates = sorted({str(value).strip() for value in (sample_dates or set()) if str(value).strip()})
+    residuals = load_specific_residuals(
+        cache_db,
+        lookback_days=0,
+        residual_kind="model",
+        dates=sampled_dates or None,
+    )
     if residuals.empty:
         return []
     residuals["date"] = pd.to_datetime(residuals["date"], errors="coerce")
@@ -504,11 +530,21 @@ def _compute_exposure_turnover(
         if sample_dates
         else list(exposure_dates)
     )
+    target_dates = sorted(
+        {
+            str(target_date)
+            for requested_date in requested_dates
+            for target_date in [_find_most_recent(exposure_dates, requested_date)]
+            if target_date is not None
+        }
+    )
+    if not target_dates:
+        return []
+    ctx = build_eligibility_context(data_db, dates=target_dates)
     for requested_date in requested_dates:
         target_date = _find_most_recent(exposure_dates, requested_date)
         if target_date is None or target_date in per_date:
             continue
-        ctx = build_eligibility_context(data_db, dates=[target_date])
         exp_date, eligibility = structural_eligibility_for_date(ctx, target_date)
         if exp_date is None or eligibility.empty:
             continue
@@ -892,10 +928,20 @@ def compute_health_diagnostics(
     source_dates: dict[str, Any] | None = None,
     run_id: str | None = None,
     snapshot_id: str | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Compute and return diagnostics payload for the Health tab."""
+    overall_t0 = time.perf_counter()
+    timings_seconds: dict[str, float] = {}
+    _emit_health_progress(
+        progress_callback,
+        message="Loading health diagnostics history",
+        diagnostics_section="inputs",
+    )
     df_ret = _load_daily_factor_returns(cache_db, years=10)
+    timings_seconds["inputs"] = round(float(time.perf_counter() - overall_t0), 3)
     if df_ret.empty:
+        logger.info("Health diagnostics returned no-data in %.2fs", time.perf_counter() - overall_t0)
         return {
             "status": "no-data",
             "notes": [
@@ -904,6 +950,10 @@ def compute_health_diagnostics(
                 "Rebuild factor-return history with the current estimator/cache schema before using this page.",
             ],
             "as_of": None,
+            "timings_seconds": {
+                "inputs": timings_seconds["inputs"],
+                "overall": round(float(time.perf_counter() - overall_t0), 3),
+            },
         }
 
     style_names = set(FULL_STYLE_FACTORS.keys())
@@ -916,6 +966,12 @@ def compute_health_diagnostics(
     week_end_str = {_to_date_str(d) for d in week_end_dates}
 
     # SECTION 1 — Cross-sectional regression health
+    section_t0 = time.perf_counter()
+    _emit_health_progress(
+        progress_callback,
+        message="Computing health diagnostics section 1/5: regression health",
+        diagnostics_section="section1",
+    )
     r2_daily = (
         df_ret.groupby("date", as_index=False)["r_squared"]
         .mean()
@@ -967,6 +1023,8 @@ def compute_health_diagnostics(
         "industry_mean_abs_t": float(np.mean(industry_t_all)) if industry_t_all.size else 0.0,
         "style_mean_abs_t": float(np.mean(style_t_all)) if style_t_all.size else 0.0,
     }
+    timings_seconds["section1"] = round(float(time.perf_counter() - section_t0), 3)
+    logger.info("Health diagnostics section1 completed in %.2fs", timings_seconds["section1"])
 
     portfolio_variance_split = {
         "market_pct_total": float((risk_cache.get("risk_shares") or {}).get("market", 0.0) or 0.0),
@@ -979,6 +1037,12 @@ def compute_health_diagnostics(
     }
 
     # SECTION 2 — Exposure diagnostics (latest cross-section)
+    section_t0 = time.perf_counter()
+    _emit_health_progress(
+        progress_callback,
+        message="Computing health diagnostics section 2/5: exposure diagnostics",
+        diagnostics_section="section2",
+    )
     exposure_dates = _load_exposure_dates(data_db)
     exp_as_of = exposure_dates[-1] if exposure_dates else None
     exp_matrix = pd.DataFrame()
@@ -1038,8 +1102,16 @@ def compute_health_diagnostics(
             core_country_codes=HEALTH_CORE_COUNTRY_CODES,
             sample_dates=sorted(week_end_str),
         )
+    timings_seconds["section2"] = round(float(time.perf_counter() - section_t0), 3)
+    logger.info("Health diagnostics section2 completed in %.2fs", timings_seconds["section2"])
 
     # SECTION 3 — Factor return health
+    section_t0 = time.perf_counter()
+    _emit_health_progress(
+        progress_callback,
+        message="Computing health diagnostics section 3/5: factor return health",
+        diagnostics_section="section3",
+    )
     piv = (
         df_ret.pivot_table(index="date", columns="factor_name", values="factor_return", aggfunc="last")
         .sort_index()
@@ -1064,8 +1136,16 @@ def compute_health_diagnostics(
         "factors": [_health_factor_id(c) for c in ret_corr_df.columns],
         "correlation": [[float(v) for v in row] for row in ret_corr_df.to_numpy(dtype=float)],
     }
+    timings_seconds["section3"] = round(float(time.perf_counter() - section_t0), 3)
+    logger.info("Health diagnostics section3 completed in %.2fs", timings_seconds["section3"])
 
     # SECTION 4 — Covariance quality
+    section_t0 = time.perf_counter()
+    _emit_health_progress(
+        progress_callback,
+        message="Computing health diagnostics section 4/5: covariance quality",
+        diagnostics_section="section4",
+    )
     cov_df = _deserialize_full_covariance(cov_payload)
     cov_factors = [str(f) for f in cov_df.columns]
     cov_mat = cov_df.to_numpy(dtype=float) if not cov_df.empty else np.zeros((0, 0), dtype=float)
@@ -1140,8 +1220,16 @@ def compute_health_diagnostics(
         rv = piv.rolling(window=60, min_periods=20).std(ddof=1) * np.sqrt(ANNUALIZATION)
         avg = rv.mean(axis=1)
         avg_factor_vol_series = [{"date": _to_date_str(d), "value": float(v if np.isfinite(v) else 0.0)} for d, v in avg.items()]
+    timings_seconds["section4"] = round(float(time.perf_counter() - section_t0), 3)
+    logger.info("Health diagnostics section4 completed in %.2fs", timings_seconds["section4"])
 
     # SECTION 5 — Source-of-truth data coverage (canonical PIT fundamentals + classification)
+    section_t0 = time.perf_counter()
+    _emit_health_progress(
+        progress_callback,
+        message="Computing health diagnostics section 5/5: source coverage",
+        diagnostics_section="section5",
+    )
     conn = sqlite3.connect(str(data_db))
     try:
         equity_tickers = _load_equity_tickers(conn)
@@ -1237,6 +1325,10 @@ def compute_health_diagnostics(
         )
     finally:
         conn.close()
+    timings_seconds["section5"] = round(float(time.perf_counter() - section_t0), 3)
+    timings_seconds["overall"] = round(float(time.perf_counter() - overall_t0), 3)
+    logger.info("Health diagnostics section5 completed in %.2fs", timings_seconds["section5"])
+    logger.info("Health diagnostics complete in %.2fs", timings_seconds["overall"])
 
     return {
         "status": "ok",
@@ -1245,6 +1337,7 @@ def compute_health_diagnostics(
         "snapshot_id": str(snapshot_id) if snapshot_id else None,
         "source_dates": dict(source_dates or {}),
         "factor_catalog": serialize_factor_catalog(health_factor_catalog),
+        "timings_seconds": timings_seconds,
         "notes": [
             "Daily factor t-stat uses stored heteroskedasticity-robust coefficient statistics from the estimator layer.",
             "Incremental block R² is reconstructed from cached full residuals plus canonicalized style-fitted returns.",

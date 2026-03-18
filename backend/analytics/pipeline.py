@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
 
 from backend import config
+from backend.analytics import health_payloads
+from backend.analytics.health import compute_health_diagnostics
 from backend.analytics.contracts import (
     ComponentSharesPayload,
     CovarianceMatrixPayload,
@@ -99,6 +102,25 @@ def _can_reuse_cached_universe_loadings(
 
 def _load_cached_risk_display_payload(*, cache_db: Path | None = None) -> CovarianceMatrixPayload | None:
     return reuse_policy.load_cached_risk_display_payload(cache_db=cache_db)
+
+
+def _emit_refresh_progress(
+    progress_callback: Callable[[dict[str, Any]], None] | None,
+    *,
+    message: str,
+    progress_kind: str = "analytics",
+    **extra: Any,
+) -> None:
+    if progress_callback is None:
+        return
+    payload = {
+        "message": str(message),
+        "progress_kind": str(progress_kind),
+    }
+    payload.update(extra)
+    progress_callback(payload)
+
+
 def _serialize_covariance(cov: pd.DataFrame) -> CovariancePayload:
     if cov is None or cov.empty:
         return {"factors": [], "matrix": []}
@@ -248,6 +270,7 @@ def run_refresh(
     refresh_projected_loadings: bool = False,
     refresh_deep_health_diagnostics: bool = False,
     prefer_local_source_archive: bool = False,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Pipeline refresh with serving-oriented modes:
     - full: weekly-gated risk engine + all downstream caches
@@ -259,6 +282,7 @@ def run_refresh(
     covariance, or specific risk on the serving path.
     """
     logger.info("Starting refresh pipeline...")
+    _emit_refresh_progress(progress_callback, message="Loading refresh context", refresh_substage="context")
     effective_data_db = _resolve_data_db(data_db)
     effective_cache_db = _resolve_cache_db(cache_db)
     refresh_mode = str(mode or "full").strip().lower()
@@ -268,13 +292,30 @@ def run_refresh(
     light_mode = refresh_mode == "light"
     publish_only_mode = refresh_mode == "publish"
 
+    refresh_pipeline_t0 = time.perf_counter()
     refresh_started_at = datetime.now(timezone.utc).isoformat()
     run_id = f"model_run_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
     today_utc = datetime.fromisoformat(
         previous_or_same_xnys_session(datetime.now(timezone.utc).date().isoformat())
     ).date()
+    substage_timings: dict[str, dict[str, Any]] = {}
+
+    def _record_substage_timing(name: str, started_at: float, **extra: Any) -> dict[str, Any]:
+        record = {
+            "duration_seconds": round(float(time.perf_counter() - started_at), 3),
+        }
+        for key, value in extra.items():
+            if value is not None:
+                record[str(key)] = value
+        substage_timings[str(name)] = record
+        return record
 
     if publish_only_mode:
+        _emit_refresh_progress(
+            progress_callback,
+            message="Republishing cached serving payloads",
+            refresh_substage="publish_only",
+        )
         payloads, missing_payloads = publish_payloads.load_publishable_payloads(cache_db=effective_cache_db)
         if missing_payloads:
             raise RuntimeError(
@@ -314,6 +355,31 @@ def run_refresh(
         }
         sqlite.cache_set("model_outputs_write", model_outputs_write, db_path=effective_cache_db)
         sqlite.cache_set("serving_outputs_write", serving_outputs_write, db_path=effective_cache_db)
+        publish_completed_at = datetime.now(timezone.utc).isoformat()
+        publish_milestone = {
+            "published_at": publish_completed_at,
+            "snapshot_id": snapshot_id,
+            "run_id": run_id,
+            "payload_count": len(payloads),
+            "payload_names": sorted(str(key) for key in payloads.keys()),
+        }
+        substage_timings["persist_outputs"] = {"duration_seconds": 0.0, "mode": "publish_only"}
+        substage_timings["serving_publish_complete"] = {
+            "duration_seconds": 0.0,
+            **publish_milestone,
+        }
+        _emit_refresh_progress(
+            progress_callback,
+            message="Serving payload publish complete",
+            refresh_substage="serving_publish_complete",
+            substage_status="completed",
+            publish_complete=True,
+            published_at=publish_completed_at,
+            published_snapshot_id=snapshot_id,
+            published_run_id=run_id,
+            published_payload_count=len(payloads),
+            published_payload_names=sorted(str(key) for key in payloads.keys()),
+        )
         return {
             "status": "ok",
             "run_id": run_id,
@@ -332,6 +398,8 @@ def run_refresh(
                 or refresh_meta.get("health_refresh_state")
                 or "carried_forward"
             ),
+            "publish_milestone": publish_milestone,
+            "substage_timings": substage_timings,
             "universe_loadings_reused": True,
             "universe_loadings_reuse_reason": "publish_only_cached_payloads",
             "model_outputs_write": model_outputs_write,
@@ -351,7 +419,10 @@ def run_refresh(
             mode=str(config.CROSS_SECTION_SNAPSHOT_MODE or "current"),
         )
 
+    _emit_refresh_progress(progress_callback, message="Loading source dates", refresh_substage="source_dates")
+    source_dates_t0 = time.perf_counter()
     source_dates: SourceDatesPayload = core_reads.load_source_dates(data_db=effective_data_db)
+    _record_substage_timing("source_dates", source_dates_t0)
     fundamentals_asof = (
         source_dates.get("fundamentals_asof")
         or source_dates.get("exposures_latest_available_asof")
@@ -473,6 +544,11 @@ def run_refresh(
 
     recomputed_this_refresh = False
     if should_recompute:
+        _emit_refresh_progress(
+            progress_callback,
+            message="Recomputing factor returns, covariance, and specific risk",
+            refresh_substage="risk_engine_recompute",
+        )
         logger.info(
             "Recomputing risk engine (%s): daily factor returns -> covariance -> specific risk",
             recompute_reason,
@@ -560,6 +636,12 @@ def run_refresh(
         )
 
     if universe_loadings_reused:
+        _emit_refresh_progress(
+            progress_callback,
+            message="Reusing cached universe loadings",
+            refresh_substage="universe_loadings",
+        )
+        universe_loadings_t0 = time.perf_counter()
         universe_loadings = dict(cached_universe_loadings)
         logger.info(
             "Reusing cached universe loadings for light refresh (%s): ticker_count=%s eligible_ticker_count=%s factor_count=%s",
@@ -568,7 +650,22 @@ def run_refresh(
             int(universe_loadings.get("eligible_ticker_count", 0)),
             int(universe_loadings.get("factor_count", 0)),
         )
+        _record_substage_timing(
+            "universe_loadings",
+            universe_loadings_t0,
+            ticker_count=int(universe_loadings.get("ticker_count", 0)),
+            eligible_ticker_count=int(universe_loadings.get("eligible_ticker_count", 0)),
+            factor_count=int(universe_loadings.get("factor_count", 0)),
+            reused=True,
+            reuse_reason=universe_loadings_reuse_reason,
+        )
     else:
+        _emit_refresh_progress(
+            progress_callback,
+            message="Loading universe inputs",
+            refresh_substage="universe_inputs",
+        )
+        universe_inputs_t0 = time.perf_counter()
         logger.info(
             "Fetching full-universe inputs from local database for rebuild (%s)...",
             universe_loadings_reuse_reason,
@@ -586,6 +683,13 @@ def run_refresh(
             int(len(exposures_universe_df)),
         )
         projection_universe_rows: list[dict[str, str]] = []
+        _record_substage_timing(
+            "universe_inputs",
+            universe_inputs_t0,
+            prices_row_count=int(len(prices_universe_df)),
+            fundamentals_row_count=int(len(fundamentals_universe_df)),
+            exposures_row_count=int(len(exposures_universe_df)),
+        )
         projected_loadings_map: dict | None = None
         try:
             import sqlite3 as _sqlite3
@@ -596,12 +700,29 @@ def run_refresh(
                 _proj_conn.close()
             should_refresh_projection_outputs = bool(refresh_projected_loadings or recomputed_this_refresh)
             if projection_universe_rows and should_refresh_projection_outputs and active_core_state_through_date:
+                _emit_refresh_progress(
+                    progress_callback,
+                    message="Refreshing returns-projected instrument loadings",
+                    refresh_substage="projected_loadings_refresh",
+                )
+                projected_refresh_t0 = time.perf_counter()
                 compute_projected_loadings(
                     data_db=effective_data_db,
                     projection_rics=projection_universe_rows,
                     core_state_through_date=active_core_state_through_date,
                 )
+                _record_substage_timing(
+                    "projected_loadings_refresh",
+                    projected_refresh_t0,
+                    projection_ticker_count=len(projection_universe_rows),
+                )
             if projection_universe_rows and active_core_state_through_date:
+                _emit_refresh_progress(
+                    progress_callback,
+                    message="Loading persisted returns-projected instrument loadings",
+                    refresh_substage="projected_loadings_load",
+                )
+                projected_load_t0 = time.perf_counter()
                 projected_loadings_map = load_persisted_projected_loadings(
                     data_db=effective_data_db,
                     projection_rics=projection_universe_rows,
@@ -613,10 +734,22 @@ def run_refresh(
                     len(projection_universe_rows),
                     active_core_state_through_date,
                 )
+                _record_substage_timing(
+                    "projected_loadings_load",
+                    projected_load_t0,
+                    projection_ticker_count=len(projection_universe_rows),
+                    projected_ok_count=sum(1 for p in projected_loadings_map.values() if p.status == "ok"),
+                )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Projection-only loadings refresh/load failed; serving will mark them unavailable: %s", exc)
             projected_loadings_map = None
 
+        _emit_refresh_progress(
+            progress_callback,
+            message="Building served universe loadings",
+            refresh_substage="universe_loadings",
+        )
+        universe_loadings_t0 = time.perf_counter()
         logger.info("Building full-universe ticker loadings...")
         universe_loadings = _build_universe_ticker_loadings(
             exposures_universe_df,
@@ -637,12 +770,34 @@ def run_refresh(
             int(universe_loadings.get("eligible_ticker_count", 0)),
             int(universe_loadings.get("factor_count", 0)),
         )
+        _record_substage_timing(
+            "universe_loadings",
+            universe_loadings_t0,
+            ticker_count=int(universe_loadings.get("ticker_count", 0)),
+            eligible_ticker_count=int(universe_loadings.get("eligible_ticker_count", 0)),
+            factor_count=int(universe_loadings.get("factor_count", 0)),
+            reused=False,
+        )
 
     # 4. Project held positions from full-universe cache
+    _emit_refresh_progress(progress_callback, message="Projecting held positions", refresh_substage="positions")
+    positions_t0 = time.perf_counter()
     logger.info("Projecting held positions from full-universe cache...")
     positions, total_value = _build_positions_from_universe(universe_loadings["by_ticker"])
+    _record_substage_timing(
+        "positions",
+        positions_t0,
+        position_count=int(len(positions)),
+        total_value=round(float(total_value), 2),
+    )
 
     # 5. Risk decomposition
+    _emit_refresh_progress(
+        progress_callback,
+        message="Computing portfolio risk decomposition",
+        refresh_substage="risk_decomposition",
+    )
+    risk_decomposition_t0 = time.perf_counter()
     logger.info("Computing risk decomposition...")
     raw_risk_shares, raw_component_shares, raw_factor_details = risk_decomposition(
         cov=cov,
@@ -668,6 +823,11 @@ def run_refresh(
         float(risk_shares["style"]),
         float(risk_shares["idio"]),
         int(len(factor_details)),
+    )
+    _record_substage_timing(
+        "risk_decomposition",
+        risk_decomposition_t0,
+        factor_detail_count=int(len(factor_details)),
     )
     position_risk_mix = _compute_position_risk_mix(
         positions=positions,
@@ -699,6 +859,12 @@ def run_refresh(
     cached_risk_display = _load_cached_risk_display_payload(cache_db=effective_cache_db) if reuse_cached_risk_display else None
 
     # 7. Compute exposure modes
+    _emit_refresh_progress(
+        progress_callback,
+        message="Computing factor exposure views",
+        refresh_substage="exposure_modes",
+    )
+    exposure_modes_t0 = time.perf_counter()
     logger.info("Computing exposure modes...")
     factor_coverage_asof, factor_coverage = _load_latest_factor_coverage(
         effective_cache_db,
@@ -716,6 +882,12 @@ def run_refresh(
         factor_details,
         factor_coverage=factor_coverage,
         factor_coverage_asof=factor_coverage_asof,
+    )
+    _record_substage_timing(
+        "exposure_modes",
+        exposure_modes_t0,
+        factor_coverage_asof=factor_coverage_asof,
+        factor_coverage_count=int(len(factor_coverage or {})),
     )
 
     # 8. Build covariance matrix for frontend (correlation) — style factors only
@@ -761,7 +933,10 @@ def run_refresh(
         component_shares[k] = _safe(component_shares[k])
 
     # 10. Cache everything
+    _emit_refresh_progress(progress_callback, message="Staging serving snapshot", refresh_substage="cache_stage")
+    cache_stage_t0 = time.perf_counter()
     logger.info("Caching results...")
+    recompute_health_post_publish = bool(refresh_deep_health_diagnostics or recomputed_this_refresh)
     staged = stage_refresh_cache_snapshot(
         run_id=run_id,
         refresh_mode=refresh_mode,
@@ -784,7 +959,7 @@ def run_refresh(
         exposure_modes=exposure_modes,
         factor_catalog=universe_loadings.get("factor_catalog", []),
         cuse4_foundation=cuse4_foundation,
-        recompute_health_diagnostics=bool(refresh_deep_health_diagnostics or recomputed_this_refresh),
+        recompute_health_diagnostics=False,
         reuse_cached_static_payloads=bool(
             light_mode
             and universe_loadings_reused
@@ -793,6 +968,11 @@ def run_refresh(
         data_db=effective_data_db,
         cache_db=effective_cache_db,
     )
+    _record_substage_timing(
+        "cache_stage",
+        cache_stage_t0,
+        payload_count=int(len(dict(staged.get("persisted_payloads") or {}))),
+    )
     snapshot_id = str(staged.get("snapshot_id") or run_id)
     risk_engine_state = dict(staged.get("risk_engine_state") or {})
     sanity = dict(staged.get("sanity") or {"status": "no-data", "warnings": [], "checks": {}})
@@ -800,6 +980,12 @@ def run_refresh(
     health_refresh_state = str(staged.get("health_refresh_state") or ("recomputed" if health_refreshed else "deferred"))
     persisted_payloads = dict(staged.get("persisted_payloads") or {})
 
+    _emit_refresh_progress(
+        progress_callback,
+        message="Persisting model and serving outputs",
+        refresh_substage="persist_outputs",
+    )
+    persist_outputs_t0 = time.perf_counter()
     model_outputs_write, serving_outputs_write = refresh_persistence.persist_refresh_outputs(
         data_db=effective_data_db,
         cache_db=effective_cache_db,
@@ -822,6 +1008,139 @@ def run_refresh(
         specific_risk_by_security=specific_risk_by_security,
         persisted_payloads=persisted_payloads,
     )
+    persist_outputs_timing = _record_substage_timing(
+        "persist_outputs",
+        persist_outputs_t0,
+        payload_count=int(len(persisted_payloads)),
+    )
+    publish_completed_at = datetime.now(timezone.utc).isoformat()
+    publish_milestone = {
+        "published_at": publish_completed_at,
+        "snapshot_id": snapshot_id,
+        "run_id": run_id,
+        "payload_count": int(len(persisted_payloads)),
+        "payload_names": sorted(str(key) for key in persisted_payloads.keys()),
+        "persist_duration_seconds": float(persist_outputs_timing["duration_seconds"]),
+        "elapsed_since_refresh_start_seconds": round(float(time.perf_counter() - refresh_pipeline_t0), 3),
+    }
+    substage_timings["serving_publish_complete"] = {
+        "duration_seconds": 0.0,
+        "published_at": publish_completed_at,
+        "snapshot_id": snapshot_id,
+        "run_id": run_id,
+        "payload_count": int(len(persisted_payloads)),
+    }
+    _emit_refresh_progress(
+        progress_callback,
+        message="Serving payload publish complete",
+        refresh_substage="serving_publish_complete",
+        substage_status="completed",
+        publish_complete=True,
+        published_at=publish_completed_at,
+        published_snapshot_id=snapshot_id,
+        published_run_id=run_id,
+        published_payload_count=int(len(persisted_payloads)),
+        published_payload_names=sorted(str(key) for key in persisted_payloads.keys()),
+    )
+    if recompute_health_post_publish:
+        _emit_refresh_progress(
+            progress_callback,
+            message="Computing deep health diagnostics",
+            refresh_substage="health_diagnostics",
+        )
+        health_t0 = time.perf_counter()
+        health_payload = compute_health_diagnostics(
+            effective_data_db,
+            effective_cache_db,
+            risk_payload=dict(persisted_payloads.get("risk") or {}),
+            portfolio_payload=dict(persisted_payloads.get("portfolio") or {}),
+            universe_payload=dict(persisted_payloads.get("universe_loadings") or {}),
+            covariance_payload=dict(persisted_payloads.get("risk_engine_cov") or {}),
+            source_dates=dict(persisted_payloads.get("refresh_meta", {}).get("source_dates") or source_dates),
+            run_id=run_id,
+            snapshot_id=snapshot_id,
+            progress_callback=progress_callback,
+        )
+        logger.info(
+            "Deep health diagnostics completed in %.2fs for run_id=%s snapshot_id=%s",
+            time.perf_counter() - health_t0,
+            run_id,
+            snapshot_id,
+        )
+        diagnostics_timings = (
+            dict(health_payload.get("timings_seconds") or {})
+            if isinstance(health_payload, dict)
+            else {}
+        )
+        _record_substage_timing(
+            "health_diagnostics",
+            health_t0,
+            diagnostics_timings=diagnostics_timings or None,
+        )
+        if isinstance(health_payload, dict):
+            health_payload = dict(health_payload)
+            health_payload["run_id"] = str(run_id)
+            health_payload["snapshot_id"] = str(snapshot_id)
+            health_payload["_reuse_signature"] = health_payloads.health_reuse_signature(
+                source_dates=dict(persisted_payloads.get("refresh_meta", {}).get("source_dates") or source_dates),
+                risk_engine_state=risk_engine_state,
+                positions=positions,
+                total_value=total_value,
+            )
+            health_payload["cache_version"] = health_payloads.HEALTH_DIAGNOSTICS_CACHE_VERSION
+            health_payload["diagnostics_refresh_state"] = "recomputed"
+            health_payload["diagnostics_generated_from_run_id"] = str(run_id)
+            health_payload["diagnostics_generated_from_snapshot_id"] = str(snapshot_id)
+
+        refresh_meta_payload = dict(persisted_payloads.get("refresh_meta") or {})
+        refresh_meta_payload["health_refreshed"] = True
+        refresh_meta_payload["health_refresh_state"] = "recomputed"
+
+        persisted_payloads["health_diagnostics"] = health_payload
+        persisted_payloads["refresh_meta"] = refresh_meta_payload
+        health_refreshed = True
+        health_refresh_state = "recomputed"
+
+        _emit_refresh_progress(
+            progress_callback,
+            message="Persisting refreshed health diagnostics",
+            refresh_substage="health_diagnostics_persist",
+        )
+        health_persist_t0 = time.perf_counter()
+        sqlite.cache_set(
+            "health_diagnostics",
+            health_payload,
+            snapshot_id=snapshot_id,
+            db_path=effective_cache_db,
+        )
+        sqlite.cache_set(
+            "refresh_meta",
+            refresh_meta_payload,
+            snapshot_id=snapshot_id,
+            db_path=effective_cache_db,
+        )
+        health_patch_write = serving_outputs.persist_current_payloads(
+            data_db=effective_data_db,
+            run_id=run_id,
+            snapshot_id=snapshot_id,
+            refresh_mode=refresh_mode,
+            payloads={
+                "health_diagnostics": health_payload,
+                "refresh_meta": refresh_meta_payload,
+            },
+            replace_all=False,
+        )
+        neon_write = health_patch_write.get("neon_write") if isinstance(health_patch_write, dict) else None
+        if (
+            config.serving_payload_neon_write_required()
+            and isinstance(neon_write, dict)
+            and str(neon_write.get("status") or "") != "ok"
+        ):
+            raise RuntimeError(f"Serving payload Neon write failed during health refresh patch: {neon_write}")
+        if isinstance(serving_outputs_write, dict):
+            serving_outputs_write = dict(serving_outputs_write)
+            serving_outputs_write["health_patch_write"] = health_patch_write
+        _record_substage_timing("health_diagnostics_persist", health_persist_t0)
 
     logger.info("Refresh complete.")
     return {
@@ -838,6 +1157,8 @@ def run_refresh(
         "cuse4_foundation": cuse4_foundation,
         "health_refreshed": bool(health_refreshed),
         "health_refresh_state": str(health_refresh_state),
+        "publish_milestone": publish_milestone,
+        "substage_timings": substage_timings,
         "universe_loadings_reused": bool(universe_loadings_reused),
         "universe_loadings_reuse_reason": str(universe_loadings_reuse_reason),
         "model_outputs_write": model_outputs_write,

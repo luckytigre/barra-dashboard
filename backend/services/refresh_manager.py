@@ -51,6 +51,9 @@ def _default_state() -> dict[str, Any]:
         "force_core": False,
         "force_risk_recompute": False,
         "current_stage": None,
+        "current_stage_substage": None,
+        "current_stage_substage_status": None,
+        "current_stage_diagnostics_section": None,
         "stage_index": None,
         "stage_count": None,
         "stage_started_at": None,
@@ -60,6 +63,10 @@ def _default_state() -> dict[str, Any]:
         "current_stage_items_total": None,
         "current_stage_unit": None,
         "current_stage_heartbeat_at": None,
+        "serving_publish_completed_at": None,
+        "serving_publish_snapshot_id": None,
+        "serving_publish_run_id": None,
+        "serving_publish_payload_count": None,
         "requested_at": None,
         "started_at": None,
         "finished_at": None,
@@ -138,6 +145,9 @@ def _reconcile_orphaned_running_state() -> dict[str, Any]:
         status="unknown",
         finished_at=_now_iso(),
         current_stage=None,
+        current_stage_substage=None,
+        current_stage_substage_status=None,
+        current_stage_diagnostics_section=None,
         stage_started_at=None,
         current_stage_message=None,
         current_stage_progress_pct=None,
@@ -224,8 +234,12 @@ def _run_in_background(
 ) -> None:
     try:
         def _stage_callback(event: dict[str, Any]) -> None:
+            snap = _snapshot()
             _set_state(
                 current_stage=event.get("stage"),
+                current_stage_substage=event.get("refresh_substage"),
+                current_stage_substage_status=event.get("substage_status"),
+                current_stage_diagnostics_section=event.get("diagnostics_section"),
                 stage_index=event.get("stage_index"),
                 stage_count=event.get("stage_count"),
                 stage_started_at=event.get("started_at"),
@@ -235,6 +249,26 @@ def _run_in_background(
                 current_stage_items_total=event.get("items_total"),
                 current_stage_unit=event.get("unit"),
                 current_stage_heartbeat_at=_now_iso(),
+                serving_publish_completed_at=(
+                    event.get("published_at")
+                    if bool(event.get("publish_complete"))
+                    else snap.get("serving_publish_completed_at")
+                ),
+                serving_publish_snapshot_id=(
+                    event.get("published_snapshot_id")
+                    if bool(event.get("publish_complete"))
+                    else snap.get("serving_publish_snapshot_id")
+                ),
+                serving_publish_run_id=(
+                    event.get("published_run_id")
+                    if bool(event.get("publish_complete"))
+                    else snap.get("serving_publish_run_id")
+                ),
+                serving_publish_payload_count=(
+                    event.get("published_payload_count")
+                    if bool(event.get("publish_complete"))
+                    else snap.get("serving_publish_payload_count")
+                ),
             )
 
         result = run_model_pipeline(
@@ -254,6 +288,9 @@ def _run_in_background(
             pipeline_run_id=result.get("run_id"),
             finished_at=_now_iso(),
             current_stage=None,
+            current_stage_substage=None,
+            current_stage_substage_status=None,
+            current_stage_diagnostics_section=None,
             stage_started_at=None,
             current_stage_message=None,
             current_stage_progress_pct=None,
@@ -283,6 +320,9 @@ def _run_in_background(
             status="failed",
             finished_at=_now_iso(),
             current_stage=None,
+            current_stage_substage=None,
+            current_stage_substage_status=None,
+            current_stage_diagnostics_section=None,
             stage_started_at=None,
             current_stage_message=None,
             current_stage_progress_pct=None,
@@ -351,6 +391,9 @@ def start_refresh(
         force_core=bool(force_core_effective),
         force_risk_recompute=bool(force_risk_recompute),
         current_stage=None,
+        current_stage_substage=None,
+        current_stage_substage_status=None,
+        current_stage_diagnostics_section=None,
         stage_index=None,
         stage_count=None,
         stage_started_at=None,
@@ -360,6 +403,10 @@ def start_refresh(
         current_stage_items_total=None,
         current_stage_unit=None,
         current_stage_heartbeat_at=None,
+        serving_publish_completed_at=None,
+        serving_publish_snapshot_id=None,
+        serving_publish_run_id=None,
+        serving_publish_payload_count=None,
         requested_at=now,
         started_at=now,
         finished_at=None,

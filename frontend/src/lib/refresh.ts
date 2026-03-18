@@ -47,6 +47,10 @@ function extractRefreshState(detail: unknown): RefreshStatusState | null {
   return refresh as RefreshStatusState;
 }
 
+function publishCompleted(refresh: RefreshStatusState | null | undefined): boolean {
+  return Boolean(String(refresh?.serving_publish_completed_at || "").trim());
+}
+
 function numericField(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim()) {
@@ -128,17 +132,30 @@ export async function revalidateServedAnalyticsViews(): Promise<void> {
   ]);
 }
 
+async function revalidatePublishedAnalyticsViews(): Promise<void> {
+  await Promise.all([
+    mutate(apiPath.portfolio()),
+    mutate(apiPath.risk()),
+    mutate(apiPath.exposures("raw")),
+    mutate(apiPath.exposures("sensitivity")),
+    mutate(apiPath.exposures("risk_contribution")),
+  ]);
+}
+
 export async function waitForRefreshTerminalState({
   jobId,
   timeoutMs = REFRESH_TIMEOUT_MS,
   pollIntervalMs = REFRESH_POLL_INTERVAL_MS,
+  onPublishComplete,
 }: {
   jobId?: string | null;
   timeoutMs?: number;
   pollIntervalMs?: number;
+  onPublishComplete?: ((refresh: RefreshStatusState) => Promise<void> | void) | null;
 } = {}): Promise<RefreshStatusState> {
   const trackedJobId = String(jobId || "").trim();
   const deadline = Date.now() + timeoutMs;
+  let publishHandled = false;
 
   while (true) {
     const payload = await apiFetch<RefreshStatusData>(apiPath.refreshStatus());
@@ -146,6 +163,10 @@ export async function waitForRefreshTerminalState({
     const currentJobId = String(refresh?.job_id || "").trim();
 
     if (!trackedJobId || !currentJobId || currentJobId === trackedJobId) {
+      if (!publishHandled && publishCompleted(refresh)) {
+        publishHandled = true;
+        await onPublishComplete?.(refresh);
+      }
       if (isTerminalRefreshStatus(refresh)) {
         return refresh;
       }
@@ -171,6 +192,9 @@ export async function runServeRefreshAndRevalidate({
       terminalRefresh = await waitForRefreshTerminalState({
         jobId: refreshRequest.jobId,
         timeoutMs,
+        onPublishComplete: async () => {
+          await revalidatePublishedAnalyticsViews();
+        },
       });
       const operatorStatus = await loadOperatorStatus();
       const verifiedHoldingsSync = canVerifyHoldingsSync(operatorStatus);

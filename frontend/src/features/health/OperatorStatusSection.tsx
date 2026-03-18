@@ -60,6 +60,13 @@ export default function OperatorStatusSection({
   const localArchiveLoadingsAvailableAsOf = localArchiveSourceDates?.exposures_latest_available_asof
     ?? localArchiveSourceDates?.exposures_asof
     ?? null;
+  const refreshStage = data?.refresh?.current_stage ?? null;
+  const refreshSubstage = data?.refresh?.current_stage_substage ?? null;
+  const refreshSection = data?.refresh?.current_stage_diagnostics_section ?? null;
+  const refreshWorkLabel = [refreshStage, refreshSubstage, refreshSection]
+    .filter(Boolean)
+    .map((value) => String(value).replaceAll("_", " "))
+    .join(" -> ");
 
   return (
     <div className="chart-card">
@@ -201,6 +208,18 @@ export default function OperatorStatusSection({
             <span className="kv-label" data-tip="Whether the pipeline is currently running a data refresh cycle. 'ok' means idle; 'running' means a refresh is in progress.">Refresh</span>
             <span className={`kv-value ${runtimeStatusTone(data?.refresh?.status)}`.trim()}>
               {data?.refresh?.status ?? "—"}
+            </span>
+          </div>
+          <div className="operator-kv-item">
+            <span className="kv-label" data-tip="Current stage/substage inside the live refresh worker.">Current Work</span>
+            <span className="kv-value">
+              {refreshWorkLabel || data?.refresh?.current_stage_message || "—"}
+            </span>
+          </div>
+          <div className="operator-kv-item">
+            <span className="kv-label" data-tip="Timestamp when app-facing serving payloads were durably published and the active snapshot advanced.">Publish Complete</span>
+            <span className="kv-value">
+              {data?.refresh?.serving_publish_completed_at ? fmtTs(data.refresh.serving_publish_completed_at) : "—"}
             </span>
           </div>
           <div className="operator-kv-item">

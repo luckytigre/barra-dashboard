@@ -1005,6 +1005,7 @@ def load_specific_residuals(
     lookback_days: int = 504,
     *,
     residual_kind: str = "model",
+    dates: list[str] | None = None,
 ) -> pd.DataFrame:
     """Load per-stock daily residual returns from cache for specific-risk modeling."""
     conn = sqlite3.connect(str(cache_db))
@@ -1022,7 +1023,20 @@ def load_specific_residuals(
         residual_col = "residual"
     ric_expr = "UPPER(ric)" if "ric" in cols else "UPPER(ticker)"
     ticker_expr = "UPPER(ticker)" if "ticker" in cols else "UPPER(ric)"
-    if lookback_days > 0:
+    clean_dates = sorted({str(value).strip() for value in (dates or []) if str(value).strip()})
+    if clean_dates:
+        placeholders = ",".join("?" for _ in clean_dates)
+        df = pd.read_sql_query(
+            f"""
+            SELECT date, {ric_expr} AS ric, {ticker_expr} AS ticker, {residual_col} AS residual, market_cap, {industry_col} AS trbc_business_sector
+            FROM daily_specific_residuals
+            WHERE date IN ({placeholders})
+            ORDER BY date, ric
+            """,
+            conn,
+            params=tuple(clean_dates),
+        )
+    elif lookback_days > 0:
         df = pd.read_sql_query(
             f"""
             SELECT date, {ric_expr} AS ric, {ticker_expr} AS ticker, {residual_col} AS residual, market_cap, {industry_col} AS trbc_business_sector
