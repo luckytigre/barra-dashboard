@@ -53,6 +53,7 @@ def _create_security_master_table(conn: sqlite3.Connection) -> None:
             exchange_name TEXT,
             classification_ok INTEGER NOT NULL DEFAULT 0,
             is_equity_eligible INTEGER NOT NULL DEFAULT 0,
+            coverage_role TEXT NOT NULL DEFAULT 'native_equity',
             source TEXT,
             job_run_id TEXT,
             updated_at TEXT NOT NULL
@@ -80,11 +81,17 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
         "exchange_name",
         "classification_ok",
         "is_equity_eligible",
+        "coverage_role",
         "source",
         "job_run_id",
         "updated_at",
     }
-    if pk_cols == ["ric"] and expected_cols.issubset(cols):
+    if pk_cols == ["ric"] and (expected_cols - {"coverage_role"}).issubset(cols):
+        # Migrate: add coverage_role column if missing from an older schema.
+        if "coverage_role" not in cols:
+            conn.execute(
+                f"ALTER TABLE {SECURITY_MASTER_TABLE} ADD COLUMN coverage_role TEXT NOT NULL DEFAULT 'native_equity'"
+            )
         _create_security_master_table(conn)
         # Remove stale migration artifacts so index names can be reused on active table.
         _drop_table_if_exists(conn, f"{SECURITY_MASTER_TABLE}__legacy_pre_ric_pk")
@@ -94,11 +101,17 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
             conn.execute(f"DROP TABLE IF EXISTS {legacy}")
             conn.execute(f"ALTER TABLE {SECURITY_MASTER_TABLE} RENAME TO {legacy}")
             _create_security_master_table(conn)
+            lcols_trim = _table_columns(conn, legacy)
+            coverage_role_expr_trim = (
+                "COALESCE(NULLIF(TRIM(coverage_role), ''), 'native_equity')"
+                if "coverage_role" in lcols_trim
+                else "'native_equity'"
+            )
             conn.execute(
                 f"""
                 INSERT OR REPLACE INTO {SECURITY_MASTER_TABLE} (
                     ric, ticker, isin, exchange_name, classification_ok,
-                    is_equity_eligible, source, job_run_id, updated_at
+                    is_equity_eligible, coverage_role, source, job_run_id, updated_at
                 )
                 SELECT
                     UPPER(TRIM(ric)) AS ric,
@@ -107,6 +120,7 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
                     NULLIF(TRIM(exchange_name), '') AS exchange_name,
                     COALESCE(CAST(classification_ok AS INTEGER), 0) AS classification_ok,
                     COALESCE(CAST(is_equity_eligible AS INTEGER), 0) AS is_equity_eligible,
+                    {coverage_role_expr_trim} AS coverage_role,
                     NULLIF(TRIM(source), '') AS source,
                     NULLIF(TRIM(job_run_id), '') AS job_run_id,
                     COALESCE(NULLIF(TRIM(updated_at), ''), datetime('now')) AS updated_at
@@ -138,6 +152,9 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
     equity_expr = "0"
     if "is_equity_eligible" in lcols:
         equity_expr = "COALESCE(CAST(is_equity_eligible AS INTEGER), 0)"
+    coverage_role_expr = "'native_equity'"
+    if "coverage_role" in lcols:
+        coverage_role_expr = "COALESCE(NULLIF(TRIM(coverage_role), ''), 'native_equity')"
     source_expr = "NULL"
     if "source" in lcols:
         source_expr = "NULLIF(TRIM(source), '')"
@@ -154,11 +171,11 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
         f"""
         INSERT OR REPLACE INTO {SECURITY_MASTER_TABLE} (
             ric, ticker, isin, exchange_name, classification_ok,
-            is_equity_eligible, source, job_run_id, updated_at
+            is_equity_eligible, coverage_role, source, job_run_id, updated_at
         )
         SELECT
             ric, ticker, isin, exchange_name, classification_ok,
-            is_equity_eligible, source, job_run_id, updated_at
+            is_equity_eligible, coverage_role, source, job_run_id, updated_at
         FROM (
             SELECT
                 UPPER(TRIM(ric)) AS ric,
@@ -167,6 +184,7 @@ def _ensure_security_master_schema(conn: sqlite3.Connection) -> None:
                 {exchange_expr} AS exchange_name,
                 {class_expr} AS classification_ok,
                 {equity_expr} AS is_equity_eligible,
+                {coverage_role_expr} AS coverage_role,
                 {source_expr} AS source,
                 {job_expr} AS job_run_id,
                 {updated_expr} AS updated_at,

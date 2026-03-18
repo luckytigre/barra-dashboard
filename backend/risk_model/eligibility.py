@@ -17,6 +17,9 @@ from backend.data.trbc_schema import (
     pick_trbc_industry_column,
 )
 
+# Instruments in these TRBC economic sectors are excluded from the core equity model.
+# They may still participate as projection-only instruments (coverage_role='projection_only')
+# with factor exposures estimated via time-series OLS regression.
 NON_EQUITY_ECONOMIC_SECTORS = {
     "Exchange Traded Fund",
     "Digital Asset",

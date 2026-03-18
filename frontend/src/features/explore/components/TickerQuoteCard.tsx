@@ -161,6 +161,15 @@ export default function TickerQuoteCard({
             ? "Projected Only"
             : "Ineligible",
     },
+    ...(item.exposure_origin === "projected" && item.projection_r_squared != null
+      ? [{ label: "Projection R\u00B2", value: formatFixed(item.projection_r_squared, 4) }]
+      : []),
+    ...(item.exposure_origin === "projected" && item.projection_obs_count != null
+      ? [{ label: "Obs Count", value: String(item.projection_obs_count) }]
+      : []),
+    ...(item.exposure_origin === "projected" && item.projection_asof
+      ? [{ label: "Projection As Of", value: formatDateLabel(item.projection_asof) }]
+      : []),
   ];
 
   return (

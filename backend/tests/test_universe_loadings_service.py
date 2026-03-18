@@ -122,6 +122,26 @@ def test_build_universe_ticker_loadings_empty_inputs(tmp_path: Path) -> None:
     assert out["by_ticker"] == {}
 
 
+def test_build_universe_ticker_loadings_surfaces_projection_only_instrument_as_unavailable(tmp_path: Path) -> None:
+    out = build_universe_ticker_loadings(
+        exposures_df=pd.DataFrame(),
+        fundamentals_df=pd.DataFrame(),
+        prices_df=pd.DataFrame([{"ric": "SPY.P", "ticker": "SPY", "close": 500.0}]),
+        cov=pd.DataFrame(),
+        data_db=tmp_path / "data.db",
+        projected_loadings={},
+        projection_universe_rows=[{"ric": "SPY.P", "ticker": "SPY"}],
+        projection_core_state_through_date="2026-03-13",
+    )
+
+    spy = out["by_ticker"]["SPY"]
+    assert spy["exposure_origin"] == "projected"
+    assert spy["model_status"] == "ineligible"
+    assert spy["model_status_reason"] == "projection_unavailable"
+    assert spy["projection_asof"] == "2026-03-13"
+    assert spy["exposures"] == {}
+
+
 def test_build_universe_ticker_loadings_prefers_well_covered_snapshot(monkeypatch, tmp_path: Path) -> None:
     style_cols = {
         "size_score": 0.1,

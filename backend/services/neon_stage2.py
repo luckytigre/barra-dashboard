@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from psycopg import sql
 
@@ -75,6 +78,18 @@ TABLE_CONFIGS: dict[str, TableConfig] = {
         pk_cols=("run_id",),
         date_col="completed_at",
         overlap_days=31,
+    ),
+    "projected_instrument_loadings": TableConfig(
+        name="projected_instrument_loadings",
+        pk_cols=("ric", "as_of_date", "factor_name"),
+        date_col="as_of_date",
+        overlap_days=14,
+    ),
+    "projected_instrument_meta": TableConfig(
+        name="projected_instrument_meta",
+        pk_cols=("ric", "as_of_date"),
+        date_col="as_of_date",
+        overlap_days=14,
     ),
     "serving_payload_current": TableConfig(
         name="serving_payload_current",
@@ -402,6 +417,16 @@ def sync_from_sqlite_to_neon(
     try:
         for cfg in selected_cfgs:
             table = cfg.name
+
+            # Check source table existence before schema-sync to handle
+            # lazily-created tables (e.g., projected_instrument_* tables
+            # are created on first projection run).
+            src_cols = _sqlite_columns(sqlite_conn, table)
+            if not src_cols:
+                logger.info("Skipping table %s: not yet created in SQLite", table)
+                out["tables"][table] = {"status": "skipped_missing_source"}
+                continue
+
             schema_update = ensure_target_columns_from_sqlite(
                 sqlite_conn,
                 pg_conn,
@@ -409,10 +434,7 @@ def sync_from_sqlite_to_neon(
                 target_table=table,
             )
 
-            src_cols = _sqlite_columns(sqlite_conn, table)
             tgt_cols = _pg_columns(pg_conn, table)
-            if not src_cols:
-                raise RuntimeError(f"source table missing in SQLite: {table}")
             if not tgt_cols:
                 raise RuntimeError(f"target table has no columns in Neon: {table}")
 

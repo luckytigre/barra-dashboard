@@ -52,7 +52,12 @@ from backend.risk_model import (
     compute_daily_factor_returns,
     risk_decomposition,
 )
+from backend.risk_model.projected_loadings import (
+    compute_projected_loadings,
+    load_persisted_projected_loadings,
+)
 from backend.universe import bootstrap_cuse4_source_tables, build_and_persist_estu_membership
+from backend.universe.security_master_sync import load_projection_only_universe_rows
 from backend.trading_calendar import previous_or_same_xnys_session
 
 logger = logging.getLogger(__name__)
@@ -152,6 +157,9 @@ def _build_universe_ticker_loadings(
     data_db: Path | None = None,
     specific_risk_by_ticker: dict[str, SpecificRiskPayload] | None = None,
     factor_catalog_by_name: dict[str, object] | None = None,
+    projected_loadings: dict | None = None,
+    projection_universe_rows: list[dict[str, str]] | None = None,
+    projection_core_state_through_date: str | None = None,
 ) -> UniverseLoadingsPayload:
     """Build full-universe cached loadings/risk context keyed by ticker."""
     return _build_universe_ticker_loadings_impl(
@@ -162,6 +170,9 @@ def _build_universe_ticker_loadings(
         data_db=_resolve_data_db(data_db),
         specific_risk_by_ticker=specific_risk_by_ticker,
         factor_catalog_by_name=factor_catalog_by_name,
+        projected_loadings=projected_loadings,
+        projection_universe_rows=projection_universe_rows,
+        projection_core_state_through_date=projection_core_state_through_date,
     )
 
 
@@ -234,6 +245,7 @@ def run_refresh(
     skip_cuse4_foundation: bool = False,
     skip_risk_engine: bool = False,
     enforce_stable_core_package: bool = False,
+    refresh_projected_loadings: bool = False,
     refresh_deep_health_diagnostics: bool = False,
     prefer_local_source_archive: bool = False,
 ) -> dict[str, Any]:
@@ -511,6 +523,15 @@ def run_refresh(
         if risk_engine_meta_source == "model_run_metadata":
             logger.info("Using persisted model-run metadata as effective risk-engine state for refresh.")
 
+    active_core_state_through_date = str(
+        risk_engine_meta.get("core_state_through_date")
+        or risk_engine_meta.get("factor_returns_latest_date")
+        or ""
+    ).strip() or None
+    if active_core_state_through_date and str(risk_engine_meta.get("core_state_through_date") or "").strip() != active_core_state_through_date:
+        risk_engine_meta = dict(risk_engine_meta)
+        risk_engine_meta["core_state_through_date"] = active_core_state_through_date
+
     specific_risk_by_ticker = _specific_risk_by_ticker_view(specific_risk_by_security)
     factor_catalog_by_name = build_factor_catalog_for_factors(
         list(cov.columns),
@@ -564,6 +585,38 @@ def run_refresh(
             int(len(fundamentals_universe_df)),
             int(len(exposures_universe_df)),
         )
+        projection_universe_rows: list[dict[str, str]] = []
+        projected_loadings_map: dict | None = None
+        try:
+            import sqlite3 as _sqlite3
+            _proj_conn = _sqlite3.connect(str(effective_data_db))
+            try:
+                projection_universe_rows = load_projection_only_universe_rows(_proj_conn)
+            finally:
+                _proj_conn.close()
+            should_refresh_projection_outputs = bool(refresh_projected_loadings or recomputed_this_refresh)
+            if projection_universe_rows and should_refresh_projection_outputs and active_core_state_through_date:
+                compute_projected_loadings(
+                    data_db=effective_data_db,
+                    projection_rics=projection_universe_rows,
+                    core_state_through_date=active_core_state_through_date,
+                )
+            if projection_universe_rows and active_core_state_through_date:
+                projected_loadings_map = load_persisted_projected_loadings(
+                    data_db=effective_data_db,
+                    projection_rics=projection_universe_rows,
+                    as_of_date=active_core_state_through_date,
+                )
+                logger.info(
+                    "Loaded persisted projected loadings for %d/%d projection-only instruments at core_state_through_date=%s.",
+                    sum(1 for p in projected_loadings_map.values() if p.status == "ok"),
+                    len(projection_universe_rows),
+                    active_core_state_through_date,
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Projection-only loadings refresh/load failed; serving will mark them unavailable: %s", exc)
+            projected_loadings_map = None
+
         logger.info("Building full-universe ticker loadings...")
         universe_loadings = _build_universe_ticker_loadings(
             exposures_universe_df,
@@ -573,6 +626,9 @@ def run_refresh(
             data_db=effective_data_db,
             specific_risk_by_ticker=specific_risk_by_ticker,
             factor_catalog_by_name=factor_catalog_by_name,
+            projected_loadings=projected_loadings_map,
+            projection_universe_rows=projection_universe_rows,
+            projection_core_state_through_date=active_core_state_through_date,
         )
         universe_loadings_reuse_reason = "rebuilt"
         logger.info(

@@ -102,6 +102,9 @@ Treat these as different timelines:
 Rule:
 - `serve-refresh` may read and project against the stable core package, but it may not compute, persist, or advance that package.
 - canonical historical price writes belong only to approved ingest/history paths, not serving-time logic.
+- projection-only ETF outputs are derived from the stable core package, but they are not native core artifacts. Refresh them on core lanes, persist them, and let serving read them as a durable surface.
+- `projection_asof` should track the active `core_state_through_date`, not an incidental overlap date.
+- Current v1 projection-only estimation is intentionally plain OLS with residual-variance-based projected specific risk. Do not introduce intercept/EWLS/outlier changes unless there is concrete evidence the current method is materially wrong.
 - detailed operating semantics for refresh lanes, health surfaces, and retention live in `../operations/OPERATIONS_PLAYBOOK.md`.
 
 ## Common Drift Mistakes

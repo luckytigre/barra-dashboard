@@ -185,6 +185,11 @@ class UniverseTickerPayload(TypedDict, total=False):
     eligibility_reason: str
     model_warning: str
     as_of_date: str
+    exposure_origin: str  # "native" | "projected"
+    projection_method: str | None
+    projection_r_squared: float | None
+    projection_obs_count: int | None
+    projection_asof: str | None
 
 
 class UniverseLoadingsPayload(TypedDict, total=False):

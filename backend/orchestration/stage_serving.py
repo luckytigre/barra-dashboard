@@ -64,6 +64,7 @@ def run_serving_stage(
                     skip_cuse4_foundation=True,
                     skip_risk_engine=bool(skip_risk_engine),
                     enforce_stable_core_package=enforce_stable_core_package,
+                    refresh_projected_loadings=bool(should_run_core),
                     refresh_deep_health_diagnostics=bool(should_run_core),
                     prefer_local_source_archive=bool(prefer_local_source_archive),
                 )
@@ -80,6 +81,7 @@ def run_serving_stage(
             skip_cuse4_foundation=True,
             skip_risk_engine=bool(skip_risk_engine),
             enforce_stable_core_package=enforce_stable_core_package,
+            refresh_projected_loadings=bool(should_run_core),
             refresh_deep_health_diagnostics=bool(should_run_core),
             prefer_local_source_archive=bool(prefer_local_source_archive),
         )

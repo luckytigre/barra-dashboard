@@ -35,6 +35,8 @@ from backend.risk_model.factor_catalog import (
 from backend.risk_model.model_status import derive_model_status
 
 logger = logging.getLogger(__name__)
+
+
 def build_universe_ticker_loadings(
     exposures_df: pd.DataFrame,
     fundamentals_df: pd.DataFrame,
@@ -44,6 +46,9 @@ def build_universe_ticker_loadings(
     data_db: Path,
     specific_risk_by_ticker: dict[str, SpecificRiskPayload] | None = None,
     factor_catalog_by_name: dict[str, object] | None = None,
+    projected_loadings: dict | None = None,
+    projection_universe_rows: list[dict[str, str]] | None = None,
+    projection_core_state_through_date: str | None = None,
 ) -> UniverseLoadingsPayload:
     """Build full-universe cached loadings/risk context keyed by ticker."""
     exposures_df = exposures_df.copy() if exposures_df is not None else pd.DataFrame()
@@ -433,6 +438,7 @@ def build_universe_ticker_loadings(
             "eligibility_reason": model_status_reason,
             "model_warning": model_warning,
             "as_of_date": latest_asof,
+            "exposure_origin": "native",
         }
 
     if downgraded_missing_exposures:
@@ -443,6 +449,100 @@ def build_universe_ticker_loadings(
             latest_asof or "<unknown>",
             sample,
         )
+
+    # Inject projection-only instruments (e.g. ETFs) into the universe from the
+    # persisted projection surface bound to the active core package date.
+    if projected_loadings:
+        for proj_ticker, proj in projected_loadings.items():
+            if proj.status != "ok":
+                continue
+            # Map factor names to factor IDs for exposures
+            proj_exposures = {
+                factor_name_to_id[k]: v
+                for k, v in proj.exposures.items()
+                if k in factor_name_to_id
+            }
+            proj_sensitivities = {
+                factor: round(_finite_float(proj_exposures.get(factor), 0.0) * _finite_float(vol, 0.0), 6)
+                for factor, vol in factor_vol_map.items()
+            }
+            proj_risk_loading = round(float(sum(abs(v) for v in proj_sensitivities.values())), 6)
+            proj_spec_var = proj.specific_var
+            proj_spec_vol = proj.specific_vol
+
+            universe_by_ticker[proj_ticker] = {
+                "ticker": proj_ticker,
+                "ric": proj.ric or None,
+                "name": name_map.get(proj_ticker, ""),
+                "trbc_economic_sector_short": "",
+                "trbc_economic_sector_short_abbr": "",
+                "trbc_business_sector": "",
+                "trbc_industry_group": "",
+                "market_cap": None,
+                "price": round(_finite_float(price_map.get(proj_ticker), 0.0), 4),
+                "exposures": proj_exposures,
+                "sensitivities": proj_sensitivities,
+                "risk_loading": proj_risk_loading,
+                "specific_var": round(proj_spec_var, 8) if np.isfinite(proj_spec_var) else None,
+                "specific_vol": round(proj_spec_vol, 6) if np.isfinite(proj_spec_vol) else None,
+                "model_status": "projected_only",
+                "model_status_reason": "returns_projection",
+                "eligibility_reason": "returns_projection",
+                "model_warning": (
+                    "Projected exposures and specific risk are approximate returns-regression "
+                    "outputs derived from the stable cUSE core package."
+                ),
+                "as_of_date": proj.projection_asof or projection_core_state_through_date or latest_asof,
+                "exposure_origin": "projected",
+                "projection_method": "ols_returns_regression",
+                "projection_r_squared": round(proj.r_squared, 6),
+                "projection_obs_count": proj.obs_count,
+                "projection_asof": proj.projection_asof or projection_core_state_through_date or None,
+            }
+        logger.info(
+            "Injected %d projection-only instruments into universe loadings.",
+            sum(1 for p in projected_loadings.values() if p.status == "ok"),
+        )
+
+    if projection_universe_rows:
+        active_projection_asof = projection_core_state_through_date or latest_asof
+        for row in projection_universe_rows:
+            proj_ticker = str(row.get("ticker") or "").upper().strip()
+            proj_ric = str(row.get("ric") or "").upper().strip()
+            if not proj_ticker:
+                continue
+            existing = universe_by_ticker.get(proj_ticker)
+            if existing is not None and str(existing.get("exposure_origin") or "") == "projected" and bool(existing.get("exposures")):
+                continue
+            universe_by_ticker[proj_ticker] = {
+                "ticker": proj_ticker,
+                "ric": proj_ric or None,
+                "name": name_map.get(proj_ticker, ""),
+                "trbc_economic_sector_short": "",
+                "trbc_economic_sector_short_abbr": "",
+                "trbc_business_sector": "",
+                "trbc_industry_group": "",
+                "market_cap": None,
+                "price": round(_finite_float(price_map.get(proj_ticker), 0.0), 4),
+                "exposures": {},
+                "sensitivities": {},
+                "risk_loading": None,
+                "specific_var": None,
+                "specific_vol": None,
+                "model_status": "ineligible",
+                "model_status_reason": "projection_unavailable",
+                "eligibility_reason": "projection_unavailable",
+                "model_warning": (
+                    "Projection-only instrument has no persisted projected loadings for "
+                    f"active core package {active_projection_asof or 'unknown'}."
+                ),
+                "as_of_date": active_projection_asof,
+                "exposure_origin": "projected",
+                "projection_method": None,
+                "projection_r_squared": None,
+                "projection_obs_count": None,
+                "projection_asof": active_projection_asof,
+            }
 
     # Lightweight search index for instant lookup
     search_index = [

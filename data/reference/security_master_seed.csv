@@ -1,4 +1,4 @@
-ric,ticker,isin,exchange_name
+ric,ticker,isin,exchange_name,coverage_role
 04MF.TXEA,04MF,US75605Y1064,TRAX APA (Mon To Sun)
 08DMM2^2,EMD,,CME:Index and Options Market
 0J2XL.BCU,0J2XL,US4103451021,BATS Europe
@@ -5827,3 +5827,15 @@ ZWS.N,ZWS,US98983L1089,New York Stock Exchange
 ZYME.OQ,ZYME,US98985Y1082,Nasdaq Stock Exchange Global Select Market
 ZYXIQ.PK,ZYXIQ,US98986M1036,USA Pink Sheets
 ZZ.PH,ZZ,,
+SPY.P,SPY,,NYSE ARCA,projection_only
+XLE.P,XLE,,NYSE ARCA,projection_only
+XLF.P,XLF,,NYSE ARCA,projection_only
+XLI.P,XLI,,NYSE ARCA,projection_only
+XLK.P,XLK,,NYSE ARCA,projection_only
+XLB.P,XLB,,NYSE ARCA,projection_only
+XLC.P,XLC,,NYSE ARCA,projection_only
+XLV.P,XLV,,NYSE ARCA,projection_only
+XLP.P,XLP,,NYSE ARCA,projection_only
+XLU.P,XLU,,NYSE ARCA,projection_only
+XLY.P,XLY,,NYSE ARCA,projection_only
+XLRE.P,XLRE,,NYSE ARCA,projection_only

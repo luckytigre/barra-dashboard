@@ -31,6 +31,7 @@ from backend.universe.schema import (
 from backend.universe.security_master_sync import (
     derive_security_master_flags,
     load_default_source_universe_rows,
+    load_projection_only_universe_rows,
     ticker_from_ric,
     upsert_security_master_rows,
 )
@@ -700,6 +701,26 @@ def download_from_lseg(
     finally:
         conn.close()
 
+    # Second pass: projection-only instruments (prices only) when running default universe.
+    projection_price_rows = 0
+    explicit_request = bool(requested_tickers or requested_rics)
+    if not explicit_request and write_prices:
+        conn2 = _connect_db(db_path)
+        try:
+            proj_rows = load_projection_only_universe_rows(conn2)
+        finally:
+            conn2.close()
+        if proj_rows:
+            proj_result = download_from_lseg(
+                db_path=db_path,
+                rics_csv=",".join(r["ric"] for r in proj_rows),
+                as_of_date=as_of,
+                write_fundamentals=False,
+                write_prices=True,
+                write_classification=False,
+            )
+            projection_price_rows = int(proj_result.get("price_rows_inserted", 0))
+
     out = {
         "status": "ok",
         "as_of": as_of,
@@ -710,6 +731,7 @@ def download_from_lseg(
         "price_rows_inserted": int(n_p),
         "price_rows_skipped_missing_close": int(prices_rows_skipped_missing_close),
         "classification_rows_inserted": int(n_c),
+        "projection_only_price_rows_inserted": int(projection_price_rows),
         "db_path": str(db_path),
         "shard_index": int(shard_index),
         "shard_count": int(shard_count),

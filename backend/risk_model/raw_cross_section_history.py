@@ -405,6 +405,10 @@ def rebuild_raw_cross_section_history(
             conn,
             params=(min_for_roll, max_date),
         )
+        # NOTE: load_default_source_universe_rows excludes projection-only instruments
+        # (coverage_role='projection_only') because they have is_equity_eligible=0.
+        # This ensures ETFs and other projection-only instruments never enter the
+        # raw cross-section history used for core factor estimation.
         source_universe_rows = load_default_source_universe_rows(conn, include_pending_seed=False)
         if source_universe_rows:
             source_universe = pd.DataFrame(source_universe_rows)

@@ -188,6 +188,48 @@ def load_default_source_universe_rows(
     return out
 
 
+def load_projection_only_universe_rows(
+    conn: sqlite3.Connection,
+) -> list[dict[str, str]]:
+    """Load projection-only instruments (e.g. ETFs) from security_master."""
+    rows = conn.execute(
+        f"""
+        SELECT UPPER(TRIM(ric)) AS ric, UPPER(TRIM(ticker)) AS ticker
+        FROM {SECURITY_MASTER_TABLE}
+        WHERE coverage_role = 'projection_only'
+          AND ric IS NOT NULL AND TRIM(ric) <> ''
+          AND ticker IS NOT NULL AND TRIM(ticker) <> ''
+        ORDER BY ticker
+        """
+    ).fetchall()
+    return [
+        {"ticker": str(row[1]), "ric": str(row[0])}
+        for row in rows
+        if row and row[0] and row[1]
+    ]
+
+
+def load_price_ingest_universe_rows(
+    conn: sqlite3.Connection,
+    *,
+    include_pending_seed: bool = True,
+    recent_sessions: int = 8,
+) -> list[dict[str, str]]:
+    """Union of default source universe + projection-only instruments for price ingestion."""
+    default_rows = load_default_source_universe_rows(
+        conn,
+        include_pending_seed=include_pending_seed,
+        recent_sessions=recent_sessions,
+    )
+    projection_rows = load_projection_only_universe_rows(conn)
+    seen = {row["ric"] for row in default_rows}
+    for row in projection_rows:
+        if row["ric"] not in seen:
+            default_rows.append(row)
+            seen.add(row["ric"])
+    return default_rows
+
+
 def derive_security_master_flags(
     *,
     trbc_economic_sector: str | None,
@@ -231,16 +273,18 @@ def upsert_security_master_rows(
             exchange_name,
             classification_ok,
             is_equity_eligible,
+            coverage_role,
             source,
             job_run_id,
             updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(ric) DO UPDATE SET
             ticker = COALESCE(NULLIF(excluded.ticker, ''), {SECURITY_MASTER_TABLE}.ticker),
             isin = COALESCE(NULLIF(excluded.isin, ''), {SECURITY_MASTER_TABLE}.isin),
             exchange_name = COALESCE(NULLIF(excluded.exchange_name, ''), {SECURITY_MASTER_TABLE}.exchange_name),
             classification_ok = COALESCE(excluded.classification_ok, {SECURITY_MASTER_TABLE}.classification_ok),
             is_equity_eligible = COALESCE(excluded.is_equity_eligible, {SECURITY_MASTER_TABLE}.is_equity_eligible),
+            coverage_role = COALESCE(NULLIF(excluded.coverage_role, ''), {SECURITY_MASTER_TABLE}.coverage_role),
             source = COALESCE(NULLIF(excluded.source, ''), {SECURITY_MASTER_TABLE}.source),
             job_run_id = COALESCE(NULLIF(excluded.job_run_id, ''), {SECURITY_MASTER_TABLE}.job_run_id),
             updated_at = COALESCE(NULLIF(excluded.updated_at, ''), {SECURITY_MASTER_TABLE}.updated_at)
@@ -253,6 +297,7 @@ def upsert_security_master_rows(
             normalize_optional_text(row.get("exchange_name")),
             int(row.get("classification_ok") or 0),
             int(row.get("is_equity_eligible") or 0),
+            normalize_optional_text(row.get("coverage_role")) or "native_equity",
             normalize_optional_text(row.get("source")),
             normalize_optional_text(row.get("job_run_id")),
             normalize_optional_text(row.get("updated_at")),
@@ -278,11 +323,13 @@ def load_security_master_seed_rows(seed_path: Path) -> list[dict[str, Any]]:
             ric = normalize_ric(raw.get("ric"))
             if not ric:
                 continue
+            coverage_role = normalize_optional_text(raw.get("coverage_role")) or "native_equity"
             rows_by_ric[ric] = {
                 "ric": ric,
                 "ticker": normalize_ticker(raw.get("ticker")) or ticker_from_ric(ric),
                 "isin": normalize_optional_text(raw.get("isin")),
                 "exchange_name": normalize_optional_text(raw.get("exchange_name")),
+                "coverage_role": coverage_role,
             }
     return [rows_by_ric[ric] for ric in sorted(rows_by_ric)]
 
@@ -312,10 +359,11 @@ def sync_security_master_seed(
             exchange_name,
             classification_ok,
             is_equity_eligible,
+            coverage_role,
             source,
             job_run_id,
             updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     update_sql = f"""
         UPDATE {SECURITY_MASTER_TABLE}
@@ -323,6 +371,7 @@ def sync_security_master_seed(
             ticker = COALESCE(NULLIF(ticker, ''), ?),
             isin = COALESCE(NULLIF(isin, ''), ?),
             exchange_name = COALESCE(NULLIF(exchange_name, ''), ?),
+            coverage_role = COALESCE(NULLIF(?, ''), coverage_role),
             source = COALESCE(source, ?),
             job_run_id = COALESCE(job_run_id, ?),
             updated_at = COALESCE(NULLIF(updated_at, ''), ?)
@@ -339,6 +388,7 @@ def sync_security_master_seed(
                 normalize_optional_text(row.get("exchange_name")),
                 0,
                 0,
+                normalize_optional_text(row.get("coverage_role")) or "native_equity",
                 source,
                 job_run_id,
                 now_iso,
@@ -354,6 +404,7 @@ def sync_security_master_seed(
                 normalize_ticker(row.get("ticker")) or ticker_from_ric(row.get("ric")),
                 normalize_optional_text(row.get("isin")),
                 normalize_optional_text(row.get("exchange_name")),
+                normalize_optional_text(row.get("coverage_role")) or "",
                 source,
                 job_run_id,
                 now_iso,

@@ -58,7 +58,8 @@ It is inspired by Barra USE4 methodology but is not a direct implementation.
   - `security_classification_pit`
 - cUSE4 core model state is slower-moving than source data.
 - Frontend-facing caches are cheap projections and should refresh more often than the core model.
-- Served holdings, prices, and factor loadings may move ahead of the core risk engine between weekly rebuilds; that is intentional and should not be treated as drift by itself.
+- Served holdings, prices, and native factor loadings may move ahead of the core risk engine between weekly rebuilds; that is intentional and should not be treated as drift by itself.
+- Projection-only returns-based outputs are an exception: they are derived from the stable core package and remain frozen with that package until the next core lane refreshes them.
 - The stable core risk package (factor returns, covariance, specific risk, and estimation-basis metadata) advances only on core rebuild lanes and is frozen between rebuilds.
 - `serve-refresh` is a serving/projection lane only; it must not compute, persist, or advance core artifacts.
 - Holdings changes, price updates, source-data refreshes, and core model recalculations must be treated as different operational events.
@@ -141,6 +142,18 @@ Interpretation:
 - New source data can arrive daily.
 - Core model coefficients do not need to move daily.
 - This is the correct separation for cost control and stability.
+
+### Projection-Only Derived Outputs
+
+Purpose:
+- Support instruments such as SPY and sector ETFs without letting them enter native cUSE estimation.
+
+Rules:
+- Projection-only instruments remain outside native factor-return, covariance, and specific-risk estimation.
+- Their projected outputs are derived from durable `model_factor_returns_daily`, not cache-era factor-return tables.
+- They refresh only on core lanes, persist once per active `core_state_through_date`, and are then read by serving as a durable surface.
+- Ordinary `serve-refresh` must not recompute them opportunistically. If the active core package has no persisted projected output for a projection-only instrument, serving surfaces explicit degraded/unavailable state for that instrument instead.
+- Current v1 projection math remains intentionally simple: plain OLS on factor returns plus residual-variance-based projected specific risk. Intercepts, EWLS/ridge, and outlier handling remain deferred until there is evidence that the current outputs are materially wrong.
 
 ### 4) Serving / UI Layer
 

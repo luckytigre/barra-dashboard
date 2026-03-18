@@ -41,6 +41,11 @@ These are the non-negotiable structural rules for this repository.
    UI, docs, and new code should prefer explicit fields such as `core_state_through_date`, `core_rebuild_date`, `exposures_served_asof`, `exposures_latest_available_asof`, `model_status_reason`, `factor_coverage_asof`, `served_loadings_asof`, and `latest_loadings_available_asof`.
    Legacy aliases may remain only for compatibility and fallback decoding.
 
+11. Projection-only outputs are core-bound derived artifacts.
+   Projection-only instruments must stay outside native cUSE estimation.
+   Their projected loadings must read durable core outputs, refresh only on the core-package cadence, persist once per active core package, expose `projection_asof = core_state_through_date`, and be read by serving rather than recomputed opportunistically.
+   Missing projected outputs for the active core package must surface explicit degraded/unavailable state instead of silent omission.
+
 ## Existing Guardrails
 
 The repository already enforces several of these with lightweight tests in [test_architecture_boundaries.py](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/barra-dashboard/backend/tests/test_architecture_boundaries.py):

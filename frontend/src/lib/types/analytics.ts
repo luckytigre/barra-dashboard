@@ -186,6 +186,11 @@ export interface UniverseTickerItem {
   eligibility_reason?: string;
   model_warning?: string;
   as_of_date?: string;
+  exposure_origin?: "native" | "projected";
+  projection_method?: string | null;
+  projection_r_squared?: number | null;
+  projection_obs_count?: number | null;
+  projection_asof?: string | null;
 }
 
 export interface UniverseTickerData {

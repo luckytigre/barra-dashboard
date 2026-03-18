@@ -290,6 +290,9 @@ def build_and_persist_estu_membership(
         frame["passes_microcap_guard"] = frame["market_cap"].fillna(-np.inf) >= float(estu_policy.min_market_cap)
         frame["passes_liquidity_guard"] = frame["adv_20d"].fillna(-np.inf) >= float(estu_policy.min_adv_20d)
 
+        # NOTE: is_equity_eligible=1 requirement excludes projection-only instruments
+        # (coverage_role='projection_only') which have is_equity_eligible=0.
+        # This ensures ETFs never enter the estimation universe.
         eligibility_conditions = (
             frame["is_equity_eligible"].astype(int).eq(1)
             & frame["has_required_price_history"].astype(bool)
