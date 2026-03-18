@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Position } from "@/lib/types";
 import TableRowToggle from "@/components/TableRowToggle";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
+import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";
 
 interface ExposurePositionsTableProps {
   positions: Position[];
@@ -14,7 +15,7 @@ interface ExposurePositionsTableProps {
   onAdjust?: (position: Position, delta: number) => void;
 }
 
-type SortKey = "ticker" | "trbc_industry_group" | "shares" | "market_value" | "risk_mix";
+type SortKey = "ticker" | "method" | "trbc_industry_group" | "shares" | "market_value" | "risk_mix";
 type MarketValueSortMode = "abs" | "signed";
 const COLLAPSED_ROWS = 10;
 
@@ -68,6 +69,14 @@ export default function ExposurePositionsTable({
   const [showAllRows, setShowAllRows] = useState(false);
 
   const sorted = [...positions].sort((a, b) => {
+    if (sortKey === "method") {
+      const rankA = exposureMethodRank(a.exposure_origin, a.model_status);
+      const rankB = exposureMethodRank(b.exposure_origin, b.model_status);
+      if (rankA !== rankB) return sortAsc ? rankA - rankB : rankB - rankA;
+      const labelA = exposureMethodDisplayLabel(a.exposure_origin, a.model_status);
+      const labelB = exposureMethodDisplayLabel(b.exposure_origin, b.model_status);
+      return sortAsc ? labelA.localeCompare(labelB) : labelB.localeCompare(labelA);
+    }
     if (sortKey === "risk_mix") {
       const av = riskMixSortValue(a);
       const bv = riskMixSortValue(b);
@@ -132,6 +141,7 @@ export default function ExposurePositionsTable({
         <thead>
           <tr>
             <th onClick={() => handleSort("ticker")}>Ticker{arrow("ticker")}</th>
+            <th onClick={() => handleSort("method")}>Method{arrow("method")}</th>
             <th onClick={() => handleSort("trbc_industry_group")}>TRBC Industry{arrow("trbc_industry_group")}</th>
             <th className="text-right" onClick={() => handleSort("shares")}>Share Count{arrow("shares")}</th>
             <th className="text-right" onClick={() => handleSort("market_value")}>Market Value{arrow("market_value")}</th>
@@ -144,6 +154,7 @@ export default function ExposurePositionsTable({
           {visibleRows.map((pos) => (
             <tr key={pos.ticker}>
               <td>{pos.ticker}</td>
+              <td>{exposureMethodDisplayLabel(pos.exposure_origin, pos.model_status)}</td>
               <td>{pos.trbc_industry_group || "Unmapped"}</td>
               <td className="text-right">
                 {getDraftQuantityText && onDraftQuantityChange && onAdjust ? (

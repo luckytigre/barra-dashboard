@@ -5,6 +5,7 @@ import ExposureBarChart from "@/components/ExposureBarChart";
 import { shortFactorLabel } from "@/lib/factorLabels";
 import type { WhatIfPreviewData } from "@/lib/types";
 import { formatAsOfDate } from "@/lib/analyticsTruth";
+import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
 import { fmtQty, WHAT_IF_MODES, type WhatIfMode } from "@/features/whatif/whatIfUtils";
 
 interface WhatIfPreviewPanelProps {
@@ -39,6 +40,30 @@ export default function WhatIfPreviewPanel({
   const currentSideDescription = servedModelPreview
     ? "Current side = live holdings projected through the current served model snapshot"
     : "Current side = live holdings projected through current published loadings plus live risk-cache fallback";
+  const methodByAccountTicker = new Map<string, string>();
+  const methodByTicker = new Map<string, string>();
+  const collectMethod = (accountId: string | null | undefined, ticker: string | null | undefined, method: string) => {
+    const tickerKey = String(ticker || "").trim().toUpperCase();
+    if (!tickerKey || method === "\u2014") return;
+    const accountKey = String(accountId || "").trim().toUpperCase();
+    methodByTicker.set(tickerKey, methodByTicker.get(tickerKey) || method);
+    if (accountKey) {
+      methodByAccountTicker.set(`${accountKey}:${tickerKey}`, method);
+    }
+  };
+  for (const pos of [...previewData.current.positions, ...previewData.hypothetical.positions]) {
+    const method = exposureMethodDisplayLabel(pos.exposure_origin, pos.model_status);
+    collectMethod(pos.account, pos.ticker, method);
+  }
+  const methodForHoldingDelta = (accountId: string, ticker: string) => {
+    const accountKey = String(accountId || "").trim().toUpperCase();
+    const tickerKey = String(ticker || "").trim().toUpperCase();
+    return (
+      methodByAccountTicker.get(`${accountKey}:${tickerKey}`)
+      || methodByTicker.get(tickerKey)
+      || "\u2014"
+    );
+  };
 
   return (
     <>
@@ -144,6 +169,7 @@ export default function WhatIfPreviewPanel({
                   <tr>
                     <th>Account</th>
                     <th>Ticker</th>
+                    <th>Method</th>
                     <th className="text-right">Current</th>
                     <th className="text-right">Hypothetical</th>
                     <th className="text-right">Delta</th>
@@ -154,6 +180,7 @@ export default function WhatIfPreviewPanel({
                     <tr key={`${row.account_id}:${row.ticker}`}>
                       <td>{row.account_id}</td>
                       <td>{row.ticker}</td>
+                      <td>{methodForHoldingDelta(row.account_id, row.ticker)}</td>
                       <td className="text-right">{fmtQty(row.current_quantity)}</td>
                       <td className="text-right">{fmtQty(row.hypothetical_quantity)}</td>
                       <td className={`text-right ${row.delta_quantity >= 0 ? "positive" : "negative"}`.trim()}>
@@ -163,7 +190,7 @@ export default function WhatIfPreviewPanel({
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="holdings-empty-row">No holding delta.</td>
+                      <td colSpan={6} className="holdings-empty-row">No holding delta.</td>
                     </tr>
                   )}
                 </tbody>

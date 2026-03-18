@@ -8,6 +8,7 @@ import HelpLabel from "@/components/HelpLabel";
 import { useFactorHistory } from "@/hooks/useApi";
 import { shortFactorLabel } from "@/lib/factorLabels";
 import type { FactorCatalogEntry } from "@/lib/types";
+import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";
 
 interface FactorDrilldownProps {
   factorId: string;
@@ -19,7 +20,7 @@ interface FactorDrilldownProps {
   onClose: () => void;
 }
 const COLLAPSED_ROWS = 10;
-type SortKey = "ticker" | "weight" | "exposure" | "sensitivity" | "contribution";
+type SortKey = "ticker" | "method" | "weight" | "exposure" | "sensitivity" | "contribution";
 
 export default function FactorDrilldown({
   factorId,
@@ -77,6 +78,14 @@ export default function FactorDrilldown({
       return sortAsc
         ? a.ticker.localeCompare(b.ticker)
         : b.ticker.localeCompare(a.ticker);
+    }
+    if (sortKey === "method") {
+      const rankA = exposureMethodRank(a.exposure_origin, a.model_status);
+      const rankB = exposureMethodRank(b.exposure_origin, b.model_status);
+      if (rankA !== rankB) return sortAsc ? rankA - rankB : rankB - rankA;
+      const labelA = exposureMethodDisplayLabel(a.exposure_origin, a.model_status);
+      const labelB = exposureMethodDisplayLabel(b.exposure_origin, b.model_status);
+      return sortAsc ? labelA.localeCompare(labelB) : labelB.localeCompare(labelA);
     }
     const av = sortKey === "sensitivity" ? (a.sensitivity ?? 0) : a[sortKey];
     const bv = sortKey === "sensitivity" ? (b.sensitivity ?? 0) : b[sortKey];
@@ -149,6 +158,7 @@ export default function FactorDrilldown({
           <thead>
             <tr>
               <th onClick={() => handleSort("ticker")}>Ticker{arrow("ticker")}</th>
+              <th onClick={() => handleSort("method")}>Method{arrow("method")}</th>
               <th className="text-right" onClick={() => handleSort("weight")}>
                 <span className="col-help-wrap">
                   <HelpLabel label="Weight" plain={hints.weight.plain} math={hints.weight.math} />
@@ -197,6 +207,7 @@ export default function FactorDrilldown({
             {visibleRows.map((item) => (
               <tr key={item.ticker}>
                 <td><strong>{item.ticker}</strong></td>
+                <td>{exposureMethodDisplayLabel(item.exposure_origin, item.model_status)}</td>
                 <td className="text-right">{(item.weight * 100).toFixed(2)}%</td>
                 <td className="text-right">
                   <span className={item.exposure >= 0 ? "positive" : "negative"}>

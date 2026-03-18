@@ -2,6 +2,13 @@ import type { ExposureOrigin, ModelStatus } from "@/lib/types";
 
 export type ExposureTier = "core" | "fundamental" | "returns";
 
+export function hasExposureMethodMetadata(
+  origin?: ExposureOrigin | null,
+  modelStatus?: ModelStatus | null,
+): boolean {
+  return Boolean(String(origin || "").trim()) || Boolean(String(modelStatus || "").trim());
+}
+
 export function normalizeExposureOrigin(
   origin?: ExposureOrigin | null,
   modelStatus?: ModelStatus | null,
@@ -42,4 +49,25 @@ export function exposureMethodLabel(
   if (tier === "fundamental") return "Fundamental Projection";
   if (tier === "returns") return "Returns Projection";
   return modelStatus === "ineligible" ? "Ineligible" : "Core";
+}
+
+export function exposureMethodDisplayLabel(
+  origin?: ExposureOrigin | null,
+  modelStatus?: ModelStatus | null,
+): string {
+  return hasExposureMethodMetadata(origin, modelStatus)
+    ? exposureMethodLabel(origin, modelStatus)
+    : "\u2014";
+}
+
+export function exposureMethodRank(
+  origin?: ExposureOrigin | null,
+  modelStatus?: ModelStatus | null,
+): number {
+  if (!hasExposureMethodMetadata(origin, modelStatus)) return 99;
+  if (modelStatus === "ineligible" && !origin) return 3;
+  const tier = exposureTier(origin, modelStatus);
+  if (tier === "core") return 0;
+  if (tier === "fundamental") return 1;
+  return 2;
 }

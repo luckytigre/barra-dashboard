@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import ApiErrorState from "@/components/ApiErrorState";
 import TableRowToggle from "@/components/TableRowToggle";
 import type { HoldingsPosition, Position } from "@/lib/types";
+import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";
 import InlineShareDraftEditor from "./InlineShareDraftEditor";
 
 interface HoldingsLedgerSectionProps {
@@ -20,6 +21,7 @@ interface HoldingsLedgerSectionProps {
 
 type SortKey =
   | "ticker"
+  | "method"
   | "quantity"
   | "price"
   | "market_value"
@@ -102,6 +104,8 @@ export default function HoldingsLedgerSection({
         switch (sortKey) {
           case "ticker":
             return item.row.ticker || item.row.ric;
+          case "method":
+            return exposureMethodDisplayLabel(item.modeled?.exposure_origin, item.modeled?.model_status);
           case "quantity":
             return Number(item.row.quantity || 0);
           case "price":
@@ -118,6 +122,11 @@ export default function HoldingsLedgerSection({
       };
       const av = valueFor(a);
       const bv = valueFor(b);
+      if (sortKey === "method") {
+        const rankA = exposureMethodRank(a.modeled?.exposure_origin, a.modeled?.model_status);
+        const rankB = exposureMethodRank(b.modeled?.exposure_origin, b.modeled?.model_status);
+        if (rankA !== rankB) return sortAsc ? rankA - rankB : rankB - rankA;
+      }
       if (typeof av === "number" && typeof bv === "number") {
         return sortAsc ? av - bv : bv - av;
       }
@@ -191,6 +200,7 @@ export default function HoldingsLedgerSection({
           <thead>
             <tr>
               <th onClick={() => handleSort("ticker")}>Ticker{arrow("ticker")}</th>
+              <th onClick={() => handleSort("method")}>Method{arrow("method")}</th>
               <th className="text-right" onClick={() => handleSort("quantity")}>Quantity{arrow("quantity")}</th>
               <th className="text-right" onClick={() => handleSort("price")}>Price{arrow("price")}</th>
               <th className="text-right" onClick={() => handleSort("market_value")}>Mkt Val{arrow("market_value")}</th>
@@ -199,9 +209,10 @@ export default function HoldingsLedgerSection({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map(({ row, price, marketValue }) => (
+            {visibleRows.map(({ row, modeled, price, marketValue }) => (
               <tr key={`${row.account_id}:${row.ric || row.ticker}`}>
                 <td>{row.ticker || "—"}</td>
+                <td>{exposureMethodDisplayLabel(modeled?.exposure_origin, modeled?.model_status)}</td>
                 <td className="text-right">
                   <InlineShareDraftEditor
                     quantityText={getDraftQuantityText(row)}
@@ -221,7 +232,7 @@ export default function HoldingsLedgerSection({
             ))}
             {visibleRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="holdings-empty-row">
+                <td colSpan={7} className="holdings-empty-row">
                   No holdings are loaded yet.
                 </td>
               </tr>

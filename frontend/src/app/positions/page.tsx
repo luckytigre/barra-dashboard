@@ -18,6 +18,7 @@ import HoldingsMutationFeedback from "@/features/holdings/components/HoldingsMut
 import ManualPositionEditor from "@/features/holdings/components/ManualPositionEditor";
 import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
 import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
+import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
 
 function modeLabel(m: HoldingsImportMode): string {
   if (m === "replace_account") return "Full Replace Account";
@@ -128,7 +129,7 @@ export default function PositionsPage() {
   const modelVsLiveDiffs = useMemo(() => {
     const liveMap = new Map<string, { accountScope: string; ticker: string; quantity: number }>();
     const accountsByTicker = new Map<string, Set<string>>();
-    const modelMap = new Map<string, { ticker: string; quantity: number }>();
+    const modelMap = new Map<string, { ticker: string; quantity: number; method: string }>();
 
     for (const row of liveHoldingsRows) {
       const ticker = normalizeTicker(row.ticker || row.ric);
@@ -150,7 +151,11 @@ export default function PositionsPage() {
     for (const pos of modeledPositions) {
       const ticker = normalizeTicker(pos.ticker);
       if (!ticker) continue;
-      modelMap.set(ticker, { ticker, quantity: Number(pos.shares) || 0 });
+      modelMap.set(ticker, {
+        ticker,
+        quantity: Number(pos.shares) || 0,
+        method: exposureMethodDisplayLabel(pos.exposure_origin, pos.model_status),
+      });
     }
 
     for (const [ticker, liveRow] of liveMap.entries()) {
@@ -170,6 +175,7 @@ export default function PositionsPage() {
       return {
         accountScope: liveRow?.accountScope || (live === null ? "MODELED" : "—"),
         ticker: liveRow?.ticker || modeledRow?.ticker || "",
+        method: modeledRow?.method || "\u2014",
         live,
         modeled,
         delta,
@@ -392,6 +398,7 @@ export default function PositionsPage() {
                     <tr>
                       <th>Account Scope</th>
                       <th>Ticker</th>
+                      <th>Method</th>
                       <th>Status</th>
                       <th className="text-right">Live Qty</th>
                       <th className="text-right">Modeled Qty</th>
@@ -403,6 +410,7 @@ export default function PositionsPage() {
                       <tr key={`${row.accountScope}:${row.ticker}`}>
                         <td>{row.accountScope || "—"}</td>
                         <td>{row.ticker}</td>
+                        <td>{row.method}</td>
                         <td>{row.status}</td>
                         <td className="text-right">{row.live === null ? "—" : fmtQty(row.live)}</td>
                         <td className="text-right">{row.modeled === null ? "—" : fmtQty(row.modeled)}</td>
