@@ -14,6 +14,7 @@ import HelpLabel from "@/components/HelpLabel";
 import ApiErrorState from "@/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
 import type { FactorDetail } from "@/lib/types";
+import { exposureTier as exposureMethodTier, normalizeExposureOrigin } from "@/lib/exposureOrigin";
 import { factorDisplayName } from "@/lib/factorLabels";
 import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
 
@@ -34,7 +35,6 @@ export default function ExposuresPage() {
   const { data, isLoading, error } = useExposures(mode);
   const { data: portfolioData, isLoading: portfolioLoading, error: portfolioError } = usePortfolio();
   const { data: riskData, isLoading: riskLoading, error: riskError } = useRisk();
-  const factors = data?.factors ?? [];
   const positions = portfolioData?.positions ?? [];
   const riskDetails = riskData?.factor_details ?? [];
   const factorCatalog = riskData?.factor_catalog ?? [];
@@ -46,19 +46,43 @@ export default function ExposuresPage() {
       }
     : { factors: [], correlation: [] };
 
+  const chartFactors = useMemo(() => {
+    const originByTicker = new Map(
+      positions.map((pos) => [
+        String(pos.ticker || "").toUpperCase(),
+        {
+          model_status: pos.model_status,
+          exposure_origin: normalizeExposureOrigin(pos.exposure_origin, pos.model_status),
+        },
+      ]),
+    );
+    return (data?.factors ?? []).map((factor) => ({
+      ...factor,
+      drilldown: (factor.drilldown ?? []).map((item) => {
+        const meta = originByTicker.get(String(item.ticker || "").toUpperCase());
+        return meta
+          ? {
+              ...item,
+              model_status: meta.model_status,
+              exposure_origin: meta.exposure_origin,
+            }
+          : item;
+      }),
+    }));
+  }, [data?.factors, positions]);
   // Extract cross-section summary from the factor data
   const crossSection = useMemo(() => {
-    const ns = factors
+    const ns = chartFactors
       .map((f) => Number(f.cross_section_n || 0))
       .filter((n) => n > 0);
     if (ns.length === 0) return null;
     const min = Math.min(...ns);
     const max = Math.max(...ns);
-    const date = factors.find((f) => f.factor_coverage_asof || f.coverage_date)?.factor_coverage_asof
-      ?? factors.find((f) => f.factor_coverage_asof || f.coverage_date)?.coverage_date
+    const date = chartFactors.find((f) => f.factor_coverage_asof || f.coverage_date)?.factor_coverage_asof
+      ?? chartFactors.find((f) => f.factor_coverage_asof || f.coverage_date)?.coverage_date
       ?? null;
     return { min, max, date };
-  }, [factors]);
+  }, [chartFactors]);
   const truth = useMemo(
     () => summarizeAnalyticsTruth({ portfolio: portfolioData, risk: riskData, exposures: data }),
     [data, portfolioData, riskData],
@@ -74,6 +98,15 @@ export default function ExposuresPage() {
     return buildAnalyticsTruthCompactSummary(truth, { prefix });
   }, [crossSection, truth]);
   const snapshotMismatch = !truth.snapshotsCoherent && truth.snapshotIds.length > 1;
+  const hasProjectedExtensions = useMemo(
+    () =>
+      chartFactors.some((factor) =>
+        factor.drilldown.some(
+          (item) => exposureMethodTier(item.exposure_origin, item.model_status) !== "core",
+        ),
+      ),
+    [chartFactors],
+  );
 
   if (isLoading) {
     return <AnalyticsLoadingViz message="Loading exposures..." />;
@@ -106,7 +139,7 @@ export default function ExposuresPage() {
   }
 
   const selected = selectedFactor
-    ? factors.find((f) => f.factor_id === selectedFactor)
+    ? chartFactors.find((f) => f.factor_id === selectedFactor)
     : null;
   const sortedRiskRows = [...riskDetails].sort((a, b) => {
     const av = a[riskSortKey];
@@ -153,8 +186,19 @@ export default function ExposuresPage() {
             </span>
           )}
         </div>
+        {hasProjectedExtensions && (
+          <div
+            style={{
+              marginBottom: 10,
+              fontSize: 12,
+              color: "rgba(169, 182, 210, 0.72)",
+            }}
+          >
+            Non-core layers extend the base bars: Fundamental Projection first, Returns Projection outermost.
+          </div>
+        )}
         <ExposureBarChart
-          factors={factors}
+          factors={chartFactors}
           mode={mode as "raw" | "sensitivity" | "risk_contribution"}
           factorCatalog={factorCatalog}
           onBarClick={(f) => setSelectedFactor(f === selectedFactor ? null : f)}

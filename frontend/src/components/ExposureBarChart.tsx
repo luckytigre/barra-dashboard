@@ -17,6 +17,7 @@ import {
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
 import type { FactorCatalogEntry, FactorExposure } from "@/lib/types";
+import { exposureTier as exposureMethodTier } from "@/lib/exposureOrigin";
 import { factorDisplayName, shortFactorLabel, factorTier } from "@/lib/factorLabels";
 
 ChartJS.register(
@@ -35,6 +36,12 @@ interface ExposureBarChartProps {
   mode?: "raw" | "sensitivity" | "risk_contribution";
   orderByFactors?: string[];
   factorCatalog?: FactorCatalogEntry[];
+}
+
+function chartPresentationThreshold(mode: ExposureBarChartProps["mode"]): number {
+  if (mode === "risk_contribution") return 0.05;
+  if (mode === "sensitivity") return 0.001;
+  return 0.03;
 }
 
 const zeroLinePlugin: Plugin<"bar" | "line"> = {
@@ -60,7 +67,9 @@ const zeroLinePlugin: Plugin<"bar" | "line"> = {
 const netMarkerPlugin: Plugin<"bar" | "line"> = {
   id: "netMarkerPlugin",
   afterDatasetsDraw(chart) {
-    const meta = chart.getDatasetMeta(2);
+    const netIndex = chart.data.datasets.findIndex((dataset) => String(dataset.label || "") === "Net");
+    if (netIndex < 0) return;
+    const meta = chart.getDatasetMeta(netIndex);
     if (!meta?.data?.length) return;
     const ctx = chart.ctx;
     const tickHalfLen = 7;
@@ -96,6 +105,7 @@ export default function ExposureBarChart({
     : mode === "sensitivity"
       ? "vol-scaled loading"
       : "factor loading";
+  const presentationThreshold = chartPresentationThreshold(mode);
   const leftLabel = mode === "risk_contribution" ? "Hedging" : "Short";
   const rightLabel = mode === "risk_contribution" ? "Risk-adding" : "Long";
   const xTick = (n: number) => {
@@ -110,23 +120,63 @@ export default function ExposureBarChart({
   // the true positive/negative contribution buckets seen in drilldowns.
   // Net marker always follows top-level signed value for correctness.
   const decomposed = factors.map((f) => {
-    let posContrib = 0;
-    let negContrib = 0;
+    let corePosContrib = 0;
+    let coreNegContrib = 0;
+    let fundamentalPosContrib = 0;
+    let fundamentalNegContrib = 0;
+    let returnsPosContrib = 0;
+    let returnsNegContrib = 0;
     for (const item of f.drilldown) {
       const contrib = Number(item.contribution || 0);
-      if (contrib >= 0) posContrib += contrib;
-      else negContrib += contrib;
+      const tier = exposureMethodTier(item.exposure_origin, item.model_status);
+      if (contrib >= 0) {
+        if (tier === "returns") returnsPosContrib += contrib;
+        else if (tier === "fundamental") fundamentalPosContrib += contrib;
+        else corePosContrib += contrib;
+      } else {
+        if (tier === "returns") returnsNegContrib += contrib;
+        else if (tier === "fundamental") fundamentalNegContrib += contrib;
+        else coreNegContrib += contrib;
+      }
     }
 
     const value = Number(f.value || 0);
-    const signedNet = posContrib + negContrib;
+    const signedNet = (
+      corePosContrib
+      + coreNegContrib
+      + fundamentalPosContrib
+      + fundamentalNegContrib
+      + returnsPosContrib
+      + returnsNegContrib
+    );
     const additive = f.drilldown.length > 0 && Math.abs(signedNet - value) <= 1e-4;
 
-    const longArm = additive ? posContrib : Math.max(value, 0);
-    const shortArm = additive ? negContrib : Math.min(value, 0);
+    const coreLongArm = additive ? corePosContrib : Math.max(value, 0);
+    const coreShortArm = additive ? coreNegContrib : Math.min(value, 0);
+    const fundamentalLongArm = additive ? fundamentalPosContrib : 0;
+    const fundamentalShortArm = additive ? fundamentalNegContrib : 0;
+    const returnsLongArm = additive ? returnsPosContrib : 0;
+    const returnsShortArm = additive ? returnsNegContrib : 0;
     const net = value;
-    return { ...f, longArm, shortArm, net };
-  });
+    return {
+      ...f,
+      coreLongArm,
+      coreShortArm,
+      fundamentalLongArm,
+      fundamentalShortArm,
+      returnsLongArm,
+      returnsShortArm,
+      net,
+    };
+  }).filter((f) => (
+    Math.abs(f.coreLongArm) >= presentationThreshold
+    || Math.abs(f.coreShortArm) >= presentationThreshold
+    || Math.abs(f.fundamentalLongArm) >= presentationThreshold
+    || Math.abs(f.fundamentalShortArm) >= presentationThreshold
+    || Math.abs(f.returnsLongArm) >= presentationThreshold
+    || Math.abs(f.returnsShortArm) >= presentationThreshold
+    || Math.abs(f.net) >= presentationThreshold
+  ));
 
   // Sort by Toraniko regression hierarchy: industry → style (non-orth → orth).
   // Within each tier, sort by absolute net magnitude descending.
@@ -210,8 +260,12 @@ export default function ExposureBarChart({
     },
   };
   const labels = sorted.map((f) => shortFactorLabel(f.factor_id, factorCatalog));
-  const longValues = sorted.map((f) => f.longArm);
-  const shortValues = sorted.map((f) => f.shortArm);
+  const coreLongValues = sorted.map((f) => f.coreLongArm);
+  const fundamentalLongValues = sorted.map((f) => f.fundamentalLongArm);
+  const returnsLongValues = sorted.map((f) => f.returnsLongArm);
+  const coreShortValues = sorted.map((f) => f.coreShortArm);
+  const fundamentalShortValues = sorted.map((f) => f.fundamentalShortArm);
+  const returnsShortValues = sorted.map((f) => f.returnsShortArm);
   const netValues = sorted.map((f) => f.net);
 
   const data: ChartData<"bar" | "line", number[], string> = {
@@ -219,26 +273,80 @@ export default function ExposureBarChart({
     datasets: [
       {
         type: "bar",
-        label: "Long Arm",
-        data: longValues,
-        backgroundColor: "rgba(107, 207, 154, 0.72)",
-        hoverBackgroundColor: "rgba(107, 207, 154, 0.92)",
+        label: "Core Long",
+        data: coreLongValues,
+        backgroundColor: "#69cf9a",
+        hoverBackgroundColor: "#7cdaa8",
         borderWidth: 0,
-        borderRadius: 3,
+        borderRadius: 0,
         borderSkipped: false,
-        grouped: false,
+        inflateAmount: 0,
+        stack: "exposure",
         barThickness: 10,
       },
       {
         type: "bar",
-        label: "Short Arm",
-        data: shortValues,
-        backgroundColor: "rgba(224, 87, 127, 0.72)",
-        hoverBackgroundColor: "rgba(224, 87, 127, 0.92)",
+        label: "Fundamental Projection Long",
+        data: fundamentalLongValues,
+        backgroundColor: "#8dcc68",
+        hoverBackgroundColor: "#9fd979",
         borderWidth: 0,
-        borderRadius: 3,
+        borderRadius: 0,
         borderSkipped: false,
-        grouped: false,
+        inflateAmount: 0,
+        stack: "exposure",
+        barThickness: 10,
+      },
+      {
+        type: "bar",
+        label: "Returns Projection Long",
+        data: returnsLongValues,
+        backgroundColor: "#b8d95a",
+        hoverBackgroundColor: "#c7e56f",
+        borderWidth: 0,
+        borderRadius: 0,
+        borderSkipped: false,
+        inflateAmount: 0,
+        stack: "exposure",
+        barThickness: 10,
+      },
+      {
+        type: "bar",
+        label: "Core Short",
+        data: coreShortValues,
+        backgroundColor: "#e0577f",
+        hoverBackgroundColor: "#e86c8f",
+        borderWidth: 0,
+        borderRadius: 0,
+        borderSkipped: false,
+        inflateAmount: 0,
+        stack: "exposure",
+        barThickness: 10,
+      },
+      {
+        type: "bar",
+        label: "Fundamental Projection Short",
+        data: fundamentalShortValues,
+        backgroundColor: "#df7556",
+        hoverBackgroundColor: "#e58768",
+        borderWidth: 0,
+        borderRadius: 0,
+        borderSkipped: false,
+        inflateAmount: 0,
+        stack: "exposure",
+        barThickness: 10,
+      },
+      {
+        type: "bar",
+        label: "Returns Projection Short",
+        data: returnsShortValues,
+        backgroundColor: "#e39a3f",
+        hoverBackgroundColor: "#eaae59",
+        borderWidth: 0,
+        borderRadius: 0,
+        borderSkipped: false,
+        inflateAmount: 0,
+        stack: "exposure",
         barThickness: 10,
       },
       {
@@ -276,6 +384,10 @@ export default function ExposureBarChart({
         boxWidth: 8,
         boxHeight: 8,
         boxPadding: 4,
+        filter: (ctx) => {
+          if (String(ctx.dataset.label || "") === "Net") return true;
+          return Math.abs(Number(ctx.parsed.x ?? 0)) > 1e-12;
+        },
         callbacks: {
           label: (ctx) => {
             const val = Number(ctx.parsed.x ?? 0);
@@ -288,6 +400,7 @@ export default function ExposureBarChart({
     },
     scales: {
       x: {
+        stacked: true,
         border: { display: false },
         grid: { color: "rgba(154, 171, 214, 0.16)" },
         ticks: {
@@ -297,6 +410,7 @@ export default function ExposureBarChart({
         },
       },
       y: {
+        stacked: true,
         border: { display: false },
         grid: { display: false },
         ticks: {

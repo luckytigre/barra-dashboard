@@ -135,7 +135,7 @@ def test_build_universe_ticker_loadings_surfaces_projection_only_instrument_as_u
     )
 
     spy = out["by_ticker"]["SPY"]
-    assert spy["exposure_origin"] == "projected"
+    assert spy["exposure_origin"] == "projected_returns"
     assert spy["model_status"] == "ineligible"
     assert spy["model_status_reason"] == "projection_unavailable"
     assert spy["projection_asof"] == "2026-03-13"
@@ -441,9 +441,15 @@ def test_build_universe_ticker_loadings_marks_non_us_names_projected_only(
     assert out["core_estimated_ticker_count"] == 1
     assert out["projected_only_ticker_count"] == 1
     assert out["ineligible_ticker_count"] == 0
+    assert out["by_ticker"]["AAPL"]["exposure_origin"] == "native"
     assert out["by_ticker"]["BABA"]["exposures"]["market"] == 1.0
+    assert out["by_ticker"]["BABA"]["exposure_origin"] == "projected_fundamental"
+    assert out["by_ticker"]["BABA"]["model_status_reason"] == "fundamental_projection"
     assert "industry_retailers" not in out["by_ticker"]["BABA"]["exposures"]
     assert "specific risk" in out["by_ticker"]["BABA"]["model_warning"]
+    index_by_ticker = {row["ticker"]: row for row in out["index"]}
+    assert index_by_ticker["AAPL"]["exposure_origin"] == "native"
+    assert index_by_ticker["BABA"]["exposure_origin"] == "projected_fundamental"
 
 
 def test_build_universe_ticker_loadings_preserves_factor_ids_in_covariance_path(

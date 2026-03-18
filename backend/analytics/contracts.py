@@ -95,6 +95,7 @@ class PositionPayload(TypedDict, total=False):
     model_status: str
     model_status_reason: str
     eligibility_reason: str
+    exposure_origin: str  # "native" | "projected_fundamental" | "projected_returns"
     risk_mix: PositionRiskMixPayload
 
 
@@ -145,6 +146,8 @@ class ExposureDrilldownPayload(TypedDict, total=False):
     exposure: float
     sensitivity: float
     contribution: float
+    model_status: str
+    exposure_origin: str
 
 
 class ExposureFactorPayload(TypedDict, total=False):
@@ -185,7 +188,7 @@ class UniverseTickerPayload(TypedDict, total=False):
     eligibility_reason: str
     model_warning: str
     as_of_date: str
-    exposure_origin: str  # "native" | "projected"
+    exposure_origin: str  # "native" | "projected_fundamental" | "projected_returns"
     projection_method: str | None
     projection_r_squared: float | None
     projection_obs_count: int | None

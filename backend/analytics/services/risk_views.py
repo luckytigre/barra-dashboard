@@ -130,6 +130,7 @@ def build_positions_from_snapshot(
             "model_status": model_status,
             "model_status_reason": model_status_reason,
             "eligibility_reason": model_status_reason,
+            "exposure_origin": str(base.get("exposure_origin") or ""),
         })
 
     for pos in positions:
@@ -210,6 +211,8 @@ def compute_exposures_modes(
                     "weight": weight,
                     "exposure": round(pos_exp, 4),
                     "contribution": round(raw_contrib, 6),
+                    "model_status": str(pos.get("model_status") or ""),
+                    "exposure_origin": str(pos.get("exposure_origin") or ""),
                 })
                 drilldown_sens.append({
                     "ticker": pos["ticker"],
@@ -217,6 +220,8 @@ def compute_exposures_modes(
                     "exposure": round(pos_exp, 4),
                     "sensitivity": round(pos_sens, 6),
                     "contribution": round(sens_contrib, 6),
+                    "model_status": str(pos.get("model_status") or ""),
+                    "exposure_origin": str(pos.get("exposure_origin") or ""),
                 })
                 drilldown_risk.append({
                     "ticker": pos["ticker"],
@@ -224,6 +229,8 @@ def compute_exposures_modes(
                     "exposure": round(pos_exp, 4),
                     "sensitivity": round(pos_exp * cov_adj, 8),
                     "contribution": round(risk_pct_contrib, 8),
+                    "model_status": str(pos.get("model_status") or ""),
+                    "exposure_origin": str(pos.get("exposure_origin") or ""),
                 })
 
         fv_rounded = round(factor_vol, 6)

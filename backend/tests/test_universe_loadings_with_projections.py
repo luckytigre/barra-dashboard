@@ -73,7 +73,7 @@ class TestProjectedInstrumentsInUniverse:
             "ric": result.ric,
             "model_status": "projected_only",
             "model_status_reason": "returns_projection",
-            "exposure_origin": "projected",
+            "exposure_origin": "projected_returns",
             "projection_method": "ols_returns_regression",
             "projection_r_squared": round(result.r_squared, 6),
             "projection_obs_count": result.obs_count,
@@ -83,7 +83,7 @@ class TestProjectedInstrumentsInUniverse:
         }
 
         assert payload["model_status"] == "projected_only"
-        assert payload["exposure_origin"] == "projected"
+        assert payload["exposure_origin"] == "projected_returns"
         assert payload["projection_method"] == "ols_returns_regression"
         assert payload["projection_r_squared"] == 0.97
         assert payload["projection_obs_count"] == 252

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ExposureBarChart from "@/components/ExposureBarChart";
 import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
+import { exposureMethodLabel, normalizeExposureOrigin } from "@/lib/exposureOrigin";
 import type { FactorCatalogEntry, FactorExposure, UniverseTickerItem, WeeklyPricePoint } from "@/lib/types";
 
 interface PositionSummary {
@@ -90,6 +91,7 @@ export default function TickerQuoteCard({
   const [expanded, setExpanded] = useState(false);
   const [spotlight, setSpotlight] = useState(false);
   const modelStatus = item.model_status ?? "ineligible";
+  const exposureOrigin = normalizeExposureOrigin(item.exposure_origin, modelStatus);
   const hasModelExposures = chartFactors.length > 0;
 
   useEffect(() => {
@@ -153,21 +155,16 @@ export default function TickerQuoteCard({
     { label: "Specific Vol", value: formatPercent(item.specific_vol, 2) },
     { label: "Specific Var", value: formatFixed(item.specific_var, 6) },
     {
-      label: "Model",
-      value:
-        modelStatus === "core_estimated"
-          ? "Core Estimated"
-          : modelStatus === "projected_only"
-            ? "Projected Only"
-            : "Ineligible",
+      label: "Exposure Method",
+      value: exposureMethodLabel(exposureOrigin, modelStatus),
     },
-    ...(item.exposure_origin === "projected" && item.projection_r_squared != null
+    ...(exposureOrigin === "projected_returns" && item.projection_r_squared != null
       ? [{ label: "Projection R\u00B2", value: formatFixed(item.projection_r_squared, 4) }]
       : []),
-    ...(item.exposure_origin === "projected" && item.projection_obs_count != null
+    ...(exposureOrigin === "projected_returns" && item.projection_obs_count != null
       ? [{ label: "Obs Count", value: String(item.projection_obs_count) }]
       : []),
-    ...(item.exposure_origin === "projected" && item.projection_asof
+    ...(exposureOrigin === "projected_returns" && item.projection_asof
       ? [{ label: "Projection As Of", value: formatDateLabel(item.projection_asof) }]
       : []),
   ];

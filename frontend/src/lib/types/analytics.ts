@@ -1,5 +1,10 @@
 export type ModelStatus = "core_estimated" | "projected_only" | "ineligible";
 export type FactorFamily = "market" | "industry" | "style";
+export type ExposureOrigin =
+  | "native"
+  | "projected_fundamental"
+  | "projected_returns"
+  | "projected";
 
 export interface FactorCatalogEntry {
   factor_id: string;
@@ -34,6 +39,7 @@ export interface Position {
   model_status?: ModelStatus;
   model_status_reason?: string;
   eligibility_reason?: string;
+  exposure_origin?: ExposureOrigin;
   risk_mix?: {
     market: number;
     industry: number;
@@ -71,6 +77,8 @@ export interface FactorDrilldownItem {
   exposure: number;
   sensitivity?: number;
   contribution: number;
+  model_status?: ModelStatus;
+  exposure_origin?: ExposureOrigin;
 }
 
 export interface FactorExposure {
@@ -186,7 +194,7 @@ export interface UniverseTickerItem {
   eligibility_reason?: string;
   model_warning?: string;
   as_of_date?: string;
-  exposure_origin?: "native" | "projected";
+  exposure_origin?: ExposureOrigin;
   projection_method?: string | null;
   projection_r_squared?: number | null;
   projection_obs_count?: number | null;
@@ -223,6 +231,7 @@ export interface UniverseSearchItem {
   model_status?: ModelStatus;
   model_status_reason?: string;
   eligibility_reason?: string;
+  exposure_origin?: ExposureOrigin;
 }
 
 export interface UniverseSearchData {

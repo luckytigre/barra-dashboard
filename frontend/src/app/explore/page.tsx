@@ -85,6 +85,8 @@ export default function ExplorePage() {
             exposure: loading,
             sensitivity: Number(sensitivities[factorId] ?? loading * fv) || 0,
             contribution: loading,
+            model_status: item.model_status,
+            exposure_origin: item.exposure_origin,
           },
         ],
       };
