@@ -45,6 +45,24 @@
   - `BACKEND_WORKERS=1 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1`
   - or `make backend-prod`
 
+## Fresh Machine Cloud-Serve Bootstrap
+- A fresh `cloud-serve` machine should not require a preexisting large local `backend/runtime/data.db` to serve the app.
+- Required authority inputs for that machine are:
+  - Neon access (`NEON_DATABASE_URL`)
+  - runtime role `APP_RUNTIME_ROLE=cloud-serve`
+  - operator/editor tokens as needed for exposed endpoints
+- In that mode:
+  - cUSE durable serving payloads should read from Neon and not fall back to local SQLite
+  - runtime/operator state should read from Neon and not fall back to local SQLite
+  - holdings should read from Neon and fail closed if Neon is unavailable
+  - cPAR package reads should use the Neon authority store and fail closed if no package exists there
+- Small local scratch/cache/workspace files may still appear, but they are not the historical source warehouse and are not the serving authority.
+- Local SQLite remains required only for:
+  - direct LSEG ingest
+  - deep archive retention
+  - explicit local diagnostics
+  - rebuild scratch/workspace paths during the current migration state
+
 ## Volume Pull Policy
 - Canonical daily OHLCV ingest (`download_data_lseg.py`) maps `volume` from `TR.Volume`.
 - Historical volume-repair path (`backfill_prices_range_lseg.py --volume-only`) maps `volume` from `TR.Volume`.

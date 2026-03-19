@@ -65,6 +65,7 @@ Integration-layer ownership remains in the repo's normal layers and is documente
 - Local SQLite remains the only direct LSEG ingest landing zone and the optional deep archive.
 - Neon is the authoritative operating database for the standalone tool once source sync has published the retained working set.
 - During migration, `NEON_AUTHORITATIVE_REBUILDS` controls whether core/cold-core still rebuild from local SQLite or from Neon.
+- In `cloud-serve`, a fresh machine should be able to serve cUSE/cPAR runtime surfaces from Neon without a preexisting large local `data.db`; local SQLite remains only for ingest, archive, explicit local diagnostics, and scratch/workspace files.
 - The active cUSE model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
 - `security_master` is the only universe authority.
 - The committed universe artifact is `data/reference/security_master_seed.csv`.
