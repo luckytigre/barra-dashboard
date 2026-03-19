@@ -38,6 +38,7 @@ packages = [
     "backend.api.routes",
     "backend.analytics",
     "backend.analytics.services",
+    "backend.cpar",
     "backend.data",
     "backend.ops",
     "backend.orchestration",
@@ -60,6 +61,7 @@ backend = "."
 "backend.api.routes" = "api/routes"
 "backend.analytics" = "analytics"
 "backend.analytics.services" = "analytics/services"
+"backend.cpar" = "cpar"
 "backend.data" = "data"
 "backend.ops" = "ops"
 "backend.orchestration" = "orchestration"
