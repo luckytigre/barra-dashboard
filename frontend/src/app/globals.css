@@ -153,10 +153,10 @@ main {
 
 .dash-tabs-family-badge-slot {
   width: 58px;
-  height: 24px;
+  height: 28px;
   position: relative;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: flex-start;
   opacity: 0;
   transform: translateY(1px);
@@ -4536,7 +4536,7 @@ main {
 
   .dash-tabs-family-badge-slot {
     width: 46px;
-    height: 20px;
+    height: 24px;
   }
 
   .dash-tabs-family-badge {
