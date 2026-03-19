@@ -6,6 +6,10 @@ Owner: Codex
 
 This document describes the first cPAR frontend slice.
 
+Related cPAR docs:
+- [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
+- [CPAR_OPERATIONS_PLAYBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/operations/CPAR_OPERATIONS_PLAYBOOK.md)
+
 ## Purpose
 
 This slice adds the first UI for the read-only cPAR backend surfaces.
@@ -63,6 +67,7 @@ Read failures:
 - cPAR-specific `503 unavailable` is rendered as an authority-unavailable state
 - ticker ambiguity is rendered as a UI instruction to choose a specific RIC from search results
 - search hits without a ticker render as non-navigable rows because the current detail route is ticker-keyed
+- a direct `/cpar/explore?ric=...` visit without `ticker=` must render an explanatory warning rather than silently failing or synthesizing a detail request
 
 ## Deferred After This Slice
 

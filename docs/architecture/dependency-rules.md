@@ -43,6 +43,20 @@ Avoid:
 - `services` -> `api`
 - `services` -> full orchestration jobs just to inspect static metadata
 
+### cPAR-Specific Rule
+
+`cPAR` is parallel to cUSE4, but it still follows the same layered ownership rules.
+
+Current cPAR placement:
+- pure cPAR math/domain logic lives in `backend/cpar/*`
+- cPAR integration code lives in `backend/data/*`, `backend/orchestration/*`, `backend/services/*`, and `backend/api/routes/*`
+
+Avoid:
+- `backend/cpar/*` importing any integration layer
+- cPAR routes importing `backend.data` or `backend.cpar`
+- cPAR services importing API or orchestration layers
+- cPAR integration reusing `serving_payload_current` or runtime-state surfaces unless a later documented exception is approved
+
 ## Entrypoint Rules
 
 Routes, CLI wrappers, and local scripts must stay thin.

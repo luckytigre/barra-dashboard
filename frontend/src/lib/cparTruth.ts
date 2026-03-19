@@ -6,6 +6,7 @@ import type {
   CparFactorSpec,
   CparFitStatus,
   CparHedgeStatus,
+  CparSearchItem,
   CparWarning,
 } from "@/lib/types";
 
@@ -153,6 +154,10 @@ export function summarizeFactorRegistry(factors: CparFactorSpec[]): Record<CparF
     },
     { market: 0, sector: 0, style: 0 } as Record<CparFactorGroup, number>,
   );
+}
+
+export function canNavigateCparSearchResult(item: Pick<CparSearchItem, "ticker"> | null | undefined): boolean {
+  return Boolean(item?.ticker && item.ticker.trim());
 }
 
 export function readCparError(error: unknown): CparErrorSummary {

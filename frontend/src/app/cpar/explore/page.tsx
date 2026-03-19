@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta, useCparTicker } from "@/hooks/useApi";
-import { formatCparPackageDate, readCparError } from "@/lib/cparTruth";
+import { canNavigateCparSearchResult, formatCparPackageDate, readCparError } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
 import CparHedgePanel from "@/features/cpar/components/CparHedgePanel";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
@@ -68,7 +68,7 @@ function CparExplorePageInner() {
           title="Search The Active Package"
           helperText="The explore page resolves to one active-package row. Use RIC selection when a ticker is ambiguous."
           onSelectResult={(item) => {
-            if (!item.ticker) return;
+            if (!canNavigateCparSearchResult(item)) return;
             router.push(buildExploreHref(item));
           }}
         />

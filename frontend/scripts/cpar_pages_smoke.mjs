@@ -96,6 +96,24 @@ async function cleanup() {
   ]);
 }
 
+async function gotoWithRetry(page, url, options, attempts = 3) {
+  let lastError = null;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      await page.goto(url, options);
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("ERR_ABORTED") || index === attempts - 1) {
+        throw error;
+      }
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error(`Failed to navigate to ${url}`);
+}
+
 try {
   await waitForServer(`${BASE_URL}/cpar`);
 
@@ -294,19 +312,27 @@ try {
       return fulfillJson({ error: `Unhandled API route ${pathName}` }, 500);
     });
 
-    await page.goto(`${BASE_URL}/cpar`, { waitUntil: "networkidle" });
+    await gotoWithRetry(page, `${BASE_URL}/cpar`, { waitUntil: "domcontentloaded" });
     await page.getByRole("link", { name: "cPAR" }).waitFor();
     await page.getByTestId("cpar-package-banner").waitFor();
     await page.getByTestId("cpar-factor-registry").waitFor();
+    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
     await page.getByTestId("cpar-search-input").fill("AAPL");
     const searchResults = page.getByTestId("cpar-search-results");
     await searchResults.waitFor();
     assert.equal(await searchResults.locator("button").first().isDisabled(), true);
-    await searchResults.locator("button").nth(1).click();
-
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
     const detailPanel = page.getByTestId("cpar-detail-panel");
     await detailPanel.waitFor();
+    await detailPanel.getByText("RIC result cannot open detail directly.").waitFor();
+    await detailPanel.getByText("the current cPAR detail route is ticker-keyed", { exact: false }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
+
+    await page.getByTestId("cpar-search-input").fill("AAPL");
+    await searchResults.locator("button").nth(1).click();
     await detailPanel.getByText("Apple Inc.").waitFor();
     await page.getByTestId("cpar-hedge-panel").waitFor();
     await page.getByTestId("cpar-post-hedge-table").waitFor();

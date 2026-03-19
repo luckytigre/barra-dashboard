@@ -1,4 +1,4 @@
-"""Universe-level cached loadings/search endpoints."""
+"""cUSE4 universe-level cached loadings/search endpoints."""
 
 from __future__ import annotations
 

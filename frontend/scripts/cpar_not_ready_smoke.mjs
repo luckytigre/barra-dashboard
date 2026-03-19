@@ -34,6 +34,7 @@ function tail(lines) {
 const serverStdout = [];
 const serverStderr = [];
 let debugPage = null;
+let capturedPageError = null;
 let metaReady = false;
 const server = spawn(
   "npx",
@@ -66,6 +67,24 @@ async function cleanup() {
   ]);
 }
 
+async function gotoWithRetry(page, url, options, attempts = 3) {
+  let lastError = null;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      await page.goto(url, options);
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("ERR_ABORTED") || index === attempts - 1) {
+        throw error;
+      }
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error(`Failed to navigate to ${url}`);
+}
+
 try {
   await waitForServer(`${BASE_URL}/cpar`);
 
@@ -75,7 +94,7 @@ try {
     debugPage = page;
 
     page.on("pageerror", (error) => {
-      throw error;
+      capturedPageError = error;
     });
 
     await page.route("**/api/**", async (route) => {
@@ -278,20 +297,28 @@ try {
       return fulfillJson({ error: `Unhandled API route ${pathName}` }, 500);
     });
 
-    await page.goto(`${BASE_URL}/cpar`, { waitUntil: "domcontentloaded" });
+    await gotoWithRetry(page, `${BASE_URL}/cpar`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-not-ready").waitFor();
     await page.getByText("No request-time fitting exists on this page.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
     metaReady = true;
 
-    await page.goto(`${BASE_URL}/cpar/explore?ticker=AAPL`, { waitUntil: "domcontentloaded" });
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=AAPL`, { waitUntil: "domcontentloaded" });
     const detailPanel = page.getByTestId("cpar-detail-panel");
     await detailPanel.getByText("Ticker is ambiguous.").waitFor();
     await detailPanel.getByText("Choose a specific RIC from the search results on the left.").waitFor();
+    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
     await page.getByRole("button", { name: /AAPL\.OQ/i }).click();
     await page.waitForURL(/ric=AAPL\.OQ/);
     await page.getByText("Apple Inc.").waitFor();
+
+    if (capturedPageError) {
+      throw capturedPageError;
+    }
 
     assert.equal(page.url().includes("ric=AAPL.OQ"), true);
   } finally {

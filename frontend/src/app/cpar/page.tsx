@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta } from "@/hooks/useApi";
-import { formatCparPackageDate, readCparError, summarizeFactorRegistry } from "@/lib/cparTruth";
+import { canNavigateCparSearchResult, formatCparPackageDate, readCparError, summarizeFactorRegistry } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
 import CparPackageBanner from "@/features/cpar/components/CparPackageBanner";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
@@ -56,7 +56,7 @@ export default function CparLandingPage() {
       <div className="cpar-two-column">
         <CparSearchPanel
           onSelectResult={(item) => {
-            if (!item.ticker) return;
+            if (!canNavigateCparSearchResult(item)) return;
             router.push(buildExploreHref(item));
           }}
           helperText="Jump into the active package and open one persisted ticker detail view."

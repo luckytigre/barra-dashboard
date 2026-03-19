@@ -1,4 +1,4 @@
-"""GET /api/exposures?mode= — per-factor values with position-level drilldown."""
+"""GET /api/exposures?mode= — cUSE4 per-factor values with position drilldown."""
 
 from __future__ import annotations
 

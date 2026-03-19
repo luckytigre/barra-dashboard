@@ -18,6 +18,8 @@ This document is the canonical description of the operating model and active arc
 
 Use the following docs for more specific views instead of repeating that detail here:
 - `../operations/OPERATIONS_PLAYBOOK.md` for named refresh lanes, operational commands, and retention rules
+- `CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md` for the current cPAR system surfaces
+- `../operations/CPAR_OPERATIONS_PLAYBOOK.md` for current cPAR runtime-role and authority behavior
 - `../reference/protocols/UNIVERSE_ADD_RUNBOOK.md` for the approved universe-add workflow
 - `MODEL_FAMILIES_AND_OWNERSHIP.md` for current cUSE4 vs cPAR ownership boundaries and file-placement guidance
 - `archive/current-state.md` for the last deep architecture diagnosis snapshot

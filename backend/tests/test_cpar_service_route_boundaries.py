@@ -30,7 +30,7 @@ def _imported_modules(path: Path) -> set[str]:
 
 def test_cpar_services_do_not_import_api_layers() -> None:
     offenders: list[str] = []
-    forbidden_prefixes = ("backend.api",)
+    forbidden_prefixes = ("backend.api", "backend.orchestration", "frontend", "fastapi")
     for path in SERVICE_FILES:
         imported = _imported_modules(path)
         if any(
@@ -44,7 +44,7 @@ def test_cpar_services_do_not_import_api_layers() -> None:
 
 def test_cpar_routes_do_not_import_data_layers() -> None:
     offenders: list[str] = []
-    forbidden_prefixes = ("backend.data",)
+    forbidden_prefixes = ("backend.data", "backend.cpar", "frontend")
     for path in ROUTE_FILES:
         imported = _imported_modules(path)
         if any(

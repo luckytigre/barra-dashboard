@@ -65,6 +65,45 @@ def test_cpar_search_route_returns_payload(monkeypatch) -> None:
     assert res.json()["results"][0]["ric"] == "AAPL.OQ"
 
 
+def test_cpar_search_route_preserves_null_ticker_rows(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_search_service,
+        "load_cpar_search_payload",
+        lambda **kwargs: {
+            "query": kwargs["q"],
+            "limit": kwargs["limit"],
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "results": [{"ticker": None, "ric": "AAPL.NA", "display_name": "Apple Inc. Synthetic Line"}],
+            "total": 1,
+        },
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/search?q=aapl&limit=10")
+
+    assert res.status_code == 200
+    assert res.json()["results"][0]["ticker"] is None
+    assert res.json()["results"][0]["ric"] == "AAPL.NA"
+
+
+def test_cpar_search_route_maps_not_ready_to_503(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_search_service,
+        "load_cpar_search_payload",
+        lambda **kwargs: (_ for _ in ()).throw(
+            cpar_routes.cpar_meta_service.CparReadNotReady("No successful cPAR package")
+        ),
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/search?q=aapl&limit=10")
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "not_ready"
+    assert res.json()["detail"]["error"] == "cpar_not_ready"
+
+
 def test_cpar_ticker_route_maps_ambiguous_ticker_to_409(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_ticker_service,

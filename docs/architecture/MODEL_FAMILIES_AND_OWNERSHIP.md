@@ -56,6 +56,20 @@ Current cUSE4 integration is still the default app wiring in several places, inc
 These surfaces are not "generic factor-model abstractions."
 They are the current cUSE4-first application surfaces unless explicitly documented otherwise.
 
+Current default-named cUSE4 route family includes:
+
+- `/api/exposures`
+- `/api/risk`
+- `/api/portfolio`
+- `/api/universe/*`
+- `/api/portfolio/whatif`
+
+Current default-named cUSE4 frontend page family includes:
+
+- `/exposures`
+- `/explore`
+- `/positions`
+
 ## cPAR Ownership
 
 ### Pure model and estimation logic

@@ -1,4 +1,4 @@
-"""Portfolio serving + what-if preview routes."""
+"""cUSE4 portfolio serving and cUSE4 what-if preview routes."""
 
 from typing import Any
 

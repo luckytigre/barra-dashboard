@@ -1,5 +1,8 @@
 "use client";
 
+// cUSE4-only truth helper for the default risk/explore/positions surfaces.
+// cPAR uses its own package-based truth semantics in `cparTruth.ts`.
+
 import type {
   ExposuresData,
   PortfolioData,

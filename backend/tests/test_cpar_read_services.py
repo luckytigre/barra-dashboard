@@ -20,6 +20,9 @@ def _package_run(
     package_date: str,
     *,
     universe_count: int,
+    fit_ok_count: int | None = None,
+    fit_limited_count: int = 0,
+    fit_insufficient_count: int = 0,
 ) -> dict[str, object]:
     return {
         "package_run_id": package_run_id,
@@ -37,9 +40,9 @@ def _package_run(
         "source_prices_asof": package_date,
         "classification_asof": package_date,
         "universe_count": universe_count,
-        "fit_ok_count": universe_count,
-        "fit_limited_count": 0,
-        "fit_insufficient_count": 0,
+        "fit_ok_count": universe_count if fit_ok_count is None else fit_ok_count,
+        "fit_limited_count": fit_limited_count,
+        "fit_insufficient_count": fit_insufficient_count,
         "data_authority": "sqlite",
         "error_type": None,
         "error_message": None,
@@ -103,7 +106,7 @@ def _fit_row(
     package_date: str,
     *,
     ric: str,
-    ticker: str,
+    ticker: str | None,
     display_name: str,
     raw_loadings: dict[str, float],
     thresholded_loadings: dict[str, float],
@@ -156,7 +159,13 @@ def _seed_read_package_db(path: Path) -> None:
     )
     cpar_outputs.persist_cpar_package(
         data_db=path,
-        package_run=_package_run("run_curr", "2026-03-14", universe_count=3),
+        package_run=_package_run(
+            "run_curr",
+            "2026-03-14",
+            universe_count=4,
+            fit_ok_count=2,
+            fit_limited_count=2,
+        ),
         proxy_returns=_proxy_returns("run_curr", "2026-03-14"),
         proxy_transforms=_proxy_transforms("run_curr", "2026-03-14"),
         covariance_rows=_covariance_rows("run_curr", "2026-03-14", ["SPY", "XLK", "XLF", "QUAL", "USMV"]),
@@ -181,6 +190,17 @@ def _seed_read_package_db(path: Path) -> None:
                 warnings=["ex_us_caution"],
                 fit_status="limited_history",
                 hq_country_code="GB",
+            ),
+            _fit_row(
+                "run_curr",
+                "2026-03-14",
+                ric="AAPL.NA",
+                ticker=None,
+                display_name="Apple Inc. Synthetic Line",
+                raw_loadings={"SPY": 1.05, "XLK": 0.28},
+                thresholded_loadings={"SPY": 1.05, "XLK": 0.28},
+                warnings=["continuity_gap"],
+                fit_status="limited_history",
             ),
             _fit_row(
                 "run_curr",
@@ -224,8 +244,9 @@ def test_cpar_search_service_returns_active_package_hits(
     payload = cpar_search_service.load_cpar_search_payload(q="aapl", limit=10, data_db=data_db)
 
     assert payload["package_run_id"] == "run_curr"
-    assert payload["total"] == 2
-    assert {row["ric"] for row in payload["results"]} == {"AAPL.OQ", "AAPL.L"}
+    assert payload["total"] == 3
+    assert {row["ric"] for row in payload["results"]} == {"AAPL.OQ", "AAPL.L", "AAPL.NA"}
+    assert next(row for row in payload["results"] if row["ric"] == "AAPL.NA")["ticker"] is None
 
 
 def test_cpar_ticker_service_requires_ric_for_ambiguous_tickers(

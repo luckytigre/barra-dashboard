@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useCparSearch } from "@/hooks/useApi";
-import { readCparError } from "@/lib/cparTruth";
+import { canNavigateCparSearchResult, readCparError } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
 import CparWarningsBar from "./CparWarningsBar";
 
@@ -69,7 +69,7 @@ export default function CparSearchPanel({
           <div className="cpar-search-results" data-testid="cpar-search-results">
             {(data?.results || []).map((item) => {
               const active = selectedRic && item.ric === selectedRic;
-              const disabled = !item.ticker;
+              const disabled = !canNavigateCparSearchResult(item);
               return (
                 <button
                   key={item.ric}

@@ -6,6 +6,10 @@ Owner: Codex
 
 This document describes the read-only cPAR service and API route layer.
 
+Related cPAR docs:
+- [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
+- [CPAR_OPERATIONS_PLAYBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/operations/CPAR_OPERATIONS_PLAYBOOK.md)
+
 ## Purpose
 
 This slice exposes the minimal backend read surfaces needed for `/cpar` and `/cpar/explore`.
@@ -26,6 +30,7 @@ It does not add:
 `GET /api/cpar/search?q=&limit=`
 - searches the active package’s persisted instrument-fit rows
 - returns ticker, ric, display name, fit status, warnings, and country code
+- may legitimately return rows with `ticker = NULL`
 
 `GET /api/cpar/ticker/{ticker}?ric=`
 - returns one active-package ticker detail payload
@@ -64,6 +69,11 @@ Ticker detail and hedge routes:
 Authority-read failures:
 - return `503`
 - do not fall back to route-local SQL or request-time recomputation
+
+Search-result limitations:
+- the current detail route is ticker-keyed
+- rows with `ticker = NULL` are therefore visible in search but not directly detail-addressable in v1
+- the frontend must render that limitation explicitly instead of silently hiding those rows
 
 ## Hedge Preview Behavior
 

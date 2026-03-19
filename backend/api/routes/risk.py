@@ -1,4 +1,4 @@
-"""GET /api/risk — variance decomposition, factor details, covariance matrix."""
+"""GET /api/risk — cUSE4 variance decomposition, factor details, covariance."""
 
 from fastapi import APIRouter
 

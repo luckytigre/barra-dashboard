@@ -100,6 +100,10 @@ Runtime-role rule:
 - In `cloud-serve`, a bare `POST /api/refresh` now defaults safely to `serve-refresh`.
 - Explicit deeper lanes remain blocked in `cloud-serve` even if requested by old mode-based callers.
 
+Parallel cPAR note:
+- cPAR has its own dedicated operating assumptions and does not share the cUSE4 refresh API/operator flow.
+- Current cPAR runtime-role, build-entrypoint, and authority behavior is documented in [CPAR_OPERATIONS_PLAYBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/operations/CPAR_OPERATIONS_PLAYBOOK.md).
+
 ## Operator UI Policy
 - Health page is the primary control room.
 - Fast diagnostics are the default because they are cheap and always available.

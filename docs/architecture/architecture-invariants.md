@@ -46,6 +46,11 @@ These are the non-negotiable structural rules for this repository.
    Their projected loadings must read durable core outputs, refresh only on the core-package cadence, persist once per active core package, expose `projection_asof = core_state_through_date`, and be read by serving rather than recomputed opportunistically.
    Missing projected outputs for the active core package must surface explicit degraded/unavailable state instead of silent omission.
 
+12. cPAR stays parallel to cUSE4 and keeps its own owned surfaces.
+   Pure cPAR logic belongs in `backend/cpar/*`.
+   cPAR integration still belongs in the normal repo layers.
+   Current cPAR slices must not reuse cUSE4 serving-payload or runtime-state surfaces by implication.
+
 ## Existing Guardrails
 
 The repository already enforces several of these with lightweight tests in [test_architecture_boundaries.py](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/tests/test_architecture_boundaries.py):

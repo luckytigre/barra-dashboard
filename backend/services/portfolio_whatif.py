@@ -1,4 +1,8 @@
-"""Read-only portfolio what-if preview using current model state."""
+"""cUSE4 read-only portfolio what-if preview using current model state.
+
+This module is tied to the current cUSE4 serving surfaces, covariance, and
+specific-risk semantics. It is not the future owner of any cPAR what-if flow.
+"""
 
 from __future__ import annotations
 
