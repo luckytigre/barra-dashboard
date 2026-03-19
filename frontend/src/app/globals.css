@@ -123,7 +123,8 @@ main {
   top: 0;
   z-index: 6000;
   box-shadow: 0 5px 12px rgba(2, 6, 14, 0.34);
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   min-height: 48px;
   backdrop-filter: blur(12px);
@@ -141,10 +142,83 @@ main {
   text-decoration: none;
 }
 
+.dash-tabs-brand-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 176px;
+  justify-self: start;
+}
+
+.dash-tabs-family-badge-slot {
+  width: 58px;
+  height: 24px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.24s ease;
+}
+
+.dash-tabs-family-badge-slot.is-active {
+  opacity: 1;
+  transition-delay: 0s;
+}
+
+.dash-tabs-family-badge-slot.is-preview {
+  opacity: 0;
+  transition: none;
+}
+
+.dash-tabs-family-badge {
+  --family-badge-top: rgba(228, 233, 241, 0.84);
+  --family-badge-bottom: rgba(168, 176, 189, 0.82);
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-weight: 300;
+  color: var(--family-badge-top);
+  background-image: linear-gradient(
+    180deg,
+    var(--family-badge-top) 0%,
+    var(--family-badge-bottom) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  white-space: nowrap;
+}
+
+.dash-tabs-family-badge-prefix {
+  font-size: 0.85em;
+  display: inline-block;
+  margin-right: 0.08em;
+  color: inherit;
+  background-image: inherit;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transform: translateY(0.08em);
+  transform-origin: baseline;
+}
+
+.dash-tabs-family-badge-cuse {
+  --family-badge-top: rgba(184, 220, 226, 0.96);
+  --family-badge-bottom: rgba(118, 164, 172, 0.94);
+}
+
+.dash-tabs-family-badge-cpar {
+  --family-badge-top: rgba(228, 190, 220, 0.96);
+  --family-badge-bottom: rgba(176, 132, 169, 0.94);
+}
+
 .dash-tabs-center {
-  flex: 1;
   display: flex;
   justify-content: center;
+  justify-self: center;
   gap: 2px;
 }
 
@@ -152,6 +226,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  justify-self: end;
 }
 
 .dash-health-signal {
@@ -4381,130 +4456,84 @@ main {
   color: rgba(169, 182, 210, 0.75);
 }
 
-.family-subnav {
+.family-split-landing {
+  min-height: calc(100vh - 180px);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin: 0 0 18px;
-  padding: 10px 14px;
-  border: 1px solid rgba(154, 171, 214, 0.16);
-  background: rgba(11, 15, 24, 0.58);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  justify-content: center;
+  gap: 58px;
 }
 
-.family-subnav-label {
-  color: rgba(232, 237, 249, 0.9);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
+.family-split-link,
+.family-split-divider {
+  --family-split-top: rgba(228, 233, 241, 0.82);
+  --family-split-bottom: rgba(170, 178, 190, 0.8);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-weight: 300;
+  color: var(--family-split-top);
+  background-image: linear-gradient(
+    180deg,
+    var(--family-split-top) 0%,
+    var(--family-split-bottom) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.family-subnav-links {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.family-subnav-link {
-  padding: 6px 10px;
-  border: 1px solid rgba(154, 171, 214, 0.16);
-  color: rgba(201, 211, 232, 0.85);
+.family-split-link {
+  font-size: clamp(28px, 6.2vw, 68px);
   text-decoration: none;
-  font-size: 12px;
-  letter-spacing: 0.03em;
-  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition: text-shadow 0.16s ease, opacity 0.22s ease, transform 0.22s ease;
+  will-change: opacity, transform;
 }
 
-.family-subnav-link:hover {
-  border-color: rgba(154, 171, 214, 0.34);
-  background: rgba(49, 246, 255, 0.06);
+.family-split-prefix {
+  font-size: 0.85em;
+  display: inline-block;
+  margin-right: 0.08em;
+  color: inherit;
+  background-image: inherit;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transform: translateY(0.08em);
+  transform-origin: baseline;
 }
 
-.family-subnav-link.active {
-  border-color: rgba(49, 246, 255, 0.46);
-  background: rgba(49, 246, 255, 0.12);
-  color: #eef6ff;
+.family-split-link-cuse:hover {
+  --family-split-top: rgba(184, 220, 226, 0.96);
+  --family-split-bottom: rgba(118, 164, 172, 0.94);
+  text-shadow: 0 0 14px rgba(20, 155, 175, 0.12);
 }
 
-.family-landing {
-  display: grid;
-  gap: 22px;
+.family-split-link-cpar:hover {
+  --family-split-top: rgba(228, 190, 220, 0.96);
+  --family-split-bottom: rgba(176, 132, 169, 0.94);
+  text-shadow: 0 0 14px rgba(215, 87, 186, 0.1);
 }
 
-.family-landing-hero,
-.family-landing-card,
-.family-landing-footer {
-  border: 1px solid rgba(154, 171, 214, 0.16);
-  background: rgba(11, 15, 24, 0.62);
-  padding: 22px 24px;
-  box-shadow: 0 10px 28px rgba(2, 6, 14, 0.18);
+.family-split-link.is-dimmed,
+.family-split-divider.is-dimmed {
+  opacity: 0.16;
 }
 
-.family-landing-kicker,
-.family-landing-card-kicker,
-.family-landing-footer-label {
-  color: rgba(169, 182, 210, 0.68);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+.family-split-link.is-selected {
+  opacity: 0;
 }
 
-.family-landing-hero h1,
-.family-landing-card h2 {
-  margin: 0 0 10px;
-  letter-spacing: -0.02em;
+.family-split-ghost {
+  transition: none !important;
 }
 
-.family-landing-copy,
-.family-landing-card p {
-  color: rgba(214, 222, 238, 0.82);
-  max-width: 880px;
-}
-
-.family-landing-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.family-landing-links {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.family-landing-link,
-.family-landing-footer-link {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid rgba(154, 171, 214, 0.16);
-  background: rgba(18, 24, 38, 0.5);
-  color: #edf3ff;
-  text-decoration: none;
-}
-
-.family-landing-link strong,
-.family-landing-footer-link {
-  font-size: 15px;
-}
-
-.family-landing-link span,
-.family-landing-footer-link span {
-  color: rgba(181, 194, 220, 0.76);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.family-landing-link:hover,
-.family-landing-footer-link:hover {
-  border-color: rgba(49, 246, 255, 0.4);
-  background: rgba(49, 246, 255, 0.08);
+.family-split-divider {
+  font-weight: 100;
+  font-size: 4em;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-0.055em) scaleX(0.62);
+  transform-origin: center;
 }
 
 .dash-dropdown-item.disabled {
@@ -4514,17 +4543,23 @@ main {
 }
 
 @media (max-width: 900px) {
-  .family-landing-grid {
-    grid-template-columns: 1fr;
+  .dash-tabs-brand-cluster {
+    min-width: 140px;
+    gap: 10px;
   }
 
-  .family-subnav {
-    flex-direction: column;
-    align-items: flex-start;
+  .dash-tabs-family-badge-slot {
+    width: 46px;
+    height: 20px;
   }
 
-  .family-subnav-links {
-    justify-content: flex-start;
+  .dash-tabs-family-badge {
+    font-size: 15px;
+  }
+
+  .family-split-landing {
+    min-height: calc(100vh - 140px);
+    gap: 34px;
   }
 }
 

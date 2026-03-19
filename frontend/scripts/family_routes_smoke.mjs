@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { chromium } from "playwright";
 
 const HOST = "127.0.0.1";
 const PORT = 3114;
@@ -76,14 +77,33 @@ async function assertOk(pathname) {
   return response.text();
 }
 
+async function gotoWithRetry(page, url, attempts = 3) {
+  let lastError = null;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      const response = await page.goto(url, { waitUntil: "domcontentloaded" });
+      if (response && !response.ok()) {
+        lastError = new Error(`Unexpected status ${response.status()} for ${url}`);
+        if (index === attempts - 1) throw lastError;
+        await delay(500);
+        continue;
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+      if (index === attempts - 1) throw error;
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error(`Failed to navigate to ${url}`);
+}
+
 try {
   await waitForServer(`${BASE_URL}/`);
 
   const homeHtml = await assertOk("/");
-  assert.match(homeHtml, /Choose a model family/i);
-  assert.match(homeHtml, /\/cuse\/exposures/i);
-  assert.match(homeHtml, /\/cpar\/risk/i);
-  assert.match(homeHtml, /\/positions/i);
+  assert.match(homeHtml, /cUSE/i);
+  assert.match(homeHtml, /cPAR/i);
 
   await assertRedirect("/exposures", "/cuse/exposures");
   await assertRedirect("/explore", "/cuse/explore");
@@ -100,6 +120,26 @@ try {
   await assertOk("/cpar/health");
   await assertOk("/cpar/hedge");
   await assertOk("/positions");
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+
+    await gotoWithRetry(page, `${BASE_URL}/`);
+    await page.getByTestId("family-split-landing").waitFor();
+    const chooserLinks = await page.locator('[data-testid="family-split-landing"] a').allTextContents();
+    assert.deepEqual(chooserLinks, ["cUSE", "cPAR"]);
+
+    await gotoWithRetry(page, `${BASE_URL}/cuse/exposures`);
+    const cuseTabs = await page.locator(".dash-tabs-center .dash-tab-btn").allTextContents();
+    assert.deepEqual(cuseTabs, ["Exposures", "Explore", "Health", "Positions"]);
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/risk`);
+    const cparTabs = await page.locator(".dash-tabs-center .dash-tab-btn").allTextContents();
+    assert.deepEqual(cparTabs, ["Risk", "Explore", "Health", "Hedge", "Positions"]);
+  } finally {
+    await browser.close();
+  }
 
   await cleanup();
 } catch (error) {

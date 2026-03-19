@@ -52,6 +52,11 @@ Legacy redirects:
 - `/cpar` redirects to `/cpar/risk`
 - `/cpar/portfolio` redirects to `/cpar/risk`
 
+Shared shell behavior:
+- `/` is now a minimal centered family chooser: `cUSE | cPAR`
+- the top header no longer uses `cUSE` and `cPAR` as tabs
+- on `/cpar*`, the top header promotes the cPAR-local pages directly: `Risk`, `Explore`, `Health`, `Hedge`, plus shared `Positions`
+
 ## Backend Contracts Used By The Frontend
 
 `GET /api/cpar/meta`
@@ -161,5 +166,10 @@ Current cPAR frontend smokes cover:
 ## Shared App Chrome
 
 The global brand and background menu remain shared with the rest of the app.
+
+The top header is now route-family aware:
+- `/cuse*` shows `Exposures`, `Explore`, `Health`, and shared `Positions`
+- `/cpar*` shows `Risk`, `Explore`, `Health`, `Hedge`, and shared `Positions`
+- `/` stays intentionally minimal and uses the centered family chooser instead of a second family subnav
 
 The cUSE4 operator-status signal and `serve-refresh` control are intentionally suppressed on `/cpar*` routes so the first cPAR slice does not imply operator coupling that has not been implemented.

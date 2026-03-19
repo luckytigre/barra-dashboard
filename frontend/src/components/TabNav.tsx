@@ -7,9 +7,18 @@ import { useBackground, type BgMode } from "./BackgroundContext";
 import { useOperatorStatus } from "@/hooks/useCuse4Api";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
-const TABS = [
-  { href: "/cuse/exposures", label: "cUSE", matchPrefix: "/cuse" },
-  { href: "/cpar/risk", label: "cPAR", matchPrefix: "/cpar" },
+const CUSE_TABS = [
+  { href: "/cuse/exposures", label: "Exposures", matchPrefix: "/cuse/exposures" },
+  { href: "/cuse/explore", label: "Explore", matchPrefix: "/cuse/explore" },
+  { href: "/cuse/health", label: "Health", matchPrefix: "/cuse/health" },
+  { href: "/positions", label: "Positions" },
+];
+
+const CPAR_TABS = [
+  { href: "/cpar/risk", label: "Risk", matchPrefix: "/cpar/risk" },
+  { href: "/cpar/explore", label: "Explore", matchPrefix: "/cpar/explore" },
+  { href: "/cpar/health", label: "Health", matchPrefix: "/cpar/health" },
+  { href: "/cpar/hedge", label: "Hedge", matchPrefix: "/cpar/hedge" },
   { href: "/positions", label: "Positions" },
 ];
 
@@ -18,6 +27,7 @@ const BG_OPTIONS: { value: BgMode; label: string }[] = [
   { value: "flow", label: "Flow" },
   { value: "none", label: "None" },
 ];
+const LANDING_FAMILY_TRANSITION_EVENT = "landing-family-transition-start";
 
 function parseIsoMs(iso?: string | null): number | null {
   if (!iso) return null;
@@ -44,6 +54,8 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 export default function TabNav() {
   const pathname = usePathname();
   const activePath = pathname || "";
+  const activeFamily = activePath.startsWith("/cpar") ? "cpar" : activePath.startsWith("/cuse") ? "cuse" : null;
+  const [transitionFamily, setTransitionFamily] = useState<"cuse" | "cpar" | null>(null);
   const showOperatorChrome = activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data";
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshActionState, setRefreshActionState] = useState<"idle" | "running" | "failed">("idle");
@@ -61,6 +73,25 @@ export default function TabNav() {
   const refreshState = operatorStatusData?.refresh;
   const refreshStatus = String(refreshState?.status || "idle").toLowerCase();
   const refreshIsRunning = refreshStatus === "running";
+
+  useEffect(() => {
+    if (activeFamily) {
+      setTransitionFamily(null);
+    }
+  }, [activeFamily]);
+
+  useEffect(() => {
+    const onTransitionStart = (event: Event) => {
+      const detail = (event as CustomEvent<{ family?: "cuse" | "cpar" }>).detail;
+      if (detail?.family === "cuse" || detail?.family === "cpar") {
+        setTransitionFamily(detail.family);
+      }
+    };
+    window.addEventListener(LANDING_FAMILY_TRANSITION_EVENT, onTransitionStart as EventListener);
+    return () => {
+      window.removeEventListener(LANDING_FAMILY_TRANSITION_EVENT, onTransitionStart as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -200,15 +231,43 @@ export default function TabNav() {
   const refreshActionTitle = pending
     ? "Publish latest holdings edits into the served analytics snapshot"
     : "Run serve-refresh";
+  const tabs = useMemo(() => {
+    if (activePath.startsWith("/cpar")) return CPAR_TABS;
+    if (activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data") return CUSE_TABS;
+    return [];
+  }, [activePath]);
+  const effectiveFamily = activeFamily ?? transitionFamily;
 
   return (
     <nav ref={navRef} className="dash-tabs">
-      <Link href="/" className="dash-tabs-brand">
-        Ceiora
-      </Link>
+      <div className="dash-tabs-brand-cluster">
+        <Link href="/" className="dash-tabs-brand">
+          Ceiora
+        </Link>
+        <span
+          className={`dash-tabs-family-badge-slot${effectiveFamily ? " is-active" : ""}${!activeFamily && transitionFamily ? " is-preview" : ""}`}
+          aria-hidden={effectiveFamily ? undefined : "true"}
+        >
+          {effectiveFamily ? (
+            <span
+              className={`dash-tabs-family-badge dash-tabs-family-badge-${effectiveFamily}`}
+            >
+              {effectiveFamily === "cuse" ? (
+                <>
+                  <span className="dash-tabs-family-badge-prefix">c</span>USE
+                </>
+              ) : (
+                <>
+                  <span className="dash-tabs-family-badge-prefix">c</span>PAR
+                </>
+              )}
+            </span>
+          ) : null}
+        </span>
+      </div>
 
       <div className="dash-tabs-center">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <Link
             key={tab.href}
             href={tab.href}
