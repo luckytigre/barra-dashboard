@@ -10,7 +10,9 @@ SERVICE_FILES = [
     REPO_ROOT / "backend" / "services" / "cpar_search_service.py",
     REPO_ROOT / "backend" / "services" / "cpar_ticker_service.py",
     REPO_ROOT / "backend" / "services" / "cpar_hedge_service.py",
+    REPO_ROOT / "backend" / "services" / "cpar_portfolio_snapshot_service.py",
     REPO_ROOT / "backend" / "services" / "cpar_portfolio_hedge_service.py",
+    REPO_ROOT / "backend" / "services" / "cpar_portfolio_whatif_service.py",
 ]
 ROUTE_FILES = [
     REPO_ROOT / "backend" / "api" / "routes" / "cpar.py",

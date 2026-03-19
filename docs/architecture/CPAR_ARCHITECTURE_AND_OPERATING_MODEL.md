@@ -29,7 +29,8 @@ The current repo shape intentionally proves cPAR in layers:
 - durable relational persistence
 - dedicated package-build orchestration
 - read-only backend surfaces
-- first frontend slice
+- focused frontend surfaces
+- one narrow account-scoped what-if preview
 
 ## Ownership Boundaries
 
@@ -79,6 +80,7 @@ Read-only backend routes:
 - `GET /api/cpar/ticker/{ticker}?ric=`
 - `GET /api/cpar/ticker/{ticker}/hedge?mode=&ric=`
 - `GET /api/cpar/portfolio/hedge?account_id=&mode=`
+- `POST /api/cpar/portfolio/whatif`
 
 Frontend pages:
 - `/cpar`
@@ -103,6 +105,7 @@ Current read behavior:
 - metadata/search/detail use the active successful package
 - hedge preview additionally requires complete covariance coverage
 - account-level portfolio hedge additionally requires live holdings rows plus latest shared-source prices on or before the active package date
+- account-level what-if additionally requires one account hedge baseline, one active package, and staged signed share deltas that reference either existing holdings rows or active-package search hits
 - missing required relational coverage fails closed with cPAR-specific `503 not_ready`
 - the frontend uses package metadata as the first gate for dependent reads and does not intentionally keep querying detail/hedge/account payloads after a package-level `not_ready` or `unavailable` response
 - current package freshness is interpreted from the active package date/source-as-of date, not from any cUSE4 refresh/runtime-state surface
@@ -145,8 +148,9 @@ The current cPAR implementation intentionally defers:
 - route-triggered cPAR builds
 - request-time cPAR fitting
 - any reuse of cUSE4 serving payload surfaces
-- broader portfolio analytics beyond the first narrow account-level hedge workflow
-- any cPAR what-if or mutation flow
+- broader portfolio analytics beyond the first narrow account-level hedge and what-if workflow
+- any cPAR apply or mutation flow
+- any broader multi-account or strategy-style cPAR what-if expansion
 
 One current v1 limitation is explicit:
 - search results may include persisted rows with `ticker = NULL`

@@ -92,7 +92,7 @@ export default function CparLandingPage() {
       <section className="chart-card">
         <h3>Available Workspaces</h3>
         <div className="section-subtitle">
-          cPAR now exposes three read-only workflows: package discovery, instrument hedge inspection, and one narrow account-level hedge workflow.
+          cPAR now exposes three read-only workflows: package discovery, instrument hedge inspection, and one narrow account-level hedge workflow with an optional what-if preview.
         </div>
         <div className="cpar-badge-row">
           <Link href="/cpar/explore" className="cpar-detail-chip" prefetch={false}>Open /cpar/explore</Link>

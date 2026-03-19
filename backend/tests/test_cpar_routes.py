@@ -264,6 +264,144 @@ def test_cpar_hedge_route_maps_missing_ticker_to_404(monkeypatch) -> None:
     assert "not found" in res.json()["detail"].lower()
 
 
+def test_cpar_portfolio_whatif_route_returns_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        lambda **kwargs: {
+            "account_id": kwargs["account_id"],
+            "mode": kwargs["mode"],
+            "scenario_row_count": len(kwargs["scenario_rows"]),
+            "changed_positions_count": len(kwargs["scenario_rows"]),
+            "current": {"package_run_id": "run_curr"},
+            "hypothetical": {"package_run_id": "run_curr"},
+        },
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+    )
+
+    assert res.status_code == 200
+    assert res.json()["account_id"] == "acct_main"
+    assert res.json()["scenario_row_count"] == 1
+
+
+def test_cpar_portfolio_whatif_route_maps_validation_errors_to_400(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("At least one non-zero cPAR what-if scenario row is required.")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 0.0}],
+        },
+    )
+
+    assert res.status_code == 400
+    assert "non-zero" in res.json()["detail"]
+
+
+def test_cpar_portfolio_whatif_route_maps_not_ready_to_503(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        lambda **kwargs: (_ for _ in ()).throw(
+            cpar_routes.cpar_meta_service.CparReadNotReady("No successful cPAR package")
+        ),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+    )
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "not_ready"
+
+
+def test_cpar_portfolio_whatif_route_maps_unavailable_to_503(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        lambda **kwargs: (_ for _ in ()).throw(
+            cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")
+        ),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+    )
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "unavailable"
+    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
+
+
+def test_cpar_portfolio_whatif_route_maps_missing_account_to_404(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        lambda **kwargs: (_ for _ in ()).throw(
+            cpar_routes.cpar_portfolio_hedge_service.CparPortfolioAccountNotFound("acct_missing")
+        ),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_missing",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+    )
+
+    assert res.status_code == 404
+    assert "acct_missing" in res.json()["detail"]
+
+
+def test_cpar_portfolio_whatif_route_enforces_max_rows() -> None:
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [
+                {"ric": f"RIC{i}.OQ", "ticker": f"T{i}", "quantity_delta": 1.0}
+                for i in range(cpar_routes.MAX_CPAR_WHATIF_SCENARIO_ROWS + 1)
+            ],
+        },
+    )
+
+    assert res.status_code == 400
+    assert "Too many cPAR what-if rows" in res.json()["detail"]
+
+
 def test_cpar_portfolio_hedge_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_portfolio_hedge_service,

@@ -31,20 +31,24 @@ export default function CparPortfolioHedgePanel({
   data,
   mode,
   onModeChange,
+  title = "Portfolio Hedge Preview",
+  subtitle = "The workflow aggregates covered holdings rows into one active-package cPAR exposure vector, then applies the persisted covariance surface without any request-time fitting.",
+  testId = "cpar-portfolio-hedge-panel",
 }: {
   data: CparPortfolioHedgeData;
   mode: CparHedgeMode;
   onModeChange: (mode: CparHedgeMode) => void;
+  title?: string;
+  subtitle?: string;
+  testId?: string;
 }) {
   const status = data.hedge_status ? describeCparHedgeStatus(data.hedge_status) : null;
 
   return (
-    <section className="cpar-hedge-panel" data-testid="cpar-portfolio-hedge-panel">
+    <section className="cpar-hedge-panel" data-testid={testId}>
       <div className="chart-card">
-        <h3>Portfolio Hedge Preview</h3>
-        <div className="section-subtitle">
-          The workflow aggregates covered holdings rows into one active-package cPAR exposure vector, then applies the persisted covariance surface without any request-time fitting.
-        </div>
+        <h3>{title}</h3>
+        <div className="section-subtitle">{subtitle}</div>
         <div className="cpar-mode-toggle">
           {MODES.map((option) => (
             <button

@@ -12,13 +12,13 @@ Related cPAR docs:
 
 ## Purpose
 
-This slice expands the read-only cPAR frontend without widening backend compute scope.
+This slice expands the cPAR frontend without widening backend compute scope.
 
 It does not add:
 - cUSE4 vs cPAR comparison views
 - route-triggered build behavior
 - any shared cUSE4/cPAR truth layer
-- any cPAR what-if or mutation flow
+- any cPAR apply or mutation flow
 
 ## Page Structure
 
@@ -43,11 +43,12 @@ It does not add:
 
 `/cpar/portfolio`
 - first narrow account-level cPAR hedge workflow
-- owns holdings-account selection, account coverage summary, aggregate thresholded loadings, and one portfolio hedge preview
+- owns holdings-account selection, account coverage summary, aggregate thresholded loadings, one portfolio hedge preview, and one narrow read-only what-if preview
 - reuses holdings/account reads only as shared plumbing
 - does not reuse cUSE4 portfolio or what-if semantics
 - uses the active package only
 - treats `coverage_ratio` as covered gross over priced gross, not as a promise that every holdings row has a known market value
+- stages signed share deltas from active-package search hits and compares current vs hypothetical account hedge output
 
 ## Backend Contracts Used By The Frontend
 
@@ -70,6 +71,12 @@ It does not add:
 - account-scoped portfolio hedge preview only
 - no request-time refit or build path
 - uses the active cPAR package, live holdings rows, and latest shared-source prices on or before the package date
+
+`POST /api/cpar/portfolio/whatif`
+- account-scoped preview-only what-if payload
+- uses the same active cPAR package plus staged signed share deltas
+- returns current and hypothetical account hedge payloads side by side
+- does not apply trades, mutate holdings, or build/refit cPAR on request
 
 Page consistency rule:
 - the frontend must treat `meta`, `ticker detail`, and `hedge` as one package-scoped flow
@@ -116,8 +123,8 @@ Read failures:
 
 `/cpar/portfolio`
 - remains a narrow account-level hedge workflow
-- owns account selection, coverage/exclusion explanation, aggregate loadings, and the resulting account hedge preview
-- does not own portfolio mutation, account editing, or hypothetical scenario authoring
+- owns account selection, coverage/exclusion explanation, aggregate loadings, staged scenario rows, and current vs hypothetical account hedge preview
+- does not own portfolio mutation, account editing, trade application, or broad scenario analytics
 
 ## Smoke Coverage
 
@@ -125,6 +132,7 @@ Current cPAR frontend smokes cover:
 - `/cpar` landing and `/cpar/explore` baseline flow
 - `/cpar/hedge` baseline flow
 - `/cpar/portfolio` baseline flow
+- `/cpar/portfolio` narrow what-if preview flow
 - `not_ready`
 - `unavailable`
 - package mismatch
@@ -134,9 +142,10 @@ Current cPAR frontend smokes cover:
 ## Deferred After This Slice
 
 - frontend operator surfaces
-- cPAR what-if integration
 - any shared cUSE4/cPAR comparison UI
+- cPAR apply/mutation flows
 - broader multi-account or portfolio-analytics cPAR views
+- broader cPAR what-if expansion beyond the current narrow account-scoped preview
 
 ## Shared App Chrome
 

@@ -19,7 +19,8 @@ Define how cPAR currently operates in this repo without implying unimplemented o
 It does not describe:
 - cUSE4 refresh lanes
 - cPAR frontend page details
-- future cPAR what-if or portfolio mutation flows
+- broader future cPAR what-if expansion
+- any portfolio mutation/apply flow
 
 ## Runtime Roles
 
@@ -94,11 +95,13 @@ Current frontend-backed read surfaces:
 - `GET /api/cpar/ticker/{ticker}`
 - `GET /api/cpar/ticker/{ticker}/hedge`
 - `GET /api/cpar/portfolio/hedge`
+- `POST /api/cpar/portfolio/whatif`
 
 The current detail route is ticker-keyed.
 Persisted search rows with `ticker = NULL` remain visible in search but are intentionally non-navigable in v1.
 The standalone hedge page reuses that same ticker-keyed selection rule and must fail closed when package identity drifts between the selected subject and the hedge preview.
 The first portfolio workflow is account-scoped and read-only: it reuses live holdings accounts/positions plus latest shared-source prices, but it does not reuse cUSE4 portfolio or what-if payload semantics.
+The first what-if workflow is embedded in `/cpar/portfolio` and remains preview-only: it stages signed share deltas against the same active package and account hedge baseline, but it does not apply trades or mutate holdings.
 
 ## Fail-Closed Cases
 
@@ -109,6 +112,7 @@ Current cPAR flows fail closed when:
 - active covariance coverage is partial for hedge preview
 - Neon authority reads are required and unavailable
 - package identity drifts between package metadata and a later detail/hedge/account payload
+- a staged what-if addition is not present in the active persisted cPAR package
 
 ## Runtime Troubleshooting
 
@@ -132,6 +136,6 @@ This operations baseline still does not include:
 - cPAR operator dashboard integration
 - route-triggered cPAR builds
 - request-time cPAR fitting
-- cPAR what-if or mutation flows
+- cPAR apply or mutation flows
 - cUSE4/cPAR comparison flows
-- broader portfolio analytics beyond the first account-level hedge workflow
+- broader portfolio analytics beyond the first account-level hedge and preview-only what-if workflow

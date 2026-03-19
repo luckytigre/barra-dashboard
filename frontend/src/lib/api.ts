@@ -43,6 +43,7 @@ export const apiPath = {
     params.set("mode", mode);
     return `/api/cpar/portfolio/hedge?${params.toString()}`;
   },
+  cparPortfolioWhatIf: () => "/api/cpar/portfolio/whatif",
   portfolio: () => "/api/portfolio",
   portfolioWhatIf: () => "/api/portfolio/whatif",
   portfolioWhatIfApply: () => "/api/portfolio/whatif/apply",

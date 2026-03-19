@@ -170,3 +170,32 @@ export interface CparPortfolioHedgeData extends CparPackageMeta {
   non_market_reduction_ratio: number | null;
   positions: CparPortfolioPositionRow[];
 }
+
+export interface CparPortfolioWhatIfScenarioRow {
+  ric: string;
+  ticker: string | null;
+  display_name: string | null;
+  quantity_delta: number;
+  current_quantity: number;
+  hypothetical_quantity: number;
+  price: number | null;
+  price_date: string | null;
+  price_field_used: string | null;
+  market_value_delta: number | null;
+  fit_status: CparFitStatus | null;
+  warnings: CparWarning[];
+  coverage: CparPortfolioCoverage;
+  coverage_reason: string | null;
+}
+
+export interface CparPortfolioWhatIfData extends CparPackageMeta {
+  account_id: string;
+  account_name: string | null;
+  mode: CparHedgeMode;
+  scenario_row_count: number;
+  changed_positions_count: number;
+  scenario_rows: CparPortfolioWhatIfScenarioRow[];
+  current: CparPortfolioHedgeData;
+  hypothetical: CparPortfolioHedgeData;
+  _preview_only: boolean;
+}

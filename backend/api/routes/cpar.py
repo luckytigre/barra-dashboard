@@ -1,20 +1,35 @@
-"""Read-only cPAR meta/search/ticker/hedge routes."""
+"""Read-only and preview cPAR routes."""
 
 from __future__ import annotations
 
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field, FiniteFloat
 
 from backend.services import (
     cpar_hedge_service,
     cpar_meta_service,
     cpar_portfolio_hedge_service,
+    cpar_portfolio_whatif_service,
     cpar_search_service,
     cpar_ticker_service,
 )
 
 router = APIRouter()
+MAX_CPAR_WHATIF_SCENARIO_ROWS = cpar_portfolio_whatif_service.MAX_CPAR_WHATIF_ROWS
+
+
+class CparWhatIfScenarioRow(BaseModel):
+    ric: str
+    quantity_delta: FiniteFloat
+    ticker: str | None = None
+
+
+class CparPortfolioWhatIfRequest(BaseModel):
+    account_id: str
+    mode: Literal["factor_neutral", "market_neutral"] = "factor_neutral"
+    scenario_rows: list[CparWhatIfScenarioRow] = Field(default_factory=list)
 
 
 def _raise_cpar_not_ready(message: str) -> None:
@@ -114,3 +129,29 @@ async def get_cpar_portfolio_hedge(
         _raise_cpar_unavailable(str(exc))
     except cpar_portfolio_hedge_service.CparPortfolioAccountNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/cpar/portfolio/whatif")
+async def post_cpar_portfolio_whatif(
+    payload: CparPortfolioWhatIfRequest,
+):
+    scenario_rows = [dict(row) for row in payload.model_dump().get("scenario_rows", [])]
+    if len(scenario_rows) > MAX_CPAR_WHATIF_SCENARIO_ROWS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many cPAR what-if rows. Max {MAX_CPAR_WHATIF_SCENARIO_ROWS}.",
+        )
+    try:
+        return cpar_portfolio_whatif_service.load_cpar_portfolio_whatif_payload(
+            account_id=payload.account_id,
+            mode=str(payload.mode),
+            scenario_rows=scenario_rows,
+        )
+    except cpar_meta_service.CparReadNotReady as exc:
+        _raise_cpar_not_ready(str(exc))
+    except cpar_meta_service.CparReadUnavailable as exc:
+        _raise_cpar_unavailable(str(exc))
+    except cpar_portfolio_hedge_service.CparPortfolioAccountNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

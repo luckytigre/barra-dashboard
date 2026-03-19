@@ -11,6 +11,7 @@ import type {
   CparHedgePreviewData,
   CparMetaData,
   CparPortfolioHedgeData,
+  CparPortfolioWhatIfData,
   CparSearchData,
   CparTickerDetailData,
   PortfolioData,
@@ -104,6 +105,37 @@ export function useCparPortfolioHedge(
   const cleanAccountId = accountId?.trim() || null;
   const key = enabled && cleanAccountId ? apiPath.cparPortfolioHedge(cleanAccountId, mode) : null;
   return useSWR<CparPortfolioHedgeData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparPortfolioWhatIf(
+  accountId: string | null,
+  mode: CparHedgeMode,
+  scenarioRows: Array<{ ric: string; ticker?: string | null; quantity_delta: number }>,
+  enabled = true,
+) {
+  const cleanAccountId = accountId?.trim() || null;
+  const cleanScenarioRows = scenarioRows.map((row) => ({
+    ric: row.ric.trim().toUpperCase(),
+    ticker: row.ticker?.trim().toUpperCase() || null,
+    quantity_delta: row.quantity_delta,
+  }));
+  const serializedRows = JSON.stringify(cleanScenarioRows);
+  const key = enabled && cleanAccountId && cleanScenarioRows.length > 0
+    ? [apiPath.cparPortfolioWhatIf(), cleanAccountId, mode, serializedRows]
+    : null;
+  return useSWR<CparPortfolioWhatIfData>(
+    key,
+    ([path, account_id, hedgeMode, rows]) => apiFetch<CparPortfolioWhatIfData>(String(path), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        account_id,
+        mode: hedgeMode,
+        scenario_rows: JSON.parse(String(rows)),
+      }),
+    }),
+    SWR_OPTS,
+  );
 }
 
 export function useHoldingsModes() {

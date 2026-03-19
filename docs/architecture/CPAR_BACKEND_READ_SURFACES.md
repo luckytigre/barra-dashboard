@@ -1,10 +1,10 @@
 # cPAR Backend Read Surfaces
 
 Date: 2026-03-19
-Status: Active slice-4 read-only backend implementation notes
+Status: Active cPAR backend read and preview implementation notes
 Owner: Codex
 
-This document describes the read-only cPAR service and API route layer.
+This document describes the cPAR service and API route layer for read-only and preview flows.
 
 Related cPAR docs:
 - [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
@@ -12,7 +12,7 @@ Related cPAR docs:
 
 ## Purpose
 
-This slice exposes the backend read surfaces used by `/cpar`, `/cpar/explore`, `/cpar/hedge`, and `/cpar/portfolio`.
+This slice exposes the backend surfaces used by `/cpar`, `/cpar/explore`, `/cpar/hedge`, and `/cpar/portfolio`.
 
 It does not add:
 - frontend code
@@ -48,6 +48,14 @@ It does not add:
 - aggregates only covered persisted cPAR thresholded loadings into one hedge vector
 - reports `coverage_ratio` as covered gross market value divided by priced gross market value
 - supported `mode` values are `factor_neutral` and `market_neutral`
+
+`POST /api/cpar/portfolio/whatif`
+- returns a preview-only account-scoped cPAR what-if payload
+- accepts `account_id`, `mode`, and `scenario_rows[{ric,ticker,quantity_delta}]`
+- reuses the active package, the same account-level hedge baseline, and live holdings/account plumbing
+- stages signed share deltas only; it does not mutate holdings or apply trades
+- additions outside the current holdings set must come from active-package search hits and therefore must be present in the active persisted cPAR fits
+- response returns `scenario_rows`, `current`, `hypothetical`, and `_preview_only = true`
 
 ## Read Authority
 
@@ -92,6 +100,8 @@ Portfolio-route limitations:
 - it reuses holdings/account reads but does not reuse cUSE4 portfolio or what-if payloads
 - accounts with no live holdings rows return an explicit empty portfolio state instead of a synthesized hedge result
 - accounts whose live holdings rows have no usable priced+cPAR-covered rows return an explicit unavailable portfolio state instead of a partial synthetic hedge
+- the what-if preview remains preview-only and does not create an apply/mutation path
+- staged additions must already exist in the active package; the route does not request-time fit new names
 
 ## Hedge Preview Behavior
 
@@ -110,4 +120,5 @@ This slice still does not include:
 - cPAR runtime-state keys
 - cPAR serving-payload surfaces
 - any route-triggered build path
-- any cPAR mutation or what-if route
+- any cPAR apply or mutation route
+- any broader multi-account or strategy-style cPAR what-if route
