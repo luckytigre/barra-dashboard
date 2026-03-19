@@ -84,6 +84,7 @@ def load_cpar_hedge_payload(
     data_db=None,
 ) -> dict[str, object]:
     package = cpar_meta_service.require_active_package(data_db=data_db)
+    previous_weights: dict[str, float] | None = None
     try:
         fit = cpar_outputs.load_active_package_instrument_fit(
             ticker=ticker,
@@ -91,19 +92,6 @@ def load_cpar_hedge_payload(
             data_db=data_db,
         )
         covariance_rows = cpar_outputs.load_active_package_covariance_rows(data_db=data_db)
-        previous_fit = cpar_outputs.load_previous_successful_instrument_fit(
-            ric=str((fit or {}).get("ric") or ""),
-            before_package_date=str(package["package_date"]),
-            data_db=data_db,
-        ) if fit is not None else None
-        previous_covariance_rows = (
-            cpar_outputs.load_package_covariance_rows(
-                str(previous_fit["package_run_id"]),
-                data_db=data_db,
-            )
-            if previous_fit is not None
-            else []
-        )
     except cpar_outputs.CparPackageNotReady as exc:
         raise cpar_meta_service.CparReadNotReady(str(exc)) from exc
     except cpar_outputs.CparAuthorityReadError as exc:
@@ -115,15 +103,28 @@ def load_cpar_hedge_payload(
             f"Ticker {str(ticker).upper().strip()} was not found in the active cPAR package."
         )
     covariance = _covariance_lookup(covariance_rows)
-    previous_weights: dict[str, float] | None = None
-    if previous_fit is not None and previous_covariance_rows:
-        previous_preview = hedge_engine.build_hedge_preview(
-            mode=mode,
-            thresholded_loadings=dict(previous_fit.get("thresholded_loadings") or {}),
-            covariance=_covariance_lookup(previous_covariance_rows),
-            fit_status=str(previous_fit.get("fit_status") or ""),
+    try:
+        previous_fit = cpar_outputs.load_previous_successful_instrument_fit(
+            ric=str(fit.get("ric") or ""),
+            before_package_date=str(package["package_date"]),
+            data_db=data_db,
         )
-        previous_weights = dict(previous_preview.hedge_weights)
+        if previous_fit is not None:
+            previous_covariance_rows = cpar_outputs.load_package_covariance_rows(
+                str(previous_fit["package_run_id"]),
+                data_db=data_db,
+                require_complete=True,
+                context_label="Previous cPAR package used for hedge stability diagnostics",
+            )
+            previous_preview = hedge_engine.build_hedge_preview(
+                mode=mode,
+                thresholded_loadings=dict(previous_fit.get("thresholded_loadings") or {}),
+                covariance=_covariance_lookup(previous_covariance_rows),
+                fit_status=str(previous_fit.get("fit_status") or ""),
+            )
+            previous_weights = dict(previous_preview.hedge_weights)
+    except Exception:
+        previous_weights = None
     preview = hedge_engine.build_hedge_preview(
         mode=mode,
         thresholded_loadings=dict(fit.get("thresholded_loadings") or {}),
