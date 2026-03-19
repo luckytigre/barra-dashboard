@@ -275,10 +275,10 @@ try {
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=AAPL&ric=AAPL.OQ`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-package-mismatch").waitFor();
-    assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
+    assert.equal(await page.getByTestId("cpar-hedge-workspace-card").count(), 0);
 
     scenario = "hedge_mismatch";
-    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=AAPL&ric=AAPL.OQ`, { waitUntil: "domcontentloaded" });
+    await gotoWithRetry(page, `${BASE_URL}/cpar/hedge?ticker=AAPL&ric=AAPL.OQ`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-hedge-panel").waitFor();
     await page.getByTestId("cpar-hedge-package-mismatch").waitFor();
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);

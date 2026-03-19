@@ -85,6 +85,7 @@ The current read surfaces do not:
 Current frontend-backed read surfaces:
 - `/cpar`
 - `/cpar/explore`
+- `/cpar/hedge`
 - `GET /api/cpar/meta`
 - `GET /api/cpar/search`
 - `GET /api/cpar/ticker/{ticker}`
@@ -92,6 +93,7 @@ Current frontend-backed read surfaces:
 
 The current detail route is ticker-keyed.
 Persisted search rows with `ticker = NULL` remain visible in search but are intentionally non-navigable in v1.
+The standalone hedge page reuses that same ticker-keyed selection rule and must fail closed when package identity drifts between the selected subject and the hedge preview.
 
 ## Fail-Closed Cases
 

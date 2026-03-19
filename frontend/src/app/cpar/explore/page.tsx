@@ -1,22 +1,29 @@
 "use client";
 
 import { Suspense } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta, useCparTicker } from "@/hooks/useApi";
-import { canNavigateCparSearchResult, formatCparPackageDate, readCparError, sameCparPackageIdentity } from "@/lib/cparTruth";
+import { canNavigateCparSearchResult, readCparError, sameCparPackageIdentity } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
-import CparHedgePanel from "@/features/cpar/components/CparHedgePanel";
+import CparInstrumentSummaryCard from "@/features/cpar/components/CparInstrumentSummaryCard";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
 import CparPackageBanner from "@/features/cpar/components/CparPackageBanner";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
-import CparWarningsBar from "@/features/cpar/components/CparWarningsBar";
 
 function buildExploreHref(item: CparSearchItem): string {
   const params = new URLSearchParams();
   if (item.ticker) params.set("ticker", item.ticker);
   params.set("ric", item.ric);
   return `/cpar/explore?${params.toString()}`;
+}
+
+function buildHedgeHref(ticker: string | null | undefined, ric: string): string {
+  const params = new URLSearchParams();
+  if (ticker) params.set("ticker", ticker);
+  params.set("ric", ric);
+  return `/cpar/hedge?${params.toString()}`;
 }
 
 function CparExplorePageInner() {
@@ -113,63 +120,40 @@ function CparExplorePageInner() {
             <div className="cpar-inline-message error" data-testid="cpar-package-mismatch">
               <strong>Active package changed during read.</strong>
               <span>The banner package no longer matches the persisted detail row.</span>
-              <span>Reload the page to pin one cPAR package before reading loadings or hedge output.</span>
+              <span>Reload the page to pin one cPAR package before reading loadings or opening the hedge workspace.</span>
             </div>
           ) : detail ? (
-            <>
-              <div className="cpar-detail-header">
-                <div>
-                  <div className="cpar-detail-title">{detail.display_name || detail.ticker || detail.ric}</div>
-                  <div className="cpar-detail-subtitle">
-                    {detail.ticker || "—"} · {detail.ric} · HQ {detail.hq_country_code || "—"}
+            <CparInstrumentSummaryCard
+              detail={detail}
+              footer={
+                detailBlocked ? (
+                  <div className="cpar-inline-message warning" data-testid="cpar-insufficient-history">
+                    <strong>Loadings and the hedge workflow are blocked.</strong>
+                    <span>
+                      This row is persisted as `insufficient_history`, so the frontend only renders identity, package
+                      metadata, and warnings.
+                    </span>
                   </div>
-                </div>
-                <CparWarningsBar fitStatus={detail.fit_status} warnings={detail.warnings} />
-              </div>
-              <div className="cpar-package-grid compact">
-                <div className="cpar-package-metric">
-                  <div className="cpar-package-label">Observed</div>
-                  <div className="cpar-package-value">{detail.observed_weeks}w</div>
-                  <div className="cpar-package-detail">Longest gap {detail.longest_gap_weeks}w</div>
-                </div>
-                <div className="cpar-package-metric">
-                  <div className="cpar-package-label">Price Field</div>
-                  <div className="cpar-package-value">{detail.price_field_used || "—"}</div>
-                  <div className="cpar-package-detail">Package date {formatCparPackageDate(detail.package_date)}</div>
-                </div>
-                <div className="cpar-package-metric">
-                  <div className="cpar-package-label">Pre-Hedge Vol</div>
-                  <div className="cpar-package-value">{detail.pre_hedge_factor_volatility_proxy?.toFixed(3) || "—"}</div>
-                  <div className="cpar-package-detail">
-                    Variance {detail.pre_hedge_factor_variance_proxy?.toFixed(3) || "—"}
+                ) : (
+                  <div className="cpar-inline-message neutral">
+                    <strong>Explore stays on persisted fit interpretation.</strong>
+                    <span>
+                      Use the dedicated hedge workspace for mode switching, hedge legs, and post-hedge inspection. This
+                      page stays focused on the selected package row and its loadings.
+                    </span>
+                    <div className="cpar-badge-row compact">
+                      <Link
+                        href={buildHedgeHref(detail.ticker, detail.ric)}
+                        className="cpar-detail-chip"
+                        prefetch={false}
+                      >
+                        Open Hedge Workspace
+                      </Link>
+                    </div>
                   </div>
-                </div>
-                <div className="cpar-package-metric">
-                  <div className="cpar-package-label">SPY Trade Beta</div>
-                  <div className="cpar-package-value">{detail.beta_spy_trade?.toFixed(3) || "—"}</div>
-                  <div className="cpar-package-detail">
-                    Market step {detail.beta_market_step1?.toFixed(3) || "—"}
-                  </div>
-                </div>
-              </div>
-              {detailBlocked ? (
-                <div className="cpar-inline-message warning" data-testid="cpar-insufficient-history">
-                  <strong>Loadings and hedge output are blocked.</strong>
-                  <span>
-                    This row is persisted as `insufficient_history`, so the frontend only renders identity, package
-                    metadata, and warnings.
-                  </span>
-                </div>
-              ) : (
-                <div className="cpar-inline-message neutral">
-                  <strong>Package-only semantics.</strong>
-                  <span>
-                    This detail row and the hedge preview below are both derived from the same active package date,
-                    without any request-time refit.
-                  </span>
-                </div>
-              )}
-            </>
+                )
+              }
+            />
           ) : null}
         </section>
       </div>
@@ -184,14 +168,29 @@ function CparExplorePageInner() {
               emptyText="Thresholding zeroed every non-market leg in the persisted trade-space payload."
             />
           </div>
-
-          <CparHedgePanel
-            ticker={detail.ticker || ticker || detail.ric}
-            ric={detail.ric}
-            fitStatus={detail.fit_status}
-            expectedPackageRunId={detail.package_run_id}
-            expectedPackageDate={detail.package_date}
-          />
+          <section className="chart-card" data-testid="cpar-hedge-workspace-card">
+            <h3>Dedicated Hedge Workflow</h3>
+            <div className="section-subtitle">
+              Hedge preview, mode switching, and post-hedge inspection now live on `/cpar/hedge` so explore can stay
+              focused on persisted fit detail and loadings.
+            </div>
+            <div className="cpar-inline-message neutral">
+              <strong>Open the same instrument in the hedge workspace.</strong>
+              <span>
+                The hedge page reuses the same active-package ticker and RIC selection, then applies the persisted
+                hedge route without any request-time refit.
+              </span>
+              <div className="cpar-badge-row compact">
+                <Link
+                  href={buildHedgeHref(detail.ticker, detail.ric)}
+                  className="cpar-detail-chip"
+                  prefetch={false}
+                >
+                  Continue To /cpar/hedge
+                </Link>
+              </div>
+            </div>
+          </section>
         </>
       ) : null}
 
@@ -199,11 +198,12 @@ function CparExplorePageInner() {
         <section className="chart-card">
           <h3>Interpretation Note</h3>
           <div className="section-subtitle">
-            `limited_history` still renders loadings and hedge output, but adjacent package comparisons deserve more
+            `limited_history` still renders persisted loadings and keeps the hedge workspace available, but adjacent package comparisons deserve more
             caution than a full-history `ok` row.
           </div>
           <div className="detail-history-empty compact">
-            If the hedge is available, compare the stability and non-market reduction metrics before using it.
+            If you open `/cpar/hedge`, compare the stability and non-market reduction metrics before using the persisted
+            hedge output.
           </div>
           {detail.pre_hedge_factor_variance_proxy !== null ? (
             <div className="cpar-detail-chip">

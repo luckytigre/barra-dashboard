@@ -1,10 +1,10 @@
 # cPAR Frontend Surfaces
 
-Date: 2026-03-18
-Status: Active slice-5 frontend notes
+Date: 2026-03-19
+Status: Active slice-6 frontend notes
 Owner: Codex
 
-This document describes the first cPAR frontend slice.
+This document describes the current cPAR frontend surfaces after the standalone hedge-page slice.
 
 Related cPAR docs:
 - [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
@@ -12,10 +12,9 @@ Related cPAR docs:
 
 ## Purpose
 
-This slice adds the first UI for the read-only cPAR backend surfaces.
+This slice expands the read-only cPAR frontend without widening backend compute scope.
 
 It does not add:
-- a standalone `/cpar/hedge` page
 - portfolio or holdings overlays
 - cUSE4 vs cPAR comparison views
 - route-triggered build behavior
@@ -31,8 +30,15 @@ It does not add:
 - provides the search entry point into explore
 
 `/cpar/explore`
-- primary v1 cPAR page
-- owns search, ticker selection, detail rendering, hedge mode toggle, hedge preview, and post-hedge display
+- general cPAR discovery/detail page
+- owns search, ticker selection, persisted fit detail, and loadings interpretation
+- links into `/cpar/hedge` for hedge-specific interaction
+- uses the active package only
+
+`/cpar/hedge`
+- dedicated hedge workflow page
+- owns search, ticker selection, persisted hedge-subject summary, hedge mode toggle, hedge preview, and post-hedge display
+- links back to `/cpar/explore` for raw and thresholded loadings review
 - uses the active package only
 
 ## Backend Contracts Used By The Frontend
@@ -51,9 +57,11 @@ It does not add:
 - persisted hedge preview only
 - no request-time refit
 
-Explore-page consistency rule:
+Page consistency rule:
 - the frontend must treat `meta`, `ticker detail`, and `hedge` as one package-scoped flow
 - if those responses do not share the same `package_run_id` / `package_date`, the page must fail closed instead of mixing surfaces from different active packages
+- `/cpar/explore` enforces this for banner plus detail
+- `/cpar/hedge` enforces this for banner, selected subject, and hedge preview
 
 ## Status And Warning Rendering
 
@@ -72,11 +80,32 @@ Read failures:
 - ticker ambiguity is rendered as a UI instruction to choose a specific RIC from search results
 - search hits without a ticker render as non-navigable rows because the current detail route is ticker-keyed
 - a direct `/cpar/explore?ric=...` visit without `ticker=` must render an explanatory warning rather than silently failing or synthesizing a detail request
+- a direct `/cpar/hedge?ric=...` visit without `ticker=` must render the same explanatory warning because the current hedge route is also ticker-keyed
 - package-identity drift between active-package reads must render an explicit reload prompt rather than mixing banner/detail/hedge data from different packages
+
+## Hedge Workflow Split
+
+`/cpar/explore`
+- remains the persisted fit discovery/detail surface
+- keeps raw and thresholded loadings visible
+- does not own hedge mode switching or post-hedge interpretation anymore
+
+`/cpar/hedge`
+- remains the focused hedge workflow surface
+- reuses persisted detail only to identify the selected subject and package
+- owns hedge mode switching, hedge legs, and post-hedge interpretation
+
+## Smoke Coverage
+
+Current cPAR frontend smokes cover:
+- `/cpar` landing and `/cpar/explore` baseline flow
+- `/cpar/hedge` baseline flow
+- `not_ready`
+- `unavailable`
+- package mismatch
 
 ## Deferred After This Slice
 
-- dedicated `/cpar/hedge`
 - frontend operator surfaces
 - cPAR portfolio integration
 - cPAR what-if integration

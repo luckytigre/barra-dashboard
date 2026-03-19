@@ -303,6 +303,11 @@ try {
     assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
+    await gotoWithRetry(page, `${BASE_URL}/cpar/hedge?ticker=AAPL&ric=AAPL.OQ`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-hedge-not-ready").waitFor();
+    await page.getByText("cPAR Hedge Not Ready").waitFor();
+    await page.getByText("Publish a durable cPAR package first, then reload.").waitFor();
+
     metaReady = true;
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=AAPL`, { waitUntil: "domcontentloaded" });

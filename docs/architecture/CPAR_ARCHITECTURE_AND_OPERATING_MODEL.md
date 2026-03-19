@@ -82,12 +82,14 @@ Read-only backend routes:
 Frontend pages:
 - `/cpar`
 - `/cpar/explore`
+- `/cpar/hedge`
 
 There is no cPAR blob-serving surface in the current implementation.
 API payloads are assembled from authoritative relational `cpar_*` tables.
 
 Frontend consistency rule:
 - `/cpar/explore` must not mix package banners, detail rows, and hedge previews from different active packages
+- `/cpar/hedge` must not mix package banners, subject rows, and hedge previews from different active packages
 - if package identity drifts between independent reads, the page fails closed and prompts the user to reload
 
 ## Active-Package Semantics
@@ -132,7 +134,6 @@ Current UI contract:
 ## Current Deferred Limits
 
 The current cPAR implementation intentionally defers:
-- standalone `/cpar/hedge`
 - portfolio or holdings overlays
 - cUSE4 vs cPAR comparison views
 - runtime-state/operator dashboard integration

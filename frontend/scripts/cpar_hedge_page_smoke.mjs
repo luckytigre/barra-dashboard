@@ -6,40 +6,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { chromium } from "playwright";
 
 const HOST = "127.0.0.1";
-const PORT = 3102;
+const PORT = 3106;
 const BASE_URL = `http://${HOST}:${PORT}`;
 const __filename = fileURLToPath(import.meta.url);
 const FRONTEND_ROOT = path.resolve(path.dirname(__filename), "..");
-
-function factorRegistry() {
-  return [
-    ["SPY", "SPY", "Market", "market", 0],
-    ["XLB", "XLB", "Materials", "sector", 10],
-    ["XLC", "XLC", "Communication Services", "sector", 11],
-    ["XLE", "XLE", "Energy", "sector", 12],
-    ["XLF", "XLF", "Financials", "sector", 13],
-    ["XLI", "XLI", "Industrials", "sector", 14],
-    ["XLK", "XLK", "Technology", "sector", 15],
-    ["XLP", "XLP", "Consumer Staples", "sector", 16],
-    ["XLRE", "XLRE", "Real Estate", "sector", 17],
-    ["XLU", "XLU", "Utilities", "sector", 18],
-    ["XLV", "XLV", "Health Care", "sector", 19],
-    ["XLY", "XLY", "Consumer Discretionary", "sector", 20],
-    ["MTUM", "MTUM", "Momentum", "style", 30],
-    ["VLUE", "VLUE", "Value", "style", 31],
-    ["QUAL", "QUAL", "Quality", "style", 32],
-    ["USMV", "USMV", "Low Volatility", "style", 33],
-    ["IWM", "IWM", "Size", "style", 34],
-  ].map(([factor_id, ticker, label, group, display_order]) => ({
-    factor_id,
-    ticker,
-    label,
-    group,
-    display_order,
-    method_version: "cPAR1",
-    factor_registry_version: "cPAR1_registry_v1",
-  }));
-}
 
 async function waitForServer(url, timeoutMs = 120000) {
   const startedAt = Date.now();
@@ -59,6 +29,40 @@ async function waitForServer(url, timeoutMs = 120000) {
 
 function tail(lines) {
   return lines.slice(-40).join("");
+}
+
+async function gotoWithRetry(page, url, options, attempts = 3) {
+  let lastError = null;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      await page.goto(url, options);
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("ERR_ABORTED") || index === attempts - 1) {
+        throw error;
+      }
+      await delay(500);
+    }
+  }
+  throw lastError ?? new Error(`Failed to navigate to ${url}`);
+}
+
+function factorRegistry() {
+  return [
+    ["SPY", "SPY", "Market", "market", 0],
+    ["XLK", "XLK", "Technology", "sector", 15],
+    ["QUAL", "QUAL", "Quality", "style", 32],
+  ].map(([factor_id, ticker, label, group, display_order]) => ({
+    factor_id,
+    ticker,
+    label,
+    group,
+    display_order,
+    method_version: "cPAR1",
+    factor_registry_version: "cPAR1_registry_v1",
+  }));
 }
 
 const serverStdout = [];
@@ -96,32 +100,13 @@ async function cleanup() {
   ]);
 }
 
-async function gotoWithRetry(page, url, options, attempts = 3) {
-  let lastError = null;
-  for (let index = 0; index < attempts; index += 1) {
-    try {
-      await page.goto(url, options);
-      return;
-    } catch (error) {
-      lastError = error;
-      const message = error instanceof Error ? error.message : String(error);
-      if (!message.includes("ERR_ABORTED") || index === attempts - 1) {
-        throw error;
-      }
-      await delay(500);
-    }
-  }
-  throw lastError ?? new Error(`Failed to navigate to ${url}`);
-}
-
 try {
-  await waitForServer(`${BASE_URL}/cpar`);
+  await waitForServer(`${BASE_URL}/cpar/hedge`);
 
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
     debugPage = page;
-
     page.on("pageerror", (error) => {
       capturedPageError = error;
     });
@@ -312,38 +297,31 @@ try {
       return fulfillJson({ error: `Unhandled API route ${pathName}` }, 500);
     });
 
-    await gotoWithRetry(page, `${BASE_URL}/cpar`, { waitUntil: "domcontentloaded" });
-    await page.getByRole("link", { name: "cPAR" }).waitFor();
-    await page.getByTestId("cpar-package-banner").waitFor();
-    await page.getByTestId("cpar-factor-registry").waitFor();
-    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
+    await gotoWithRetry(page, `${BASE_URL}/cpar/hedge?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-hedge-subject-panel").getByText("RIC result cannot open hedge directly.").waitFor();
+    assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
 
     await page.getByTestId("cpar-search-input").fill("AAPL");
     const searchResults = page.getByTestId("cpar-search-results");
     await searchResults.waitFor();
     assert.equal(await searchResults.locator("button").first().isDisabled(), true);
-    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
-    const detailPanel = page.getByTestId("cpar-detail-panel");
-    await detailPanel.waitFor();
-    await detailPanel.getByText("RIC result cannot open detail directly.").waitFor();
-    await detailPanel.getByText("the current cPAR detail route is ticker-keyed", { exact: false }).waitFor();
+    await searchResults.locator("button").nth(1).click();
+    await page.waitForURL(/\/cpar\/hedge\?ticker=AAPL&ric=AAPL\.OQ/);
+    await page.getByTestId("cpar-hedge-subject-panel").getByText("Apple Inc.").waitFor();
+    await page.getByTestId("cpar-hedge-panel").waitFor();
+    await page.getByTestId("cpar-post-hedge-table").waitFor();
+    await page.getByRole("link", { name: "Review Loadings In /cpar/explore" }).waitFor();
     assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
-    await page.getByTestId("cpar-search-input").fill("AAPL");
-    await searchResults.locator("button").nth(1).click();
-    await detailPanel.getByText("Apple Inc.").waitFor();
-    await page.getByTestId("cpar-hedge-workspace-card").waitFor();
-    await page.getByRole("link", { name: "Continue To /cpar/hedge" }).waitFor();
-    assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
-    assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+    await page.getByRole("button", { name: "Market Neutral" }).click();
+    await page.getByText("SPY-only hedge").waitFor();
 
     if (capturedPageError) {
       throw capturedPageError;
     }
 
-    assert.equal(page.url().includes("/cpar/explore"), true);
+    assert.equal(page.url().includes("/cpar/hedge"), true);
   } finally {
     await browser.close();
   }

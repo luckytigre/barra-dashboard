@@ -196,6 +196,43 @@ try {
       }
 
       if (method === "GET" && pathName === "/api/cpar/ticker/AAPL") {
+        if (scenario === "hedge_unavailable") {
+          return fulfillJson({
+            package_run_id: "run_curr",
+            package_date: "2026-03-14",
+            profile: "cpar-weekly",
+            method_version: "cPAR1",
+            factor_registry_version: "cPAR1_registry_v1",
+            data_authority: "neon",
+            lookback_weeks: 52,
+            half_life_weeks: 26,
+            min_observations: 39,
+            source_prices_asof: "2026-03-14",
+            classification_asof: "2026-03-14",
+            universe_count: 100,
+            fit_ok_count: 90,
+            fit_limited_count: 8,
+            fit_insufficient_count: 2,
+            ticker: "AAPL",
+            ric: "AAPL.OQ",
+            display_name: "Apple Inc.",
+            fit_status: "ok",
+            warnings: [],
+            observed_weeks: 52,
+            lookback_weeks: 52,
+            longest_gap_weeks: 0,
+            price_field_used: "adj_close",
+            hq_country_code: "US",
+            market_step_alpha: 0.01,
+            beta_market_step1: 1.18,
+            block_alpha: 0.0,
+            beta_spy_trade: 1.12,
+            raw_loadings: [{ factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 }],
+            thresholded_loadings: [{ factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 }],
+            pre_hedge_factor_variance_proxy: 0.24,
+            pre_hedge_factor_volatility_proxy: 0.49,
+          });
+        }
         return fulfillJson(
           {
             detail: {
@@ -209,6 +246,18 @@ try {
       }
 
       if (method === "GET" && pathName === "/api/cpar/ticker/AAPL/hedge") {
+        if (scenario === "hedge_unavailable") {
+          return fulfillJson(
+            {
+              detail: {
+                status: "unavailable",
+                error: "cpar_authority_unavailable",
+                message: "Neon cPAR read failed.",
+              },
+            },
+            503,
+          );
+        }
         return fulfillJson({ error: "unexpected hedge request" }, 500);
       }
 
@@ -225,6 +274,14 @@ try {
     await detailPanel.getByText("Detail unavailable.").waitFor();
     await detailPanel.getByText("Neon cPAR read failed.").waitFor();
     assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
+
+    scenario = "hedge_unavailable";
+    await gotoWithRetry(page, `${BASE_URL}/cpar/hedge?ticker=AAPL&ric=AAPL.OQ`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-hedge-subject-panel").getByText("Apple Inc.").waitFor();
+    await page.getByTestId("cpar-hedge-panel").waitFor();
+    await page.getByText("Hedge preview unavailable.").waitFor();
+    await page.getByText("Neon cPAR read failed.").waitFor();
+    assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
 
     if (capturedPageError) {
       throw capturedPageError;
