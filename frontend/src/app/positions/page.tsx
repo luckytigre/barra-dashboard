@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
-import ApiErrorState from "@/components/ApiErrorState";
+import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import ConfirmActionModal from "@/components/ConfirmActionModal";
 import {
   useHoldingsAccounts,
@@ -10,14 +10,14 @@ import {
   useHoldingsPositions,
   usePortfolio,
   useRisk,
-} from "@/hooks/useApi";
-import type { HoldingsImportMode } from "@/lib/types";
+} from "@/hooks/useCuse4Api";
+import type { HoldingsImportMode } from "@/lib/types/cuse4";
 import HoldingsImportPanel from "@/features/holdings/components/HoldingsImportPanel";
 import HoldingsLedgerSection from "@/features/holdings/components/HoldingsLedgerSection";
 import HoldingsMutationFeedback from "@/features/holdings/components/HoldingsMutationFeedback";
 import ManualPositionEditor from "@/features/holdings/components/ManualPositionEditor";
 import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
-import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
+import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/cuse4Truth";
 import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
 
 function modeLabel(m: HoldingsImportMode): string {

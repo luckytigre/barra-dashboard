@@ -1,4 +1,9 @@
-"""Canonical serving-payload assembly for dashboard routes."""
+"""Compatibility module for cUSE4 dashboard payload assembly.
+
+Prefer importing `backend.services.cuse4_dashboard_payload_service` from the
+default cUSE4 route family. This module remains as the compatibility home for
+existing tests and older callers.
+"""
 
 from __future__ import annotations
 

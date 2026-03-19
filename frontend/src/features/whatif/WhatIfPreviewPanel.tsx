@@ -1,10 +1,10 @@
 "use client";
 
 import type { Ref } from "react";
-import ExposureBarChart from "@/components/ExposureBarChart";
+import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
 import { shortFactorLabel } from "@/lib/factorLabels";
-import type { WhatIfPreviewData } from "@/lib/types";
-import { formatAsOfDate } from "@/lib/analyticsTruth";
+import type { WhatIfPreviewData } from "@/lib/types/cuse4";
+import { formatAsOfDate } from "@/lib/cuse4Truth";
 import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
 import { fmtQty, WHAT_IF_MODES, type WhatIfMode } from "@/features/whatif/whatIfUtils";
 

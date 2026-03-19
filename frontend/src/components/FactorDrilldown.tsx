@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { FactorDrilldownItem } from "@/lib/types";
+import type { FactorDrilldownItem } from "@/lib/types/cuse4";
 import TableRowToggle from "@/components/TableRowToggle";
 import FactorHistoryChart from "@/components/FactorHistoryChart";
 import HelpLabel from "@/components/HelpLabel";
-import { useFactorHistory } from "@/hooks/useApi";
+import { useFactorHistory } from "@/hooks/useCuse4Api";
 import { shortFactorLabel } from "@/lib/factorLabels";
-import type { FactorCatalogEntry } from "@/lib/types";
+import type { FactorCatalogEntry } from "@/lib/types/cuse4";
 import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";
 
 interface FactorDrilldownProps {

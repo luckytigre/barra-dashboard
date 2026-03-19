@@ -6,7 +6,7 @@ from fastapi import APIRouter, Query
 
 from backend.api.routes.presenters import normalize_trbc_sector_fields
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.services import universe_service
+from backend.services import cuse4_universe_service as universe_service
 
 router = APIRouter()
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import ApiErrorState from "@/components/ApiErrorState";
+import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import TableRowToggle from "@/components/TableRowToggle";
-import type { HoldingsPosition, Position } from "@/lib/types";
+import type { HoldingsPosition, Position } from "@/lib/types/cuse4";
 import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";
 import InlineShareDraftEditor from "./InlineShareDraftEditor";
 

@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBackground, type BgMode } from "./BackgroundContext";
-import { useOperatorStatus } from "@/hooks/useApi";
-import { runServeRefreshAndRevalidate } from "@/lib/refresh";
+import { useOperatorStatus } from "@/hooks/useCuse4Api";
+import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
 const TABS = [
   { href: "/exposures", label: "Risk" },

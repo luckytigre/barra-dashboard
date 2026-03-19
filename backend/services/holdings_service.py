@@ -1,4 +1,9 @@
-"""Holdings application service for Neon-backed portfolio mutations."""
+"""Compatibility module for cUSE4 holdings read/mutation semantics.
+
+Prefer importing `backend.services.cuse4_holdings_service` from the default
+cUSE4 holdings and portfolio routes. This module remains as the compatibility
+home for older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 

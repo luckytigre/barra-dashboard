@@ -1,4 +1,9 @@
-"""Factor-history route service."""
+"""Compatibility module for cUSE4 factor-history route semantics.
+
+Prefer importing `backend.services.cuse4_factor_history_service` from the
+default cUSE4 route family. This module remains as the compatibility home for
+older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 

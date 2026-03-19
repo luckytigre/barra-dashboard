@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.services import dashboard_payload_service
+from backend.services import cuse4_dashboard_payload_service as dashboard_payload_service
 
 router = APIRouter()
 

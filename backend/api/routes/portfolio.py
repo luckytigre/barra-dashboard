@@ -11,9 +11,9 @@ from backend import config
 from backend.api.auth import require_role
 from backend.api.routes.presenters import normalize_trbc_sector_fields
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.services import holdings_service
-from backend.services import dashboard_payload_service
-from backend.services.portfolio_whatif import preview_portfolio_whatif
+from backend.services import cuse4_holdings_service as holdings_service
+from backend.services import cuse4_dashboard_payload_service as dashboard_payload_service
+from backend.services.cuse4_portfolio_whatif import preview_portfolio_whatif
 
 router = APIRouter()
 MAX_WHATIF_SCENARIO_ROWS = 100

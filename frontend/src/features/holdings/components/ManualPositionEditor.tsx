@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { HoldingsAccount, UniverseSearchItem } from "@/lib/types";
-import { useUniverseSearch } from "@/hooks/useApi";
+import type { HoldingsAccount, UniverseSearchItem } from "@/lib/types/cuse4";
+import { useUniverseSearch } from "@/hooks/useCuse4Api";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 function highlightMatch(text: string, query: string) {

@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
-import ApiErrorState from "@/components/ApiErrorState";
+import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import TickerQuoteCard from "@/features/explore/components/TickerQuoteCard";
 import ExploreWhatIfSection from "@/features/whatif/ExploreWhatIfSection";
 import {
@@ -11,9 +11,9 @@ import {
   useUniverseSearch,
   useUniverseTicker,
   useUniverseTickerHistory,
-} from "@/hooks/useApi";
+} from "@/hooks/useCuse4Api";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import type { FactorExposure } from "@/lib/types";
+import type { FactorExposure } from "@/lib/types/cuse4";
 
 export default function ExplorePage() {
   const [query, setQuery] = useState("");

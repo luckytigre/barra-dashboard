@@ -1,7 +1,7 @@
 "use client";
 
 import HelpLabel from "@/components/HelpLabel";
-import type { HealthDiagnosticsData } from "@/lib/types";
+import type { HealthDiagnosticsData } from "@/lib/types/cuse4";
 import { Bar, Line } from "./charts";
 import { commonLineOptions, fmtPct, seriesData } from "./utils";
 

@@ -79,6 +79,13 @@ Practical rule:
 - when touching pure cUSE4 model logic, keep it in `backend/risk_model/*`
 - when touching pure cPAR model logic, keep it in `backend/cpar/*`
 - when touching cPAR integration, keep it in normal repo layers with `cpar_*` naming
+- when touching default cUSE4 frontend imports, prefer the explicit cUSE4 surfaces:
+  - `frontend/src/hooks/useCuse4Api.ts`
+  - `frontend/src/lib/cuse4Api.ts`
+  - `frontend/src/lib/types/cuse4.ts`
+  - `frontend/src/lib/cuse4Truth.ts`
+  - `frontend/src/lib/cuse4Refresh.ts`
+  - `frontend/src/features/cuse4/components/*` for shared cUSE4 visual components
 
 ## Where New Code Should NOT Go
 

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
-import type { HealthDiagnosticsData } from "@/lib/types";
+import type { HealthDiagnosticsData } from "@/lib/types/cuse4";
 import {
   COLLAPSED_ROWS,
   type CoverageSortKey,

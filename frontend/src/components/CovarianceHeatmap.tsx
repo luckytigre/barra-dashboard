@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
-import type { CovMatrix, FactorCatalogEntry } from "@/lib/types";
+import type { CovMatrix, FactorCatalogEntry } from "@/lib/types/cuse4";
 import { factorDisplayName, factorFamily, shortFactorLabel } from "@/lib/factorLabels";
 
 interface CovarianceHeatmapProps {

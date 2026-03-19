@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header
 
 from backend.api.auth import require_role
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.services import health_diagnostics_service
+from backend.services import cuse4_health_diagnostics_service as health_diagnostics_service
 
 router = APIRouter()
 

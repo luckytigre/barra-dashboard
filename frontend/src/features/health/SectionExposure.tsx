@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
-import CovarianceHeatmap from "@/components/CovarianceHeatmap";
+import CovarianceHeatmap from "@/features/cuse4/components/CovarianceHeatmap";
 import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
 import { factorFamily, shortFactorLabel } from "@/lib/factorLabels";
-import type { HealthDiagnosticsData, HealthExposureStats } from "@/lib/types";
+import type { HealthDiagnosticsData, HealthExposureStats } from "@/lib/types/cuse4";
 import { Bar, Line } from "./charts";
 import {
   buildHistogramData,

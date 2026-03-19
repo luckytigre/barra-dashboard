@@ -1,3 +1,7 @@
+// Transitional mixed-family compatibility barrel.
+// New cUSE4-owned frontend code should import from `@/lib/cuse4Api`.
+// cPAR retains this surface temporarily while its in-flight pages/components settle.
+
 const BASE = "";
 const REQUEST_TIMEOUT_MS = 30000;
 

@@ -56,6 +56,25 @@ Current cUSE4 integration is still the default app wiring in several places, inc
 These surfaces are not "generic factor-model abstractions."
 They are the current cUSE4-first application surfaces unless explicitly documented otherwise.
 
+Preferred cUSE4 frontend import surfaces now include:
+
+- `frontend/src/hooks/useCuse4Api.ts`
+- `frontend/src/lib/cuse4Api.ts`
+- `frontend/src/lib/types/cuse4.ts`
+- `frontend/src/lib/cuse4Truth.ts`
+- `frontend/src/lib/cuse4Refresh.ts`
+- `frontend/src/features/cuse4/components/*` for shared visual components used by the default cUSE4 pages/features
+
+Transitional mixed-family compatibility files still exist:
+
+- `frontend/src/hooks/useApi.ts`
+- `frontend/src/lib/api.ts`
+- `frontend/src/lib/types.ts`
+- `frontend/src/lib/analyticsTruth.ts`
+- `frontend/src/lib/refresh.ts`
+
+These compatibility files should not be the default import path for new cUSE4 work.
+
 Current default-named cUSE4 route family includes:
 
 - `/api/exposures`
@@ -63,6 +82,17 @@ Current default-named cUSE4 route family includes:
 - `/api/portfolio`
 - `/api/universe/*`
 - `/api/portfolio/whatif`
+
+Explicit cUSE4 backend alias modules may sit beside these defaults to make ownership clearer without changing the user-facing route family.
+Examples:
+
+- `backend/services/cuse4_dashboard_payload_service.py`
+- `backend/services/cuse4_universe_service.py`
+- `backend/services/cuse4_portfolio_whatif.py`
+- `backend/services/cuse4_factor_history_service.py`
+- `backend/services/cuse4_health_diagnostics_service.py`
+- `backend/services/cuse4_holdings_service.py`
+- `backend/services/cuse4_operator_status_service.py`
 
 Current default-named cUSE4 frontend page family includes:
 
@@ -126,6 +156,7 @@ For the current phase:
 
 - preserve the existing cUSE4 layout
 - document ownership clearly
+- prefer explicit cUSE4 import surfaces for default frontend/backend integration work
 - let cPAR stay explicitly namespaced
 - avoid a broad cUSE4 restructuring while cPAR is still stabilizing end to end
 

@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
-import ApiErrorState from "@/components/ApiErrorState";
-import { useDataDiagnostics } from "@/hooks/useApi";
-import type { DataTableStats } from "@/lib/types";
+import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
+import { useDataDiagnostics } from "@/hooks/useCuse4Api";
+import type { DataTableStats } from "@/lib/types/cuse4";
 
 function fmtInt(n?: number | null): string {
   if (typeof n !== "number" || !Number.isFinite(n)) return "—";

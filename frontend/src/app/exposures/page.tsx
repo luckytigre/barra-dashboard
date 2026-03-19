@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useExposures, usePortfolio, useRisk } from "@/hooks/useApi";
-import ExposureBarChart from "@/components/ExposureBarChart";
-import FactorDrilldown from "@/components/FactorDrilldown";
+import { useExposures, usePortfolio, useRisk } from "@/hooks/useCuse4Api";
+import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
+import FactorDrilldown from "@/features/cuse4/components/FactorDrilldown";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
-import ExposurePositionsTable from "@/components/ExposurePositionsTable";
-import CovarianceHeatmap from "@/components/CovarianceHeatmap";
-import RiskDecompChart from "@/components/RiskDecompChart";
+import ExposurePositionsTable from "@/features/cuse4/components/ExposurePositionsTable";
+import CovarianceHeatmap from "@/features/cuse4/components/CovarianceHeatmap";
+import RiskDecompChart from "@/features/cuse4/components/RiskDecompChart";
 import TableRowToggle from "@/components/TableRowToggle";
 import HelpLabel from "@/components/HelpLabel";
-import ApiErrorState from "@/components/ApiErrorState";
+import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
-import type { FactorDetail } from "@/lib/types";
+import type { FactorDetail } from "@/lib/types/cuse4";
 import { exposureTier as exposureMethodTier, normalizeExposureOrigin } from "@/lib/exposureOrigin";
 import { factorDisplayName } from "@/lib/factorLabels";
-import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/analyticsTruth";
+import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/cuse4Truth";
 
 const MODES = [
   { key: "raw", label: "Exposure" },

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Header
 
 from backend import config
 from backend.api.auth import require_role
-from backend.services import operator_status_service
+from backend.services import cuse4_operator_status_service as operator_status_service
 
 router = APIRouter()
 

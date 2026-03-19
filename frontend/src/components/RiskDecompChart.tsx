@@ -13,7 +13,7 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { tooltipOptions } from "@/lib/charts/chartTheme";
-import type { RiskShares } from "@/lib/types";
+import type { RiskShares } from "@/lib/types/cuse4";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 

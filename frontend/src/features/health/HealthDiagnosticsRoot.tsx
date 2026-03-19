@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import LazyMountOnVisible from "@/components/LazyMountOnVisible";
-import type { HealthDiagnosticsData } from "@/lib/types";
+import type { HealthDiagnosticsData } from "@/lib/types/cuse4";
 
 const SectionRegression = dynamic(() => import("./SectionRegression"), {
   ssr: false,

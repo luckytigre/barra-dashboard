@@ -2,7 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
-import type { HoldingsAccount, UniverseSearchItem } from "@/lib/types";
+import type { HoldingsAccount, UniverseSearchItem } from "@/lib/types/cuse4";
 import {
   fmtMarketValue,
   normalizeTicker,

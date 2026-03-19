@@ -1,5 +1,8 @@
 "use client";
 
+// cUSE4-only refresh helper for the default holdings/operator surfaces.
+// Prefer importing `cuse4Refresh.ts` from cUSE4-owned pages/components.
+
 import { mutate } from "swr";
 import { ApiError, apiFetch, apiPath } from "@/lib/api";
 import type { OperatorStatusData, RefreshStatusData, RefreshStatusState } from "@/lib/types";

@@ -16,7 +16,7 @@ import {
   type Plugin,
 } from "chart.js";
 import { Chart } from "react-chartjs-2";
-import type { FactorCatalogEntry, FactorExposure } from "@/lib/types";
+import type { FactorCatalogEntry, FactorExposure } from "@/lib/types/cuse4";
 import { exposureTier as exposureMethodTier } from "@/lib/exposureOrigin";
 import { factorDisplayName, shortFactorLabel, factorTier } from "@/lib/factorLabels";
 

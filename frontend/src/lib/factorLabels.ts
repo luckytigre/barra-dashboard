@@ -1,4 +1,4 @@
-import type { FactorCatalogEntry, FactorFamily } from "@/lib/types";
+import type { FactorCatalogEntry, FactorFamily } from "@/lib/types/cuse4";
 
 /** Short display names for cUSE factor labels (style + industry). */
 const SHORT_LABELS: Record<string, string> = {

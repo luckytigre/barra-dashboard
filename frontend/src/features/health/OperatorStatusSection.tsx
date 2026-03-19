@@ -1,6 +1,6 @@
 "use client";
 
-import type { OperatorStatusData } from "@/lib/types";
+import type { OperatorStatusData } from "@/lib/types/cuse4";
 import { fmtTs, laneSummary, operatorTone } from "./utils";
 
 function runtimeStatusTone(status: string | null | undefined): "" | "status-success" | "status-warning" | "status-error" {

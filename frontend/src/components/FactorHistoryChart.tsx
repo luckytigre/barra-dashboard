@@ -14,7 +14,7 @@ import {
   type ScriptableContext,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import type { FactorHistoryPoint } from "@/lib/types";
+import type { FactorHistoryPoint } from "@/lib/types/cuse4";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
 

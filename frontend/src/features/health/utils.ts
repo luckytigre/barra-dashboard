@@ -9,7 +9,7 @@ import type {
   OperatorLaneStatus,
   SeriesPoint,
   FactorCatalogEntry,
-} from "@/lib/types";
+} from "@/lib/types/cuse4";
 import { factorDisplayName } from "@/lib/factorLabels";
 import type { ChartData, ChartOptions } from "./charts";
 

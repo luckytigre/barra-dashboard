@@ -1,4 +1,9 @@
-"""Canonical operator-status payload assembly."""
+"""Compatibility module for cUSE4 operator-status payload assembly.
+
+Prefer importing `backend.services.cuse4_operator_status_service` from the
+default cUSE4 operator route. This module remains as the compatibility home for
+older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 
