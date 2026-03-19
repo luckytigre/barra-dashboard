@@ -16,6 +16,9 @@ The repository is organized around five backend layers:
 
 Frontend pages should read a small number of backend surfaces and rely on shared freshness/truth helpers rather than rebuilding semantics locally.
 
+Model-family ownership is documented separately in `MODEL_FAMILIES_AND_OWNERSHIP.md`.
+Use that note when deciding whether a surface is currently cUSE4-owned by default or should be explicitly namespaced for cPAR.
+
 ## Local Environment
 
 Use a single root virtualenv for local work:
@@ -61,6 +64,21 @@ When the change is about:
 - stable data-product surfaces
 - schema maintenance
 - provider-specific read/write behavior
+
+## Model Families
+
+Current repo reality:
+
+- `cUSE4` is still the incumbent/default risk system across many integration surfaces
+- `cPAR` is the new explicitly namespaced parallel system
+
+Practical rule:
+
+- do not move existing cUSE4 files only to make the tree look symmetric with cPAR
+- do make ownership explicit in docs and in new namespaced cPAR surfaces
+- when touching pure cUSE4 model logic, keep it in `backend/risk_model/*`
+- when touching pure cPAR model logic, keep it in `backend/cpar/*`
+- when touching cPAR integration, keep it in normal repo layers with `cpar_*` naming
 
 ## Where New Code Should NOT Go
 

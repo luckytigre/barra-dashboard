@@ -19,6 +19,7 @@ This document is the canonical description of the operating model and active arc
 Use the following docs for more specific views instead of repeating that detail here:
 - `../operations/OPERATIONS_PLAYBOOK.md` for named refresh lanes, operational commands, and retention rules
 - `../reference/protocols/UNIVERSE_ADD_RUNBOOK.md` for the approved universe-add workflow
+- `MODEL_FAMILIES_AND_OWNERSHIP.md` for current cUSE4 vs cPAR ownership boundaries and file-placement guidance
 - `archive/current-state.md` for the last deep architecture diagnosis snapshot
 - `archive/target-architecture.md` for the last target-shape snapshot
 - `archive/module-inventory.md` for the last module-by-module ownership snapshot
@@ -38,11 +39,24 @@ This plan is intentionally operational rather than theoretical. It maps directly
 
 ## System Identity
 
-This system is the cUSE factor model framework.
+This repository currently hosts two model families:
 
-It is inspired by Barra USE4 methodology but is not a direct implementation.
+- `cUSE4`: the incumbent/default risk system
+- `cPAR`: the new explicitly namespaced parallel system
+
+The current app and many current integration surfaces remain cUSE4-first by default.
+That does not make them generic shared model surfaces.
+
+`cUSE4` is inspired by Barra USE4 methodology but is not a direct implementation.
 
 `Barra` references in this codebase represent lineage only, not system identity.
+
+Pure model-family ownership is:
+
+- `backend/risk_model/*` for pure cUSE4 model logic
+- `backend/cpar/*` for pure cPAR model logic
+
+Integration-layer ownership remains in the repo's normal layers and is documented in `MODEL_FAMILIES_AND_OWNERSHIP.md`.
 
 ## Design Principles
 
