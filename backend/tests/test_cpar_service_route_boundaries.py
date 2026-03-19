@@ -72,6 +72,27 @@ def test_cpar_services_only_import_cpar_service_modules() -> None:
     assert offenders == []
 
 
+def test_cpar_portfolio_public_services_do_not_import_each_other() -> None:
+    offenders: list[str] = []
+    service_rules = {
+        REPO_ROOT / "backend" / "services" / "cpar_portfolio_hedge_service.py": {
+            "backend.services.cpar_portfolio_whatif_service",
+        },
+        REPO_ROOT / "backend" / "services" / "cpar_portfolio_whatif_service.py": {
+            "backend.services.cpar_portfolio_hedge_service",
+        },
+    }
+    for path, forbidden in service_rules.items():
+        imported = _imported_modules(path)
+        bad = sorted(
+            name for name in imported
+            if name in forbidden or any(name.startswith(f"{prefix}.") for prefix in forbidden)
+        )
+        if bad:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> {', '.join(bad)}")
+    assert offenders == []
+
+
 def test_cpar_routes_do_not_import_data_layers() -> None:
     offenders: list[str] = []
     forbidden_prefixes = ("backend.data", "backend.cpar", "frontend")
