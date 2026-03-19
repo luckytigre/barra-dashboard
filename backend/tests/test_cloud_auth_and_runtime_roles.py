@@ -97,9 +97,14 @@ def test_cloud_expensive_diagnostics_require_operator_token(monkeypatch) -> None
     monkeypatch.setattr(auth_module.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(auth_module.config, "OPERATOR_API_TOKEN", "op-secret")
     monkeypatch.setattr(
+        data_routes.data_diagnostics_service,
+        "build_data_diagnostics_payload",
+        lambda **_kwargs: {"status": "ok"},
+    )
+    monkeypatch.setattr(
         health_routes.health_diagnostics_service,
-        "load_runtime_payload",
-        lambda key, fallback_loader=None: {"status": "ok"} if key == "health_diagnostics" else None,
+        "load_health_diagnostics_payload",
+        lambda: {"status": "ok"},
     )
 
     client = TestClient(app)
