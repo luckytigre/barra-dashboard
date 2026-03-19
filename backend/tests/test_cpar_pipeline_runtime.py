@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import builtins
 import sqlite3
 from pathlib import Path
 
@@ -293,6 +295,32 @@ def test_cloud_serve_blocks_cpar_build(monkeypatch: pytest.MonkeyPatch, tmp_path
     assert out["reason"] == "runtime_role_disallows_cpar_build"
     assert out["stage_results"] == []
     assert out["run_rows"] == []
+
+
+def test_cpar_cli_returns_nonzero_when_pipeline_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        run_cpar_pipeline,
+        "_parse_args",
+        lambda: argparse.Namespace(
+            profile="cpar-weekly",
+            as_of_date="2026-03-18",
+            run_id=None,
+            from_stage=None,
+            to_stage=None,
+            log_level="INFO",
+        ),
+    )
+    monkeypatch.setattr(
+        run_cpar_pipeline,
+        "run_cpar_pipeline",
+        lambda **kwargs: {
+            "status": "failed",
+            "reason": "runtime_role_disallows_cpar_build",
+        },
+    )
+    monkeypatch.setattr(builtins, "print", lambda *args, **kwargs: None)
+
+    assert run_cpar_pipeline.main() == 1
 
 
 def test_local_ingest_build_persists_expected_cpar_outputs(

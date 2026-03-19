@@ -44,6 +44,21 @@ def test_cpar_meta_route_returns_not_ready_payload(monkeypatch) -> None:
     assert res.json()["detail"]["build_profile"] == "cpar-weekly"
 
 
+def test_cpar_meta_route_returns_unavailable_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_meta_service,
+        "load_cpar_meta_payload",
+        lambda: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/meta")
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "unavailable"
+    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
+
+
 def test_cpar_search_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_search_service,
@@ -104,6 +119,23 @@ def test_cpar_search_route_maps_not_ready_to_503(monkeypatch) -> None:
     assert res.json()["detail"]["error"] == "cpar_not_ready"
 
 
+def test_cpar_search_route_maps_unavailable_to_503(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_search_service,
+        "load_cpar_search_payload",
+        lambda **kwargs: (_ for _ in ()).throw(
+            cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")
+        ),
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/search?q=aapl&limit=10")
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "unavailable"
+    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
+
+
 def test_cpar_ticker_route_maps_ambiguous_ticker_to_409(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_ticker_service,
@@ -130,6 +162,21 @@ def test_cpar_ticker_route_maps_missing_ticker_to_404(monkeypatch) -> None:
 
     assert res.status_code == 404
     assert "not found" in res.json()["detail"].lower()
+
+
+def test_cpar_ticker_route_maps_unavailable_to_503(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_ticker_service,
+        "load_cpar_ticker_payload",
+        lambda *args, **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/ticker/AAPL")
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "unavailable"
+    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
 
 
 def test_cpar_hedge_route_returns_payload(monkeypatch) -> None:

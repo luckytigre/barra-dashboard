@@ -51,6 +51,10 @@ It does not add:
 - persisted hedge preview only
 - no request-time refit
 
+Explore-page consistency rule:
+- the frontend must treat `meta`, `ticker detail`, and `hedge` as one package-scoped flow
+- if those responses do not share the same `package_run_id` / `package_date`, the page must fail closed instead of mixing surfaces from different active packages
+
 ## Status And Warning Rendering
 
 Fit status:
@@ -68,6 +72,7 @@ Read failures:
 - ticker ambiguity is rendered as a UI instruction to choose a specific RIC from search results
 - search hits without a ticker render as non-navigable rows because the current detail route is ticker-keyed
 - a direct `/cpar/explore?ric=...` visit without `ticker=` must render an explanatory warning rather than silently failing or synthesizing a detail request
+- package-identity drift between active-package reads must render an explicit reload prompt rather than mixing banner/detail/hedge data from different packages
 
 ## Deferred After This Slice
 

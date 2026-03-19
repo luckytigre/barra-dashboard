@@ -70,9 +70,12 @@ def _stage_window(from_stage: str | None, to_stage: str | None) -> list[str]:
     end = STAGES.index(to_stage) if to_stage else len(STAGES) - 1
     if start > end:
         raise ValueError("--from-stage must be before or equal to --to-stage")
-    if start > 0:
-        raise ValueError("cPAR stage windows must start at source_read because upstream stage state is in-memory only.")
-    return STAGES[start : end + 1]
+    if start != 0 or end != len(STAGES) - 1:
+        raise ValueError(
+            "cPAR stage overrides are not supported. "
+            "Builds must run the full source_read -> package_build -> persist_package window."
+        )
+    return list(STAGES)
 
 
 def planned_stages_for_profile(

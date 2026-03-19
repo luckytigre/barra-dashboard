@@ -8,6 +8,7 @@ import {
   formatCparNumber,
   formatCparPercent,
   readCparError,
+  sameCparPackageIdentity,
 } from "@/lib/cparTruth";
 import type { CparFitStatus, CparHedgeMode } from "@/lib/types";
 import CparPostHedgeTable from "./CparPostHedgeTable";
@@ -39,10 +40,14 @@ export default function CparHedgePanel({
   ticker,
   ric,
   fitStatus,
+  expectedPackageRunId,
+  expectedPackageDate,
 }: {
   ticker: string;
   ric: string;
   fitStatus: CparFitStatus;
+  expectedPackageRunId: string;
+  expectedPackageDate: string;
 }) {
   const [mode, setMode] = useState<CparHedgeMode>("factor_neutral");
   const enabled = fitStatus !== "insufficient_history";
@@ -61,6 +66,13 @@ export default function CparHedgePanel({
 
   const errorSummary = error ? readCparError(error) : null;
   const status = data ? describeCparHedgeStatus(data.hedge_status) : null;
+  const packageMismatch = Boolean(
+    data
+    && !sameCparPackageIdentity(
+      { package_run_id: expectedPackageRunId, package_date: expectedPackageDate },
+      data,
+    ),
+  );
 
   return (
     <section className="cpar-hedge-panel" data-testid="cpar-hedge-panel">
@@ -91,6 +103,12 @@ export default function CparHedgePanel({
               {errorSummary.kind === "not_ready" ? "Hedge package not ready." : "Hedge preview unavailable."}
             </strong>
             <span>{errorSummary.message}</span>
+          </div>
+        ) : packageMismatch ? (
+          <div className="cpar-inline-message error" data-testid="cpar-hedge-package-mismatch">
+            <strong>Hedge preview drifted to a different active package.</strong>
+            <span>The persisted hedge response no longer matches the selected detail row.</span>
+            <span>Reload the page before interpreting hedge output.</span>
           </div>
         ) : !data ? (
           <div className="detail-history-empty compact">No hedge preview is available for this instrument.</div>
@@ -145,7 +163,7 @@ export default function CparHedgePanel({
         )}
       </div>
 
-      {data ? <CparPostHedgeTable rows={data.post_hedge_exposures} /> : null}
+      {data && !packageMismatch ? <CparPostHedgeTable rows={data.post_hedge_exposures} /> : null}
     </section>
   );
 }

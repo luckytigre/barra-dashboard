@@ -45,6 +45,8 @@ Entrypoints:
 - `python -m backend.scripts.run_cpar_pipeline --profile cpar-package-date --as-of-date YYYY-MM-DD`
 
 There is no cPAR `serve-refresh` equivalent in the current implementation.
+The current cPAR CLI returns a non-zero exit code when a build is blocked or fails.
+Partial cPAR stage-window overrides are not supported because current cPAR success is defined by durable package writes.
 
 ## Storage Authority
 

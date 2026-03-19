@@ -249,16 +249,15 @@ def main() -> int:
         level=getattr(logging, str(args.log_level).upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    print(
-        run_cpar_pipeline(
-            profile=args.profile,
-            as_of_date=args.as_of_date,
-            run_id=args.run_id,
-            from_stage=args.from_stage,
-            to_stage=args.to_stage,
-        )
+    result = run_cpar_pipeline(
+        profile=args.profile,
+        as_of_date=args.as_of_date,
+        run_id=args.run_id,
+        from_stage=args.from_stage,
+        to_stage=args.to_stage,
     )
-    return 0
+    print(result)
+    return 0 if str(result.get("status") or "") == "ok" else 1
 
 
 if __name__ == "__main__":

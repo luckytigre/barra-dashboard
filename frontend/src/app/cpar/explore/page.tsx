@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta, useCparTicker } from "@/hooks/useApi";
-import { canNavigateCparSearchResult, formatCparPackageDate, readCparError } from "@/lib/cparTruth";
+import { canNavigateCparSearchResult, formatCparPackageDate, readCparError, sameCparPackageIdentity } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
 import CparHedgePanel from "@/features/cpar/components/CparHedgePanel";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
@@ -39,7 +39,8 @@ function CparExplorePageInner() {
 
   const metaState = metaError ? readCparError(metaError) : null;
   const detailState = detailError ? readCparError(detailError) : null;
-  const detailBlocked = detail?.fit_status === "insufficient_history";
+  const detailPackageMismatch = Boolean(meta && detail && !sameCparPackageIdentity(meta, detail));
+  const detailBlocked = detail?.fit_status === "insufficient_history" || detailPackageMismatch;
 
   return (
     <div className="cpar-page">
@@ -87,6 +88,11 @@ function CparExplorePageInner() {
             <div className="detail-history-empty">
               Select a search result to load one cPAR package row and its persisted hedge preview.
             </div>
+          ) : metaState ? (
+            <div className="cpar-inline-message warning">
+              <strong>Current package metadata is unavailable.</strong>
+              <span>Reload after the active cPAR package is readable again before opening detail or hedge output.</span>
+            </div>
           ) : detailLoading && !detail ? (
             <AnalyticsLoadingViz message={`Loading cPAR detail for ${ric || ticker}...`} />
           ) : detailState ? (
@@ -102,6 +108,12 @@ function CparExplorePageInner() {
               {detailState.kind === "ambiguous" ? (
                 <span>Choose a specific RIC from the search results on the left.</span>
               ) : null}
+            </div>
+          ) : detailPackageMismatch ? (
+            <div className="cpar-inline-message error" data-testid="cpar-package-mismatch">
+              <strong>Active package changed during read.</strong>
+              <span>The banner package no longer matches the persisted detail row.</span>
+              <span>Reload the page to pin one cPAR package before reading loadings or hedge output.</span>
             </div>
           ) : detail ? (
             <>
@@ -162,7 +174,7 @@ function CparExplorePageInner() {
         </section>
       </div>
 
-      {detail && !detailBlocked ? (
+      {detail && !detailBlocked && !metaState ? (
         <>
           <div className="cpar-two-column">
             <CparLoadingsTable title="Raw ETF Loadings" rows={detail.raw_loadings} />
@@ -173,11 +185,17 @@ function CparExplorePageInner() {
             />
           </div>
 
-          <CparHedgePanel ticker={detail.ticker || ticker || detail.ric} ric={detail.ric} fitStatus={detail.fit_status} />
+          <CparHedgePanel
+            ticker={detail.ticker || ticker || detail.ric}
+            ric={detail.ric}
+            fitStatus={detail.fit_status}
+            expectedPackageRunId={detail.package_run_id}
+            expectedPackageDate={detail.package_date}
+          />
         </>
       ) : null}
 
-      {detail && detail.fit_status === "limited_history" ? (
+      {detail && detail.fit_status === "limited_history" && !detailPackageMismatch && !metaState ? (
         <section className="chart-card">
           <h3>Interpretation Note</h3>
           <div className="section-subtitle">

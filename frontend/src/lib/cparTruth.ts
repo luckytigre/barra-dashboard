@@ -32,6 +32,11 @@ export interface CparErrorSummary {
   buildProfile: string | null;
 }
 
+interface CparPackageIdentity {
+  package_run_id?: string | null;
+  package_date?: string | null;
+}
+
 function cleanDate(value: string | null | undefined): string | null {
   const text = String(value || "").trim();
   return text || null;
@@ -158,6 +163,25 @@ export function summarizeFactorRegistry(factors: CparFactorSpec[]): Record<CparF
 
 export function canNavigateCparSearchResult(item: Pick<CparSearchItem, "ticker"> | null | undefined): boolean {
   return Boolean(item?.ticker && item.ticker.trim());
+}
+
+export function sameCparPackageIdentity(
+  expected: CparPackageIdentity | null | undefined,
+  actual: CparPackageIdentity | null | undefined,
+): boolean {
+  const expectedRunId = String(expected?.package_run_id || "").trim();
+  const actualRunId = String(actual?.package_run_id || "").trim();
+  if (expectedRunId && actualRunId && expectedRunId !== actualRunId) {
+    return false;
+  }
+
+  const expectedDate = String(expected?.package_date || "").trim();
+  const actualDate = String(actual?.package_date || "").trim();
+  if (expectedDate && actualDate && expectedDate !== actualDate) {
+    return false;
+  }
+
+  return true;
 }
 
 export function readCparError(error: unknown): CparErrorSummary {

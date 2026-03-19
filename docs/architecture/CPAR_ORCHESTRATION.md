@@ -43,6 +43,7 @@ CLI wrapper:
 - runs `source_read -> package_build -> persist_package`
 
 There is no `serve-refresh` equivalent in `v1`.
+Partial cPAR stage windows are not supported in the current pipeline because success is defined as a durable package write.
 
 ## Runtime-Role Behavior
 
@@ -89,6 +90,7 @@ Failure means:
 - the pipeline stops at the first failed stage
 - the failed stage appears in the returned in-memory `run_rows`
 - no runtime-state keys or operator surfaces are updated
+- the CLI exits non-zero for failed or blocked runs so shell automation can fail closed
 
 ## Explicit Non-Goals
 

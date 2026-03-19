@@ -18,16 +18,14 @@ def test_cpar_package_date_requires_explicit_anchor_date() -> None:
     assert cpar_profiles.resolve_package_date(profile="cpar-package-date", as_of_date="2026-03-13") == "2026-03-13"
 
 
-def test_cpar_stage_window_can_end_early_but_must_start_at_source_read() -> None:
-    profile_key, _cfg, selected = cpar_profiles.planned_stages_for_profile(
-        profile="cpar-weekly",
-        to_stage="package_build",
-    )
+def test_cpar_stage_overrides_are_rejected() -> None:
+    with pytest.raises(ValueError, match="full source_read -> package_build -> persist_package"):
+        cpar_profiles.planned_stages_for_profile(
+            profile="cpar-weekly",
+            to_stage="package_build",
+        )
 
-    assert profile_key == "cpar-weekly"
-    assert selected == ["source_read", "package_build"]
-
-    with pytest.raises(ValueError, match="must start at source_read"):
+    with pytest.raises(ValueError, match="full source_read -> package_build -> persist_package"):
         cpar_profiles.planned_stages_for_profile(
             profile="cpar-weekly",
             from_stage="package_build",
