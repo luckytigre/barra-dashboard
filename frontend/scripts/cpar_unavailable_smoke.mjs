@@ -195,6 +195,21 @@ try {
         });
       }
 
+      if (method === "GET" && pathName === "/api/holdings/accounts") {
+        return fulfillJson({
+          accounts: [
+            {
+              account_id: "acct_main",
+              account_name: "Main Account",
+              is_active: true,
+              positions_count: 3,
+              gross_quantity: 17,
+              last_position_updated_at: "2026-03-18T15:00:00Z",
+            },
+          ],
+        });
+      }
+
       if (method === "GET" && pathName === "/api/cpar/ticker/AAPL") {
         if (scenario === "hedge_unavailable") {
           return fulfillJson({
@@ -261,6 +276,22 @@ try {
         return fulfillJson({ error: "unexpected hedge request" }, 500);
       }
 
+      if (method === "GET" && pathName === "/api/cpar/portfolio/hedge") {
+        if (scenario === "portfolio_unavailable") {
+          return fulfillJson(
+            {
+              detail: {
+                status: "unavailable",
+                error: "cpar_authority_unavailable",
+                message: "Shared holdings/source read failed.",
+              },
+            },
+            503,
+          );
+        }
+        return fulfillJson({ error: "unexpected portfolio request" }, 500);
+      }
+
       return fulfillJson({ error: `Unhandled API route ${pathName}` }, 500);
     });
 
@@ -282,6 +313,12 @@ try {
     await page.getByText("Hedge preview unavailable.").waitFor();
     await page.getByText("Neon cPAR read failed.").waitFor();
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+
+    scenario = "portfolio_unavailable";
+    await gotoWithRetry(page, `${BASE_URL}/cpar/portfolio?account_id=acct_main`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-portfolio-error").waitFor();
+    await page.getByText("Portfolio hedge unavailable.").waitFor();
+    await page.getByText("Shared holdings/source read failed.").waitFor();
 
     if (capturedPageError) {
       throw capturedPageError;

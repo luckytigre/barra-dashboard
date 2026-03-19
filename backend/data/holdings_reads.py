@@ -7,6 +7,10 @@ from typing import Any
 from backend.data.neon import connect, resolve_dsn
 
 
+class HoldingsReadError(RuntimeError):
+    """Raised when the shared holdings read surface is unavailable."""
+
+
 def _normalize_account_id(value: str | None) -> str:
     return str(value or "").strip().lower()
 
@@ -21,8 +25,9 @@ def _normalize_ticker(value: str | None) -> str | None:
 
 
 def load_holdings_accounts() -> list[dict[str, Any]]:
-    conn = connect(dsn=resolve_dsn(None), autocommit=True)
+    conn = None
     try:
+        conn = connect(dsn=resolve_dsn(None), autocommit=True)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -41,27 +46,34 @@ def load_holdings_accounts() -> list[dict[str, Any]]:
                 """
             )
             rows = cur.fetchall()
-        out: list[dict[str, Any]] = []
-        for account_id, account_name, is_active, positions_count, gross_qty, last_updated in rows:
-            out.append(
-                {
-                    "account_id": str(account_id),
-                    "account_name": str(account_name or account_id),
-                    "is_active": bool(is_active),
-                    "positions_count": int(positions_count or 0),
-                    "gross_quantity": float(gross_qty or 0.0),
-                    "last_position_updated_at": str(last_updated) if last_updated is not None else None,
-                }
-            )
-        return out
+    except Exception as exc:
+        raise HoldingsReadError(
+            f"Shared holdings account read failed: {type(exc).__name__}: {exc}"
+        ) from exc
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+
+    out: list[dict[str, Any]] = []
+    for account_id, account_name, is_active, positions_count, gross_qty, last_updated in rows:
+        out.append(
+            {
+                "account_id": str(account_id),
+                "account_name": str(account_name or account_id),
+                "is_active": bool(is_active),
+                "positions_count": int(positions_count or 0),
+                "gross_quantity": float(gross_qty or 0.0),
+                "last_position_updated_at": str(last_updated) if last_updated is not None else None,
+            }
+        )
+    return out
 
 
 def load_holdings_positions(*, account_id: str) -> list[dict[str, Any]]:
     account = _normalize_account_id(account_id)
-    conn = connect(dsn=resolve_dsn(None), autocommit=True)
+    conn = None
     try:
+        conn = connect(dsn=resolve_dsn(None), autocommit=True)
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -81,18 +93,24 @@ def load_holdings_positions(*, account_id: str) -> list[dict[str, Any]]:
                 (account,),
             )
             rows = cur.fetchall()
-        out: list[dict[str, Any]] = []
-        for raw_account_id, ric, ticker, quantity, source, updated_at in rows:
-            out.append(
-                {
-                    "account_id": str(raw_account_id),
-                    "ric": _normalize_ric(ric),
-                    "ticker": _normalize_ticker(ticker),
-                    "quantity": float(quantity or 0.0),
-                    "source": str(source or ""),
-                    "updated_at": str(updated_at) if updated_at is not None else None,
-                }
-            )
-        return out
+    except Exception as exc:
+        raise HoldingsReadError(
+            f"Shared holdings position read failed for account_id={account}: {type(exc).__name__}: {exc}"
+        ) from exc
     finally:
-        conn.close()
+        if conn is not None:
+            conn.close()
+
+    out: list[dict[str, Any]] = []
+    for raw_account_id, ric, ticker, quantity, source, updated_at in rows:
+        out.append(
+            {
+                "account_id": str(raw_account_id),
+                "ric": _normalize_ric(ric),
+                "ticker": _normalize_ticker(ticker),
+                "quantity": float(quantity or 0.0),
+                "source": str(source or ""),
+                "updated_at": str(updated_at) if updated_at is not None else None,
+            }
+        )
+    return out

@@ -270,6 +270,66 @@ try {
         });
       }
 
+      if (method === "GET" && pathName === "/api/holdings/accounts") {
+        return fulfillJson({
+          accounts: [
+            {
+              account_id: "acct_main",
+              account_name: "Main Account",
+              is_active: true,
+              positions_count: 3,
+              gross_quantity: 17,
+              last_position_updated_at: "2026-03-18T15:00:00Z",
+            },
+          ],
+        });
+      }
+
+      if (method === "GET" && pathName === "/api/cpar/portfolio/hedge") {
+        return fulfillJson({
+          package_run_id: scenario === "portfolio_mismatch" ? "run_port_old" : "run_curr",
+          package_date: scenario === "portfolio_mismatch" ? "2026-03-07" : "2026-03-14",
+          profile: "cpar-weekly",
+          method_version: "cPAR1",
+          factor_registry_version: "cPAR1_registry_v1",
+          data_authority: "neon",
+          lookback_weeks: 52,
+          half_life_weeks: 26,
+          min_observations: 39,
+          source_prices_asof: "2026-03-14",
+          classification_asof: "2026-03-14",
+          universe_count: 100,
+          fit_ok_count: 90,
+          fit_limited_count: 8,
+          fit_insufficient_count: 2,
+          account_id: "acct_main",
+          account_name: "Main Account",
+          mode: "factor_neutral",
+          positions_count: 1,
+          covered_positions_count: 1,
+          excluded_positions_count: 0,
+          gross_market_value: 2010,
+          net_market_value: 2010,
+          covered_gross_market_value: 2010,
+          coverage_ratio: 1,
+          portfolio_status: "ok",
+          portfolio_reason: null,
+          aggregate_thresholded_loadings: [
+            { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 },
+          ],
+          hedge_status: "hedge_ok",
+          hedge_reason: "Thresholded raw ETF hedge",
+          hedge_legs: [{ factor_id: "SPY", label: "Market", group: "market", display_order: 0, weight: -1.12 }],
+          post_hedge_exposures: [{ factor_id: "SPY", label: "Market", group: "market", display_order: 0, pre_beta: 1.12, hedge_leg: -1.12, post_beta: 0 }],
+          pre_hedge_factor_variance_proxy: 0.24,
+          post_hedge_factor_variance_proxy: 0.02,
+          gross_hedge_notional: 1.12,
+          net_hedge_notional: -1.12,
+          non_market_reduction_ratio: 0.86,
+          positions: [],
+        });
+      }
+
       return fulfillJson({ error: `Unhandled API route ${pathName}` }, 500);
     });
 
@@ -282,6 +342,12 @@ try {
     await page.getByTestId("cpar-hedge-panel").waitFor();
     await page.getByTestId("cpar-hedge-package-mismatch").waitFor();
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+
+    scenario = "portfolio_mismatch";
+    await gotoWithRetry(page, `${BASE_URL}/cpar/portfolio?account_id=acct_main`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-portfolio-package-mismatch").waitFor();
+    await page.getByText("Active package changed during read.").waitFor();
+    assert.equal(await page.getByTestId("cpar-portfolio-hedge-panel").count(), 0);
 
     if (capturedPageError) {
       throw capturedPageError;

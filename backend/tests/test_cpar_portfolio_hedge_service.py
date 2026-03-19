@@ -238,10 +238,99 @@ def test_portfolio_hedge_service_maps_holdings_failures_to_unavailable(monkeypat
     monkeypatch.setattr(
         cpar_portfolio_hedge_service.holdings_reads,
         "load_holdings_accounts",
-        lambda: (_ for _ in ()).throw(RuntimeError("neon unavailable")),
+        lambda: (_ for _ in ()).throw(cpar_portfolio_hedge_service.holdings_reads.HoldingsReadError("neon unavailable")),
     )
 
     with pytest.raises(cpar_meta_service.CparReadUnavailable, match="Holdings read failed"):
+        cpar_portfolio_hedge_service.load_cpar_portfolio_hedge_payload(
+            account_id="acct_main",
+            mode="factor_neutral",
+        )
+
+
+def test_portfolio_hedge_service_does_not_swallow_unexpected_holdings_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: _package())
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.holdings_reads,
+        "load_holdings_accounts",
+        lambda: (_ for _ in ()).throw(ValueError("bad holdings row shape")),
+    )
+
+    with pytest.raises(ValueError, match="bad holdings row shape"):
+        cpar_portfolio_hedge_service.load_cpar_portfolio_hedge_payload(
+            account_id="acct_main",
+            mode="factor_neutral",
+        )
+
+
+def test_portfolio_hedge_service_maps_typed_source_failures_to_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: _package())
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.holdings_reads,
+        "load_holdings_accounts",
+        lambda: [{"account_id": "acct_main", "account_name": "Main", "positions_count": 1}],
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.holdings_reads,
+        "load_holdings_positions",
+        lambda *, account_id: [
+            {"account_id": "acct_main", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 10.0, "source": "seed", "updated_at": None},
+        ],
+    )
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fits_for_rics",
+        lambda *args, **kwargs: [_fit_row(ric="AAPL.OQ", ticker="AAPL")],
+    )
+    monkeypatch.setattr(cpar_outputs, "load_package_covariance_rows", lambda *args, **kwargs: _covariance_rows())
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.cpar_source_reads,
+        "load_latest_price_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            cpar_portfolio_hedge_service.cpar_source_reads.CparSourceReadError("prices unavailable")
+        ),
+    )
+
+    with pytest.raises(cpar_meta_service.CparReadUnavailable, match="Shared-source read failed"):
+        cpar_portfolio_hedge_service.load_cpar_portfolio_hedge_payload(
+            account_id="acct_main",
+            mode="factor_neutral",
+        )
+
+
+def test_portfolio_hedge_service_does_not_swallow_unexpected_shared_source_bugs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: _package())
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.holdings_reads,
+        "load_holdings_accounts",
+        lambda: [{"account_id": "acct_main", "account_name": "Main", "positions_count": 1}],
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.holdings_reads,
+        "load_holdings_positions",
+        lambda *, account_id: [
+            {"account_id": "acct_main", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 10.0, "source": "seed", "updated_at": None},
+        ],
+    )
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fits_for_rics",
+        lambda *args, **kwargs: [_fit_row(ric="AAPL.OQ", ticker="AAPL")],
+    )
+    monkeypatch.setattr(cpar_outputs, "load_package_covariance_rows", lambda *args, **kwargs: _covariance_rows())
+    monkeypatch.setattr(
+        cpar_portfolio_hedge_service.cpar_source_reads,
+        "load_latest_price_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("unexpected price row shape")),
+    )
+
+    with pytest.raises(ValueError, match="unexpected price row shape"):
         cpar_portfolio_hedge_service.load_cpar_portfolio_hedge_payload(
             account_id="acct_main",
             mode="factor_neutral",

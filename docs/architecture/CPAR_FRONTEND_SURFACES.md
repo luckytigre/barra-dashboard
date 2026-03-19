@@ -125,6 +125,7 @@ Current cPAR frontend smokes cover:
 - `not_ready`
 - `unavailable`
 - package mismatch
+- `/cpar/portfolio` fail-closed branches for `not_ready`, `unavailable`, and package mismatch
 
 ## Deferred After This Slice
 

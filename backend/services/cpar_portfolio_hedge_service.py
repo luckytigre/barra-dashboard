@@ -217,7 +217,7 @@ def load_cpar_portfolio_hedge_payload(
     try:
         accounts = holdings_reads.load_holdings_accounts()
         positions = holdings_reads.load_holdings_positions(account_id=account_id)
-    except Exception as exc:  # noqa: BLE001
+    except holdings_reads.HoldingsReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(f"Holdings read failed: {exc}") from exc
 
     normalized_account_id = _normalize_account_id(account_id)
@@ -279,7 +279,7 @@ def load_cpar_portfolio_hedge_payload(
         raise cpar_meta_service.CparReadNotReady(str(exc)) from exc
     except cpar_outputs.CparAuthorityReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
+    except cpar_source_reads.CparSourceReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(f"Shared-source read failed: {exc}") from exc
 
     fit_by_ric = {str(row["ric"]): row for row in fit_rows}

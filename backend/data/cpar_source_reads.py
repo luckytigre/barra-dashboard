@@ -12,6 +12,10 @@ from backend.data import core_read_backend as core_backend
 DATA_DB = Path(config.DATA_DB_PATH)
 
 
+class CparSourceReadError(RuntimeError):
+    """Raised when the shared source-read surface is unavailable."""
+
+
 def _resolve_data_db(data_db: Path | None = None) -> Path:
     return Path(data_db or DATA_DB).expanduser().resolve()
 
@@ -22,12 +26,17 @@ def _fetch_rows(
     *,
     data_db: Path | None = None,
 ) -> list[dict[str, Any]]:
-    return core_backend.fetch_rows(
-        sql,
-        params,
-        data_db=_resolve_data_db(data_db),
-        neon_enabled=core_backend.use_neon_core_reads(),
-    )
+    try:
+        return core_backend.fetch_rows(
+            sql,
+            params,
+            data_db=_resolve_data_db(data_db),
+            neon_enabled=core_backend.use_neon_core_reads(),
+        )
+    except Exception as exc:
+        raise CparSourceReadError(
+            f"Shared cPAR source read failed: {type(exc).__name__}: {exc}"
+        ) from exc
 
 
 def _normalize_tokens(values: Iterable[str] | None) -> list[str]:

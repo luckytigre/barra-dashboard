@@ -268,3 +268,17 @@ def test_load_latest_common_name_rows_collapses_same_asof_duplicates(source_db: 
             "common_name": "Apple Incorporated Final",
         }
     ]
+
+
+def test_cpar_source_reads_raise_typed_error_for_infrastructure_failures(
+    source_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cpar_source_reads.core_backend,
+        "fetch_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("sqlite unavailable")),
+    )
+
+    with pytest.raises(cpar_source_reads.CparSourceReadError, match="sqlite unavailable"):
+        cpar_source_reads.load_latest_price_rows(["AAPL.OQ"], as_of_date="2026-03-13", data_db=source_db)

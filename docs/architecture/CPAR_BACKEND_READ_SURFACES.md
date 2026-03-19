@@ -78,6 +78,8 @@ Ticker detail and hedge routes:
 Authority-read failures:
 - return `503`
 - do not fall back to route-local SQL or request-time recomputation
+- the portfolio route maps only typed lower-layer infrastructure failures from holdings/source adapters into this `503 unavailable` contract
+- unexpected service or data-shape defects are not intentionally swallowed as authority outages
 
 Search-result limitations:
 - the current detail route is ticker-keyed

@@ -213,6 +213,35 @@ try {
         });
       }
 
+      if (method === "GET" && pathName === "/api/holdings/accounts") {
+        return fulfillJson({
+          accounts: [
+            {
+              account_id: "acct_main",
+              account_name: "Main Account",
+              is_active: true,
+              positions_count: 3,
+              gross_quantity: 17,
+              last_position_updated_at: "2026-03-18T15:00:00Z",
+            },
+          ],
+        });
+      }
+
+      if (method === "GET" && pathName === "/api/cpar/portfolio/hedge") {
+        return fulfillJson(
+          {
+            detail: {
+              status: "not_ready",
+              error: "cpar_not_ready",
+              message: "No successful cPAR package is available for read surfaces.",
+              build_profile: "cpar-weekly",
+            },
+          },
+          503,
+        );
+      }
+
       if (method === "GET" && pathName === "/api/cpar/ticker/AAPL") {
         if (!requestUrl.searchParams.get("ric")) {
           return fulfillJson({ detail: "Ambiguous cPAR instrument fit for ticker AAPL" }, 409);
@@ -307,6 +336,11 @@ try {
     await page.getByTestId("cpar-hedge-not-ready").waitFor();
     await page.getByText("cPAR Hedge Not Ready").waitFor();
     await page.getByText("Publish a durable cPAR package first, then reload.").waitFor();
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/portfolio?account_id=acct_main`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-portfolio-not-ready").waitFor();
+    await page.getByText("cPAR Portfolio Not Ready").waitFor();
+    await page.getByText("This workflow is package-based and read-only. Publish a durable cPAR package first, then reload.").waitFor();
 
     metaReady = true;
 
