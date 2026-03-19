@@ -1,4 +1,5 @@
 export * from "@/lib/types/analytics";
+export * from "@/lib/types/cpar";
 export * from "@/lib/types/data";
 export * from "@/lib/types/health";
 export * from "@/lib/types/holdings";

@@ -9,6 +9,7 @@ import { runServeRefreshAndRevalidate } from "@/lib/refresh";
 
 const TABS = [
   { href: "/exposures", label: "Risk" },
+  { href: "/cpar", label: "cPAR", matchPrefix: "/cpar" },
   { href: "/explore", label: "Explore" },
   { href: "/health", label: "Health" },
   { href: "/positions", label: "Positions" },
@@ -44,13 +45,15 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 
 export default function TabNav() {
   const pathname = usePathname();
+  const activePath = pathname || "";
+  const isCparPath = activePath.startsWith("/cpar");
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshActionState, setRefreshActionState] = useState<"idle" | "running" | "failed">("idle");
   const [clockMs, setClockMs] = useState<number>(0);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { mode, setMode } = useBackground();
-  const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus();
+  const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus(!isCparPath);
   const holdingsSync = operatorStatusData?.holdings_sync;
   const neonSyncHealth = operatorStatusData?.neon_sync_health;
   const pending = Boolean(holdingsSync?.pending);
@@ -104,15 +107,17 @@ export default function TabNav() {
   }, [refreshIsRunning, refreshActionState]);
 
   useEffect(() => {
+    if (isCparPath) return;
     if (!refreshIsRunning) return;
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void mutateOperatorStatus();
     }, 5000);
     return () => window.clearInterval(id);
-  }, [refreshIsRunning, mutateOperatorStatus]);
+  }, [isCparPath, refreshIsRunning, mutateOperatorStatus]);
 
   useEffect(() => {
+    if (isCparPath) return undefined;
     if (refreshIsRunning) return undefined;
     const refreshVisibleState = () => {
       if (document.visibilityState !== "visible") return;
@@ -126,7 +131,7 @@ export default function TabNav() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refreshIsRunning, mutateOperatorStatus]);
+  }, [isCparPath, refreshIsRunning, mutateOperatorStatus]);
 
   async function handleRefreshNow() {
     if (refreshActionState === "running" || refreshIsRunning) return;
@@ -207,7 +212,7 @@ export default function TabNav() {
           <Link
             key={tab.href}
             href={tab.href}
-            className={`dash-tab-btn ${pathname === tab.href ? "active" : ""}`}
+            className={`dash-tab-btn ${activePath === tab.href || (tab.matchPrefix && activePath.startsWith(tab.matchPrefix)) ? "active" : ""}`}
           >
             {tab.label}
           </Link>
@@ -215,27 +220,31 @@ export default function TabNav() {
       </div>
 
       <div className="dash-tabs-actions">
-        <button
-          className={`dash-health-signal ${signal.tone}`}
-          type="button"
-          onClick={() => {
-            setRefreshActionState("idle");
-            void mutateOperatorStatus();
-          }}
-          title={signal.detail}
-          aria-label={signal.aria}
-        >
-          <span className="dash-health-dot" />
-          <span className="dash-health-detail">{signal.detail}</span>
-        </button>
-        <button
-          className={`dash-recompute-btn ${refreshActionState === "failed" ? "failed" : ""}`}
-          onClick={handleRefreshNow}
-          disabled={refreshActionState === "running" || refreshIsRunning}
-          title={refreshActionTitle}
-        >
-          {refreshActionState === "running" || refreshIsRunning ? "RUNNING" : refreshActionLabel}
-        </button>
+        {!isCparPath && (
+          <>
+            <button
+              className={`dash-health-signal ${signal.tone}`}
+              type="button"
+              onClick={() => {
+                setRefreshActionState("idle");
+                void mutateOperatorStatus();
+              }}
+              title={signal.detail}
+              aria-label={signal.aria}
+            >
+              <span className="dash-health-dot" />
+              <span className="dash-health-detail">{signal.detail}</span>
+            </button>
+            <button
+              className={`dash-recompute-btn ${refreshActionState === "failed" ? "failed" : ""}`}
+              onClick={handleRefreshNow}
+              disabled={refreshActionState === "running" || refreshIsRunning}
+              title={refreshActionTitle}
+            >
+              {refreshActionState === "running" || refreshIsRunning ? "RUNNING" : refreshActionLabel}
+            </button>
+          </>
+        )}
         <div ref={menuRef} style={{ position: "relative" }}>
           <button
             className="dash-menu-btn"

@@ -3,6 +3,11 @@
 import useSWR from "swr";
 import { ApiError, apiFetch, apiPath } from "@/lib/api";
 import type {
+  CparHedgeMode,
+  CparHedgePreviewData,
+  CparMetaData,
+  CparSearchData,
+  CparTickerDetailData,
   PortfolioData,
   WhatIfApplyResponse,
   WhatIfPreviewData,
@@ -55,6 +60,35 @@ function operatorStatusRefreshInterval(data?: OperatorStatusData): number {
 
 export function usePortfolio() {
   return useSWR<PortfolioData>(apiPath.portfolio(), apiFetch, SWR_OPTS);
+}
+
+export function useCparMeta() {
+  return useSWR<CparMetaData>(apiPath.cparMeta(), apiFetch, SWR_OPTS);
+}
+
+export function useCparSearch(query: string, limit = 10) {
+  const q = query.trim();
+  const key = q.length > 0 ? apiPath.cparSearch(q, limit) : null;
+  return useSWR<CparSearchData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparTicker(ticker: string | null, ric?: string | null) {
+  const cleanTicker = ticker?.trim().toUpperCase() || null;
+  const cleanRic = ric?.trim() || null;
+  const key = cleanTicker ? apiPath.cparTicker(cleanTicker, cleanRic) : null;
+  return useSWR<CparTickerDetailData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparHedge(
+  ticker: string | null,
+  mode: CparHedgeMode,
+  ric?: string | null,
+  enabled = true,
+) {
+  const cleanTicker = ticker?.trim().toUpperCase() || null;
+  const cleanRic = ric?.trim() || null;
+  const key = enabled && cleanTicker ? apiPath.cparHedge(cleanTicker, mode, cleanRic) : null;
+  return useSWR<CparHedgePreviewData>(key, apiFetch, SWR_OPTS);
 }
 
 export function useHoldingsModes() {
@@ -116,8 +150,8 @@ export function useDataDiagnostics(opts?: { includeExactRowCounts?: boolean; inc
   return useSWR<DataDiagnosticsData>(apiPath.dataDiagnostics(opts), apiFetch, HEAVY_DIAGNOSTICS_OPTS);
 }
 
-export function useOperatorStatus() {
-  return useSWR<OperatorStatusData>(apiPath.operatorStatus(), apiFetch, {
+export function useOperatorStatus(enabled = true) {
+  return useSWR<OperatorStatusData>(enabled ? apiPath.operatorStatus() : null, apiFetch, {
     ...SWR_OPTS,
     refreshInterval: operatorStatusRefreshInterval,
   });

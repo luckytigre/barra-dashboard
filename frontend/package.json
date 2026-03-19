@@ -8,6 +8,8 @@
     "start": "next start",
     "typegen": "next typegen",
     "typecheck": "npm run typegen && tsc --noEmit --incremental false",
+    "test:cpar-pages": "node scripts/cpar_pages_smoke.mjs",
+    "test:cpar-not-ready": "node scripts/cpar_not_ready_smoke.mjs",
     "test:explore-whatif": "node scripts/explore_whatif_refresh_regression.mjs",
     "test:explore-whatif-busy": "node scripts/explore_whatif_refresh_busy_regression.mjs"
   },

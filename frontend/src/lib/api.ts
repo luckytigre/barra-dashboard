@@ -20,6 +20,19 @@ export class ApiError extends Error {
 }
 
 export const apiPath = {
+  cparMeta: () => "/api/cpar/meta",
+  cparSearch: (query: string, limit: number) =>
+    `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  cparTicker: (ticker: string, ric?: string | null) =>
+    ric && ric.trim().length > 0
+      ? `/api/cpar/ticker/${encodeURIComponent(ticker.trim().toUpperCase())}?ric=${encodeURIComponent(ric.trim())}`
+      : `/api/cpar/ticker/${encodeURIComponent(ticker.trim().toUpperCase())}`,
+  cparHedge: (ticker: string, mode: string, ric?: string | null) => {
+    const params = new URLSearchParams();
+    params.set("mode", mode);
+    if (ric && ric.trim().length > 0) params.set("ric", ric.trim());
+    return `/api/cpar/ticker/${encodeURIComponent(ticker.trim().toUpperCase())}/hedge?${params.toString()}`;
+  },
   portfolio: () => "/api/portfolio",
   portfolioWhatIf: () => "/api/portfolio/whatif",
   portfolioWhatIfApply: () => "/api/portfolio/whatif/apply",
