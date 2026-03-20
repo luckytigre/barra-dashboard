@@ -51,6 +51,12 @@ FORBIDDEN_CUSE4_IMPORTS = (
     "@/lib/types/cuse4",
 )
 
+FORBIDDEN_CPAR_FEATURE_OWNER_IMPORTS = (
+    "@/features/cuse4/",
+    "@/features/explore/",
+    "@/features/whatif/",
+)
+
 ROUTE_CUSE4_IMPORT_EXPECTATIONS = {
     "backend/api/routes/exposures.py": (
         "cuse4_dashboard_payload_service",
@@ -174,6 +180,18 @@ def test_cpar_frontend_surfaces_do_not_import_cuse4_specific_helpers() -> None:
             continue
         text = path.read_text(encoding="utf-8")
         if any(token in text for token in FORBIDDEN_CUSE4_IMPORTS):
+            offenders.append(relative_path)
+    assert offenders == []
+
+
+def test_cpar_frontend_surfaces_do_not_import_cuse4_feature_owners() -> None:
+    offenders: list[str] = []
+    for path in _ts_files():
+        relative_path = _rel(path)
+        if not _allowed(relative_path, prefixes=CPAR_FRONTEND_PREFIXES, exact=CPAR_FRONTEND_EXACT):
+            continue
+        text = path.read_text(encoding="utf-8")
+        if any(token in text for token in FORBIDDEN_CPAR_FEATURE_OWNER_IMPORTS):
             offenders.append(relative_path)
     assert offenders == []
 

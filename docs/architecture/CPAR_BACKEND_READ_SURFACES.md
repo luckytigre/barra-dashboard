@@ -69,6 +69,26 @@ These routes do not:
 - trigger cPAR builds
 - refit cPAR models on request
 
+## Current Owner Freeze For The Risk/Explore Overhaul
+
+The current cPAR overhaul should extend existing cPAR owners by default instead of introducing broad new route families up front.
+
+Single-name owners:
+- `GET /api/cpar/ticker/{ticker}` remains owned by `backend/services/cpar_ticker_service.py`
+- `GET /api/cpar/ticker/{ticker}/hedge` remains owned by `backend/services/cpar_hedge_service.py`
+- richer `/cpar/explore` detail should extend the current ticker-detail owner unless a later slice proves that the new data requires a genuinely different authority/read pattern
+
+Account-scoped owners:
+- `GET /api/cpar/portfolio/hedge` remains owned by `backend/services/cpar_portfolio_hedge_service.py`
+- `POST /api/cpar/portfolio/whatif` remains owned by `backend/services/cpar_portfolio_whatif_service.py`
+- shared lower assembly for both stays in `backend/services/cpar_portfolio_snapshot_service.py`
+- richer `/cpar/risk` analytics should extend those current owners, or add one clearly distinct cPAR-specific account-risk owner only if the new payload cannot be expressed cleanly through the current split
+
+Current non-goals for this expansion stage:
+- no reuse of cUSE4 dashboard, universe, or what-if service surfaces
+- no generic `cpar_dashboard_*` or `cpar_risk_*` god service introduced only for symmetry
+- no new single-name history/context route until authority semantics are explicitly documented
+
 ## Active-Package Semantics
 
 Read routes use the active cPAR package selected by the cPAR persistence layer:

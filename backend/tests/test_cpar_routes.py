@@ -15,6 +15,28 @@ def _test_app() -> FastAPI:
     return app
 
 
+EXPECTED_CPAR_ROUTE_SET = {
+    ("GET", "/api/cpar/meta"),
+    ("GET", "/api/cpar/search"),
+    ("GET", "/api/cpar/ticker/{ticker}"),
+    ("GET", "/api/cpar/ticker/{ticker}/hedge"),
+    ("GET", "/api/cpar/portfolio/hedge"),
+    ("POST", "/api/cpar/portfolio/whatif"),
+}
+
+
+def test_cpar_route_set_remains_explicit() -> None:
+    app = _test_app()
+    actual = {
+        (method, route.path)
+        for route in app.routes
+        if getattr(route, "path", "").startswith("/api/cpar")
+        for method in getattr(route, "methods", set())
+        if method not in {"HEAD", "OPTIONS"}
+    }
+    assert actual == EXPECTED_CPAR_ROUTE_SET
+
+
 def test_cpar_meta_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_meta_service,

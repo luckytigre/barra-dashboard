@@ -8,21 +8,15 @@ import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/co
 import CparPortfolioCoverageTable from "@/features/cpar/components/CparPortfolioCoverageTable";
 import CparPortfolioHedgePanel from "@/features/cpar/components/CparPortfolioHedgePanel";
 import CparPortfolioWhatIfBuilder, { type CparDraftScenarioRow } from "@/features/cpar/components/CparPortfolioWhatIfBuilder";
-import { ApiError } from "@/lib/api";
 import { useCparMeta, useCparPortfolioHedge, useCparPortfolioWhatIf, useHoldingsAccounts } from "@/hooks/useApi";
 import {
   formatCparNumber,
   formatCparPercent,
+  readCparDependencyErrorMessage,
   readCparError,
   sameCparPackageIdentity,
 } from "@/lib/cparTruth";
 import type { CparHedgeMode, CparSearchItem } from "@/lib/types";
-
-function genericErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Unknown holdings/account error.";
-}
 
 function parseQuantityDelta(value: string): number | null {
   const parsed = Number(value);
@@ -185,7 +179,7 @@ function CparRiskWorkspaceInner() {
           ) : accountsError ? (
             <div className="cpar-inline-message error">
               <strong>Holdings accounts unavailable.</strong>
-              <span>{genericErrorMessage(accountsError)}</span>
+              <span>{readCparDependencyErrorMessage(accountsError)}</span>
             </div>
           ) : !(accountsData?.accounts.length) ? (
             <div className="detail-history-empty compact">No holdings accounts are available yet.</div>

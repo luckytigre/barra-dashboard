@@ -49,6 +49,21 @@ def _non_cpar_service_imports(path: Path) -> list[str]:
     return sorted(set(offenders))
 
 
+def _backend_service_aliases(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = str(alias.name)
+                if name.startswith("backend.services."):
+                    aliases.add(name.rsplit(".", 1)[-1])
+        elif isinstance(node, ast.ImportFrom) and node.module == "backend.services":
+            for alias in node.names:
+                aliases.add(str(alias.name))
+    return aliases
+
+
 def test_cpar_services_do_not_import_api_layers() -> None:
     offenders: list[str] = []
     forbidden_prefixes = ("backend.api", "backend.orchestration", "frontend", "fastapi")
@@ -93,6 +108,15 @@ def test_cpar_portfolio_public_services_do_not_import_each_other() -> None:
     assert offenders == []
 
 
+def test_cpar_routes_only_import_cpar_service_modules() -> None:
+    offenders: list[str] = []
+    for path in ROUTE_FILES:
+        bad_service_imports = _non_cpar_service_imports(path)
+        if bad_service_imports:
+            offenders.append(f"{path.relative_to(REPO_ROOT)} -> {', '.join(bad_service_imports)}")
+    assert offenders == []
+
+
 def test_cpar_routes_do_not_import_data_layers() -> None:
     offenders: list[str] = []
     forbidden_prefixes = ("backend.data", "backend.cpar", "frontend")
@@ -105,3 +129,16 @@ def test_cpar_routes_do_not_import_data_layers() -> None:
         ):
             offenders.append(str(path.relative_to(REPO_ROOT)))
     assert offenders == []
+
+
+def test_cpar_route_module_uses_current_explicit_service_owners() -> None:
+    path = ROUTE_FILES[0]
+    expected_tokens = {
+        "cpar_meta_service",
+        "cpar_search_service",
+        "cpar_ticker_service",
+        "cpar_hedge_service",
+        "cpar_portfolio_hedge_service",
+        "cpar_portfolio_whatif_service",
+    }
+    assert _backend_service_aliases(path) == expected_tokens

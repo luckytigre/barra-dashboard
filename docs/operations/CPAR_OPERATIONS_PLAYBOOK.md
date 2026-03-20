@@ -104,6 +104,8 @@ The standalone hedge page reuses that same ticker-keyed selection rule and must 
 The first portfolio workflow is account-scoped and read-only: it reuses the shared Neon-backed adapter in `backend/data/holdings_reads.py` plus latest shared-source prices, but it does not reuse cUSE4 portfolio or what-if payload semantics.
 The first what-if workflow is embedded in `/cpar/risk` and remains preview-only: it stages signed share deltas against the same active package and account hedge baseline, but it does not apply trades or mutate holdings.
 The shared account-scoped snapshot assembly for both flows lives in `backend/services/cpar_portfolio_snapshot_service.py`; that shared owner is cPAR-specific and does not imply any reuse of cUSE4 what-if services.
+Upcoming cPAR risk/explore expansion should keep following the same ownership rule: extend current cPAR route/service owners by default, and only add a new cPAR-specific owner when the authority/read pattern is genuinely different.
+Until that authority decision is made explicitly, the operations baseline does not assume a new cPAR single-name history route or any reuse of cUSE universe/read surfaces.
 
 ## Fail-Closed Cases
 

@@ -102,6 +102,24 @@ Frontend consistency rule:
 - if package identity drifts between independent reads, the page fails closed and prompts the user to reload
 - shared banner rendering exposes package freshness so stale active packages remain visible without implying any route-triggered rebuild path
 
+## Risk And Explore Expansion Guardrails
+
+The next cPAR frontend overhaul should remain cPAR-native even when it adopts cUSE-like presentation patterns.
+
+Current owner decisions:
+- richer single-name `/cpar/explore` work should extend the current ticker-detail owner by default instead of routing through cUSE universe/explore owners
+- richer account-level `/cpar/risk` work should extend the current account-scoped hedge/what-if owners by default instead of collapsing those flows into one generic model-family dashboard service
+- `backend/services/cpar_portfolio_snapshot_service.py` remains the shared lower assembly owner for account-scoped cPAR reads unless a later slice proves a clearer lower-layer split
+
+Current frontend boundary decision:
+- cPAR pages may reuse neutral shared components and shared holdings widgets
+- cPAR pages must not take ownership from `frontend/src/features/cuse4/*`, `frontend/src/features/explore/*`, or `frontend/src/features/whatif/*`
+- a visual match to cUSE is acceptable; inheriting cUSE hooks, payload contracts, or apply semantics is not
+
+Current package-truth decision:
+- a richer cPAR page may continue to compose multiple requests only while it preserves one `package_run_id` / `package_date` across the full page
+- if a richer page cannot do that cleanly, the next slice should introduce a composite cPAR payload rather than weaken fail-closed behavior
+
 ## Active-Package Semantics
 
 The active package is the latest successful `cpar_package_runs` row that has the required child coverage for the requested read surface.

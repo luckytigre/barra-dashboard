@@ -96,6 +96,30 @@ Page consistency rule:
 - `/cpar/hedge` enforces this for banner, selected subject, and hedge preview
 - `/cpar/risk` enforces this for banner, the baseline account hedge payload, and the what-if envelope/current/hypothetical payloads
 
+## Current Frontend Owner Freeze
+
+The current cPAR overhaul should keep page ownership inside cPAR-owned modules even when the presentation becomes more cUSE-like.
+
+Current page owners:
+- `/cpar/explore` stays owned by `frontend/src/app/cpar/explore/page.tsx` plus cPAR-owned components
+- `/cpar/risk` stays owned by `frontend/src/features/cpar/components/CparRiskWorkspace.tsx`
+- `/cpar/hedge` stays owned by `frontend/src/app/cpar/hedge/page.tsx`
+- `/cpar/health` stays owned by `frontend/src/features/cpar/components/CparHealthWorkspace.tsx`
+
+Allowed reuse direction:
+- neutral visual primitives from `frontend/src/components/*`
+- shared holdings/account widgets such as `InlineShareDraftEditor`
+- shared layout rhythm, spacing, and interaction grammar already proven on cUSE pages
+
+Disallowed reuse direction for this overhaul stage:
+- cUSE feature owners under `frontend/src/features/cuse4/*`
+- cUSE explore owners under `frontend/src/features/explore/*`
+- cUSE what-if owners under `frontend/src/features/whatif/*`
+- cUSE hooks or payload semantics through `@/hooks/useCuse4Api`, `@/lib/cuse4Api`, or `@/lib/types/cuse4`
+
+If a richer cPAR page still needs multiple backend requests, it must preserve the same package-identity checks described above.
+If that becomes too brittle for one page, the next slice should move that page to a composite cPAR payload rather than mixing partially coherent reads in the browser.
+
 ## Status And Warning Rendering
 
 Fit status:
@@ -135,6 +159,7 @@ Read failures:
 `/cpar/risk`
 - remains a narrow account-level hedge workflow
 - owns account selection, coverage/exclusion explanation, aggregate loadings, staged scenario rows, and current vs hypothetical account hedge preview
+- any richer risk charts or decomposition views must stay subordinate to that same account-scoped hedge + preview-only what-if workflow
 - does not own portfolio mutation, account editing, trade application, or broad scenario analytics
 
 `/cpar/health`
