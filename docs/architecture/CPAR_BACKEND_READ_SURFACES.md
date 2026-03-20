@@ -35,6 +35,11 @@ It does not add:
 
 `GET /api/cpar/ticker/{ticker}?ric=`
 - returns one active-package ticker detail payload
+- keeps the persisted fit row as the primary identity/loadings owner
+- may add a nested `source_context` block with package-date-capped shared-source context:
+  - latest common name on or before the package date
+  - latest classification snapshot on or before the package date
+  - latest source price context on or before the package date
 - if multiple active rows share the ticker and `ric` is omitted, returns `409`
 
 `GET /api/cpar/ticker/{ticker}/hedge?mode=&ric=`
@@ -88,6 +93,7 @@ Current non-goals for this expansion stage:
 - no reuse of cUSE4 dashboard, universe, or what-if service surfaces
 - no generic `cpar_dashboard_*` or `cpar_risk_*` god service introduced only for symmetry
 - no new single-name history/context route until authority semantics are explicitly documented
+- no cUSE-style price-history surface in the ticker route during this slice
 
 ## Active-Package Semantics
 
@@ -105,6 +111,7 @@ If the active package is present but incomplete for a required relational surfac
 Ticker detail and hedge routes:
 - return `409` when the active package contains multiple rows for the same ticker and `ric` is omitted
 - return `404` when the requested ticker/ric is not present in the active package
+- ticker detail resolves the persisted fit row first, then looks up any supplemental `source_context` by the resolved `ric` plus active `package_date`
 
 Authority-read failures:
 - return `503`
@@ -116,6 +123,14 @@ Search-result limitations:
 - the current detail route is ticker-keyed
 - rows with `ticker = NULL` are therefore visible in search but not directly detail-addressable in v1
 - the frontend must render that limitation explicitly instead of silently hiding those rows
+
+Single-name source-context behavior:
+- `source_context` is supplemental shared-source context, not package-produced fit output
+- its common-name/classification/price lookups are capped at the active `package_date`
+- shared-source augmentation is fail-soft for the ticker-detail route:
+  - persisted cPAR fit detail still returns when those shared-source reads are degraded
+  - the nested `source_context.status` / `reason` fields distinguish missing rows from shared-source unavailability
+- this slice does not add a 5Y history payload or a separate single-name history route
 
 Portfolio-route limitations:
 - the first portfolio workflow is account-scoped, not multi-account

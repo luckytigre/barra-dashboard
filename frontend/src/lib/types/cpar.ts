@@ -5,6 +5,8 @@ export type CparHedgeStatus = "hedge_ok" | "hedge_degraded" | "hedge_unavailable
 export type CparHedgeMode = "factor_neutral" | "market_neutral";
 export type CparPortfolioStatus = "ok" | "partial" | "empty" | "unavailable";
 export type CparPortfolioCoverage = "covered" | "missing_price" | "missing_cpar_fit" | "insufficient_history";
+export type CparSourceContextStatus = "ok" | "partial" | "missing" | "unavailable";
+export type CparSourceContextReason = "missing_rows" | "shared_source_unavailable" | "mixed";
 
 export interface CparPackageMeta {
   package_run_id: string;
@@ -60,6 +62,35 @@ export interface CparLoading {
   beta: number;
 }
 
+export interface CparLatestCommonName {
+  value: string;
+  as_of_date: string;
+}
+
+export interface CparClassificationSnapshot {
+  as_of_date: string;
+  trbc_economic_sector: string | null;
+  trbc_business_sector: string | null;
+  trbc_industry_group: string | null;
+  trbc_industry: string | null;
+  trbc_activity: string | null;
+}
+
+export interface CparLatestPriceContext {
+  price: number;
+  price_date: string;
+  price_field_used: string | null;
+  currency: string | null;
+}
+
+export interface CparSourceContext {
+  status: CparSourceContextStatus;
+  reason: CparSourceContextReason | null;
+  latest_common_name: CparLatestCommonName | null;
+  classification_snapshot: CparClassificationSnapshot | null;
+  latest_price_context: CparLatestPriceContext | null;
+}
+
 export interface CparTickerDetailData extends CparPackageMeta {
   ticker: string | null;
   ric: string;
@@ -79,6 +110,7 @@ export interface CparTickerDetailData extends CparPackageMeta {
   thresholded_loadings: CparLoading[];
   pre_hedge_factor_variance_proxy?: number | null;
   pre_hedge_factor_volatility_proxy?: number | null;
+  source_context: CparSourceContext;
 }
 
 export interface CparHedgeLeg {

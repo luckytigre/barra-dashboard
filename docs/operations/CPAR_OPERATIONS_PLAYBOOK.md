@@ -100,12 +100,13 @@ Current frontend-backed read surfaces:
 
 The current detail route is ticker-keyed.
 Persisted search rows with `ticker = NULL` remain visible in search but are intentionally non-navigable in v1.
+`GET /api/cpar/ticker/{ticker}` may now include a supplemental nested `source_context` block for `/cpar/explore`, but that block is still keyed by the resolved persisted fit `ric` plus active `package_date`; it does not change the persisted fit identity, loadings, or hedge truth.
 The standalone hedge page reuses that same ticker-keyed selection rule and must fail closed when package identity drifts between the selected subject and the hedge preview.
 The first portfolio workflow is account-scoped and read-only: it reuses the shared Neon-backed adapter in `backend/data/holdings_reads.py` plus latest shared-source prices, but it does not reuse cUSE4 portfolio or what-if payload semantics.
 The first what-if workflow is embedded in `/cpar/risk` and remains preview-only: it stages signed share deltas against the same active package and account hedge baseline, but it does not apply trades or mutate holdings.
 The shared account-scoped snapshot assembly for both flows lives in `backend/services/cpar_portfolio_snapshot_service.py`; that shared owner is cPAR-specific and does not imply any reuse of cUSE4 what-if services.
 Upcoming cPAR risk/explore expansion should keep following the same ownership rule: extend current cPAR route/service owners by default, and only add a new cPAR-specific owner when the authority/read pattern is genuinely different.
-Until that authority decision is made explicitly, the operations baseline does not assume a new cPAR single-name history route or any reuse of cUSE universe/read surfaces.
+Until that authority decision is made explicitly, the operations baseline does not assume a new cPAR single-name history route or any reuse of cUSE universe/read surfaces. This slice still does not add a cUSE-style price-history panel to `/cpar/explore`.
 
 ## Fail-Closed Cases
 
@@ -118,6 +119,11 @@ Current cPAR flows fail closed when:
 - package identity drifts between package metadata and a later detail/hedge/account payload
 - package identity drifts between the shared banner and the portfolio what-if envelope or its nested `current` / `hypothetical` payloads
 - a staged what-if addition is not present in the active persisted cPAR package
+
+Explore-only source-context degradation does not fail the ticker-detail route closed:
+- if the persisted fit row is readable, `/cpar/explore` still renders
+- the nested `source_context.status` / `reason` fields distinguish missing package-date source rows from shared-source unavailability
+- treat that as degraded supplemental context, not as a cPAR package outage
 
 ## Runtime Troubleshooting
 
@@ -134,6 +140,11 @@ If `/cpar*` shows `unavailable`:
 If `/cpar/risk` rejects a staged addition:
 - confirm the name was staged from an active-package cPAR search hit
 - the preview route will not request-time fit off-package RICs or synthesize missing persisted fit rows
+
+If `/cpar/explore` shows source-context degradation while the persisted detail still renders:
+- confirm the active package itself is still readable; the fit row should remain authoritative
+- if `source_context.status = unavailable`, treat that as shared-source context degradation rather than a package outage
+- if `source_context.status = missing` or `partial`, confirm whether the source tables actually contain common-name/classification/price rows on or before the active package date for that `ric`
 
 If `/cpar/risk` shows `empty` instead of `unavailable`:
 - `empty` means the selected account has no live holdings rows at all

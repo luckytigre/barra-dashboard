@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from backend.cpar.factor_registry import ordered_factor_ids
-from backend.data import cpar_outputs
+from backend.data import cpar_outputs, cpar_source_reads
 from backend.services import cpar_hedge_service, cpar_meta_service, cpar_search_service, cpar_ticker_service
 
 
@@ -313,6 +313,198 @@ def test_cpar_ticker_service_returns_ordered_detail_payload(
     assert payload["pre_hedge_factor_variance_proxy"] == 0.2
 
 
+def test_cpar_ticker_service_adds_package_date_capped_source_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=1)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fit",
+        lambda *args, **kwargs: _fit_row(
+            "run_meta",
+            "2026-03-14",
+            ric="AAPL.OQ",
+            ticker="AAPL",
+            display_name="Apple Inc. Persisted",
+            raw_loadings={"SPY": 1.2, "XLK": 0.35},
+            thresholded_loadings={"SPY": 1.2, "XLK": 0.35},
+        ),
+    )
+
+    observed_calls: list[tuple[str, tuple[str, ...], str]] = []
+
+    def record_call(name: str, rows: list[dict[str, object]]):
+        def _inner(rics: list[str], *, as_of_date: str, data_db=None):
+            observed_calls.append((name, tuple(rics), as_of_date))
+            return rows
+        return _inner
+
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_common_name_rows",
+        record_call(
+            "common_name",
+            [{"ric": "AAPL.OQ", "as_of_date": "2026-03-13", "common_name": "Apple Incorporated Source"}],
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_classification_rows",
+        record_call(
+            "classification",
+            [{
+                "ric": "AAPL.OQ",
+                "as_of_date": "2026-03-12",
+                "trbc_economic_sector": "Technology",
+                "trbc_business_sector": "Technology Equipment",
+                "trbc_industry_group": "Computers",
+                "trbc_industry": "Computer Hardware",
+                "trbc_activity": "Consumer Electronics",
+            }],
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_price_rows",
+        record_call(
+            "price",
+            [{
+                "ric": "AAPL.OQ",
+                "date": "2026-03-14",
+                "close": 211.5,
+                "adj_close": 210.25,
+                "currency": "USD",
+            }],
+        ),
+    )
+
+    payload = cpar_ticker_service.load_cpar_ticker_payload("AAPL", ric="AAPL.OQ")
+
+    assert observed_calls == [
+        ("common_name", ("AAPL.OQ",), "2026-03-14"),
+        ("classification", ("AAPL.OQ",), "2026-03-14"),
+        ("price", ("AAPL.OQ",), "2026-03-14"),
+    ]
+    assert payload["display_name"] == "Apple Inc. Persisted"
+    assert payload["source_context"] == {
+        "status": "ok",
+        "reason": None,
+        "latest_common_name": {
+            "value": "Apple Incorporated Source",
+            "as_of_date": "2026-03-13",
+        },
+        "classification_snapshot": {
+            "as_of_date": "2026-03-12",
+            "trbc_economic_sector": "Technology",
+            "trbc_business_sector": "Technology Equipment",
+            "trbc_industry_group": "Computers",
+            "trbc_industry": "Computer Hardware",
+            "trbc_activity": "Consumer Electronics",
+        },
+        "latest_price_context": {
+            "price": 210.25,
+            "price_date": "2026-03-14",
+            "price_field_used": "adj_close",
+            "currency": "USD",
+        },
+    }
+
+
+def test_cpar_ticker_service_marks_missing_source_context_without_blocking_detail(monkeypatch: pytest.MonkeyPatch) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=1)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fit",
+        lambda *args, **kwargs: _fit_row(
+            "run_meta",
+            "2026-03-14",
+            ric="AAPL.OQ",
+            ticker="AAPL",
+            display_name="Apple Inc.",
+            raw_loadings={"SPY": 1.2, "XLK": 0.35},
+            thresholded_loadings={"SPY": 1.2, "XLK": 0.35},
+        ),
+    )
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_common_name_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_classification_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_price_rows", lambda *args, **kwargs: [])
+
+    payload = cpar_ticker_service.load_cpar_ticker_payload("AAPL", ric="AAPL.OQ")
+
+    assert payload["ric"] == "AAPL.OQ"
+    assert payload["source_context"] == {
+        "status": "missing",
+        "reason": "missing_rows",
+        "latest_common_name": None,
+        "classification_snapshot": None,
+        "latest_price_context": None,
+    }
+
+
+def test_cpar_ticker_service_keeps_persisted_detail_when_source_authority_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=1)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fit",
+        lambda *args, **kwargs: _fit_row(
+            "run_meta",
+            "2026-03-14",
+            ric="AAPL.OQ",
+            ticker="AAPL",
+            display_name="Apple Inc.",
+            raw_loadings={"SPY": 1.2, "XLK": 0.35},
+            thresholded_loadings={"SPY": 1.2, "XLK": 0.35},
+        ),
+    )
+    failure = cpar_source_reads.CparSourceReadError("shared source unavailable")
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_common_name_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_classification_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(failure),
+    )
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_price_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(failure),
+    )
+
+    payload = cpar_ticker_service.load_cpar_ticker_payload("AAPL", ric="AAPL.OQ")
+
+    assert payload["ric"] == "AAPL.OQ"
+    assert payload["source_context"] == {
+        "status": "unavailable",
+        "reason": "shared_source_unavailable",
+        "latest_common_name": None,
+        "classification_snapshot": None,
+        "latest_price_context": None,
+    }
+
+
+def test_cpar_ticker_service_does_not_probe_source_context_before_fit_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_local_sqlite(monkeypatch)
+    data_db = tmp_path / "cpar.db"
+    _seed_read_package_db(data_db)
+    monkeypatch.setattr(
+        cpar_ticker_service.cpar_source_reads,
+        "load_latest_common_name_rows",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("source reads should not run before fit resolution")),
+    )
+
+    with pytest.raises(cpar_meta_service.CparTickerAmbiguous, match="Ambiguous"):
+        cpar_ticker_service.load_cpar_ticker_payload("AAPL", data_db=data_db)
+
+
 def test_cpar_ticker_service_pins_one_package_for_the_response(monkeypatch: pytest.MonkeyPatch) -> None:
     package = _package_run("run_meta", "2026-03-14", universe_count=1)
     monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
@@ -339,6 +531,9 @@ def test_cpar_ticker_service_pins_one_package_for_the_response(monkeypatch: pyte
         )
 
     monkeypatch.setattr(cpar_outputs, "load_package_instrument_fit", fake_load)
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_common_name_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_classification_rows", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cpar_ticker_service.cpar_source_reads, "load_latest_price_rows", lambda *args, **kwargs: [])
 
     payload = cpar_ticker_service.load_cpar_ticker_payload("AAPL", ric="AAPL.OQ")
 

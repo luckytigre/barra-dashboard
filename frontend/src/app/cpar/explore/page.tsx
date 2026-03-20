@@ -7,6 +7,7 @@ import { useCparMeta, useCparTicker } from "@/hooks/useApi";
 import { canNavigateCparSearchResult, readCparError, sameCparPackageIdentity } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
 import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
+import CparExploreSourceContextCard from "@/features/cpar/components/CparExploreSourceContextCard";
 import CparInstrumentSummaryCard from "@/features/cpar/components/CparInstrumentSummaryCard";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
@@ -146,6 +147,8 @@ function CparExplorePageInner() {
           ) : null}
         </section>
       </div>
+
+      {detail && !detailPackageMismatch && !metaState ? <CparExploreSourceContextCard detail={detail} /> : null}
 
       {detail && !detailBlocked && !metaState ? (
         <>

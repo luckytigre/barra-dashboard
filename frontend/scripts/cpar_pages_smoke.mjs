@@ -42,6 +42,136 @@ function factorRegistry() {
   }));
 }
 
+function tickerDetailPayload(ticker) {
+  const base = {
+    package_run_id: "run_curr",
+    package_date: "2026-03-14",
+    profile: "cpar-weekly",
+    method_version: "cPAR1",
+    factor_registry_version: "cPAR1_registry_v1",
+    data_authority: "neon",
+    lookback_weeks: 52,
+    half_life_weeks: 26,
+    min_observations: 39,
+    source_prices_asof: "2026-03-14",
+    classification_asof: "2026-03-14",
+    universe_count: 1240,
+    fit_ok_count: 1180,
+    fit_limited_count: 48,
+    fit_insufficient_count: 12,
+    ticker,
+    ric: `${ticker}.OQ`,
+    display_name: `${ticker} Inc.`,
+    fit_status: "ok",
+    warnings: [],
+    observed_weeks: 52,
+    lookback_weeks: 52,
+    longest_gap_weeks: 0,
+    price_field_used: "adj_close",
+    hq_country_code: "US",
+    market_step_alpha: 0.01,
+    beta_market_step1: 1.18,
+    block_alpha: 0.0,
+    beta_spy_trade: 1.12,
+    raw_loadings: [
+      { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 },
+      { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.34 },
+      { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: 0.11 },
+    ],
+    thresholded_loadings: [
+      { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 },
+      { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.34 },
+    ],
+    pre_hedge_factor_variance_proxy: 0.24,
+    pre_hedge_factor_volatility_proxy: 0.49,
+  };
+
+  if (ticker === "AAPL") {
+    return {
+      ...base,
+      display_name: "Apple Inc.",
+      ric: "AAPL.OQ",
+      source_context: {
+        status: "ok",
+        reason: null,
+        latest_common_name: {
+          value: "Apple Incorporated Source",
+          as_of_date: "2026-03-13",
+        },
+        classification_snapshot: {
+          as_of_date: "2026-03-12",
+          trbc_economic_sector: "Technology",
+          trbc_business_sector: "Technology Equipment",
+          trbc_industry_group: "Computers",
+          trbc_industry: "Computer Hardware",
+          trbc_activity: "Consumer Electronics",
+        },
+        latest_price_context: {
+          price: 210.25,
+          price_date: "2026-03-14",
+          price_field_used: "adj_close",
+          currency: "USD",
+        },
+      },
+    };
+  }
+
+  if (ticker === "MSFT") {
+    return {
+      ...base,
+      display_name: "Microsoft Corp.",
+      ric: "MSFT.OQ",
+      source_context: {
+        status: "missing",
+        reason: "missing_rows",
+        latest_common_name: null,
+        classification_snapshot: null,
+        latest_price_context: null,
+      },
+    };
+  }
+
+  if (ticker === "NFLX") {
+    return {
+      ...base,
+      display_name: "Netflix Inc.",
+      ric: "NFLX.OQ",
+      source_context: {
+        status: "partial",
+        reason: "missing_rows",
+        latest_common_name: {
+          value: "Netflix Source Name",
+          as_of_date: "2026-03-11",
+        },
+        classification_snapshot: null,
+        latest_price_context: {
+          price: 512.4,
+          price_date: "2026-03-14",
+          price_field_used: "close",
+          currency: "USD",
+        },
+      },
+    };
+  }
+
+  if (ticker === "TSLA") {
+    return {
+      ...base,
+      display_name: "Tesla Inc.",
+      ric: "TSLA.OQ",
+      source_context: {
+        status: "unavailable",
+        reason: "shared_source_unavailable",
+        latest_common_name: null,
+        classification_snapshot: null,
+        latest_price_context: null,
+      },
+    };
+  }
+
+  return base;
+}
+
 async function waitForServer(url, timeoutMs = 120000) {
   const startedAt = Date.now();
   let lastError = null;
@@ -224,49 +354,9 @@ try {
         });
       }
 
-      if (method === "GET" && pathName === "/api/cpar/ticker/AAPL") {
-        return fulfillJson({
-          package_run_id: "run_curr",
-          package_date: "2026-03-14",
-          profile: "cpar-weekly",
-          method_version: "cPAR1",
-          factor_registry_version: "cPAR1_registry_v1",
-          data_authority: "neon",
-          lookback_weeks: 52,
-          half_life_weeks: 26,
-          min_observations: 39,
-          source_prices_asof: "2026-03-14",
-          classification_asof: "2026-03-14",
-          universe_count: 1240,
-          fit_ok_count: 1180,
-          fit_limited_count: 48,
-          fit_insufficient_count: 12,
-          ticker: "AAPL",
-          ric: "AAPL.OQ",
-          display_name: "Apple Inc.",
-          fit_status: "ok",
-          warnings: [],
-          observed_weeks: 52,
-          lookback_weeks: 52,
-          longest_gap_weeks: 0,
-          price_field_used: "adj_close",
-          hq_country_code: "US",
-          market_step_alpha: 0.01,
-          beta_market_step1: 1.18,
-          block_alpha: 0.0,
-          beta_spy_trade: 1.12,
-          raw_loadings: [
-            { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 },
-            { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.34 },
-            { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: 0.11 },
-          ],
-          thresholded_loadings: [
-            { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.12 },
-            { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.34 },
-          ],
-          pre_hedge_factor_variance_proxy: 0.24,
-          pre_hedge_factor_volatility_proxy: 0.49,
-        });
+      if (method === "GET" && pathName.startsWith("/api/cpar/ticker/") && !pathName.endsWith("/hedge")) {
+        const ticker = decodeURIComponent(pathName.split("/").pop() || "").toUpperCase();
+        return fulfillJson(tickerDetailPayload(ticker));
       }
 
       if (method === "GET" && pathName === "/api/cpar/ticker/AAPL/hedge") {
@@ -344,10 +434,25 @@ try {
     await page.getByTestId("cpar-search-input").fill("AAPL");
     await searchResults.locator("button").nth(1).click();
     await detailPanel.getByText("Apple Inc.").waitFor();
+    const sourceContextCard = page.getByTestId("cpar-source-context-card");
+    await sourceContextCard.waitFor();
+    await sourceContextCard.getByText("Apple Incorporated Source").waitFor();
+    await sourceContextCard.getByText("Technology").waitFor();
+    await sourceContextCard.getByText("adj_close", { exact: false }).waitFor();
     await page.getByTestId("cpar-hedge-workspace-card").waitFor();
     await page.getByRole("link", { name: "Continue To /cpar/hedge" }).waitFor();
     assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=MSFT&ric=MSFT.OQ`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-source-context-card").getByText("No shared-source context rows were found on or before the active package date.").waitFor();
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=NFLX&ric=NFLX.OQ`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-source-context-card").getByText("Supplemental shared-source context is only partially available.").waitFor();
+    await page.getByTestId("cpar-source-context-card").getByText("Netflix Source Name").waitFor();
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=TSLA&ric=TSLA.OQ`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-source-context-card").getByText("Supplemental shared-source context is temporarily unavailable.").waitFor();
 
     if (capturedPageError) {
       throw capturedPageError;

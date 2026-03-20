@@ -32,6 +32,7 @@ It does not add:
 `/cpar/explore`
 - general cPAR discovery/detail page
 - owns search, ticker selection, persisted fit detail, and loadings interpretation
+- now also renders a small package-date-capped `source_context` block for the selected instrument
 - links into `/cpar/hedge` for hedge-specific interaction
 - uses the active package only
 
@@ -69,6 +70,7 @@ Shared shell behavior:
 
 `GET /api/cpar/ticker/{ticker}`
 - one active-package persisted fit row
+- may include a nested `source_context` block with supplemental shared-source context pinned to the active package date
 - returns `409` when ticker is ambiguous and `ric` is required
 
 `GET /api/cpar/ticker/{ticker}/hedge`
@@ -93,6 +95,7 @@ Page consistency rule:
 - if those responses do not share the same `package_run_id` / `package_date`, the page must fail closed instead of mixing surfaces from different active packages
 - the frontend now uses package metadata as the first gate for dependent reads, so package-level `not_ready` / `unavailable` states do not keep probing detail or account-risk endpoints on the same page load
 - `/cpar/explore` enforces this for banner plus detail
+- `/cpar/explore` must treat `source_context` as supplemental to the same ticker-detail payload, not as an independent truth source
 - `/cpar/hedge` enforces this for banner, selected subject, and hedge preview
 - `/cpar/risk` enforces this for banner, the baseline account hedge payload, and the what-if envelope/current/hypothetical payloads
 
@@ -140,6 +143,9 @@ Read failures:
 - a direct `/cpar/explore?ric=...` visit without `ticker=` must render an explanatory warning rather than silently failing or synthesizing a detail request
 - a direct `/cpar/hedge?ric=...` visit without `ticker=` must render the same explanatory warning because the current hedge route is also ticker-keyed
 - package-identity drift between active-package reads must render an explicit reload prompt rather than mixing banner/detail/hedge data from different packages
+- explore-level shared-source context degradation is non-blocking:
+  - the page keeps rendering the persisted cPAR fit row
+  - the nested `source_context.status` / `reason` fields explain whether shared-source context is complete, partial, missing, or temporarily unavailable
 - `/cpar/risk` must render explicit empty or unavailable account states instead of synthesizing a hedge from unpriced or uncovered holdings rows
 - `empty` means the selected account has no live holdings rows
 - `unavailable` means the selected account has live holdings rows, but none are both priced and backed by a usable persisted cPAR fit in the active package
@@ -149,6 +155,7 @@ Read failures:
 `/cpar/explore`
 - remains the persisted fit discovery/detail surface
 - keeps raw and thresholded loadings visible
+- may show package-date source context for identity/classification/latest source price, but it still does not become a cUSE-style quote/history page in this slice
 - does not own hedge mode switching or post-hedge interpretation anymore
 
 `/cpar/hedge`
@@ -171,6 +178,7 @@ Read failures:
 
 Current cPAR frontend smokes cover:
 - `/cpar/health` and `/cpar/explore` baseline flow
+- `/cpar/explore` rendering the supplemental source-context card when the ticker route returns it
 - `/cpar/hedge` baseline flow
 - `/cpar/risk` baseline flow
 - `/cpar/risk` narrow what-if preview flow

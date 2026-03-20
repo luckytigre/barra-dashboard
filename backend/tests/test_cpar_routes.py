@@ -201,6 +201,49 @@ def test_cpar_ticker_route_maps_unavailable_to_503(monkeypatch) -> None:
     assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
 
 
+def test_cpar_ticker_route_preserves_nested_source_context_contract(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_ticker_service,
+        "load_cpar_ticker_payload",
+        lambda *args, **kwargs: {
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "ticker": "AAPL",
+            "ric": "AAPL.OQ",
+            "display_name": "Apple Inc.",
+            "fit_status": "ok",
+            "warnings": [],
+            "observed_weeks": 52,
+            "lookback_weeks": 52,
+            "longest_gap_weeks": 0,
+            "price_field_used": "adj_close",
+            "hq_country_code": "US",
+            "raw_loadings": [],
+            "thresholded_loadings": [],
+            "source_context": {
+                "status": "partial",
+                "reason": "missing_rows",
+                "latest_common_name": {"value": "Apple Incorporated", "as_of_date": "2026-03-13"},
+                "classification_snapshot": None,
+                "latest_price_context": {
+                    "price": 210.25,
+                    "price_date": "2026-03-14",
+                    "price_field_used": "adj_close",
+                    "currency": "USD",
+                },
+            },
+        },
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/ticker/AAPL?ric=AAPL.OQ")
+
+    assert res.status_code == 200
+    assert res.json()["source_context"]["status"] == "partial"
+    assert res.json()["source_context"]["latest_common_name"]["value"] == "Apple Incorporated"
+    assert res.json()["source_context"]["latest_price_context"]["price_field_used"] == "adj_close"
+
+
 def test_cpar_hedge_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_hedge_service,
