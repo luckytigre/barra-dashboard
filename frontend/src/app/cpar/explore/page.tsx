@@ -3,10 +3,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta, useCparTicker } from "@/hooks/useApi";
 import { canNavigateCparSearchResult, readCparError, sameCparPackageIdentity } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
+import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparInstrumentSummaryCard from "@/features/cpar/components/CparInstrumentSummaryCard";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
@@ -42,7 +42,7 @@ function CparExplorePageInner() {
   } = useCparTicker(metaReady ? ticker : null, ric);
 
   if (metaLoading && !meta) {
-    return <AnalyticsLoadingViz message="Loading cPAR explore..." />;
+    return <CparPageLoadingState message="Loading cPAR explore..." />;
   }
 
   const detailState = detailError ? readCparError(detailError) : null;
@@ -90,7 +90,7 @@ function CparExplorePageInner() {
               <span>Reload after the active cPAR package is readable again before opening detail or the hedge workspace.</span>
             </div>
           ) : detailLoading && !detail ? (
-            <AnalyticsLoadingViz message={`Loading cPAR detail for ${ric || ticker}...`} />
+            <CparInlineLoadingState message={`Loading cPAR detail for ${ric || ticker}...`} />
           ) : detailState ? (
             <div className={`cpar-inline-message ${detailState.kind === "ambiguous" ? "warning" : "error"}`}>
               <strong>
@@ -207,7 +207,7 @@ function CparExplorePageInner() {
 
 export default function CparExplorePage() {
   return (
-    <Suspense fallback={<AnalyticsLoadingViz message="Loading cPAR explore..." />}>
+    <Suspense fallback={<CparPageLoadingState message="Loading cPAR explore..." />}>
       <CparExplorePageInner />
     </Suspense>
   );

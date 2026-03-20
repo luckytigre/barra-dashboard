@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparMeta } from "@/hooks/useApi";
 import { canNavigateCparSearchResult, formatCparPackageDate, readCparError, summarizeFactorRegistry } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types";
+import { CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparPackageBanner from "@/features/cpar/components/CparPackageBanner";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
 import CparWarningsBar from "@/features/cpar/components/CparWarningsBar";
@@ -22,7 +22,7 @@ export default function CparLandingPage() {
   const { data, error, isLoading } = useCparMeta();
 
   if (isLoading && !data) {
-    return <AnalyticsLoadingViz message="Loading cPAR package..." />;
+    return <CparPageLoadingState message="Loading cPAR package..." />;
   }
 
   const metaError = error ? readCparError(error) : null;

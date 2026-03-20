@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import { useCparHedge } from "@/hooks/useApi";
 import {
   describeCparHedgeStatus,
@@ -11,6 +10,7 @@ import {
   sameCparPackageIdentity,
 } from "@/lib/cparTruth";
 import type { CparFitStatus, CparHedgeMode } from "@/lib/types";
+import { CparInlineLoadingState } from "./CparLoadingState";
 import CparPostHedgeTable from "./CparPostHedgeTable";
 
 const MODES: { value: CparHedgeMode; label: string; detail: string }[] = [
@@ -96,7 +96,7 @@ export default function CparHedgePanel({
         </div>
 
         {isLoading && !data ? (
-          <AnalyticsLoadingViz message="Loading cPAR hedge preview..." />
+          <CparInlineLoadingState message="Loading cPAR hedge preview..." />
         ) : errorSummary ? (
           <div className="cpar-inline-message warning">
             <strong>

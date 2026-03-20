@@ -3,8 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import CparLoadingsTable from "@/features/cpar/components/CparLoadingsTable";
+import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparPortfolioCoverageTable from "@/features/cpar/components/CparPortfolioCoverageTable";
 import CparPortfolioHedgePanel from "@/features/cpar/components/CparPortfolioHedgePanel";
 import CparPortfolioWhatIfBuilder, { type CparDraftScenarioRow } from "@/features/cpar/components/CparPortfolioWhatIfBuilder";
@@ -109,7 +109,7 @@ function CparRiskWorkspaceInner() {
   );
 
   if (metaLoading && !meta) {
-    return <AnalyticsLoadingViz message="Loading cPAR portfolio hedge workflow..." />;
+    return <CparPageLoadingState message="Loading cPAR portfolio hedge workflow..." />;
   }
 
   const whatIfState = whatIfError ? readCparError(whatIfError) : null;
@@ -181,7 +181,7 @@ function CparRiskWorkspaceInner() {
             Reused infrastructure: live holdings accounts and positions. Not reused: cUSE4 portfolio or what-if payload semantics.
           </div>
           {accountsLoading && !accountsData ? (
-            <AnalyticsLoadingViz message="Loading holdings accounts..." />
+            <CparInlineLoadingState message="Loading holdings accounts..." />
           ) : accountsError ? (
             <div className="cpar-inline-message error">
               <strong>Holdings accounts unavailable.</strong>
@@ -259,7 +259,7 @@ function CparRiskWorkspaceInner() {
       ) : metaState || accountsError ? null : portfolioLoading && !portfolio ? (
         <section className="chart-card" data-testid="cpar-portfolio-loading">
           <h3>Account Hedge Preview</h3>
-          <AnalyticsLoadingViz message={`Loading cPAR portfolio hedge for ${selectedAccountId}...`} />
+          <CparInlineLoadingState message={`Loading cPAR portfolio hedge for ${selectedAccountId}...`} />
         </section>
       ) : portfolioState ? (
         <section className="chart-card" data-testid="cpar-portfolio-error">
@@ -384,7 +384,7 @@ function CparRiskWorkspaceInner() {
           ) : whatIfLoading && !whatIf ? (
             <section className="chart-card" data-testid="cpar-portfolio-whatif-loading">
               <h3>What-If Preview</h3>
-              <AnalyticsLoadingViz message={`Loading cPAR what-if preview for ${selectedAccountId}...`} />
+              <CparInlineLoadingState message={`Loading cPAR what-if preview for ${selectedAccountId}...`} />
             </section>
           ) : whatIfState ? (
             <section className="chart-card" data-testid="cpar-portfolio-whatif-error">
@@ -477,7 +477,7 @@ function CparRiskWorkspaceInner() {
 
 export default function CparRiskWorkspace() {
   return (
-    <Suspense fallback={<AnalyticsLoadingViz message="Loading cPAR portfolio hedge workflow..." />}>
+    <Suspense fallback={<CparPageLoadingState message="Loading cPAR portfolio hedge workflow..." />}>
       <CparRiskWorkspaceInner />
     </Suspense>
   );

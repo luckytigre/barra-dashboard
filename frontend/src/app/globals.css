@@ -3670,6 +3670,27 @@ main {
   padding-top: 10px;
 }
 
+.cpar-page-loading-shell {
+  min-height: calc(100vh - 180px);
+  min-height: calc(100dvh - 180px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 24px;
+}
+
+.cpar-page-loading-shell .analytics-stage {
+  width: auto;
+  min-height: 0;
+}
+
+.cpar-inline-loading {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  color: rgba(169, 182, 210, 0.78);
+}
+
 .cpar-section-kicker {
   color: rgba(188, 192, 201, 0.72);
   font-size: 11px;

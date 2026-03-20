@@ -3,8 +3,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import CparHedgePanel from "@/features/cpar/components/CparHedgePanel";
+import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparInstrumentSummaryCard from "@/features/cpar/components/CparInstrumentSummaryCard";
 import CparSearchPanel from "@/features/cpar/components/CparSearchPanel";
 import { useCparMeta, useCparTicker } from "@/hooks/useApi";
@@ -42,7 +42,7 @@ function CparHedgePageInner() {
   } = useCparTicker(metaReady ? ticker : null, ric);
 
   if (metaLoading && !meta) {
-    return <AnalyticsLoadingViz message="Loading cPAR hedge workspace..." />;
+    return <CparPageLoadingState message="Loading cPAR hedge workspace..." />;
   }
 
   const detailState = detailError ? readCparError(detailError) : null;
@@ -101,7 +101,7 @@ function CparHedgePageInner() {
         ) : detailLoading && !detail ? (
           <section className="chart-card" data-testid="cpar-hedge-subject-panel">
             <h3>Selected Hedge Subject</h3>
-            <AnalyticsLoadingViz message={`Loading cPAR hedge subject for ${ric || ticker}...`} />
+            <CparInlineLoadingState message={`Loading cPAR hedge subject for ${ric || ticker}...`} />
           </section>
         ) : detailState ? (
           <section className="chart-card" data-testid="cpar-hedge-subject-panel">
@@ -187,7 +187,7 @@ function CparHedgePageInner() {
 
 export default function CparHedgePage() {
   return (
-    <Suspense fallback={<AnalyticsLoadingViz message="Loading cPAR hedge workspace..." />}>
+    <Suspense fallback={<CparPageLoadingState message="Loading cPAR hedge workspace..." />}>
       <CparHedgePageInner />
     </Suspense>
   );
