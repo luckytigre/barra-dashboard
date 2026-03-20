@@ -423,26 +423,32 @@ try {
     const searchResults = page.getByTestId("cpar-search-results");
     await searchResults.waitFor();
     assert.equal(await searchResults.locator("button").first().isDisabled(), true);
-    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
-    const detailPanel = page.getByTestId("cpar-detail-panel");
-    await detailPanel.waitFor();
-    await detailPanel.getByText("RIC result cannot open detail directly.").waitFor();
-    await detailPanel.getByText("the current cPAR detail route is ticker-keyed", { exact: false }).waitFor();
-    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-search-input").fill("AAPL");
-    await searchResults.locator("button").nth(1).click();
+    const exploreSearchResults = page.getByTestId("cpar-search-results");
+    await exploreSearchResults.waitFor();
+    assert.equal(await exploreSearchResults.locator("button").first().isDisabled(), true);
+    await page.getByTestId("cpar-search-input").press("Enter");
+    const detailPanel = page.getByTestId("cpar-detail-panel");
     await detailPanel.getByText("Apple Inc.").waitFor();
     const sourceContextCard = page.getByTestId("cpar-source-context-card");
     await sourceContextCard.waitFor();
     await sourceContextCard.getByText("Apple Incorporated Source").waitFor();
     await sourceContextCard.getByText("Technology").waitFor();
     await sourceContextCard.getByText("adj_close", { exact: false }).waitFor();
+    await page.getByTestId("cpar-loadings-panel").waitFor();
     await page.getByTestId("cpar-hedge-workspace-card").waitFor();
     await page.getByRole("link", { name: "Continue To /cpar/hedge" }).waitFor();
     assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+
+    await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
+    await detailPanel.waitFor();
+    await detailPanel.getByRole("heading", { name: "Ticker Required For Detail" }).waitFor();
+    await detailPanel.getByText("the current cPAR detail route is ticker-keyed", { exact: false }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=MSFT&ric=MSFT.OQ`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-source-context-card").getByText("No shared-source context rows were found on or before the active package date.").waitFor();

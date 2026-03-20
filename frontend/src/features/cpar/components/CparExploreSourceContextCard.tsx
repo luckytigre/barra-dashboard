@@ -57,8 +57,10 @@ function sourceContextMessage(context: CparSourceContext): { tone: "neutral" | "
 
 export default function CparExploreSourceContextCard({
   detail,
+  embedded = false,
 }: {
   detail: CparTickerDetailData;
+  embedded?: boolean;
 }) {
   const context: CparSourceContext = detail.source_context ?? {
     status: "missing",
@@ -78,11 +80,19 @@ export default function CparExploreSourceContextCard({
   ].filter(Boolean).join(" · ") || "—";
 
   return (
-    <section className="chart-card" data-testid="cpar-source-context-card">
-      <h3>Package-Date Source Context</h3>
-      <div className="section-subtitle">
-        Supplemental shared-source context pinned to {formatCparPackageDate(detail.package_date)}. This does not change
-        the persisted cPAR fit identity, loadings, or hedge semantics.
+    <section
+      className={embedded ? "cpar-explore-context-panel" : "chart-card cpar-explore-context-panel standalone"}
+      data-testid="cpar-source-context-card"
+    >
+      <div className="cpar-explore-context-head">
+        <div>
+          <div className="cpar-explore-panel-title">Package-Date Source Context</div>
+          <div className="cpar-explore-panel-subtitle">
+            Supplemental shared-source context pinned to {formatCparPackageDate(detail.package_date)}. This does not
+            change the persisted cPAR fit identity, loadings, or hedge semantics.
+          </div>
+        </div>
+        <div className="cpar-detail-chip">Supplemental only</div>
       </div>
       {note ? (
         <div className={`cpar-inline-message ${note.tone}`}>
@@ -90,7 +100,7 @@ export default function CparExploreSourceContextCard({
           <span>{note.body}</span>
         </div>
       ) : null}
-      <div className="cpar-package-grid compact">
+      <div className="explore-quote-data-grid compact cpar-explore-context-grid">
         {metric(
           "Common Name",
           commonName?.value || "—",

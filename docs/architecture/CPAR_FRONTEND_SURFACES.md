@@ -35,6 +35,11 @@ It does not add:
 - now also renders a small package-date-capped `source_context` block for the selected instrument
 - links into `/cpar/hedge` for hedge-specific interaction
 - uses the active package only
+- now uses three cPAR-owned presentation modules:
+  - one active-package search/typeahead module
+  - one selected-instrument detail module that embeds supplemental source context
+  - one persisted-loadings plus hedge-handoff module
+- intentionally borrows cUSE-like layout rhythm and typeahead grammar without importing cUSE feature owners, cUSE hooks, or cUSE payload semantics
 
 `/cpar/health`
 - lightweight cPAR package diagnostics page
@@ -156,6 +161,7 @@ Read failures:
 - remains the persisted fit discovery/detail surface
 - keeps raw and thresholded loadings visible
 - may show package-date source context for identity/classification/latest source price, but it still does not become a cUSE-style quote/history page in this slice
+- now presents the selected instrument as one cPAR-owned detail module rather than a stack of small generic cards, but the page owner still keeps all package-truth, ambiguity, `insufficient_history`, and package-mismatch branching explicit
 - does not own hedge mode switching or post-hedge interpretation anymore
 
 `/cpar/hedge`
@@ -179,6 +185,7 @@ Read failures:
 Current cPAR frontend smokes cover:
 - `/cpar/health` and `/cpar/explore` baseline flow
 - `/cpar/explore` rendering the supplemental source-context card when the ticker route returns it
+- `/cpar/explore` rendering the rebuilt persisted-loadings module after a successful detail selection
 - `/cpar/hedge` baseline flow
 - `/cpar/risk` baseline flow
 - `/cpar/risk` narrow what-if preview flow
