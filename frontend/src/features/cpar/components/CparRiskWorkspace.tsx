@@ -3,9 +3,9 @@
 import { Suspense, useMemo } from "react";
 import { CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparRiskCovarianceSection from "@/features/cpar/components/CparRiskCovarianceSection";
+import CparRiskDecompChart from "@/features/cpar/components/CparRiskDecompChart";
 import CparRiskFactorSummaryCard from "@/features/cpar/components/CparRiskFactorSummaryCard";
 import CparRiskPositionsContributionTable from "@/features/cpar/components/CparRiskPositionsContributionTable";
-import RiskDecompChart from "@/components/RiskDecompChart";
 import { useCparMeta, useCparRisk } from "@/hooks/useCparApi";
 import {
   normalizeCparRiskData,
@@ -89,7 +89,7 @@ function CparRiskWorkspaceInner() {
             <div className="section-subtitle">
               Share of total portfolio risk split across market, industry, style, and idiosyncratic components.
             </div>
-            <RiskDecompChart shares={cparRiskShares(normalizedRisk)} />
+            <CparRiskDecompChart shares={cparRiskShares(normalizedRisk)} />
           </div>
           <CparRiskFactorSummaryCard portfolio={normalizedRisk} />
           <CparRiskPositionsContributionTable rows={normalizedRisk.positions} />
