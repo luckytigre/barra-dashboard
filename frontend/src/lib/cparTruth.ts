@@ -438,6 +438,7 @@ type CparRiskLikePayload = {
   aggregate_display_loadings?: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
   coverage_breakdown: CparCoverageBreakdown;
+  display_cov_matrix?: CparCovMatrix;
   cov_matrix: CparCovMatrix;
   display_factor_variance_contributions?: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
@@ -458,6 +459,7 @@ function normalizeCparRiskLikeData<T extends CparRiskLikePayload>(payload: T): T
     payload.display_factor_variance_contributions ?? payload.factor_variance_contributions,
   );
   const factorVarianceContributions = normalizeCparVarianceContributions(payload.factor_variance_contributions);
+  const displayCovMatrix = payload.display_cov_matrix ? normalizeCparCovMatrix(payload.display_cov_matrix) : undefined;
   const hasDisplayFactorChartField = Object.prototype.hasOwnProperty.call(payload, "display_factor_chart");
   const displayFactorChart = normalizeCparFactorChartRows(
     payload.display_factor_chart ?? payload.factor_chart,
@@ -469,7 +471,8 @@ function normalizeCparRiskLikeData<T extends CparRiskLikePayload>(payload: T): T
     aggregate_display_loadings: aggregateDisplayLoadings,
     aggregate_thresholded_loadings: aggregateThresholdedLoadings,
     coverage_breakdown: normalizeCparCoverageBreakdown(payload.coverage_breakdown || EMPTY_CPAR_COVERAGE_BREAKDOWN),
-    cov_matrix: normalizeCparCovMatrix(payload.cov_matrix),
+    display_cov_matrix: displayCovMatrix,
+    cov_matrix: normalizeCparCovMatrix(payload.display_cov_matrix ?? payload.cov_matrix),
     display_factor_variance_contributions: displayFactorVarianceContributions,
     factor_variance_contributions: factorVarianceContributions,
     display_factor_chart: hasDisplayFactorChartField

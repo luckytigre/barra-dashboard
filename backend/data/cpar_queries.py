@@ -194,6 +194,78 @@ def successful_package_factor_return_rows(
     ]
 
 
+def package_proxy_return_rows(fetch_rows: FetchRowsFn, *, package_run_id: str) -> list[dict[str, Any]]:
+    rows = fetch_rows(
+        """
+        SELECT
+            factor_id,
+            factor_group,
+            week_end,
+            return_value,
+            weight_value,
+            proxy_ric,
+            proxy_ticker,
+            package_run_id,
+            package_date,
+            updated_at
+        FROM cpar_proxy_returns_weekly
+        WHERE package_run_id = ?
+        ORDER BY factor_id, week_end
+        """,
+        [str(package_run_id)],
+    )
+    return [
+        {
+            "factor_id": str(row.get("factor_id") or ""),
+            "factor_group": str(row.get("factor_group") or ""),
+            "week_end": str(row.get("week_end") or ""),
+            "return_value": float(row.get("return_value") or 0.0),
+            "weight_value": float(row.get("weight_value") or 0.0),
+            "proxy_ric": str(row.get("proxy_ric") or ""),
+            "proxy_ticker": str(row.get("proxy_ticker") or ""),
+            "package_run_id": str(row.get("package_run_id") or ""),
+            "package_date": str(row.get("package_date") or ""),
+            "updated_at": str(row.get("updated_at") or ""),
+        }
+        for row in rows
+    ]
+
+
+def package_proxy_transform_rows(fetch_rows: FetchRowsFn, *, package_run_id: str) -> list[dict[str, Any]]:
+    rows = fetch_rows(
+        """
+        SELECT
+            factor_id,
+            factor_group,
+            market_alpha,
+            market_beta,
+            proxy_ric,
+            proxy_ticker,
+            package_run_id,
+            package_date,
+            updated_at
+        FROM cpar_proxy_transform_weekly
+        WHERE package_run_id = ?
+        ORDER BY factor_id
+        """,
+        [str(package_run_id)],
+    )
+    return [
+        {
+            "factor_id": str(row.get("factor_id") or ""),
+            "factor_group": str(row.get("factor_group") or ""),
+            "market_alpha": float(row.get("market_alpha") or 0.0),
+            "market_beta": float(row.get("market_beta") or 0.0),
+            "proxy_ric": str(row.get("proxy_ric") or ""),
+            "proxy_ticker": str(row.get("proxy_ticker") or ""),
+            "package_run_id": str(row.get("package_run_id") or ""),
+            "package_date": str(row.get("package_date") or ""),
+            "updated_at": str(row.get("updated_at") or ""),
+        }
+        for row in rows
+    ]
+
+
 def package_covariance_rows(fetch_rows: FetchRowsFn, *, package_run_id: str) -> list[dict[str, Any]]:
     rows = fetch_rows(
         """

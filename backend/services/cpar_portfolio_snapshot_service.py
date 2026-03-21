@@ -889,8 +889,10 @@ def build_cpar_risk_snapshot(
     price_by_ric: dict[str, dict[str, Any]],
     classification_by_ric: dict[str, dict[str, Any]],
     covariance_rows: list[dict[str, Any]],
+    display_covariance_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, object]:
     position_count = int(len(positions))
+    resolved_display_covariance_rows = list(display_covariance_rows or covariance_rows)
 
     base_payload: dict[str, object] = {
         **cpar_meta_service.package_meta_payload(package),
@@ -913,6 +915,7 @@ def build_cpar_risk_snapshot(
         "factor_chart": [],
         "display_factor_chart": [],
         "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
+        "display_cov_matrix": _cov_matrix_payload(covariance_rows=resolved_display_covariance_rows),
         "positions": [],
     }
     if not positions:
@@ -994,16 +997,16 @@ def build_cpar_risk_snapshot(
             "aggregate_display_loadings": _factor_rows(aggregate_display_loadings),
             "display_factor_variance_contributions": _factor_variance_contribution_rows(
                 aggregate_display_loadings,
-                covariance_rows=covariance_rows,
+                covariance_rows=resolved_display_covariance_rows,
             ),
             "display_factor_chart": _factor_chart_rows(
                 loadings=aggregate_display_loadings,
                 variance_rows=_factor_variance_contribution_rows(
                     aggregate_display_loadings,
-                    covariance_rows=covariance_rows,
+                    covariance_rows=resolved_display_covariance_rows,
                 ),
                 position_rows=position_rows,
-                covariance_rows=covariance_rows,
+                covariance_rows=resolved_display_covariance_rows,
                 contribution_field="display_contributions",
             ),
         }

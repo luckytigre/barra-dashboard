@@ -29,10 +29,11 @@ It does not add:
   - one signed factor-loadings chart with per-factor drilldown, reconciled from one aggregate book snapshot
   - one 5Y factor-return history block inside each factor drilldown
   - positions contribution mix table derived from per-row display contributions
-  - one full market/industry/style factor correlation heatmap from the package-pinned covariance surface
+  - one full market/industry/style factor correlation heatmap from the package-pinned residualized display covariance surface
 - now has a stable backend contract:
   - `coverage_breakdown` for explicit exclusion buckets
   - `aggregate_display_loadings`
+  - `display_cov_matrix`
   - `display_factor_variance_contributions`
   - `display_factor_chart`
   - `positions[].display_contributions`
@@ -90,6 +91,7 @@ Shared shell behavior:
 - does not reuse the account-scoped hedge payload as its frontend owner
 - explanatory display must consume:
   - `aggregate_display_loadings`
+  - `display_cov_matrix`
   - `display_factor_variance_contributions`
   - `display_factor_chart`
   - `positions[].display_contributions`
@@ -198,6 +200,7 @@ Read failures:
 - owns one signed factor-loadings chart with per-factor drilldown, 5Y factor-return history, positions contribution mix, and the full factor correlation heatmap
 - now intentionally borrows the cUSE risk-page layout rhythm without importing cUSE feature owners or cUSE payload semantics
 - uses display-basis loadings for explanatory charts and tables
+- uses the residualized display covariance surface for the heatmap, display risk shares, and display factor drilldown metrics
 - does not display hedge-trade-space or thresholded hedge vectors outside hedge-specific surfaces
 - now avoids a duplicate factor-summary table under the chart, leaving the signed chart plus drilldown as the primary factor read
 - still stops short of a full cUSE-style analytics workspace:

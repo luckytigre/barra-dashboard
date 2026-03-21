@@ -49,6 +49,7 @@ It does not add:
 - returns:
   - `aggregate_display_loadings`
   - `coverage_breakdown`
+  - `display_cov_matrix`
   - `display_factor_variance_contributions`
   - `display_factor_chart`
   - `factor_variance_contributions`
@@ -203,6 +204,11 @@ Aggregate-risk limitations:
 - it still depends on both authorities at once:
   - an active cPAR package
   - shared holdings/account and source-price reads
+- `display_cov_matrix` is additive explanatory surface only:
+  - it is derived read-time from the persisted package proxy-return panel plus persisted market-orthogonalization transforms
+  - it stays package-pinned
+  - it uses raw `SPY` returns and residualized non-market factor returns
+  - it does not replace the persisted raw ETF `cov_matrix`, which remains the hedge-space covariance surface
 
 ## Hedge Preview Behavior
 

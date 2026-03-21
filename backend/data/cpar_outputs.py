@@ -473,6 +473,42 @@ def load_package_covariance_rows(
     return rows
 
 
+def load_package_proxy_return_rows(
+    package_run_id: str,
+    *,
+    data_db: Path | None = None,
+) -> list[dict[str, Any]]:
+    if _use_neon_reads():
+        rows = cpar_queries.package_proxy_return_rows(
+            lambda sql, params=None: _neon_fetch(sql, params),
+            package_run_id=str(package_run_id),
+        )
+        if rows or config.cloud_mode():
+            return rows
+    return cpar_queries.package_proxy_return_rows(
+        lambda sql, params=None: _sqlite_fetch_rows(sql, params, data_db=data_db),
+        package_run_id=str(package_run_id),
+    )
+
+
+def load_package_proxy_transform_rows(
+    package_run_id: str,
+    *,
+    data_db: Path | None = None,
+) -> list[dict[str, Any]]:
+    if _use_neon_reads():
+        rows = cpar_queries.package_proxy_transform_rows(
+            lambda sql, params=None: _neon_fetch(sql, params),
+            package_run_id=str(package_run_id),
+        )
+        if rows or config.cloud_mode():
+            return rows
+    return cpar_queries.package_proxy_transform_rows(
+        lambda sql, params=None: _sqlite_fetch_rows(sql, params, data_db=data_db),
+        package_run_id=str(package_run_id),
+    )
+
+
 def load_active_package_covariance_rows(*, data_db: Path | None = None) -> list[dict[str, Any]]:
     package = require_active_package_run(data_db=data_db)
     return load_package_covariance_rows(

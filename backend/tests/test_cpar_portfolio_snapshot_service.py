@@ -11,12 +11,20 @@ def _package() -> dict[str, object]:
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
         "profile": "cpar-weekly",
+        "started_at": "2026-03-14T00:00:00Z",
+        "completed_at": "2026-03-14T00:01:00Z",
         "method_version": "cPAR1",
         "factor_registry_version": "cPAR1_registry_v1",
         "data_authority": "neon",
         "lookback_weeks": 52,
         "half_life_weeks": 26,
         "min_observations": 39,
+        "source_prices_asof": "2026-03-14",
+        "classification_asof": "2026-03-14",
+        "universe_count": 10,
+        "fit_ok_count": 8,
+        "fit_limited_count": 1,
+        "fit_insufficient_count": 1,
     }
 
 
@@ -179,3 +187,46 @@ def test_support_rows_does_not_swallow_unexpected_output_decode_bugs(
             package_run_id="run_curr",
             package_date="2026-03-14",
         )
+
+
+def test_build_cpar_risk_snapshot_uses_display_covariance_for_display_analytics() -> None:
+    payload = cpar_portfolio_snapshot_service.build_cpar_risk_snapshot(
+        package=_package(),
+        accounts=[{"account_id": "acct_a", "account_name": "Account A"}],
+        positions=[{"account_id": "all_accounts", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 1.0}],
+        fit_by_ric={
+            "AAPL.OQ": {
+                "ric": "AAPL.OQ",
+                "ticker": "AAPL",
+                "display_name": "Apple Inc.",
+                "fit_status": "ok",
+                "warnings": [],
+                "market_step_beta": 1.0,
+                "spy_trade_beta_raw": 1.0,
+                "raw_loadings": {"SPY": 1.0, "XLK": 1.0},
+                "thresholded_loadings": {"SPY": 1.0, "XLK": 1.0},
+            }
+        },
+        price_by_ric={"AAPL.OQ": {"ric": "AAPL.OQ", "adj_close": 100.0, "date": "2026-03-14"}},
+        classification_by_ric={"AAPL.OQ": {"ric": "AAPL.OQ", "trbc_industry_group": "Technology Hardware"}},
+        covariance_rows=[
+            {"factor_id": "SPY", "factor_id_2": "SPY", "covariance": 1.0, "correlation": 1.0},
+            {"factor_id": "SPY", "factor_id_2": "XLK", "covariance": 0.8, "correlation": 0.8},
+            {"factor_id": "XLK", "factor_id_2": "SPY", "covariance": 0.8, "correlation": 0.8},
+            {"factor_id": "XLK", "factor_id_2": "XLK", "covariance": 1.0, "correlation": 1.0},
+        ],
+        display_covariance_rows=[
+            {"factor_id": "SPY", "factor_id_2": "SPY", "covariance": 1.0, "correlation": 1.0},
+            {"factor_id": "SPY", "factor_id_2": "XLK", "covariance": 0.0, "correlation": 0.0},
+            {"factor_id": "XLK", "factor_id_2": "SPY", "covariance": 0.0, "correlation": 0.0},
+            {"factor_id": "XLK", "factor_id_2": "XLK", "covariance": 1.0, "correlation": 1.0},
+        ],
+    )
+
+    raw_xlk = next(row for row in payload["factor_chart"] if row["factor_id"] == "XLK")
+    display_xlk = next(row for row in payload["display_factor_chart"] if row["factor_id"] == "XLK")
+    xlk_index = payload["display_cov_matrix"]["factors"].index("XLK")
+
+    assert payload["display_cov_matrix"]["correlation"][0][xlk_index] == pytest.approx(0.0)
+    assert raw_xlk["covariance_adjustment"] == pytest.approx(1.8)
+    assert display_xlk["covariance_adjustment"] == pytest.approx(1.0)

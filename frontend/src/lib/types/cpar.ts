@@ -292,6 +292,7 @@ export interface CparRiskData extends CparPackageMeta {
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
+  display_cov_matrix?: CparCovMatrix;
   cov_matrix: CparCovMatrix;
   pre_hedge_factor_variance_proxy?: number | null;
   positions: CparPortfolioPositionRow[];
@@ -317,6 +318,7 @@ export interface CparPortfolioHedgeData extends CparPackageMeta {
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
+  display_cov_matrix?: CparCovMatrix;
   cov_matrix: CparCovMatrix;
   hedge_status: CparHedgeStatus | null;
   hedge_reason: string | null;

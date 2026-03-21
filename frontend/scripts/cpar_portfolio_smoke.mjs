@@ -463,6 +463,14 @@ function baselineRiskPayload() {
         [0.17, 0.22, 1.0],
       ],
     },
+    display_cov_matrix: {
+      factors: ["SPY", "XLK", "QUAL"],
+      correlation: [
+        [1.0, 0.02, -0.01],
+        [0.02, 1.0, 0.19],
+        [-0.01, 0.19, 1.0],
+      ],
+    },
     positions: [
       {
         account_id: "all_accounts",
@@ -575,6 +583,14 @@ function emptyRiskPayload() {
         [0.17, 0.22, 1.0],
       ],
     },
+    display_cov_matrix: {
+      factors: ["SPY", "XLK", "QUAL"],
+      correlation: [
+        [1.0, 0.02, -0.01],
+        [0.02, 1.0, 0.19],
+        [-0.01, 0.19, 1.0],
+      ],
+    },
     positions: [],
   };
 }
@@ -611,6 +627,14 @@ function unavailableRiskPayload() {
         [1.0, 0.48, 0.17],
         [0.48, 1.0, 0.22],
         [0.17, 0.22, 1.0],
+      ],
+    },
+    display_cov_matrix: {
+      factors: ["SPY", "XLK", "QUAL"],
+      correlation: [
+        [1.0, 0.02, -0.01],
+        [0.02, 1.0, 0.19],
+        [-0.01, 0.19, 1.0],
       ],
     },
     positions: [

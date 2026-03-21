@@ -182,6 +182,53 @@ def test_active_package_covariance_rows_returns_sorted_rows() -> None:
     ]
 
 
+def test_package_proxy_return_rows_returns_rows_grouped_by_factor_and_week() -> None:
+    conn = _seed_query_db()
+
+    rows = cpar_queries.package_proxy_return_rows(
+        _fetch_rows_factory(conn),
+        package_run_id="run_new",
+    )
+
+    assert rows == [
+        {
+            "factor_id": "SPY",
+            "factor_group": "market",
+            "week_end": "2026-03-14",
+            "return_value": 0.02,
+            "weight_value": 0.5,
+            "proxy_ric": "SPY.P",
+            "proxy_ticker": "SPY",
+            "package_run_id": "run_new",
+            "package_date": "2026-03-14",
+            "updated_at": "2026-03-15T00:03:00Z",
+        },
+    ]
+
+
+def test_package_proxy_transform_rows_returns_rows_grouped_by_factor() -> None:
+    conn = _seed_query_db()
+
+    rows = cpar_queries.package_proxy_transform_rows(
+        _fetch_rows_factory(conn),
+        package_run_id="run_new",
+    )
+
+    assert rows == [
+        {
+            "factor_id": "XLF",
+            "factor_group": "sector",
+            "market_alpha": 0.001,
+            "market_beta": 0.5,
+            "proxy_ric": "XLF.P",
+            "proxy_ticker": "XLF",
+            "package_run_id": "run_new",
+            "package_date": "2026-03-14",
+            "updated_at": "2026-03-15T00:03:00Z",
+        },
+    ]
+
+
 def test_active_package_search_rows_returns_matching_rows_with_decoded_warnings() -> None:
     conn = _seed_query_db()
 

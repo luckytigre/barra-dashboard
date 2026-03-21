@@ -105,6 +105,7 @@ The shared snapshot assembly in `backend/services/cpar_portfolio_snapshot_servic
 - aggregate `/api/cpar/risk`
 - account-scoped `/api/cpar/portfolio/hedge` and `/api/cpar/portfolio/whatif`
 That shared snapshot now carries explicit `coverage_breakdown`, hedge-basis `factor_variance_contributions`, additive display-basis `display_factor_variance_contributions`, hedge-basis `factor_chart`, additive explanatory `display_factor_chart`, per-position `thresholded_contributions`, additive `display_contributions`, and the package-pinned `cov_matrix`; those fields are still derived read surfaces from the same package-scoped snapshot, not a second risk engine.
+For aggregate `/cpar/risk`, the shared snapshot now also carries additive `display_cov_matrix`, derived read-time from the persisted proxy-return panel plus persisted market-orthogonalization transforms. That display matrix is package-pinned and explanatory only; the persisted raw ETF `cov_matrix` remains the hedge-space covariance surface.
 `/cpar/risk` now renders those fields directly as:
 - coverage summary plus explicit exclusion buckets
 - one signed factor-loadings chart with per-factor drilldown

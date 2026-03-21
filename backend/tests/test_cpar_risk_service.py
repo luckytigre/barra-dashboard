@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+
+from backend.services import cpar_meta_service
 from backend.services import cpar_risk_service
 
 
@@ -30,6 +33,11 @@ def test_load_cpar_risk_payload_uses_aggregate_snapshot_owner(monkeypatch) -> No
         "load_cpar_portfolio_support_rows",
         fake_support_rows,
     )
+    monkeypatch.setattr(
+        cpar_risk_service.cpar_display_covariance,
+        "load_package_display_covariance_rows",
+        lambda **kwargs: [{"factor_id": "SPY", "factor_id_2": "SPY", "covariance": 0.03, "correlation": 1.0}],
+    )
 
     def fake_build_snapshot(**kwargs):
         calls["build_snapshot"] = kwargs
@@ -54,3 +62,26 @@ def test_load_cpar_risk_payload_uses_aggregate_snapshot_owner(monkeypatch) -> No
     assert calls["build_snapshot"]["classification_by_ric"] == {
         "AAPL.OQ": {"ric": "AAPL.OQ", "trbc_industry_group": "Technology Hardware"}
     }
+    assert calls["build_snapshot"]["display_covariance_rows"] == [
+        {"factor_id": "SPY", "factor_id_2": "SPY", "covariance": 0.03, "correlation": 1.0}
+    ]
+
+
+def test_load_cpar_risk_payload_maps_display_covariance_not_ready(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_risk_service.cpar_portfolio_snapshot_service,
+        "load_cpar_portfolio_aggregate_context",
+        lambda **kwargs: (
+            {"package_run_id": "run_curr", "package_date": "2026-03-14"},
+            [],
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_risk_service.cpar_display_covariance,
+        "load_package_display_covariance_rows",
+        lambda **kwargs: (_ for _ in ()).throw(cpar_risk_service.cpar_outputs.CparPackageNotReady("display not ready")),
+    )
+
+    with pytest.raises(cpar_meta_service.CparReadNotReady, match="display not ready"):
+        cpar_risk_service.load_cpar_risk_payload()
