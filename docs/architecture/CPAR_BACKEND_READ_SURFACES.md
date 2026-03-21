@@ -44,19 +44,6 @@ It does not add:
   - `positions[].thresholded_contributions`
 - is read-only and package-pinned
 
-`GET /api/cpar/ticker/{ticker}?ric=`
-- returns one active-package ticker detail payload
-- keeps the persisted fit row as the primary identity/loadings owner
-- may add a nested `source_context` block with package-date-capped shared-source context:
-  - latest common name on or before the package date
-  - latest classification snapshot on or before the package date
-  - latest source price context on or before the package date
-- if multiple active rows share the ticker and `ric` is omitted, returns `409`
-
-`GET /api/cpar/ticker/{ticker}/hedge?mode=&ric=`
-- returns a read-only hedge preview derived from persisted thresholded loadings and persisted covariance
-- supported `mode` values are `factor_neutral` and `market_neutral`
-
 `GET /api/cpar/factors/history?factor_id=&years=`
 - returns supplemental cPAR factor-return history for drilldown use
 - reads durable package-backed weekly proxy returns from `cpar_proxy_returns_weekly`
@@ -100,10 +87,8 @@ These routes do not:
 The current cPAR overhaul should extend existing cPAR owners by default instead of introducing broad new route families up front.
 
 Single-name owners:
-- `GET /api/cpar/ticker/{ticker}` remains owned by `backend/services/cpar_ticker_service.py`
-- `GET /api/cpar/ticker/{ticker}/hedge` remains owned by `backend/services/cpar_hedge_service.py`
 - `GET /api/cpar/factors/history` is now owned by `backend/services/cpar_factor_history_service.py`
-- richer `/cpar/explore` detail should extend the current ticker-detail owner unless a later slice proves that the new data requires a genuinely different authority/read pattern
+- the prior single-name ticker-detail and hedge preview routes have been removed as part of the cPAR page reset
 
 Aggregate risk owner:
 - `GET /api/cpar/risk` is now owned by `backend/services/cpar_risk_service.py`

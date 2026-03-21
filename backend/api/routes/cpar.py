@@ -9,13 +9,11 @@ from pydantic import BaseModel, Field, FiniteFloat
 
 from backend.services import (
     cpar_factor_history_service,
-    cpar_hedge_service,
     cpar_meta_service,
     cpar_portfolio_hedge_service,
     cpar_portfolio_whatif_service,
     cpar_risk_service,
     cpar_search_service,
-    cpar_ticker_service,
 )
 
 router = APIRouter()
@@ -90,23 +88,6 @@ async def get_cpar_risk():
         _raise_cpar_unavailable(str(exc))
 
 
-@router.get("/cpar/ticker/{ticker}")
-async def get_cpar_ticker(
-    ticker: str,
-    ric: str | None = Query(default=None),
-):
-    try:
-        return cpar_ticker_service.load_cpar_ticker_payload(ticker=ticker, ric=ric)
-    except cpar_meta_service.CparReadNotReady as exc:
-        _raise_cpar_not_ready(str(exc))
-    except cpar_meta_service.CparReadUnavailable as exc:
-        _raise_cpar_unavailable(str(exc))
-    except cpar_meta_service.CparTickerAmbiguous as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except cpar_meta_service.CparTickerNotFound as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
 @router.get("/cpar/factors/history")
 async def get_cpar_factor_history(
     factor_id: str = Query(..., min_length=1),
@@ -122,24 +103,6 @@ async def get_cpar_factor_history(
     except cpar_meta_service.CparReadUnavailable as exc:
         _raise_cpar_unavailable(str(exc))
     except cpar_factor_history_service.CparFactorNotFound as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-@router.get("/cpar/ticker/{ticker}/hedge")
-async def get_cpar_hedge(
-    ticker: str,
-    mode: Literal["factor_neutral", "market_neutral"] = Query(default="factor_neutral"),
-    ric: str | None = Query(default=None),
-):
-    try:
-        return cpar_hedge_service.load_cpar_hedge_payload(ticker=ticker, ric=ric, mode=str(mode))
-    except cpar_meta_service.CparReadNotReady as exc:
-        _raise_cpar_not_ready(str(exc))
-    except cpar_meta_service.CparReadUnavailable as exc:
-        _raise_cpar_unavailable(str(exc))
-    except cpar_meta_service.CparTickerAmbiguous as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except cpar_meta_service.CparTickerNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 

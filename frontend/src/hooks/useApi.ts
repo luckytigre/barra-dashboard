@@ -10,13 +10,11 @@ import type {
   FactorHistoryData,
   CparHedgeMode,
   CparFactorHistoryData,
-  CparHedgePreviewData,
   CparMetaData,
   CparRiskData,
   CparPortfolioHedgeData,
   CparPortfolioWhatIfData,
   CparSearchData,
-  CparTickerDetailData,
   PortfolioData,
   WhatIfApplyResponse,
   WhatIfPreviewData,
@@ -82,25 +80,6 @@ export function useCparSearch(query: string, limit = 10) {
 
 export function useCparRisk(enabled = true) {
   return useSWR<CparRiskData>(enabled ? apiPath.cparRisk() : null, apiFetch, SWR_OPTS);
-}
-
-export function useCparTicker(ticker: string | null, ric?: string | null) {
-  const cleanTicker = ticker?.trim().toUpperCase() || null;
-  const cleanRic = ric?.trim() || null;
-  const key = cleanTicker ? apiPath.cparTicker(cleanTicker, cleanRic) : null;
-  return useSWR<CparTickerDetailData>(key, apiFetch, SWR_OPTS);
-}
-
-export function useCparHedge(
-  ticker: string | null,
-  mode: CparHedgeMode,
-  ric?: string | null,
-  enabled = true,
-) {
-  const cleanTicker = ticker?.trim().toUpperCase() || null;
-  const cleanRic = ric?.trim() || null;
-  const key = enabled && cleanTicker ? apiPath.cparHedge(cleanTicker, mode, cleanRic) : null;
-  return useSWR<CparHedgePreviewData>(key, apiFetch, SWR_OPTS);
 }
 
 export function useCparFactorHistory(factorId: string | null, years = 5, enabled = true) {

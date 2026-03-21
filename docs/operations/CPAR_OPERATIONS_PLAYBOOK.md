@@ -94,16 +94,11 @@ Current frontend-backed read surfaces:
 - `GET /api/cpar/meta`
 - `GET /api/cpar/search`
 - `GET /api/cpar/risk`
-- `GET /api/cpar/ticker/{ticker}`
 - `GET /api/cpar/factors/history`
-- `GET /api/cpar/ticker/{ticker}/hedge`
 - `GET /api/cpar/portfolio/hedge`
 - `POST /api/cpar/portfolio/whatif`
 
-The current detail route is ticker-keyed.
-Persisted search rows with `ticker = NULL` remain visible in search but are intentionally non-navigable in v1.
-`GET /api/cpar/ticker/{ticker}` may now include a supplemental nested `source_context` block for `/cpar/explore`, but that block is still keyed by the resolved persisted fit `ric` plus active `package_date`; it does not change the persisted fit identity, loadings, or hedge truth.
-The standalone hedge page reuses that same ticker-keyed selection rule and must fail closed when package identity drifts between the selected subject and the hedge preview.
+`/cpar/explore`, `/cpar/health`, and `/cpar/hedge` are now intentional reset placeholders while those surfaces are rebuilt from the ground up.
 `/cpar/risk` is now aggregate and read-only: it reuses the shared Neon-backed adapter in `backend/data/holdings_reads.py` plus latest shared-source prices, but it does not reuse cUSE4 risk or what-if payload semantics.
 The shared snapshot assembly in `backend/services/cpar_portfolio_snapshot_service.py` still underpins both:
 - aggregate `/api/cpar/risk`
@@ -116,7 +111,6 @@ That shared snapshot now carries explicit `coverage_breakdown`, factor-only `fac
 - one positions contribution-mix table
 - one full market/industry/style factor correlation heatmap
 The account-scoped preview-only what-if route still exists on the backend, but it is no longer the owner of `/cpar/risk`.
-`/cpar/explore` now keeps the selected-instrument hero first, uses one thresholded-loadings chart as the primary interpretation surface, keeps raw ETF loadings as secondary detail, demotes persisted facts and package-date source context below that chart, and folds the `/cpar/hedge` handoff into the same support block rather than a separate card.
 Current frontend ownership for those pages is now routed through cPAR-specific wrappers:
 - `frontend/src/hooks/useCparApi.ts`
 - `frontend/src/lib/cparApi.ts`

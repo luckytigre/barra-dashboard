@@ -6,12 +6,10 @@
 export {
   ApiError,
   useCparFactorHistory,
-  useCparHedge,
   useCparMeta,
   useCparRisk,
   useCparPortfolioHedge,
   useCparPortfolioWhatIf,
   useCparSearch,
-  useCparTicker,
   useHoldingsAccounts,
 } from "@/hooks/useApi";

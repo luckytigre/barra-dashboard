@@ -19,9 +19,7 @@ EXPECTED_CPAR_ROUTE_SET = {
     ("GET", "/api/cpar/meta"),
     ("GET", "/api/cpar/search"),
     ("GET", "/api/cpar/risk"),
-    ("GET", "/api/cpar/ticker/{ticker}"),
     ("GET", "/api/cpar/factors/history"),
-    ("GET", "/api/cpar/ticker/{ticker}/hedge"),
     ("GET", "/api/cpar/portfolio/hedge"),
     ("POST", "/api/cpar/portfolio/whatif"),
 }
@@ -160,92 +158,6 @@ def test_cpar_search_route_maps_unavailable_to_503(monkeypatch) -> None:
     assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
 
 
-def test_cpar_ticker_route_maps_ambiguous_ticker_to_409(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_ticker_service,
-        "load_cpar_ticker_payload",
-        lambda *args, **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparTickerAmbiguous("Ambiguous cPAR instrument fit for ticker AAPL")),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL")
-
-    assert res.status_code == 409
-    assert "Ambiguous" in res.json()["detail"]
-
-
-def test_cpar_ticker_route_maps_missing_ticker_to_404(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_ticker_service,
-        "load_cpar_ticker_payload",
-        lambda *args, **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparTickerNotFound("Ticker AAPL was not found")),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL")
-
-    assert res.status_code == 404
-    assert "not found" in res.json()["detail"].lower()
-
-
-def test_cpar_ticker_route_maps_unavailable_to_503(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_ticker_service,
-        "load_cpar_ticker_payload",
-        lambda *args, **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL")
-
-    assert res.status_code == 503
-    assert res.json()["detail"]["status"] == "unavailable"
-    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
-
-
-def test_cpar_ticker_route_preserves_nested_source_context_contract(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_ticker_service,
-        "load_cpar_ticker_payload",
-        lambda *args, **kwargs: {
-            "package_run_id": "run_curr",
-            "package_date": "2026-03-14",
-            "ticker": "AAPL",
-            "ric": "AAPL.OQ",
-            "display_name": "Apple Inc.",
-            "fit_status": "ok",
-            "warnings": [],
-            "observed_weeks": 52,
-            "lookback_weeks": 52,
-            "longest_gap_weeks": 0,
-            "price_field_used": "adj_close",
-            "hq_country_code": "US",
-            "raw_loadings": [],
-            "thresholded_loadings": [],
-            "source_context": {
-                "status": "partial",
-                "reason": "missing_rows",
-                "latest_common_name": {"value": "Apple Incorporated", "as_of_date": "2026-03-13"},
-                "classification_snapshot": None,
-                "latest_price_context": {
-                    "price": 210.25,
-                    "price_date": "2026-03-14",
-                    "price_field_used": "adj_close",
-                    "currency": "USD",
-                },
-            },
-        },
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL?ric=AAPL.OQ")
-
-    assert res.status_code == 200
-    assert res.json()["source_context"]["status"] == "partial"
-    assert res.json()["source_context"]["latest_common_name"]["value"] == "Apple Incorporated"
-    assert res.json()["source_context"]["latest_price_context"]["price_field_used"] == "adj_close"
-
-
 def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_risk_service,
@@ -361,91 +273,6 @@ def test_cpar_factor_history_route_maps_unavailable_to_503(monkeypatch) -> None:
 
     assert res.status_code == 503
     assert res.json()["detail"]["status"] == "unavailable"
-
-
-def test_cpar_hedge_route_returns_payload(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_hedge_service,
-        "load_cpar_hedge_payload",
-        lambda **kwargs: {
-            "mode": kwargs["mode"],
-            "hedge_status": "hedge_ok",
-            "hedge_legs": [{"factor_id": "SPY", "weight": -1.2}],
-            "post_hedge_exposures": [{"factor_id": "SPY", "pre_beta": 1.2, "hedge_leg": -1.2, "post_beta": 0.0}],
-        },
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL/hedge?mode=factor_neutral&ric=AAPL.OQ")
-
-    assert res.status_code == 200
-    assert res.json()["mode"] == "factor_neutral"
-    assert res.json()["hedge_legs"][0]["factor_id"] == "SPY"
-
-
-def test_cpar_hedge_route_maps_unavailable_to_503(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_hedge_service,
-        "load_cpar_hedge_payload",
-        lambda **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadUnavailable("Neon cPAR read failed")),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL/hedge?mode=market_neutral")
-
-    assert res.status_code == 503
-    assert res.json()["detail"]["error"] == "cpar_authority_unavailable"
-
-
-def test_cpar_hedge_route_maps_not_ready_to_503(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_hedge_service,
-        "load_cpar_hedge_payload",
-        lambda **kwargs: (_ for _ in ()).throw(
-            cpar_routes.cpar_meta_service.CparReadNotReady(
-                "Active cPAR package is missing covariance rows in the cloud-serve authority store."
-            )
-        ),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL/hedge?mode=market_neutral")
-
-    assert res.status_code == 503
-    assert res.json()["detail"]["status"] == "not_ready"
-    assert res.json()["detail"]["error"] == "cpar_not_ready"
-
-
-def test_cpar_hedge_route_maps_ambiguous_ticker_to_409(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_hedge_service,
-        "load_cpar_hedge_payload",
-        lambda **kwargs: (_ for _ in ()).throw(
-            cpar_routes.cpar_meta_service.CparTickerAmbiguous("Ambiguous cPAR instrument fit for ticker AAPL")
-        ),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL/hedge?mode=factor_neutral")
-
-    assert res.status_code == 409
-    assert "Ambiguous" in res.json()["detail"]
-
-
-def test_cpar_hedge_route_maps_missing_ticker_to_404(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cpar_routes.cpar_hedge_service,
-        "load_cpar_hedge_payload",
-        lambda **kwargs: (_ for _ in ()).throw(
-            cpar_routes.cpar_meta_service.CparTickerNotFound("Ticker AAPL was not found in the active cPAR package.")
-        ),
-    )
-
-    client = TestClient(_test_app())
-    res = client.get("/api/cpar/ticker/AAPL/hedge?mode=factor_neutral")
-
-    assert res.status_code == 404
-    assert "not found" in res.json()["detail"].lower()
 
 
 def test_cpar_portfolio_whatif_route_returns_payload(monkeypatch) -> None:

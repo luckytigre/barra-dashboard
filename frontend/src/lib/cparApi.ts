@@ -9,9 +9,7 @@ export const cparApiPath = {
   cparMeta: legacyApiPath.cparMeta,
   cparSearch: legacyApiPath.cparSearch,
   cparRisk: legacyApiPath.cparRisk,
-  cparTicker: legacyApiPath.cparTicker,
   cparFactorHistory: legacyApiPath.cparFactorHistory,
-  cparHedge: legacyApiPath.cparHedge,
   cparPortfolioHedge: legacyApiPath.cparPortfolioHedge,
   cparPortfolioWhatIf: legacyApiPath.cparPortfolioWhatIf,
   // Shared infrastructure reused by the cPAR risk workspace.

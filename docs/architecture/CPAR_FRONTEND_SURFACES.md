@@ -4,7 +4,7 @@ Date: 2026-03-20
 Status: Active cPAR frontend notes
 Owner: Codex
 
-This document describes the current cPAR frontend surfaces after the namespaced-family routing slice, with `/cpar/risk` now promoted to the aggregate all-accounts cPAR risk surface.
+This document describes the current cPAR frontend surfaces after the namespaced-family routing slice and the later reset of the exploratory cPAR pages. `/cpar/risk` remains the active aggregate all-accounts cPAR risk surface.
 
 Related cPAR docs:
 - [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
@@ -38,30 +38,19 @@ It does not add:
 - is the canonical route for that workflow now
 
 `/cpar/explore`
-- general cPAR discovery/detail page
-- owns search, ticker selection, persisted fit detail, and loadings interpretation
-- now also renders a small package-date-capped `source_context` block for the selected instrument
-- links into `/cpar/hedge` for hedge-specific interaction
-- uses the active package only
-- now uses three cPAR-owned presentation modules:
-  - one active-package search/typeahead module
-  - one selected-instrument detail module that embeds supplemental source context
-  - one persisted-loadings plus hedge-handoff module
-- intentionally borrows cUSE-like layout rhythm and typeahead grammar without importing cUSE feature owners, cUSE hooks, or cUSE payload semantics
+- intentionally reset placeholder page
+- no longer owns search, ticker selection, persisted fit detail, or loadings interpretation in the current repo state
+- kept as a route placeholder so the cPAR family hierarchy remains stable while the page is rebuilt from the ground up
 
 `/cpar/health`
-- lightweight cPAR package diagnostics page
-- shows the active package summary
-- shows the fixed cPAR1 factor registry summary
-- shows the warning/status legend
-- provides a lightweight entry point into `/cpar/explore`
-- is the canonical home for the old `/cpar` landing content
+- intentionally reset placeholder page
+- no longer renders package diagnostics, registry summaries, or route-orientation content in the current repo state
+- kept as a route placeholder so the cPAR family hierarchy remains stable while the page is rebuilt from the ground up
 
 `/cpar/hedge`
-- dedicated hedge workflow page
-- owns search, ticker selection, persisted hedge-subject summary, hedge mode toggle, hedge preview, and post-hedge display
-- links back to `/cpar/explore` for raw and thresholded loadings review
-- uses the active package only
+- intentionally reset placeholder page
+- no longer renders the single-name hedge workflow in the current repo state
+- kept as a route placeholder so the cPAR family hierarchy remains stable while the page is rebuilt from the ground up
 
 Legacy redirects:
 - `/cpar` redirects to `/cpar/risk`
@@ -86,15 +75,6 @@ Shared shell behavior:
 - package-pinned and read-only
 - does not reuse the account-scoped hedge payload as its frontend owner
 
-`GET /api/cpar/ticker/{ticker}`
-- one active-package persisted fit row
-- may include a nested `source_context` block with supplemental shared-source context pinned to the active package date
-- returns `409` when ticker is ambiguous and `ric` is required
-
-`GET /api/cpar/ticker/{ticker}/hedge`
-- persisted hedge preview only
-- no request-time refit
-
 `GET /api/cpar/factors/history`
 - supplemental 5Y factor-return history for cPAR drilldown
 - cPAR-owned route/hook path, even though the charting primitive is shared
@@ -114,15 +94,11 @@ Shared shell behavior:
 - does not apply trades, mutate holdings, or build/refit cPAR on request
 
 Page consistency rule:
-- the frontend must treat `meta`, `ticker detail`, and `hedge` as one package-scoped flow
 - the frontend must treat `meta` and the aggregate `/api/cpar/risk` payload as one package-scoped flow
 - the frontend must treat the account-level hedge payload as a separate account-scoped flow
 - the frontend must also treat any account-level what-if envelope plus its nested `current` and `hypothetical` payloads as one package-scoped account flow
 - if those responses do not share the same `package_run_id` / `package_date`, the page must fail closed instead of mixing surfaces from different active packages
 - the frontend now uses package metadata as the first gate for dependent reads, so package-level `not_ready` / `unavailable` states do not keep probing detail or account-risk endpoints on the same page load
-- `/cpar/explore` enforces this for banner plus detail
-- `/cpar/explore` must treat `source_context` as supplemental to the same ticker-detail payload, not as an independent truth source
-- `/cpar/hedge` enforces this for banner, selected subject, and hedge preview
 - `/cpar/risk` enforces this for banner plus the aggregate risk payload
 - drilldown factor history is supplemental to that page and may degrade without suppressing the aggregate risk payload
 
@@ -131,10 +107,10 @@ Page consistency rule:
 The current cPAR overhaul should keep page ownership inside cPAR-owned modules even when the presentation becomes more cUSE-like.
 
 Current page owners:
-- `/cpar/explore` stays owned by `frontend/src/app/cpar/explore/page.tsx` plus cPAR-owned components
+- `/cpar/explore` stays owned by `frontend/src/app/cpar/explore/page.tsx`
 - `/cpar/risk` stays owned by `frontend/src/features/cpar/components/CparRiskWorkspace.tsx`
 - `/cpar/hedge` stays owned by `frontend/src/app/cpar/hedge/page.tsx`
-- `/cpar/health` stays owned by `frontend/src/features/cpar/components/CparHealthWorkspace.tsx`
+- `/cpar/health` stays owned by `frontend/src/app/cpar/health/page.tsx`
 
 Preferred cPAR frontend import surfaces now include:
 - `frontend/src/hooks/useCparApi.ts` as the current cPAR-owned facade for route hooks
@@ -176,14 +152,6 @@ Read failures:
 - cPAR-specific `503 not_ready` is rendered as a package-not-ready state
 - cPAR-specific `503 unavailable` is rendered as an authority-unavailable state
 - package freshness is rendered from the active package date/source-as-of date on the shared banner so stale packages remain obvious even when reads succeed
-- ticker ambiguity is rendered as a UI instruction to choose a specific RIC from search results
-- search hits without a ticker render as non-navigable rows because the current detail route is ticker-keyed
-- a direct `/cpar/explore?ric=...` visit without `ticker=` must render an explanatory warning rather than silently failing or synthesizing a detail request
-- a direct `/cpar/hedge?ric=...` visit without `ticker=` must render the same explanatory warning because the current hedge route is also ticker-keyed
-- package-identity drift between active-package reads must render an explicit reload prompt rather than mixing banner/detail/hedge data from different packages
-- explore-level shared-source context degradation is non-blocking:
-  - the page keeps rendering the persisted cPAR fit row
-  - the nested `source_context.status` / `reason` fields explain whether shared-source context is complete, partial, missing, or temporarily unavailable
 - `/cpar/risk` must render explicit empty or unavailable aggregate-book states instead of synthesizing a risk surface from unpriced or uncovered holdings rows
 - `empty` means no live holdings rows are loaded across any account
 - `unavailable` means live holdings rows exist across the active book, but none are both priced and backed by a usable persisted cPAR fit in the active package
@@ -191,19 +159,12 @@ Read failures:
 ## Workflow Split
 
 `/cpar/explore`
-- remains the persisted fit discovery/detail surface
-- keeps raw and thresholded loadings visible
-- may show package-date source context for identity/classification/latest source price, but it still does not become a cUSE-style quote/history page in this slice
-- now presents the selected instrument as one cPAR-owned detail module rather than a stack of small generic cards, but the page owner still keeps all package-truth, ambiguity, `insufficient_history`, and package-mismatch branching explicit
-- now leads with the selected-instrument hero and uses one cPAR-owned thresholded-loadings chart as the primary interpretation surface
-- now demotes persisted facts plus package-date source context below the thresholded-loadings read instead of ahead of it
-- folds the `/cpar/hedge` handoff into the support block after the primary interpretation read instead of keeping a separate handoff card
-- does not own hedge mode switching or post-hedge interpretation anymore
+- is intentionally blank aside from a reset placeholder
+- no longer owns detail, source-context, or hedge-handoff behavior in the current repo state
 
 `/cpar/hedge`
-- remains the focused hedge workflow surface
-- reuses persisted detail only to identify the selected subject and package
-- owns hedge mode switching, hedge legs, and post-hedge interpretation
+- is intentionally blank aside from a reset placeholder
+- no longer owns single-name hedge workflow behavior in the current repo state
 
 `/cpar/risk`
 - is now the aggregate cPAR risk analytics surface across all loaded holdings accounts
@@ -219,29 +180,25 @@ Read failures:
 - does not own portfolio mutation, account editing, trade application, or broad scenario analytics
 
 `/cpar/health`
-- remains the lightweight diagnostics page
-- owns the package summary, registry, warning legend, and route-level orientation for the rest of the cPAR family
-- does not become a full operator-status or maintenance dashboard in this slice
+- is intentionally blank aside from a reset placeholder
+- no longer owns package-summary or diagnostics behavior in the current repo state
 
 ## Smoke Coverage
 
 Current cPAR frontend smokes cover:
-- `/cpar/health` and `/cpar/explore` baseline flow
-- `/cpar/explore` rendering the supplemental source-context card when the ticker route returns it
-- `/cpar/explore` rendering the rebuilt persisted-loadings module after a successful detail selection
-- `/cpar/hedge` baseline flow
+- `/cpar/health` and `/cpar/explore` placeholder rendering
+- `/cpar/hedge` placeholder rendering
 - `/cpar/risk` baseline flow
 - `/cpar/risk` signed factor-loadings chart plus drilldown, 5Y factor history, positions contribution mix, and full-factor correlation heatmap
-- `not_ready`
-- `unavailable`
-- package mismatch
-- `/cpar/risk` fail-closed branches for `not_ready`, `unavailable`, and package mismatch on the aggregate risk payload
-- meta-first gating for detail/account reads when package-level `not_ready` or `unavailable` blocks the page
+- `/cpar/risk` fail-closed branches on the aggregate risk payload
 - family-route redirects for `/exposures`, `/explore`, `/health`, `/cpar`, and `/cpar/portfolio`
 
 ## Deferred After This Slice
 
 - frontend operator surfaces
+- rebuilt `/cpar/explore` surface
+- rebuilt `/cpar/hedge` surface
+- rebuilt `/cpar/health` surface
 - any shared cUSE4/cPAR comparison UI
 - cPAR apply/mutation flows
 - broader portfolio-analytics cPAR views beyond the current aggregate risk surface

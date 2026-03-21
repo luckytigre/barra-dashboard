@@ -81,9 +81,7 @@ Read-only backend routes:
 - `GET /api/cpar/meta`
 - `GET /api/cpar/search?q=&limit=`
 - `GET /api/cpar/risk`
-- `GET /api/cpar/ticker/{ticker}?ric=`
 - `GET /api/cpar/factors/history?factor_id=&years=`
-- `GET /api/cpar/ticker/{ticker}/hedge?mode=&ric=`
 - `GET /api/cpar/portfolio/hedge?account_id=&mode=`
 - `POST /api/cpar/portfolio/whatif`
 
@@ -98,8 +96,6 @@ There is no cPAR blob-serving surface in the current implementation.
 API payloads are assembled from authoritative relational `cpar_*` tables.
 
 Frontend consistency rule:
-- `/cpar/explore` must not mix package banners, detail rows, and hedge previews from different active packages
-- `/cpar/hedge` must not mix package banners, subject rows, and hedge previews from different active packages
 - `/cpar/risk` must not mix package banners and aggregate risk payloads from different active packages
 - if package identity drifts between independent reads, the page fails closed and prompts the user to reload
 - shared banner rendering exposes package freshness so stale active packages remain visible without implying any route-triggered rebuild path
@@ -110,7 +106,7 @@ Frontend consistency rule:
 The next cPAR frontend overhaul should remain cPAR-native even when it adopts cUSE-like presentation patterns.
 
 Current owner decisions:
-- richer single-name `/cpar/explore` work should extend the current ticker-detail owner by default instead of routing through cUSE universe/explore owners
+- rebuilt `/cpar/explore`, `/cpar/hedge`, and `/cpar/health` surfaces should remain cPAR-owned when they return
 - `/cpar/risk` is now the explicit aggregate all-accounts cPAR risk owner:
   - route: `GET /api/cpar/risk`
   - service: `backend/services/cpar_risk_service.py`
