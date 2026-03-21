@@ -118,6 +118,7 @@ const SHORT_LABELS: Record<string, string> = {
   Momentum: "Mtm",
   Value: "Value",
   Quality: "Qual",
+  "Low Volatility": "Low Vol",
   "Minimum Volatility": "MinVol",
   "Min Volatility": "MinVol",
   "Min Vol": "MinVol",
