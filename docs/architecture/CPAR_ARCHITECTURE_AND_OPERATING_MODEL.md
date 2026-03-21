@@ -150,13 +150,14 @@ Current read behavior:
 - account-level portfolio hedge additionally requires live holdings rows plus latest shared-source prices on or before the active package date
 - the shared snapshot assembly now also exposes:
   - explicit coverage buckets
-  - factor-only variance decomposition from aggregate thresholded loadings plus active-package covariance
-  - factor-chart rows with signed contribution arms and per-factor drilldown
-  - per-position weighted thresholded contributions
+  - factor-only variance decomposition from aggregate thresholded hedge vectors plus active-package covariance
+  - additive display-loadings analytics from aggregate display vectors plus active-package covariance
+  - hedge-basis factor-chart rows plus additive display-basis factor-chart rows
+  - per-position weighted thresholded contributions plus additive display contributions
 - `/api/cpar/risk` additionally exposes the full package-pinned covariance matrix for the frontend heatmap
 - factor drilldown history now has a cPAR-owned supplemental route:
   - `GET /api/cpar/factors/history`
-  - backed by durable weekly proxy returns
+  - backed by daily proxy-price history for the cPAR factor instrument itself
   - degradeable without suppressing the primary aggregate risk payload
 - account-level what-if additionally requires one account hedge baseline, one active package, and staged signed share deltas that reference either existing holdings rows or active-package search hits
 - missing required relational coverage fails closed with cPAR-specific `503 not_ready`
@@ -194,6 +195,13 @@ Current UI contract:
 - `insufficient_history` blocks loadings and hedge display
 - `limited_history` still renders persisted loadings and hedge output
 - warnings are non-blocking badges layered on top of fit status
+
+Current display-vs-hedge rule:
+- explanatory cPAR pages must use display-loadings surfaces
+- hedge pages must use hedge-trade-space surfaces
+- single-name detail therefore distinguishes:
+  - `beta_market_step1` and `display_loadings` for explanatory display
+  - `beta_spy_trade`, `raw_loadings`, and `thresholded_loadings` for hedge-space interpretation
 
 ## Current Deferred Limits
 

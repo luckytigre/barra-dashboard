@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from backend.data import cpar_outputs
+from backend.data import cpar_source_reads
 from backend.services import cpar_factor_history_service, cpar_meta_service
 
 
@@ -13,11 +15,16 @@ def test_load_cpar_factor_history_payload_returns_cumulative_points(monkeypatch)
         lambda *, data_db=None: {"package_run_id": "pkg-1"},
     )
     monkeypatch.setattr(
-        cpar_factor_history_service.cpar_outputs,
-        "load_factor_return_history",
-        lambda factor_id, *, years, data_db=None: (
+        cpar_factor_history_service.cpar_source_reads,
+        "resolve_factor_proxy_rows",
+        lambda tickers, *, data_db=None: [{"ric": "SPY.P", "ticker": "SPY"}],
+    )
+    monkeypatch.setattr(
+        cpar_factor_history_service,
+        "load_price_history_rows",
+        lambda data_db, *, ric, years: (
             "2026-03-14",
-            [("2026-03-13", 0.02), ("2026-03-14", -0.00980392)],
+            [("2026-03-12", 100.0), ("2026-03-13", 102.0), ("2026-03-14", 101.0)],
         ),
     )
 
@@ -43,9 +50,9 @@ def test_load_cpar_factor_history_payload_maps_missing_history_to_not_ready(monk
         lambda *, data_db=None: {"package_run_id": "pkg-1"},
     )
     monkeypatch.setattr(
-        cpar_factor_history_service.cpar_outputs,
-        "load_factor_return_history",
-        lambda factor_id, *, years, data_db=None: (None, []),
+        cpar_factor_history_service.cpar_source_reads,
+        "resolve_factor_proxy_rows",
+        lambda tickers, *, data_db=None: [],
     )
 
     with pytest.raises(cpar_meta_service.CparReadNotReady, match="Historical cPAR factor returns are not available yet"):
@@ -56,10 +63,15 @@ def test_load_cpar_factor_history_payload_maps_authority_failures_to_unavailable
     monkeypatch.setattr(
         cpar_factor_history_service.cpar_meta_service,
         "require_active_package",
-        lambda *, data_db=None: (_ for _ in ()).throw(
-            cpar_outputs.CparAuthorityReadError("Neon read failed")
+        lambda *, data_db=None: {"package_run_id": "pkg-1"},
+    )
+    monkeypatch.setattr(
+        cpar_factor_history_service.cpar_source_reads,
+        "resolve_factor_proxy_rows",
+        lambda tickers, *, data_db=None: (_ for _ in ()).throw(
+            cpar_source_reads.CparSourceReadError("source read failed")
         ),
     )
 
-    with pytest.raises(cpar_meta_service.CparReadUnavailable, match="Neon read failed"):
+    with pytest.raises(cpar_meta_service.CparReadUnavailable, match="source read failed"):
         cpar_factor_history_service.load_cpar_factor_history_payload(factor_id="SPY", years=5)

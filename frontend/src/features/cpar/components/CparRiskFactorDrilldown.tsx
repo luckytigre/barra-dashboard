@@ -126,7 +126,7 @@ export default function CparRiskFactorDrilldown({
       </div>
       <div className="detail-history">
         <div className="detail-history-header">
-          <h5>5Y Historical Return — {factor.label}</h5>
+          <h5>5Y Daily Return — {factor.label}</h5>
           {!historyLoading && historyData?.points && historyData.points.length > 0 ? (
             <div className="detail-history-stats">
               <span
@@ -148,12 +148,12 @@ export default function CparRiskFactorDrilldown({
           ) : null}
         </div>
         {historyLoading ? (
-          <div className="detail-history-empty loading-pulse">Loading 5Y history...</div>
+          <div className="detail-history-empty loading-pulse">Loading 5Y daily history...</div>
         ) : historyState ? (
           <div className="detail-history-empty">
             {historyState.kind === "not_ready"
-              ? `Historical cPAR factor returns are not ready for ${factor.label} yet.`
-              : `5Y factor-return history is temporarily unavailable for ${factor.label}.`}
+              ? `Daily cPAR factor returns are not ready for ${factor.label} yet.`
+              : `5Y daily factor-return history is temporarily unavailable for ${factor.label}.`}
           </div>
         ) : (
           <CparFactorHistoryChart factor={factor.label} points={historyData?.points ?? []} factorVol={factor.factor_volatility} />

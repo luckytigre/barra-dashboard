@@ -302,16 +302,20 @@ try {
     });
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
-    await page.getByText("5Y Historical Return — Market").waitFor();
+    assert.equal(await page.getByTestId("cpar-risk-factor-drilldown").count(), 0);
+    await page.locator('[data-testid="cpar-risk-factor-chart"] canvas').click({ position: { x: 320, y: 36 } });
+    await page.getByText("5Y Daily Return — Market").waitFor();
     await page.getByText("+3.0%").waitFor();
 
     scenario = "history_not_ready";
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
-    await page.getByText("Historical cPAR factor returns are not ready for Market yet.").waitFor();
+    await page.locator('[data-testid="cpar-risk-factor-chart"] canvas').click({ position: { x: 320, y: 36 } });
+    await page.getByText("Daily cPAR factor returns are not ready for Market yet.").waitFor();
 
     scenario = "history_unavailable";
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
-    await page.getByText("5Y factor-return history is temporarily unavailable for Market.").waitFor();
+    await page.locator('[data-testid="cpar-risk-factor-chart"] canvas').click({ position: { x: 320, y: 36 } });
+    await page.getByText("5Y daily factor-return history is temporarily unavailable for Market.").waitFor();
 
     if (capturedPageError) {
       throw capturedPageError;
