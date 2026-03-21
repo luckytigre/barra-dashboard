@@ -135,6 +135,7 @@ def test_cpar_ticker_route_returns_payload(monkeypatch) -> None:
             "ric": kwargs.get("ric") or "AAPL.OQ",
             "package_run_id": "run_curr",
             "package_date": "2026-03-14",
+            "display_loadings": [],
             "thresholded_loadings": [],
         },
     )
@@ -144,6 +145,7 @@ def test_cpar_ticker_route_returns_payload(monkeypatch) -> None:
 
     assert res.status_code == 200
     assert res.json()["ric"] == "AAPL.OQ"
+    assert "display_loadings" in res.json()
 
 
 def test_cpar_ticker_route_maps_not_found_to_404(monkeypatch) -> None:
@@ -230,8 +232,11 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
                 "missing_cpar_fit": {"positions_count": 0, "gross_market_value": 0.0},
                 "insufficient_history": {"positions_count": 0, "gross_market_value": 0.0},
             },
+            "aggregate_display_loadings": [],
             "factor_variance_contributions": [],
+            "display_factor_variance_contributions": [],
             "factor_chart": [],
+            "display_factor_chart": [],
             "cov_matrix": {"factors": ["SPY"], "correlation": [[1.0]]},
             "positions": [],
         },
@@ -243,6 +248,7 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
     assert res.status_code == 200
     assert res.json()["scope"] == "all_accounts"
     assert res.json()["accounts_count"] == 3
+    assert "aggregate_display_loadings" in res.json()
 
 
 def test_cpar_risk_route_maps_not_ready_to_503(monkeypatch) -> None:

@@ -141,10 +141,15 @@ The trade-space intercept is:
 
 `alpha_trade = alpha_market + alpha_block - Σ(beta_f_raw * a_f)`
 
-This is the coefficient vector used for:
-- displayed cPAR loadings
+This raw ETF trade-space vector is used for:
 - hedge construction
 - post-hedge residual display
+
+Application-facing display loadings are a separate read-surface choice layered on top of the kernel:
+- `SPY` display beta should come from the market-step coefficient `beta_market_step1`
+- non-market display betas should come from the post-ridge non-market coefficients before hedge thresholding
+- those non-market coefficients are already what the pipeline persists under `raw_loadings` for non-market factors; only the `SPY` leg differs between explanatory display and hedge trade space
+- hedge-oriented fields such as `beta_spy_trade` and thresholded trade-space vectors should stay confined to hedge workflows
 
 For proxy ETFs themselves:
 - `SPY` naturally fits near pure `SPY`

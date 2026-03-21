@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import CparExposureBarChart from "@/features/cpar/components/CparExposureBarChart";
 import CparTickerPriceChart from "@/features/cpar/components/CparTickerPriceChart";
 import { describeCparFitStatus, formatCparPackageDate } from "@/lib/cparTruth";
+import { shortFactorLabel } from "@/lib/factorLabels";
 import type { FactorCatalogEntry, FactorExposure } from "@/lib/types/analytics";
 import type { CparTickerDetailData, CparTickerHistoryPoint } from "@/lib/types/cpar";
 import type { CparExplorePositionSummary } from "@/features/cpar/components/cparExploreUtils";
@@ -52,8 +53,12 @@ function chipClassFromBadgeTone(tone: "success" | "warning" | "error" | "neutral
   return "";
 }
 
+function resolveDisplayLoadings(item: CparTickerDetailData) {
+  return (item.display_loadings?.length ? item.display_loadings : item.thresholded_loadings) || [];
+}
+
 function chartFactors(item: CparTickerDetailData): FactorExposure[] {
-  return (item.thresholded_loadings || []).map((loading) => ({
+  return resolveDisplayLoadings(item).map((loading) => ({
     factor_id: loading.factor_id,
     value: Number(loading.beta || 0),
     factor_vol: 0,
@@ -72,15 +77,18 @@ function chartFactors(item: CparTickerDetailData): FactorExposure[] {
 }
 
 function factorCatalog(item: CparTickerDetailData): FactorCatalogEntry[] {
-  return (item.thresholded_loadings || []).map((loading) => ({
-    factor_id: loading.factor_id,
-    factor_name: loading.label,
-    short_label: loading.label,
-    family: loading.group === "market" ? "market" : loading.group === "sector" ? "industry" : "style",
-    block: loading.group === "market" ? "Market" : loading.group === "sector" ? "Industry" : "Style",
-    display_order: loading.display_order,
-    active: true,
-  }));
+  return resolveDisplayLoadings(item).map((loading) => {
+    const family = loading.group === "market" ? "market" as const : loading.group === "sector" ? "industry" as const : "style" as const;
+    return {
+      factor_id: loading.factor_id,
+      factor_name: loading.label,
+      short_label: shortFactorLabel(loading.label),
+      family,
+      block: loading.group === "market" ? "Market" : loading.group === "sector" ? "Industry" : "Style",
+      display_order: loading.display_order,
+      active: true,
+    };
+  });
 }
 
 export default function CparTickerQuoteCard({
@@ -101,7 +109,7 @@ export default function CparTickerQuoteCard({
   const fit = describeCparFitStatus(item.fit_status);
 
   useEffect(() => {
-    setExpanded(false);
+    setExpanded(true);
     setSpotlight(true);
     const timer = window.setTimeout(() => setSpotlight(false), 2400);
     return () => window.clearTimeout(timer);
@@ -150,7 +158,7 @@ export default function CparTickerQuoteCard({
     { label: "Fit Status", value: fit.label },
     { label: "Observed Weeks", value: String(item.observed_weeks || 0) },
     { label: "Longest Gap", value: String(item.longest_gap_weeks || 0) },
-    { label: "Market β", value: formatFixed(item.beta_spy_trade, 4) },
+    { label: "Market β", value: formatFixed(item.beta_market_step1 ?? item.beta_spy_trade, 4) },
     { label: "Factor Vol", value: formatPercentValue(item.pre_hedge_factor_volatility_proxy ?? null, 1) },
   ];
 

@@ -262,6 +262,14 @@ def _exposure_mode_rows(snapshot: dict[str, object], *, mode: str) -> list[dict[
     return rows
 
 
+def _display_exposure_mode_rows(snapshot: dict[str, object], *, mode: str) -> list[dict[str, object]]:
+    display_snapshot = {
+        **snapshot,
+        "factor_chart": list(snapshot.get("display_factor_chart") or []),
+    }
+    return _exposure_mode_rows(display_snapshot, mode=mode)
+
+
 def _factor_delta_rows(
     *,
     current_rows: list[dict[str, object]],
@@ -313,6 +321,11 @@ def _preview_side(snapshot: dict[str, object]) -> dict[str, object]:
             "raw": _exposure_mode_rows(snapshot, mode="raw"),
             "sensitivity": _exposure_mode_rows(snapshot, mode="sensitivity"),
             "risk_contribution": _exposure_mode_rows(snapshot, mode="risk_contribution"),
+        },
+        "display_exposure_modes": {
+            "raw": _display_exposure_mode_rows(snapshot, mode="raw"),
+            "sensitivity": _display_exposure_mode_rows(snapshot, mode="sensitivity"),
+            "risk_contribution": _display_exposure_mode_rows(snapshot, mode="risk_contribution"),
         },
         "factor_catalog": _factor_catalog_payload(),
         "portfolio_status": snapshot.get("portfolio_status"),
@@ -397,6 +410,13 @@ def load_cpar_explore_whatif_payload(
         )
         for mode in ("raw", "sensitivity", "risk_contribution")
     }
+    diff_display_factor_deltas = {
+        mode: _factor_delta_rows(
+            current_rows=list(current_side["display_exposure_modes"][mode]),
+            hypothetical_rows=list(hypothetical_side["display_exposure_modes"][mode]),
+        )
+        for mode in ("raw", "sensitivity", "risk_contribution")
+    }
     diff_risk_shares = {
         bucket: round(
             float(hypothetical_side["risk_shares"].get(bucket, 0.0))
@@ -433,6 +453,7 @@ def load_cpar_explore_whatif_payload(
             "position_count": int(hypothetical_side["position_count"]) - int(current_side["position_count"]),
             "risk_shares": diff_risk_shares,
             "factor_deltas": diff_factor_deltas,
+            "display_factor_deltas": diff_display_factor_deltas,
         },
         "source_dates": {
             "prices_asof": package.get("source_prices_asof"),

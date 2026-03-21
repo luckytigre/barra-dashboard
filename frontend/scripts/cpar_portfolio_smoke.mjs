@@ -76,6 +76,11 @@ function baselineRiskPayload() {
       { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.31 },
       { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: 0.14 },
     ],
+    aggregate_display_loadings: [
+      { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 0.9 },
+      { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.28 },
+      { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: 0.12 },
+    ],
     factor_variance_contributions: [
       {
         factor_id: "SPY",
@@ -103,6 +108,35 @@ function baselineRiskPayload() {
         beta: 0.14,
         variance_contribution: 0.024,
         variance_share: 0.1,
+      },
+    ],
+    display_factor_variance_contributions: [
+      {
+        factor_id: "SPY",
+        label: "Market",
+        group: "market",
+        display_order: 0,
+        beta: 0.9,
+        variance_contribution: 0.136,
+        variance_share: 0.68,
+      },
+      {
+        factor_id: "XLK",
+        label: "Technology",
+        group: "sector",
+        display_order: 15,
+        beta: 0.28,
+        variance_contribution: 0.046,
+        variance_share: 0.23,
+      },
+      {
+        factor_id: "QUAL",
+        label: "Quality",
+        group: "style",
+        display_order: 32,
+        beta: 0.12,
+        variance_contribution: 0.018,
+        variance_share: 0.09,
       },
     ],
     factor_chart: [
@@ -263,6 +297,164 @@ function baselineRiskPayload() {
         ],
       },
     ],
+    display_factor_chart: [
+      {
+        factor_id: "SPY",
+        label: "Market",
+        group: "market",
+        display_order: 0,
+        beta: 0.9,
+        aggregate_beta: 0.9,
+        factor_volatility: 0.18,
+        covariance_adjustment: 0.15,
+        sensitivity_beta: 0.162,
+        risk_contribution_pct: 68.0,
+        positive_contribution_beta: 0.96,
+        negative_contribution_beta: -0.06,
+        variance_contribution: 0.136,
+        variance_share: 0.68,
+        drilldown: [
+          {
+            ric: "AAPL.OQ",
+            ticker: "AAPL",
+            display_name: "Apple Inc.",
+            market_value: 4020,
+            portfolio_weight: 0.8,
+            fit_status: "ok",
+            warnings: [],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 1.2,
+            contribution_beta: 0.96,
+            vol_scaled_loading: 0.216,
+            vol_scaled_contribution: 0.1728,
+            covariance_adjusted_loading: 0.18,
+            risk_contribution_pct: 72.0,
+          },
+          {
+            ric: "MSFT.OQ",
+            ticker: "MSFT",
+            display_name: "Microsoft Corp",
+            market_value: -1005,
+            portfolio_weight: -0.2,
+            fit_status: "limited_history",
+            warnings: ["continuity_gap"],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 0.3,
+            contribution_beta: -0.06,
+            vol_scaled_loading: 0.054,
+            vol_scaled_contribution: -0.0108,
+            covariance_adjusted_loading: 0.045,
+            risk_contribution_pct: -4.0,
+          },
+        ],
+      },
+      {
+        factor_id: "XLK",
+        label: "Technology",
+        group: "sector",
+        display_order: 15,
+        beta: 0.28,
+        aggregate_beta: 0.28,
+        factor_volatility: 0.22,
+        covariance_adjustment: 0.09,
+        sensitivity_beta: 0.0616,
+        risk_contribution_pct: 23.0,
+        positive_contribution_beta: 0.32,
+        negative_contribution_beta: -0.04,
+        variance_contribution: 0.046,
+        variance_share: 0.23,
+        drilldown: [
+          {
+            ric: "AAPL.OQ",
+            ticker: "AAPL",
+            display_name: "Apple Inc.",
+            market_value: 4020,
+            portfolio_weight: 0.8,
+            fit_status: "ok",
+            warnings: [],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 0.4,
+            contribution_beta: 0.32,
+            vol_scaled_loading: 0.088,
+            vol_scaled_contribution: 0.0704,
+            covariance_adjusted_loading: 0.036,
+            risk_contribution_pct: 24.0,
+          },
+          {
+            ric: "MSFT.OQ",
+            ticker: "MSFT",
+            display_name: "Microsoft Corp",
+            market_value: -1005,
+            portfolio_weight: -0.2,
+            fit_status: "limited_history",
+            warnings: ["continuity_gap"],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 0.2,
+            contribution_beta: -0.04,
+            vol_scaled_loading: 0.044,
+            vol_scaled_contribution: -0.0088,
+            covariance_adjusted_loading: 0.018,
+            risk_contribution_pct: -1.0,
+          },
+        ],
+      },
+      {
+        factor_id: "QUAL",
+        label: "Quality",
+        group: "style",
+        display_order: 32,
+        beta: 0.12,
+        aggregate_beta: 0.12,
+        factor_volatility: 0.13,
+        covariance_adjustment: 0.05,
+        sensitivity_beta: 0.0156,
+        risk_contribution_pct: 9.0,
+        positive_contribution_beta: 0.16,
+        negative_contribution_beta: -0.04,
+        variance_contribution: 0.018,
+        variance_share: 0.09,
+        drilldown: [
+          {
+            ric: "AAPL.OQ",
+            ticker: "AAPL",
+            display_name: "Apple Inc.",
+            market_value: 4020,
+            portfolio_weight: 0.8,
+            fit_status: "ok",
+            warnings: [],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 0.2,
+            contribution_beta: 0.16,
+            vol_scaled_loading: 0.026,
+            vol_scaled_contribution: 0.0208,
+            covariance_adjusted_loading: 0.01,
+            risk_contribution_pct: 10.0,
+          },
+          {
+            ric: "MSFT.OQ",
+            ticker: "MSFT",
+            display_name: "Microsoft Corp",
+            market_value: -1005,
+            portfolio_weight: -0.2,
+            fit_status: "limited_history",
+            warnings: ["continuity_gap"],
+            coverage: "covered",
+            coverage_reason: null,
+            factor_beta: 0.2,
+            contribution_beta: -0.04,
+            vol_scaled_loading: 0.026,
+            vol_scaled_contribution: -0.0052,
+            covariance_adjusted_loading: 0.01,
+            risk_contribution_pct: -1.0,
+          },
+        ],
+      },
+    ],
     cov_matrix: {
       factors: ["SPY", "XLK", "QUAL"],
       correlation: [
@@ -288,6 +480,11 @@ function baselineRiskPayload() {
         beta_spy_trade: 1.35,
         coverage: "covered",
         coverage_reason: null,
+        display_contributions: [
+          { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 0.96 },
+          { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.32 },
+          { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: 0.16 },
+        ],
         thresholded_contributions: [
           { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: 1.08 },
           { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: 0.36 },
@@ -310,6 +507,11 @@ function baselineRiskPayload() {
         beta_spy_trade: 0.5,
         coverage: "covered",
         coverage_reason: null,
+        display_contributions: [
+          { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: -0.06 },
+          { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: -0.04 },
+          { factor_id: "QUAL", label: "Quality", group: "style", display_order: 32, beta: -0.04 },
+        ],
         thresholded_contributions: [
           { factor_id: "SPY", label: "Market", group: "market", display_order: 0, beta: -0.1 },
           { factor_id: "XLK", label: "Technology", group: "sector", display_order: 15, beta: -0.05 },
@@ -332,6 +534,7 @@ function baselineRiskPayload() {
         beta_spy_trade: null,
         coverage: "missing_price",
         coverage_reason: "No latest price on or before the active cPAR package date.",
+        display_contributions: [],
         thresholded_contributions: [],
       },
     ],
@@ -359,7 +562,10 @@ function emptyRiskPayload() {
       insufficient_history: { positions_count: 0, gross_market_value: 0 },
     },
     aggregate_thresholded_loadings: [],
+    aggregate_display_loadings: [],
+    display_factor_variance_contributions: [],
     factor_variance_contributions: [],
+    display_factor_chart: [],
     factor_chart: [],
     cov_matrix: {
       factors: ["SPY", "XLK", "QUAL"],
@@ -394,7 +600,10 @@ function unavailableRiskPayload() {
       insufficient_history: { positions_count: 1, gross_market_value: 2010 },
     },
     aggregate_thresholded_loadings: [],
+    aggregate_display_loadings: [],
+    display_factor_variance_contributions: [],
     factor_variance_contributions: [],
+    display_factor_chart: [],
     factor_chart: [],
     cov_matrix: {
       factors: ["SPY", "XLK", "QUAL"],
@@ -421,6 +630,7 @@ function unavailableRiskPayload() {
         beta_spy_trade: 1.12,
         coverage: "insufficient_history",
         coverage_reason: "The persisted cPAR fit status is `insufficient_history`, so this position is excluded from hedge aggregation.",
+        display_contributions: [],
         thresholded_contributions: [],
       },
       {
@@ -439,6 +649,7 @@ function unavailableRiskPayload() {
         beta_spy_trade: null,
         coverage: "missing_price",
         coverage_reason: "No latest price on or before the active cPAR package date.",
+        display_contributions: [],
         thresholded_contributions: [],
       },
     ],
@@ -614,10 +825,14 @@ try {
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-risk-factor-summary").waitFor();
     await page.getByTestId("cpar-risk-factor-chart").waitFor();
+    assert.equal(await page.getByTestId("cpar-risk-factor-drilldown").count(), 0);
+    const riskChartCanvas = page.locator('[data-testid="cpar-risk-factor-chart"] canvas');
+    await riskChartCanvas.click({ position: { x: 320, y: 36 } });
     await page.getByTestId("cpar-risk-factor-drilldown").waitFor();
+    await page.getByText("2 positions, 0.900 aggregate beta").waitFor();
     await page.getByTestId("cpar-risk-positions").waitFor();
     await page.getByRole("heading", { name: "Factor Correlation Heatmap" }).waitFor();
-    await page.getByText("5Y Historical Return — Market").waitFor();
+    await page.getByText("5Y Daily Return — Market").waitFor();
     await expectColoredRiskBars(page, "Sensitivity");
     await expectColoredRiskBars(page, "Risk Contrib");
     await expectColoredRiskBars(page, "Exposure");
@@ -627,14 +842,14 @@ try {
     scenario = "empty";
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-risk-factor-summary").waitFor();
-    await page.getByText("No covered holdings rows contributed to the aggregate thresholded portfolio vector.").waitFor();
+    await page.getByText("No covered holdings rows contributed to the aggregate display-loading vector.").waitFor();
     await page.getByTestId("cpar-risk-positions").getByText("No holdings rows are available across the active book.").waitFor();
     await page.getByRole("heading", { name: "Factor Correlation Heatmap" }).waitFor();
 
     scenario = "unavailable";
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("cpar-risk-factor-summary").waitFor();
-    await page.getByText("No covered holdings rows contributed to the aggregate thresholded portfolio vector.").waitFor();
+    await page.getByText("No covered holdings rows contributed to the aggregate display-loading vector.").waitFor();
     await page.getByTestId("cpar-risk-positions").waitFor();
     await page.getByRole("heading", { name: "Factor Correlation Heatmap" }).waitFor();
 

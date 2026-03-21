@@ -8,7 +8,7 @@ from typing import Any
 from backend.cpar import hedge_engine
 from backend.cpar.factor_registry import build_cpar1_factor_registry
 from backend.data import cpar_outputs, cpar_source_reads, holdings_reads
-from backend.services import cpar_meta_service
+from backend.services import cpar_display_loadings, cpar_meta_service
 
 _EPSILON = 1e-12
 
@@ -22,20 +22,7 @@ def _normalize_account_id(value: str | None) -> str:
 
 
 def _factor_rows(loadings: dict[str, float]) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    for spec in build_cpar1_factor_registry():
-        if spec.factor_id not in loadings:
-            continue
-        rows.append(
-            {
-                "factor_id": spec.factor_id,
-                "label": spec.label,
-                "group": spec.group,
-                "display_order": int(spec.display_order),
-                "beta": float(loadings[spec.factor_id]),
-            }
-        )
-    return rows
+    return cpar_display_loadings.ordered_factor_rows(loadings)
 
 
 def _cov_matrix_payload(
@@ -262,6 +249,43 @@ def _attach_thresholded_contributions(
     return enriched
 
 
+def _display_loadings_by_ric(
+    fit_by_ric: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, float]]:
+    return {
+        str(ric): cpar_display_loadings.display_loadings_from_fit(fit)
+        for ric, fit in fit_by_ric.items()
+    }
+
+
+def _attach_display_contributions(
+    rows: list[dict[str, object]],
+    *,
+    display_loadings_by_ric: dict[str, dict[str, float]],
+) -> list[dict[str, object]]:
+    enriched: list[dict[str, object]] = []
+    for row in rows:
+        coverage = str(row.get("coverage") or "")
+        portfolio_weight = row.get("portfolio_weight")
+        if coverage != "covered" or portfolio_weight is None:
+            enriched.append({**row, "display_contributions": []})
+            continue
+
+        resolved_loadings = display_loadings_by_ric.get(str(row.get("ric") or ""), {})
+        contributions = {
+            factor_id: float(portfolio_weight) * float(beta)
+            for factor_id, beta in resolved_loadings.items()
+            if abs(float(portfolio_weight) * float(beta)) > _EPSILON
+        }
+        enriched.append(
+            {
+                **row,
+                "display_contributions": _factor_rows(contributions),
+            }
+        )
+    return enriched
+
+
 def _aggregate_positions_across_accounts(
     positions: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, object]]]:
@@ -319,10 +343,10 @@ def _aggregate_positions_across_accounts(
     return aggregated_positions, accounts
 
 
-def _aggregate_thresholded_loadings(
+def _aggregate_loadings(
     rows: list[dict[str, object]],
     *,
-    fit_by_ric: dict[str, dict[str, Any]],
+    loadings_by_ric: dict[str, dict[str, float]],
 ) -> tuple[dict[str, float], float, float]:
     covered = [
         row for row in rows
@@ -334,9 +358,9 @@ def _aggregate_thresholded_loadings(
         return {}, 0.0, 0.0
     loadings: dict[str, float] = {}
     for row in covered:
-        fit = fit_by_ric[str(row["ric"])]
+        instrument_loadings = loadings_by_ric.get(str(row["ric"]), {})
         weight = float(row["market_value"]) / gross_market_value
-        for factor_id, beta in dict(fit.get("thresholded_loadings") or {}).items():
+        for factor_id, beta in instrument_loadings.items():
             loadings[str(factor_id)] = float(loadings.get(str(factor_id), 0.0) + weight * float(beta))
     return (
         {factor_id: beta for factor_id, beta in loadings.items() if abs(beta) > 1e-12},
@@ -349,8 +373,8 @@ def _factor_analytics_payload(
     *,
     aggregate_loadings: dict[str, float],
     position_rows: list[dict[str, object]],
-    fit_by_ric: dict[str, dict[str, Any]],
     covariance_rows: list[dict[str, Any]],
+    contribution_field: str,
 ) -> dict[str, object]:
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
@@ -363,8 +387,8 @@ def _factor_analytics_payload(
             loadings=aggregate_loadings,
             variance_rows=factor_variance_rows,
             position_rows=position_rows,
-            fit_by_ric=fit_by_ric,
             covariance_rows=covariance_rows,
+            contribution_field=contribution_field,
         ),
     }
 
@@ -446,8 +470,8 @@ def _factor_chart_rows(
     loadings: dict[str, float],
     variance_rows: list[dict[str, object]],
     position_rows: list[dict[str, object]],
-    fit_by_ric: dict[str, dict[str, Any]],
     covariance_rows: list[dict[str, Any]],
+    contribution_field: str,
 ) -> list[dict[str, object]]:
     variance_by_factor = {
         str(row["factor_id"]): dict(row)
@@ -460,15 +484,12 @@ def _factor_chart_rows(
     for row in position_rows:
         if str(row.get("coverage") or "") != "covered":
             continue
-        portfolio_weight = row.get("portfolio_weight")
-        if portfolio_weight is None:
-            continue
-        fit = fit_by_ric.get(str(row.get("ric") or ""))
-        for factor_id, beta in dict((fit or {}).get("thresholded_loadings") or {}).items():
-            contribution_beta = float(portfolio_weight) * float(beta)
-            if abs(float(beta)) <= _EPSILON and abs(contribution_beta) <= _EPSILON:
+        for contribution in list(row.get(contribution_field) or []):
+            factor_id = str(contribution.get("factor_id") or "")
+            contribution_beta = float(contribution.get("beta") or 0.0)
+            if not factor_id or abs(contribution_beta) <= _EPSILON:
                 continue
-            factor_ids.add(str(factor_id))
+            factor_ids.add(factor_id)
     if not factor_ids:
         return []
 
@@ -499,10 +520,17 @@ def _factor_chart_rows(
             portfolio_weight = row.get("portfolio_weight")
             if portfolio_weight is None:
                 continue
-            fit = fit_by_ric.get(str(row.get("ric") or ""))
-            thresholded_loadings = dict((fit or {}).get("thresholded_loadings") or {})
-            factor_beta = float(thresholded_loadings.get(factor_id, 0.0))
-            contribution_beta = float(portfolio_weight) * factor_beta
+            contributions = {
+                str(item.get("factor_id") or ""): float(item.get("beta") or 0.0)
+                for item in list(row.get(contribution_field) or [])
+                if str(item.get("factor_id") or "")
+            }
+            contribution_beta = float(contributions.get(factor_id, 0.0))
+            factor_beta = (
+                0.0
+                if abs(float(portfolio_weight)) <= _EPSILON
+                else float(contribution_beta / float(portfolio_weight))
+            )
             if abs(factor_beta) <= _EPSILON and abs(contribution_beta) <= _EPSILON:
                 continue
             if contribution_beta > _EPSILON:
@@ -719,8 +747,11 @@ def build_cpar_portfolio_hedge_snapshot(
         "portfolio_status": "empty",
         "portfolio_reason": "No live holdings positions are loaded for this account.",
         "aggregate_thresholded_loadings": [],
+        "aggregate_display_loadings": [],
         "factor_variance_contributions": [],
+        "display_factor_variance_contributions": [],
         "factor_chart": [],
+        "display_factor_chart": [],
         "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
         "hedge_status": None,
         "hedge_reason": None,
@@ -743,9 +774,14 @@ def build_cpar_portfolio_hedge_snapshot(
         classification_by_ric=classification_by_ric,
         covered_gross_market_value=0.0,
     )
-    aggregate_loadings, covered_gross_market_value, net_market_value = _aggregate_thresholded_loadings(
+    display_loadings_by_ric = _display_loadings_by_ric(fit_by_ric)
+    aggregate_loadings, covered_gross_market_value, net_market_value = _aggregate_loadings(
         provisional_rows,
-        fit_by_ric=fit_by_ric,
+        loadings_by_ric={str(ric): dict((fit or {}).get("thresholded_loadings") or {}) for ric, fit in fit_by_ric.items()},
+    )
+    aggregate_display_loadings, _, _ = _aggregate_loadings(
+        provisional_rows,
+        loadings_by_ric=display_loadings_by_ric,
     )
     position_rows = _build_position_rows(
         positions=positions,
@@ -755,6 +791,7 @@ def build_cpar_portfolio_hedge_snapshot(
         covered_gross_market_value=covered_gross_market_value,
     )
     position_rows = _attach_thresholded_contributions(position_rows, fit_by_ric=fit_by_ric)
+    position_rows = _attach_display_contributions(position_rows, display_loadings_by_ric=display_loadings_by_ric)
 
     priced_gross_market_value = sum(
         abs(float(row["market_value"]))
@@ -807,8 +844,23 @@ def build_cpar_portfolio_hedge_snapshot(
             **_factor_analytics_payload(
                 aggregate_loadings=aggregate_loadings,
                 position_rows=position_rows,
-                fit_by_ric=fit_by_ric,
                 covariance_rows=covariance_rows,
+                contribution_field="thresholded_contributions",
+            ),
+            "aggregate_display_loadings": _factor_rows(aggregate_display_loadings),
+            "display_factor_variance_contributions": _factor_variance_contribution_rows(
+                aggregate_display_loadings,
+                covariance_rows=covariance_rows,
+            ),
+            "display_factor_chart": _factor_chart_rows(
+                loadings=aggregate_display_loadings,
+                variance_rows=_factor_variance_contribution_rows(
+                    aggregate_display_loadings,
+                    covariance_rows=covariance_rows,
+                ),
+                position_rows=position_rows,
+                covariance_rows=covariance_rows,
+                contribution_field="display_contributions",
             ),
             "hedge_status": str(preview.status),
             "hedge_reason": preview.reason,
@@ -855,8 +907,11 @@ def build_cpar_risk_snapshot(
         "coverage_ratio": None,
         "coverage_breakdown": _coverage_breakdown([]),
         "aggregate_thresholded_loadings": [],
+        "aggregate_display_loadings": [],
         "factor_variance_contributions": [],
+        "display_factor_variance_contributions": [],
         "factor_chart": [],
+        "display_factor_chart": [],
         "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
         "positions": [],
     }
@@ -870,9 +925,14 @@ def build_cpar_risk_snapshot(
         classification_by_ric=classification_by_ric,
         covered_gross_market_value=0.0,
     )
-    aggregate_loadings, covered_gross_market_value, net_market_value = _aggregate_thresholded_loadings(
+    display_loadings_by_ric = _display_loadings_by_ric(fit_by_ric)
+    aggregate_loadings, covered_gross_market_value, net_market_value = _aggregate_loadings(
         provisional_rows,
-        fit_by_ric=fit_by_ric,
+        loadings_by_ric={str(ric): dict((fit or {}).get("thresholded_loadings") or {}) for ric, fit in fit_by_ric.items()},
+    )
+    aggregate_display_loadings, _, _ = _aggregate_loadings(
+        provisional_rows,
+        loadings_by_ric=display_loadings_by_ric,
     )
     position_rows = _build_position_rows(
         positions=positions,
@@ -882,6 +942,7 @@ def build_cpar_risk_snapshot(
         covered_gross_market_value=covered_gross_market_value,
     )
     position_rows = _attach_thresholded_contributions(position_rows, fit_by_ric=fit_by_ric)
+    position_rows = _attach_display_contributions(position_rows, display_loadings_by_ric=display_loadings_by_ric)
 
     priced_gross_market_value = sum(
         abs(float(row["market_value"]))
@@ -927,8 +988,23 @@ def build_cpar_risk_snapshot(
             **_factor_analytics_payload(
                 aggregate_loadings=aggregate_loadings,
                 position_rows=position_rows,
-                fit_by_ric=fit_by_ric,
                 covariance_rows=covariance_rows,
+                contribution_field="thresholded_contributions",
+            ),
+            "aggregate_display_loadings": _factor_rows(aggregate_display_loadings),
+            "display_factor_variance_contributions": _factor_variance_contribution_rows(
+                aggregate_display_loadings,
+                covariance_rows=covariance_rows,
+            ),
+            "display_factor_chart": _factor_chart_rows(
+                loadings=aggregate_display_loadings,
+                variance_rows=_factor_variance_contribution_rows(
+                    aggregate_display_loadings,
+                    covariance_rows=covariance_rows,
+                ),
+                position_rows=position_rows,
+                covariance_rows=covariance_rows,
+                contribution_field="display_contributions",
             ),
         }
     )

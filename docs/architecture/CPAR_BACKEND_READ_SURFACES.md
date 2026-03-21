@@ -33,21 +33,35 @@ It does not add:
 - returns ticker, ric, display name, fit status, warnings, and country code
 - may legitimately return rows with `ticker = NULL`
 
+`GET /api/cpar/ticker/{ticker}`
+- returns one active-package persisted cPAR fit plus source-context augmentation for the resolved ticker/ric
+- now exposes additive display semantics:
+  - `display_loadings`
+  - `beta_market_step1`
+- still preserves hedge-space fields for hedge-specific consumers:
+  - `beta_spy_trade`
+  - `raw_loadings`
+  - `thresholded_loadings`
+
 `GET /api/cpar/risk`
 - returns the aggregate cPAR risk payload across all loaded holdings accounts
 - reuses `backend/data/holdings_reads.py` for one all-accounts holdings read and values those rows at the latest shared-source price on or before the active package date
 - returns:
+  - `aggregate_display_loadings`
   - `coverage_breakdown`
+  - `display_factor_variance_contributions`
+  - `display_factor_chart`
   - `factor_variance_contributions`
   - `factor_chart`
   - `cov_matrix`
+  - `positions[].display_contributions`
   - `positions[].thresholded_contributions`
 - is read-only and package-pinned
 
 `GET /api/cpar/factors/history?factor_id=&years=`
 - returns supplemental cPAR factor-return history for drilldown use
-- reads durable package-backed weekly proxy returns from `cpar_proxy_returns_weekly`
-- returns cumulative points only; it does not create a cUSE history dependency or a request-time compute path
+- is gated by active cPAR package availability but reads daily proxy-price history for the cPAR factor instrument itself
+- returns cumulative points only; it does not create a cUSE frontend dependency or a request-time compute path
 
 `GET /api/cpar/portfolio/hedge?account_id=&mode=`
 - returns a read-only account-scoped cPAR hedge workflow payload
@@ -56,8 +70,12 @@ It does not add:
 - aggregates only covered persisted cPAR thresholded loadings into one hedge vector
 - reports `coverage_ratio` as covered gross market value divided by priced gross market value
 - now also returns:
+  - `aggregate_display_loadings` for explanatory charts and tables
   - `coverage_breakdown` for `covered`, `missing_price`, `missing_cpar_fit`, and `insufficient_history`
+  - `display_factor_variance_contributions` derived from the aggregate display-loadings vector plus active-package covariance
+  - `display_factor_chart` for explanatory factor charts and drilldown
   - top-level `factor_variance_contributions` derived from the aggregate thresholded loadings plus active-package covariance
+  - per-position `display_contributions` for covered rows only
   - per-position `thresholded_contributions` for covered rows only
 - supported `mode` values are `factor_neutral` and `market_neutral`
 
@@ -68,7 +86,16 @@ It does not add:
 - stages signed share deltas only; it does not mutate holdings or apply trades
 - additions outside the current holdings set must come from active-package search hits and therefore must be present in the active persisted cPAR fits
 - response returns `scenario_rows`, `current`, `hypothetical`, and `_preview_only = true`
-- the nested `current` and `hypothetical` snapshots carry the same `coverage_breakdown`, `factor_variance_contributions`, `factor_chart`, and per-position `thresholded_contributions` contract as the baseline hedge route
+- the nested `current` and `hypothetical` snapshots carry the same additive hedge-space and display-space fields as the baseline hedge route
+
+`POST /api/cpar/explore/whatif`
+- returns the preview-only cPAR explore comparison envelope
+- keeps the current/hypothetical what-if payload additive instead of silently redefining the older hedge-basis fields
+- now exposes:
+  - `current.display_exposure_modes`
+  - `hypothetical.display_exposure_modes`
+  - `diff.display_factor_deltas`
+- preserves the existing hedge-basis `exposure_modes` and `factor_deltas` for compatibility while the explanatory pages migrate
 
 ## Read Authority
 
@@ -88,7 +115,8 @@ The current cPAR overhaul should extend existing cPAR owners by default instead 
 
 Single-name owners:
 - `GET /api/cpar/factors/history` is now owned by `backend/services/cpar_factor_history_service.py`
-- the prior single-name ticker-detail and hedge preview routes have been removed as part of the cPAR page reset
+- `GET /api/cpar/ticker/{ticker}` remains owned by `backend/services/cpar_ticker_service.py`
+- `POST /api/cpar/explore/whatif` remains owned by `backend/services/cpar_explore_whatif_service.py`
 
 Aggregate risk owner:
 - `GET /api/cpar/risk` is now owned by `backend/services/cpar_risk_service.py`
@@ -106,8 +134,11 @@ Account-scoped owners:
   - aggregate risk assembly for `/api/cpar/risk`
 - shared contract fields include:
   - `coverage_breakdown` remains the explicit bucketed exclusion summary
-  - `factor_variance_contributions` remains a factor-only decomposition of the aggregate thresholded exposure vector
-  - `factor_chart[]` now packages the signed positive/negative contribution arms plus per-factor drilldown rows used by `/cpar/risk`
+  - `factor_variance_contributions` remains a factor-only decomposition of the aggregate thresholded hedge vector
+  - `display_factor_variance_contributions` is the explanatory factor-only decomposition of the aggregate display-loadings vector
+  - `factor_chart[]` remains the hedge-basis signed chart contract
+  - `display_factor_chart[]` packages the explanatory signed contribution arms plus per-factor drilldown rows used by `/cpar/risk`
+  - `positions[].display_contributions` is the per-position explanatory contribution view derived from covered rows only
   - `positions[].thresholded_contributions` remains the per-position weighted contribution view derived from covered rows only
 
 Current non-goals for this expansion stage:
@@ -161,7 +192,9 @@ Portfolio-route limitations:
 - staged additions must already exist in the active package; the route does not request-time fit new names
 - account-scoped cPAR flows require two authorities at once: an active cPAR package and shared holdings/account reads; SQLite-only local cPAR package fallback does not make those routes available when holdings authority is down
 - `coverage_breakdown.gross_market_value` is based only on positions that can be valued on or before the active package date, so `missing_price` rows correctly contribute `0.0`
-- `factor_variance_contributions` remain factor-only proxy math from the persisted aggregate thresholded loadings plus active-package covariance; this slice still does not introduce specific-risk or cUSE-style risk-share payloads
+- `factor_variance_contributions` remain factor-only proxy math from the persisted aggregate thresholded hedge vector plus active-package covariance
+- `display_factor_variance_contributions` repeat the same factor-only proxy math on the explanatory display-loadings basis
+- this slice still does not introduce specific-risk or cUSE-style risk-share payloads
 
 Aggregate-risk limitations:
 - `/api/cpar/risk` is all-accounts and read-only
@@ -180,6 +213,28 @@ The hedge route:
 - if the optional previous-package fit lookup or covariance read is unreadable, or if that previous covariance coverage is partial, the route still returns the current hedge preview and leaves stability metrics unset
 - unexpected previous-package decode or hedge-construction errors are not swallowed; they still surface as real defects
 - never refits the model on request
+
+## Display-Loadings Behavior
+
+Explanatory cPAR pages must not display hedge-trade-space loadings.
+
+Current additive display contract:
+- single-name detail exposes `display_loadings`
+- aggregate/account snapshots expose:
+  - `aggregate_display_loadings`
+  - `display_factor_variance_contributions`
+  - `display_factor_chart`
+  - `positions[].display_contributions`
+- explore what-if exposes:
+  - `current.display_exposure_modes`
+  - `hypothetical.display_exposure_modes`
+  - `diff.display_factor_deltas`
+
+Display-loadings rules:
+- `SPY` display beta comes from `market_step_beta`
+- non-market display betas come from the post-ridge non-market coefficients before hedge thresholding
+- for persisted fit rows, those non-market coefficients are already the non-market entries inside `raw_loadings`; only the `SPY` leg is swapped from hedge trade-space `spy_trade_beta_raw` to display-space `market_step_beta`
+- hedge-trade-space fields such as `thresholded_loadings`, `aggregate_thresholded_loadings`, and `positions[].thresholded_contributions` remain valid only for hedge-specific workflows
 
 ## Explicit Deferred Items
 

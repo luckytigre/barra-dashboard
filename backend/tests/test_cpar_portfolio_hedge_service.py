@@ -36,9 +36,12 @@ def _fit_row(
     ticker: str,
     fit_status: str = "ok",
     warnings: list[str] | None = None,
+    market_step_beta: float | None = None,
+    raw_loadings: dict[str, float] | None = None,
     thresholded_loadings: dict[str, float] | None = None,
 ) -> dict[str, object]:
     loadings = dict(thresholded_loadings or {"SPY": 1.0})
+    raw = dict(raw_loadings or loadings)
     return {
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
@@ -53,10 +56,10 @@ def _fit_row(
         "price_field_used": "adj_close",
         "hq_country_code": "US",
         "market_step_alpha": 0.0,
-        "market_step_beta": loadings.get("SPY", 0.0),
+        "market_step_beta": raw.get("SPY", 0.0) if market_step_beta is None else float(market_step_beta),
         "block_alpha": 0.0,
-        "spy_trade_beta_raw": loadings.get("SPY", 0.0),
-        "raw_loadings": dict(loadings),
+        "spy_trade_beta_raw": raw.get("SPY", 0.0),
+        "raw_loadings": raw,
         "thresholded_loadings": dict(loadings),
         "factor_variance_proxy": 0.2,
         "factor_volatility_proxy": 0.447,
@@ -120,7 +123,13 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
         cpar_outputs,
         "load_package_instrument_fits_for_rics",
         lambda rics, **kwargs: [
-            _fit_row(ric="AAPL.OQ", ticker="AAPL", thresholded_loadings={"SPY": 1.1, "XLK": 0.3}),
+            _fit_row(
+                ric="AAPL.OQ",
+                ticker="AAPL",
+                market_step_beta=0.9,
+                raw_loadings={"SPY": 1.1, "XLK": 0.3},
+                thresholded_loadings={"SPY": 1.1, "XLK": 0.3},
+            ),
             _fit_row(ric="MSFT.OQ", ticker="MSFT", fit_status="insufficient_history", thresholded_loadings={"SPY": 1.0, "XLK": 0.2}),
         ],
     )
@@ -151,6 +160,13 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
     }
     assert payload["hedge_status"] == "hedge_ok"
     assert payload["aggregate_thresholded_loadings"][0]["factor_id"] == "SPY"
+    assert payload["aggregate_display_loadings"][0] == {
+        "factor_id": "SPY",
+        "label": "Market",
+        "group": "market",
+        "display_order": 0,
+        "beta": pytest.approx(0.9),
+    }
     assert [row["factor_id"] for row in payload["factor_variance_contributions"]] == ["SPY", "XLK"]
     assert payload["factor_variance_contributions"][0] == {
         "factor_id": "SPY",
@@ -182,6 +198,9 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
     assert payload["factor_chart"][0]["drilldown"][0]["vol_scaled_contribution"] == pytest.approx(1.1)
     assert payload["factor_chart"][0]["drilldown"][0]["covariance_adjusted_loading"] == pytest.approx(1.276)
     assert payload["factor_chart"][0]["drilldown"][0]["risk_contribution_pct"] == pytest.approx((1.276 / 1.432) * 100.0)
+    assert [row["factor_id"] for row in payload["display_factor_chart"]] == ["SPY", "XLK"]
+    assert payload["display_factor_chart"][0]["aggregate_beta"] == pytest.approx(0.9)
+    assert payload["display_factor_chart"][0]["drilldown"][0]["factor_beta"] == pytest.approx(0.9)
     covered_row = next(row for row in payload["positions"] if row["ric"] == "AAPL.OQ")
     assert covered_row["thresholded_contributions"][0] == {
         "factor_id": "SPY",
@@ -195,6 +214,8 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
     assert covered_row["thresholded_contributions"][1]["group"] == "sector"
     assert covered_row["thresholded_contributions"][1]["display_order"] > 0
     assert covered_row["thresholded_contributions"][1]["beta"] == pytest.approx(0.3)
+    assert covered_row["display_contributions"][0]["beta"] == pytest.approx(0.9)
+    assert covered_row["display_contributions"][1]["beta"] == pytest.approx(0.3)
     excluded_rows = [row for row in payload["positions"] if row["ric"] != "AAPL.OQ"]
     assert all(row["thresholded_contributions"] == [] for row in excluded_rows)
     reconciled = {}

@@ -25,7 +25,7 @@ function factorCatalog(side: CparExploreWhatIfData["current"]): FactorCatalogEnt
   return (side.factor_catalog || []).map((factor) => ({
     factor_id: factor.factor_id,
     factor_name: factor.label,
-    short_label: factor.label,
+    short_label: shortFactorLabel(factor.label),
     family: factor.group === "market" ? "market" : factor.group === "sector" ? "industry" : "style",
     block: factor.group === "market" ? "Market" : factor.group === "sector" ? "Industry" : "Style",
     display_order: factor.display_order,
@@ -78,8 +78,11 @@ export default function CparWhatIfPreviewPanel({
 
   const currentCatalog = factorCatalog(previewData.current);
   const hypotheticalCatalog = factorCatalog(previewData.hypothetical);
-  const currentFactors = chartFactors(previewData.current.exposure_modes[mode]);
-  const hypotheticalFactors = chartFactors(previewData.hypothetical.exposure_modes[mode]);
+  const currentExposureModes = previewData.current.display_exposure_modes ?? previewData.current.exposure_modes;
+  const hypotheticalExposureModes = previewData.hypothetical.display_exposure_modes ?? previewData.hypothetical.exposure_modes;
+  const factorDeltaModes = previewData.diff.display_factor_deltas ?? previewData.diff.factor_deltas;
+  const currentFactors = chartFactors(currentExposureModes[mode]);
+  const hypotheticalFactors = chartFactors(hypotheticalExposureModes[mode]);
   const methodByRic = new Map<string, string>();
   for (const row of [...previewData.current.positions, ...previewData.hypothetical.positions]) {
     methodByRic.set(row.ric, methodLabel(row));
@@ -223,7 +226,7 @@ export default function CparWhatIfPreviewPanel({
                 </tr>
               </thead>
               <tbody>
-                {previewData.diff.factor_deltas[mode].map((row) => (
+                {factorDeltaModes[mode].map((row) => (
                   <tr key={row.factor_id}>
                     <td>{shortFactorLabel(row.factor_id, currentCatalog)}</td>
                     <td className="text-right">{row.current.toFixed(mode === "risk_contribution" ? 2 : 4)}{mode === "risk_contribution" ? "%" : ""}</td>

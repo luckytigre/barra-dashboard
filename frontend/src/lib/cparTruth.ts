@@ -337,9 +337,13 @@ function normalizeCparFactorChartRows(value: unknown): CparFactorChartRow[] {
 }
 
 function deriveCparFactorChartRows(
-  portfolio: Pick<CparPortfolioHedgeData, "aggregate_thresholded_loadings" | "factor_variance_contributions" | "positions">,
+  portfolio: Pick<CparPortfolioHedgeData, "positions"> & {
+    aggregate_loadings: CparLoading[];
+    factor_variance_contributions: CparFactorVarianceContribution[];
+    contribution_field: "thresholded_contributions" | "display_contributions";
+  },
 ): CparFactorChartRow[] {
-  const loadings = normalizeCparLoadings(portfolio.aggregate_thresholded_loadings);
+  const loadings = normalizeCparLoadings(portfolio.aggregate_loadings);
   const varianceRows = normalizeCparVarianceContributions(portfolio.factor_variance_contributions);
   const positions = Array.isArray(portfolio.positions) ? portfolio.positions : [];
   const metaByFactor = new Map<string, Pick<CparFactorChartRow, "factor_id" | "label" | "group" | "display_order">>();
@@ -354,7 +358,7 @@ function deriveCparFactorChartRows(
   });
   positions.forEach((row) => {
     if (row.coverage !== "covered") return;
-    normalizeCparLoadings(row.thresholded_contributions).forEach((contribution) => {
+    normalizeCparLoadings(row[portfolio.contribution_field]).forEach((contribution) => {
       if (Math.abs(contribution.beta) <= 1e-12) return;
       if (!metaByFactor.has(contribution.factor_id)) metaByFactor.set(contribution.factor_id, contribution);
     });
@@ -369,7 +373,7 @@ function deriveCparFactorChartRows(
       const drilldown = positions
         .filter((row) => row.coverage === "covered")
         .map((row) => {
-          const contribution = normalizeCparLoadings(row.thresholded_contributions).find(
+          const contribution = normalizeCparLoadings(row[portfolio.contribution_field]).find(
             (item) => item.factor_id === meta.factor_id,
           );
           if (!contribution || Math.abs(contribution.beta) <= 1e-12) return null;
@@ -425,15 +429,19 @@ function deriveCparFactorChartRows(
 function normalizeCparPortfolioPositionRow(row: CparPortfolioPositionRow): CparPortfolioPositionRow {
   return {
     ...row,
+    display_contributions: normalizeCparLoadings(row.display_contributions ?? row.thresholded_contributions),
     thresholded_contributions: normalizeCparLoadings(row.thresholded_contributions),
   };
 }
 
 type CparRiskLikePayload = {
+  aggregate_display_loadings?: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
   coverage_breakdown: CparCoverageBreakdown;
   cov_matrix: CparCovMatrix;
+  display_factor_variance_contributions?: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
+  display_factor_chart?: CparFactorChartRow[];
   factor_chart?: CparFactorChartRow[];
   positions: CparPortfolioPositionRow[];
 };
@@ -442,22 +450,43 @@ function normalizeCparRiskLikeData<T extends CparRiskLikePayload>(payload: T): T
   const positions = Array.isArray(payload.positions)
     ? payload.positions.map(normalizeCparPortfolioPositionRow)
     : [];
+  const aggregateDisplayLoadings = normalizeCparLoadings(
+    payload.aggregate_display_loadings ?? payload.aggregate_thresholded_loadings,
+  );
   const aggregateThresholdedLoadings = normalizeCparLoadings(payload.aggregate_thresholded_loadings);
+  const displayFactorVarianceContributions = normalizeCparVarianceContributions(
+    payload.display_factor_variance_contributions ?? payload.factor_variance_contributions,
+  );
   const factorVarianceContributions = normalizeCparVarianceContributions(payload.factor_variance_contributions);
+  const hasDisplayFactorChartField = Object.prototype.hasOwnProperty.call(payload, "display_factor_chart");
+  const displayFactorChart = normalizeCparFactorChartRows(
+    payload.display_factor_chart ?? payload.factor_chart,
+  );
   const hasFactorChartField = Object.prototype.hasOwnProperty.call(payload, "factor_chart");
   const factorChart = normalizeCparFactorChartRows(payload.factor_chart);
   return {
     ...payload,
+    aggregate_display_loadings: aggregateDisplayLoadings,
     aggregate_thresholded_loadings: aggregateThresholdedLoadings,
     coverage_breakdown: normalizeCparCoverageBreakdown(payload.coverage_breakdown || EMPTY_CPAR_COVERAGE_BREAKDOWN),
     cov_matrix: normalizeCparCovMatrix(payload.cov_matrix),
+    display_factor_variance_contributions: displayFactorVarianceContributions,
     factor_variance_contributions: factorVarianceContributions,
+    display_factor_chart: hasDisplayFactorChartField
+      ? displayFactorChart
+      : deriveCparFactorChartRows({
+          aggregate_loadings: aggregateDisplayLoadings,
+          factor_variance_contributions: displayFactorVarianceContributions,
+          positions,
+          contribution_field: "display_contributions",
+        }),
     factor_chart: hasFactorChartField
       ? factorChart
       : deriveCparFactorChartRows({
-          aggregate_thresholded_loadings: aggregateThresholdedLoadings,
+          aggregate_loadings: aggregateThresholdedLoadings,
           factor_variance_contributions: factorVarianceContributions,
           positions,
+          contribution_field: "thresholded_contributions",
         }),
     positions,
   };

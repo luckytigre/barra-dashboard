@@ -36,7 +36,10 @@ function normalizeRiskMix(row: CparPortfolioPositionRow) {
   let market = 0;
   let industry = 0;
   let style = 0;
-  for (const contribution of row.thresholded_contributions) {
+  const contributions = row.display_contributions.length > 0
+    ? row.display_contributions
+    : row.thresholded_contributions;
+  for (const contribution of contributions) {
     const value = Math.abs(Number(contribution.beta || 0));
     if (!value) continue;
     if (contribution.group === "market") market += value;
@@ -163,7 +166,7 @@ export default function CparRiskPositionsContributionTable({
       <h3>Positions (Factor Risk Mix)</h3>
       <div className="section-subtitle">
         This is the cPAR aggregate-book analogue of the cUSE risk-page positions table: covered rows show the weighted
-        factor mix driving the aggregate portfolio vector, while excluded rows stay explicit.
+        display-factor mix driving the aggregate portfolio view, while excluded rows stay explicit.
       </div>
       <div className="cpar-badge-row compact">
         <span className="cpar-detail-chip">{coveredCount} covered rows</span>

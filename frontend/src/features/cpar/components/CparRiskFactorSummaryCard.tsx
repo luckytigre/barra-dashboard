@@ -22,33 +22,33 @@ export default function CparRiskFactorSummaryCard({
   portfolio: CparRiskData;
 }) {
   const factorRows = useMemo(() => (
-    [...portfolio.factor_chart].sort((left, right) => (
+    [...portfolio.display_factor_chart].sort((left, right) => (
       left.display_order - right.display_order
       || Math.abs(right.aggregate_beta) - Math.abs(left.aggregate_beta)
       || left.factor_id.localeCompare(right.factor_id)
     ))
-  ), [portfolio.factor_chart]);
+  ), [portfolio.display_factor_chart]);
   const [mode, setMode] = useState<CparRiskExposureMode>("raw");
   const modeLabel = MODES.find((option) => option.key === mode)?.label ?? "Exposure";
-  const [selectedFactorId, setSelectedFactorId] = useState<string | null>(factorRows[0]?.factor_id || null);
+  const [selectedFactorId, setSelectedFactorId] = useState<string | null>(null);
   const preHedgeVarianceProxy = useMemo(() => (
     typeof portfolio.pre_hedge_factor_variance_proxy === "number"
       ? portfolio.pre_hedge_factor_variance_proxy
-      : portfolio.factor_variance_contributions.reduce(
+      : portfolio.display_factor_variance_contributions.reduce(
           (sum: number, row: CparFactorVarianceContribution) => sum + (row.variance_contribution || 0),
           0,
         )
-  ), [portfolio.factor_variance_contributions, portfolio.pre_hedge_factor_variance_proxy]);
+  ), [portfolio.display_factor_variance_contributions, portfolio.pre_hedge_factor_variance_proxy]);
 
   useEffect(() => {
     setSelectedFactorId((current) => (
       current && factorRows.some((row) => row.factor_id === current)
         ? current
-        : factorRows[0]?.factor_id || null
+        : null
     ));
   }, [factorRows]);
 
-  const selectedFactor = factorRows.find((row) => row.factor_id === selectedFactorId) || factorRows[0] || null;
+  const selectedFactor = factorRows.find((row) => row.factor_id === selectedFactorId) || null;
 
   return (
     <section className="chart-card" data-testid="cpar-risk-factor-summary">
@@ -68,7 +68,7 @@ export default function CparRiskFactorSummaryCard({
 
       {factorRows.length === 0 ? (
         <div className="detail-history-empty compact">
-          No covered holdings rows contributed to the aggregate thresholded portfolio vector.
+          No covered holdings rows contributed to the aggregate display-loading vector.
         </div>
       ) : (
         <>
@@ -76,7 +76,9 @@ export default function CparRiskFactorSummaryCard({
             rows={factorRows}
             mode={mode}
             selectedFactorId={selectedFactor?.factor_id || null}
-            onSelectFactor={setSelectedFactorId}
+            onSelectFactor={(factorId) => {
+              setSelectedFactorId((current) => (current === factorId ? null : factorId));
+            }}
           />
 
           {selectedFactor ? <CparRiskFactorDrilldown factor={selectedFactor} mode={mode} /> : null}

@@ -68,6 +68,19 @@ def _current_snapshot() -> dict[str, object]:
                 "drilldown": [{"ric": "AAPL.OQ", "ticker": "AAPL", "portfolio_weight": 0.8, "factor_beta": 1.0, "vol_scaled_loading": 0.3, "contribution_beta": 0.8, "vol_scaled_contribution": 0.24, "risk_contribution_pct": 56.0, "fit_status": "ok", "coverage": "covered"}],
             },
         ],
+        "display_factor_chart": [
+            {
+                "factor_id": "SPY",
+                "label": "Market",
+                "group": "market",
+                "display_order": 0,
+                "aggregate_beta": 0.9,
+                "sensitivity_beta": 0.33,
+                "risk_contribution_pct": 70.0,
+                "factor_volatility": 0.3,
+                "drilldown": [{"ric": "AAPL.OQ", "ticker": "AAPL", "portfolio_weight": 0.8, "factor_beta": 0.8, "vol_scaled_loading": 0.24, "contribution_beta": 0.64, "vol_scaled_contribution": 0.192, "risk_contribution_pct": 56.0, "fit_status": "ok", "coverage": "covered"}],
+            },
+        ],
     }
 
 
@@ -99,6 +112,19 @@ def _hypothetical_snapshot() -> dict[str, object]:
                 "risk_contribution_pct": 60.0,
                 "factor_volatility": 0.3,
                 "drilldown": [{"ric": "NVDA.OQ", "ticker": "NVDA", "portfolio_weight": 0.27, "factor_beta": 1.3, "vol_scaled_loading": 0.39, "contribution_beta": 0.351, "vol_scaled_contribution": 0.1053, "risk_contribution_pct": 18.0, "fit_status": "ok", "coverage": "covered"}],
+            },
+        ],
+        "display_factor_chart": [
+            {
+                "factor_id": "SPY",
+                "label": "Market",
+                "group": "market",
+                "display_order": 0,
+                "aggregate_beta": 1.05,
+                "sensitivity_beta": 0.36,
+                "risk_contribution_pct": 60.0,
+                "factor_volatility": 0.3,
+                "drilldown": [{"ric": "NVDA.OQ", "ticker": "NVDA", "portfolio_weight": 0.27, "factor_beta": 1.0, "vol_scaled_loading": 0.3, "contribution_beta": 0.27, "vol_scaled_contribution": 0.081, "risk_contribution_pct": 18.0, "fit_status": "ok", "coverage": "covered"}],
             },
         ],
     }
@@ -149,6 +175,9 @@ def test_cpar_explore_whatif_service_builds_aggregate_preview(monkeypatch: pytes
     assert payload["hypothetical"]["risk_shares"]["style"] == 15.0
     assert payload["diff"]["risk_shares"]["market"] == -10.0
     assert payload["diff"]["factor_deltas"]["raw"][0]["factor_id"] == "SPY"
+    assert payload["current"]["display_exposure_modes"]["raw"][0]["value"] == pytest.approx(0.9)
+    assert payload["diff"]["display_factor_deltas"]["raw"][0]["current"] == pytest.approx(0.9)
+    assert payload["diff"]["display_factor_deltas"]["raw"][0]["hypothetical"] == pytest.approx(1.05)
 
 
 def test_cpar_explore_whatif_service_rejects_unknown_accounts(monkeypatch: pytest.MonkeyPatch) -> None:

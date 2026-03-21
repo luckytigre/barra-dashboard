@@ -130,6 +130,7 @@ export interface CparTickerDetailData extends CparPackageMeta {
   beta_market_step1?: number | null;
   block_alpha?: number | null;
   beta_spy_trade?: number | null;
+  display_loadings: CparLoading[];
   raw_loadings: CparLoading[];
   thresholded_loadings: CparLoading[];
   pre_hedge_factor_variance_proxy?: number | null;
@@ -200,6 +201,7 @@ export interface CparPortfolioPositionRow {
   beta_spy_trade: number | null;
   coverage: CparPortfolioCoverage;
   coverage_reason: string | null;
+  display_contributions: CparLoading[];
   thresholded_contributions: CparLoading[];
 }
 
@@ -284,8 +286,11 @@ export interface CparRiskData extends CparPackageMeta {
   covered_gross_market_value: number;
   coverage_ratio: number | null;
   coverage_breakdown: CparCoverageBreakdown;
+  aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
+  display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
+  display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
   cov_matrix: CparCovMatrix;
   pre_hedge_factor_variance_proxy?: number | null;
@@ -306,8 +311,11 @@ export interface CparPortfolioHedgeData extends CparPackageMeta {
   covered_gross_market_value: number;
   coverage_ratio: number | null;
   coverage_breakdown: CparCoverageBreakdown;
+  aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
+  display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
+  display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
   cov_matrix: CparCovMatrix;
   hedge_status: CparHedgeStatus | null;
@@ -408,6 +416,11 @@ export interface CparExplorePreviewSide {
     sensitivity: CparExploreExposureRow[];
     risk_contribution: CparExploreExposureRow[];
   };
+  display_exposure_modes: {
+    raw: CparExploreExposureRow[];
+    sensitivity: CparExploreExposureRow[];
+    risk_contribution: CparExploreExposureRow[];
+  };
   factor_catalog: CparFactorSpec[];
   portfolio_status: CparPortfolioStatus;
   portfolio_reason: string | null;
@@ -430,6 +443,11 @@ export interface CparExploreWhatIfData extends CparPackageMeta {
     position_count: number;
     risk_shares: CparExploreRiskShares;
     factor_deltas: {
+      raw: CparExploreFactorDeltaRow[];
+      sensitivity: CparExploreFactorDeltaRow[];
+      risk_contribution: CparExploreFactorDeltaRow[];
+    };
+    display_factor_deltas: {
       raw: CparExploreFactorDeltaRow[];
       sensitivity: CparExploreFactorDeltaRow[];
       risk_contribution: CparExploreFactorDeltaRow[];

@@ -98,16 +98,17 @@ Current frontend-backed read surfaces:
 - `GET /api/cpar/portfolio/hedge`
 - `POST /api/cpar/portfolio/whatif`
 
-`/cpar/explore`, `/cpar/health`, and `/cpar/hedge` are now intentional reset placeholders while those surfaces are rebuilt from the ground up.
-`/cpar/risk` is now aggregate and read-only: it reuses the shared Neon-backed adapter in `backend/data/holdings_reads.py` plus latest shared-source prices, but it does not reuse cUSE4 risk or what-if payload semantics.
+`/cpar/health` and `/cpar/hedge` are still lightweight placeholder surfaces.
+`/cpar/explore` now serves single-name persisted fit detail plus preview-only scenario analysis.
+`/cpar/risk` is aggregate and read-only: it reuses the shared Neon-backed adapter in `backend/data/holdings_reads.py` plus latest shared-source prices, but it does not reuse cUSE4 risk or what-if payload semantics.
 The shared snapshot assembly in `backend/services/cpar_portfolio_snapshot_service.py` still underpins both:
 - aggregate `/api/cpar/risk`
 - account-scoped `/api/cpar/portfolio/hedge` and `/api/cpar/portfolio/whatif`
-That shared snapshot now carries explicit `coverage_breakdown`, factor-only `factor_variance_contributions`, one chart-ready `factor_chart` drilldown surface, per-position `thresholded_contributions`, and the package-pinned `cov_matrix`; those fields are still derived read surfaces from the same package-scoped snapshot, not a second risk engine.
+That shared snapshot now carries explicit `coverage_breakdown`, hedge-basis `factor_variance_contributions`, additive display-basis `display_factor_variance_contributions`, hedge-basis `factor_chart`, additive explanatory `display_factor_chart`, per-position `thresholded_contributions`, additive `display_contributions`, and the package-pinned `cov_matrix`; those fields are still derived read surfaces from the same package-scoped snapshot, not a second risk engine.
 `/cpar/risk` now renders those fields directly as:
 - coverage summary plus explicit exclusion buckets
 - one signed factor-loadings chart with per-factor drilldown
-- one supplemental 5Y factor-return history block per factor drilldown
+- one supplemental 5Y daily proxy-return history block per factor drilldown
 - one positions contribution-mix table
 - one full market/industry/style factor correlation heatmap
 The account-scoped preview-only what-if route still exists on the backend, but it is no longer the owner of `/cpar/risk`.
@@ -117,7 +118,7 @@ Current frontend ownership for those pages is now routed through cPAR-specific w
 Those wrappers are still thin cPAR-owned facades over the shared transport layer today; they keep cPAR feature owners off direct mixed-family imports while still allowing account-scoped cPAR flows to reuse shared holdings types intentionally.
 `/cpar/risk` no longer reuses the shared holdings-account hook because it is no longer an account selector page.
 Upcoming cPAR risk/explore expansion should keep following the same ownership rule: extend current cPAR route/service owners by default, and only add a new cPAR-specific owner when the authority/read pattern is genuinely different.
-Until that authority decision is made explicitly, the operations baseline does not assume a new cPAR single-name history route or any reuse of cUSE universe/read surfaces. This slice still does not add a cUSE-style price-history panel to `/cpar/explore`.
+Single-name cPAR detail now uses `GET /api/cpar/ticker/{ticker}` for persisted fit detail and `POST /api/cpar/explore/whatif` for preview-only scenario comparison. It still does not reuse cUSE universe/read surfaces.
 
 ## Fail-Closed Cases
 
@@ -168,9 +169,15 @@ If `/cpar/risk` shows unexpected exclusions or coverage drift:
   - no active-package fit row
   - `insufficient_history`
 - inspect the positions contribution-mix table next:
-  - covered rows should show the largest weighted thresholded factor contributions
+  - covered rows should show the largest weighted display factor contributions
   - excluded rows should show no contribution mix and should still surface the exclusion reason inline
 - `thresholded_contributions` are intentionally populated only for covered rows; excluded rows contribute nothing to the aggregate book vector or factor-only variance decomposition
+
+If cPAR explanatory charts look like hedge vectors:
+- `/cpar/risk` and `/cpar/explore` should read display-basis fields, not hedge-trade-space fields
+- single-name explanatory display should use `beta_market_step1` plus `display_loadings`
+- aggregate explanatory display should use `aggregate_display_loadings`, `display_factor_chart`, and `positions[].display_contributions`
+- hedge-specific fields such as `beta_spy_trade`, `thresholded_loadings`, `aggregate_thresholded_loadings`, and `positions[].thresholded_contributions` should remain confined to hedge-specific flows
 
 If `/cpar/risk` drilldown history degrades while the rest of the page renders:
 - treat that as supplemental history degradation, not as an aggregate risk outage

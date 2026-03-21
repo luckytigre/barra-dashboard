@@ -24,23 +24,32 @@ It does not add:
 
 `/cpar/risk`
 - current aggregate-book cPAR risk workspace across all loaded holdings accounts
-- now owns a cPAR-native aggregate risk composition:
+- owns a cPAR-native aggregate risk composition:
   - coverage summary plus explicit exclusion buckets
   - one signed factor-loadings chart with per-factor drilldown, reconciled from one aggregate book snapshot
   - one 5Y factor-return history block inside each factor drilldown
-  - positions contribution mix table derived from per-row thresholded contributions
+  - positions contribution mix table derived from per-row display contributions
   - one full market/industry/style factor correlation heatmap from the package-pinned covariance surface
 - now has a stable backend contract:
   - `coverage_breakdown` for explicit exclusion buckets
-  - `factor_variance_contributions` for factor-only decomposition of the aggregate thresholded portfolio vector
-  - `factor_chart` for chart-ready factor rows plus drilldown
-  - `positions[].thresholded_contributions` for per-position weighted contributions
+  - `aggregate_display_loadings`
+  - `display_factor_variance_contributions`
+  - `display_factor_chart`
+  - `positions[].display_contributions`
+- explanatory factor displays must use those display-basis fields, not hedge-trade-space fields
 - is the canonical route for that workflow now
 
 `/cpar/explore`
-- intentionally reset placeholder page
-- no longer owns search, ticker selection, persisted fit detail, or loadings interpretation in the current repo state
-- kept as a route placeholder so the cPAR family hierarchy remains stable while the page is rebuilt from the ground up
+- current cPAR single-name detail and scenario-preview surface
+- owns:
+  - active-package search and ticker selection
+  - persisted fit detail plus source-context augmentation
+  - one explanatory factor-exposure chart built from `display_loadings`
+  - one preview-only scenario builder and before/after exposure comparison
+- explanatory single-name display must use:
+  - `beta_market_step1`
+  - `display_loadings`
+- hedge-trade-space fields remain valid only for hedge-specific consumers
 
 `/cpar/health`
 - intentionally reset placeholder page
@@ -70,15 +79,33 @@ Shared shell behavior:
 `GET /api/cpar/search`
 - active-package search hits only
 
+`GET /api/cpar/ticker/{ticker}`
+- single-name persisted cPAR fit detail with source-context augmentation
+- explanatory display uses `display_loadings` plus `beta_market_step1`
+- hedge-space fields (`beta_spy_trade`, `raw_loadings`, `thresholded_loadings`) remain present for hedge-specific consumers only
+
 `GET /api/cpar/risk`
 - aggregate all-accounts cPAR risk payload
 - package-pinned and read-only
 - does not reuse the account-scoped hedge payload as its frontend owner
+- explanatory display must consume:
+  - `aggregate_display_loadings`
+  - `display_factor_variance_contributions`
+  - `display_factor_chart`
+  - `positions[].display_contributions`
 
 `GET /api/cpar/factors/history`
 - supplemental 5Y factor-return history for cPAR drilldown
 - cPAR-owned route/hook path, even though the charting primitive is shared
 - fail-soft at the page level: `/cpar/risk` keeps rendering the aggregate risk payload when this history read is degraded
+
+`POST /api/cpar/explore/whatif`
+- preview-only cPAR explore comparison payload
+- explanatory preview uses:
+  - `current.display_exposure_modes`
+  - `hypothetical.display_exposure_modes`
+  - `diff.display_factor_deltas`
+- hedge-basis `exposure_modes` / `factor_deltas` remain additive compatibility fields during the migration window
 
 `GET /api/cpar/portfolio/hedge`
 - account-scoped portfolio hedge preview only
@@ -159,8 +186,8 @@ Read failures:
 ## Workflow Split
 
 `/cpar/explore`
-- is intentionally blank aside from a reset placeholder
-- no longer owns detail, source-context, or hedge-handoff behavior in the current repo state
+- owns single-name detail, source-context, and preview-only scenario analysis
+- should present explanatory display loadings, not hedge-trade-space loadings
 
 `/cpar/hedge`
 - is intentionally blank aside from a reset placeholder
@@ -170,6 +197,8 @@ Read failures:
 - is now the aggregate cPAR risk analytics surface across all loaded holdings accounts
 - owns one signed factor-loadings chart with per-factor drilldown, 5Y factor-return history, positions contribution mix, and the full factor correlation heatmap
 - now intentionally borrows the cUSE risk-page layout rhythm without importing cUSE feature owners or cUSE payload semantics
+- uses display-basis loadings for explanatory charts and tables
+- does not display hedge-trade-space or thresholded hedge vectors outside hedge-specific surfaces
 - now avoids a duplicate factor-summary table under the chart, leaving the signed chart plus drilldown as the primary factor read
 - still stops short of a full cUSE-style analytics workspace:
   - no variance-attribution table
@@ -186,7 +215,7 @@ Read failures:
 ## Smoke Coverage
 
 Current cPAR frontend smokes cover:
-- `/cpar/health` and `/cpar/explore` placeholder rendering
+- `/cpar/explore` single-name detail rendering
 - `/cpar/hedge` placeholder rendering
 - `/cpar/risk` baseline flow
 - `/cpar/risk` signed factor-loadings chart plus drilldown, 5Y factor history, positions contribution mix, and full-factor correlation heatmap

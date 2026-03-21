@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.cpar.factor_registry import build_cpar1_factor_registry
 from backend.data import cpar_outputs, cpar_source_reads
-from backend.services import cpar_meta_service
+from backend.services import cpar_display_loadings, cpar_meta_service
 
 
 class CparTickerNotFound(LookupError):
@@ -14,22 +13,7 @@ class CparTickerNotFound(LookupError):
 
 
 def _factor_rows(loadings: dict[str, Any] | None) -> list[dict[str, object]]:
-    loadings = dict(loadings or {})
-    rows: list[dict[str, object]] = []
-    for spec in build_cpar1_factor_registry():
-        factor_id = str(spec.factor_id)
-        if factor_id not in loadings:
-            continue
-        rows.append(
-            {
-                "factor_id": factor_id,
-                "label": spec.label,
-                "group": spec.group,
-                "display_order": int(spec.display_order),
-                "beta": float(loadings[factor_id]),
-            }
-        )
-    return rows
+    return cpar_display_loadings.ordered_factor_rows(dict(loadings or {}))
 
 
 def load_cpar_ticker_payload(
@@ -122,6 +106,9 @@ def load_cpar_ticker_payload(
         "beta_market_step1": fit.get("market_step_beta"),
         "block_alpha": fit.get("block_alpha"),
         "beta_spy_trade": fit.get("spy_trade_beta_raw"),
+        "display_loadings": cpar_display_loadings.ordered_factor_rows(
+            cpar_display_loadings.display_loadings_from_fit(fit),
+        ),
         "raw_loadings": _factor_rows(fit.get("raw_loadings")),
         "thresholded_loadings": _factor_rows(fit.get("thresholded_loadings")),
         "pre_hedge_factor_variance_proxy": fit.get("factor_variance_proxy"),

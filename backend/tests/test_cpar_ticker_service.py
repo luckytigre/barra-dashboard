@@ -38,7 +38,7 @@ def _fit() -> dict[str, object]:
         "price_field_used": "adj_close",
         "hq_country_code": "US",
         "market_step_alpha": 0.01,
-        "market_step_beta": 1.15,
+        "market_step_beta": 0.98,
         "block_alpha": 0.0,
         "spy_trade_beta_raw": 1.15,
         "raw_loadings": {"SPY": 1.15, "XLK": 0.32},
@@ -77,6 +77,8 @@ def test_cpar_ticker_service_builds_quote_payload(monkeypatch: pytest.MonkeyPatc
     assert payload["ric"] == "AAPL.OQ"
     assert payload["source_context"]["latest_price_context"]["price"] == 210.0
     assert payload["source_context"]["classification_snapshot"]["trbc_industry_group"] == "Computers"
+    assert payload["display_loadings"][0]["factor_id"] == "SPY"
+    assert payload["display_loadings"][0]["beta"] == pytest.approx(0.98)
     assert payload["thresholded_loadings"][0]["factor_id"] == "SPY"
 
 
