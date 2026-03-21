@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from backend.cpar.contracts import FactorSpec
 
-CPAR1_METHOD_VERSION = "cPAR1"
+CPAR1_METHOD_VERSION = "cPAR1_idio_v1"
 CPAR1_FACTOR_REGISTRY_VERSION = "cPAR1_registry_v1"
 
 MARKET_FACTOR_ID = "SPY"

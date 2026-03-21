@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.data import cpar_queries, cpar_schema
 
 
@@ -29,10 +30,10 @@ def _seed_query_db() -> sqlite3.Connection:
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            ("run_old", "2026-03-07", "cpar-weekly", "ok", "2026-03-08T00:00:00Z", "2026-03-08T00:01:00Z", "cPAR1", "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-07", "2026-03-07", 10, 8, 1, 1, "sqlite", None, None, "2026-03-08T00:01:00Z"),
-            ("run_failed", "2026-03-14", "cpar-weekly", "failed", "2026-03-15T00:00:00Z", "2026-03-15T00:01:00Z", "cPAR1", "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-14", "2026-03-14", 10, 0, 0, 10, "sqlite", "RuntimeError", "boom", "2026-03-15T00:01:00Z"),
-            ("run_new", "2026-03-14", "cpar-weekly", "ok", "2026-03-15T00:02:00Z", "2026-03-15T00:03:00Z", "cPAR1", "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-14", "2026-03-14", 11, 9, 1, 1, "neon", None, None, "2026-03-15T00:03:00Z"),
-            ("run_incomplete", "2026-03-21", "cpar-weekly", "ok", "2026-03-22T00:02:00Z", "2026-03-22T00:03:00Z", "cPAR1", "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-21", "2026-03-21", 0, 0, 0, 0, "neon", None, None, "2026-03-22T00:03:00Z"),
+            ("run_old", "2026-03-07", "cpar-weekly", "ok", "2026-03-08T00:00:00Z", "2026-03-08T00:01:00Z", CPAR1_METHOD_VERSION, "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-07", "2026-03-07", 10, 8, 1, 1, "sqlite", None, None, "2026-03-08T00:01:00Z"),
+            ("run_failed", "2026-03-14", "cpar-weekly", "failed", "2026-03-15T00:00:00Z", "2026-03-15T00:01:00Z", CPAR1_METHOD_VERSION, "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-14", "2026-03-14", 10, 0, 0, 10, "sqlite", "RuntimeError", "boom", "2026-03-15T00:01:00Z"),
+            ("run_new", "2026-03-14", "cpar-weekly", "ok", "2026-03-15T00:02:00Z", "2026-03-15T00:03:00Z", CPAR1_METHOD_VERSION, "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-14", "2026-03-14", 11, 9, 1, 1, "neon", None, None, "2026-03-15T00:03:00Z"),
+            ("run_incomplete", "2026-03-21", "cpar-weekly", "ok", "2026-03-22T00:02:00Z", "2026-03-22T00:03:00Z", CPAR1_METHOD_VERSION, "cPAR1", 52, 26, 39, "adj_close_fallback_close", "2026-03-21", "2026-03-21", 0, 0, 0, 0, "neon", None, None, "2026-03-22T00:03:00Z"),
         ],
     )
     conn.executemany(
@@ -41,13 +42,13 @@ def _seed_query_db() -> sqlite3.Connection:
             package_date, ric, ticker, display_name, fit_status, warnings_json, observed_weeks, lookback_weeks,
             longest_gap_weeks, price_field_used, hq_country_code, market_step_alpha, market_step_beta, block_alpha,
             spy_trade_beta_raw, raw_loadings_json, thresholded_loadings_json, factor_variance_proxy,
-            factor_volatility_proxy, package_run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            factor_volatility_proxy, specific_variance_proxy, specific_volatility_proxy, package_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
-            ("2026-03-07", "AAPL.OQ", "AAPL", "Apple Inc.", "ok", '["continuity_gap"]', 45, 52, 3, "adj_close", "US", 0.01, 1.2, 0.0, 1.1, '{"SPY":1.1}', '{"SPY":1.1}', 0.2, 0.4472135955, "run_old", "2026-03-08T00:01:00Z"),
-            ("2026-03-14", "AAPL.OQ", "AAPL", "Apple Inc.", "ok", '[]', 52, 52, 0, "adj_close", "US", 0.02, 1.3, 0.0, 1.2, '{"SPY":1.2}', '{"SPY":1.2}', 0.25, 0.5, "run_new", "2026-03-15T00:03:00Z"),
-            ("2026-03-14", "AAPL.L", "AAPL", "Apple London", "limited_history", '["ex_us_caution"]', 42, 52, 2, "close", "GB", 0.01, 0.8, 0.0, 0.7, '{"SPY":0.7}', '{"SPY":0.7}', 0.15, 0.3872983346, "run_new", "2026-03-15T00:03:00Z"),
+            ("2026-03-07", "AAPL.OQ", "AAPL", "Apple Inc.", "ok", '["continuity_gap"]', 45, 52, 3, "adj_close", "US", 0.01, 1.2, 0.0, 1.1, '{"SPY":1.1}', '{"SPY":1.1}', 0.2, 0.4472135955, 0.05, 0.2236067977, "run_old", "2026-03-08T00:01:00Z"),
+            ("2026-03-14", "AAPL.OQ", "AAPL", "Apple Inc.", "ok", '[]', 52, 52, 0, "adj_close", "US", 0.02, 1.3, 0.0, 1.2, '{"SPY":1.2}', '{"SPY":1.2}', 0.25, 0.5, 0.06, 0.2449489743, "run_new", "2026-03-15T00:03:00Z"),
+            ("2026-03-14", "AAPL.L", "AAPL", "Apple London", "limited_history", '["ex_us_caution"]', 42, 52, 2, "close", "GB", 0.01, 0.8, 0.0, 0.7, '{"SPY":0.7}', '{"SPY":0.7}', 0.15, 0.3872983346, 0.04, 0.2, "run_new", "2026-03-15T00:03:00Z"),
         ],
     )
     conn.executemany(
@@ -125,6 +126,7 @@ def test_active_package_instrument_fit_returns_decoded_payload_with_ric_disambig
     assert out["ric"] == "AAPL.OQ"
     assert out["warnings"] == []
     assert out["raw_loadings"] == {"SPY": 1.2}
+    assert out["specific_variance_proxy"] == pytest.approx(0.06)
 
 
 def test_package_instrument_fits_for_rics_returns_matching_rows() -> None:

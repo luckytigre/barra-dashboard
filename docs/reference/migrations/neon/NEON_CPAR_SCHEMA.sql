@@ -83,9 +83,17 @@ CREATE TABLE IF NOT EXISTS cpar_instrument_fits_weekly (
     thresholded_loadings_json JSONB NOT NULL,
     factor_variance_proxy DOUBLE PRECISION,
     factor_volatility_proxy DOUBLE PRECISION,
+    specific_variance_proxy DOUBLE PRECISION,
+    specific_volatility_proxy DOUBLE PRECISION,
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (package_run_id, ric)
 );
+
+ALTER TABLE cpar_instrument_fits_weekly
+    ADD COLUMN IF NOT EXISTS specific_variance_proxy DOUBLE PRECISION;
+
+ALTER TABLE cpar_instrument_fits_weekly
+    ADD COLUMN IF NOT EXISTS specific_volatility_proxy DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS idx_cpar_package_runs_date_status
     ON cpar_package_runs (package_date, status);

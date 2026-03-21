@@ -55,6 +55,8 @@ def test_ensure_sqlite_schema_creates_expected_tables_and_columns() -> None:
         "warnings_json",
         "raw_loadings_json",
         "thresholded_loadings_json",
+        "specific_variance_proxy",
+        "specific_volatility_proxy",
     }
     assert cpar_schema.table_primary_key_columns(conn, cpar_schema.TABLE_PROXY_RETURNS) == (
         "package_run_id",

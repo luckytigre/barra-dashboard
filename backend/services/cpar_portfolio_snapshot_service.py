@@ -208,6 +208,8 @@ def _build_position_rows(
                 "fit_status": fit_status,
                 "warnings": list(fit.get("warnings") or []) if fit else [],
                 "beta_spy_trade": fit.get("spy_trade_beta_raw") if fit else None,
+                "specific_variance_proxy": fit.get("specific_variance_proxy") if fit else None,
+                "specific_volatility_proxy": fit.get("specific_volatility_proxy") if fit else None,
                 "coverage": coverage,
                 "coverage_reason": _coverage_reason(coverage),
             }
@@ -376,10 +378,12 @@ def _factor_analytics_payload(
     position_rows: list[dict[str, object]],
     covariance_rows: list[dict[str, Any]],
     contribution_field: str,
+    total_variance: float | None = None,
 ) -> dict[str, object]:
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
         covariance_rows=covariance_rows,
+        total_variance=total_variance,
     )
     return {
         "aggregate_thresholded_loadings": _factor_rows(aggregate_loadings),
@@ -390,6 +394,7 @@ def _factor_analytics_payload(
             position_rows=position_rows,
             covariance_rows=covariance_rows,
             contribution_field=contribution_field,
+            total_variance=total_variance,
         ),
     }
 
@@ -398,6 +403,7 @@ def _factor_variance_contribution_rows(
     loadings: dict[str, float],
     *,
     covariance_rows: list[dict[str, Any]],
+    total_variance: float | None = None,
 ) -> list[dict[str, object]]:
     if not loadings:
         return []
@@ -415,7 +421,8 @@ def _factor_variance_contribution_rows(
         )
         for row_idx in range(len(factor_ids))
     ]
-    total_variance = float(sum(beta_vector[idx] * sigma_beta[idx] for idx in range(len(factor_ids))))
+    factor_variance_total = float(sum(beta_vector[idx] * sigma_beta[idx] for idx in range(len(factor_ids))))
+    variance_denominator = float(total_variance) if total_variance is not None else factor_variance_total
 
     rows: list[dict[str, object]] = []
     for idx, factor_row in enumerate(ordered_rows):
@@ -424,7 +431,7 @@ def _factor_variance_contribution_rows(
             {
                 **factor_row,
                 "variance_contribution": contribution,
-                "variance_share": (None if total_variance <= 0 else float(contribution / total_variance)),
+                "variance_share": (None if variance_denominator <= 0 else float(contribution / variance_denominator)),
             }
         )
     return rows
@@ -434,6 +441,7 @@ def _factor_risk_metrics(
     loadings: dict[str, float],
     *,
     covariance_rows: list[dict[str, Any]],
+    total_variance: float | None = None,
 ) -> dict[str, dict[str, float]]:
     if not loadings:
         return {}
@@ -451,7 +459,8 @@ def _factor_risk_metrics(
         )
         for row_idx in range(len(factor_ids))
     ]
-    total_variance = float(sum(beta_vector[idx] * sigma_beta[idx] for idx in range(len(factor_ids))))
+    factor_variance_total = float(sum(beta_vector[idx] * sigma_beta[idx] for idx in range(len(factor_ids))))
+    variance_denominator = float(total_variance) if total_variance is not None else factor_variance_total
 
     metrics: dict[str, dict[str, float]] = {}
     for idx, factor_id in enumerate(factor_ids):
@@ -460,8 +469,8 @@ def _factor_risk_metrics(
             "factor_volatility": float(math.sqrt(max(float(covariance_matrix[idx, idx]), 0.0))),
             "covariance_adjustment": float(sigma_beta[idx]),
             "variance_contribution": variance_contribution,
-            "variance_share": 0.0 if total_variance <= 0 else float(variance_contribution / total_variance),
-            "total_variance": float(total_variance),
+            "variance_share": 0.0 if variance_denominator <= 0 else float(variance_contribution / variance_denominator),
+            "total_variance": float(variance_denominator),
         }
     return metrics
 
@@ -473,13 +482,14 @@ def _factor_chart_rows(
     position_rows: list[dict[str, object]],
     covariance_rows: list[dict[str, Any]],
     contribution_field: str,
+    total_variance: float | None = None,
 ) -> list[dict[str, object]]:
     variance_by_factor = {
         str(row["factor_id"]): dict(row)
         for row in variance_rows
         if str(row.get("factor_id") or "")
     }
-    risk_metrics_by_factor = _factor_risk_metrics(loadings, covariance_rows=covariance_rows)
+    risk_metrics_by_factor = _factor_risk_metrics(loadings, covariance_rows=covariance_rows, total_variance=total_variance)
     factor_specs = list(build_cpar1_factor_registry())
     factor_ids: set[str] = {str(factor_id) for factor_id in loadings.keys()}
     for row in position_rows:
@@ -603,12 +613,143 @@ def _factor_chart_rows(
     return chart_rows
 
 
+def _factor_variance_total(rows: list[dict[str, object]]) -> float:
+    return float(sum(float(row.get("variance_contribution") or 0.0) for row in rows))
+
+
+def _specific_risk_contributions(
+    rows: list[dict[str, object]],
+) -> tuple[dict[str, float], float]:
+    contributions: dict[str, float] = {}
+    total = 0.0
+    for row in rows:
+        if str(row.get("coverage") or "") != "covered":
+            continue
+        portfolio_weight = row.get("portfolio_weight")
+        specific_variance = row.get("specific_variance_proxy")
+        if portfolio_weight is None or specific_variance is None:
+            continue
+        contribution = float(portfolio_weight) ** 2 * float(specific_variance)
+        if abs(contribution) <= _EPSILON:
+            continue
+        ric = str(row.get("ric") or "")
+        contributions[ric] = contribution
+        total += contribution
+    return contributions, float(total)
+
+
+def _require_specific_risk_fit_rows(
+    fit_rows: list[dict[str, Any]],
+    *,
+    package_run_id: str,
+) -> None:
+    incomplete = sorted(
+        str(row.get("ric") or "")
+        for row in fit_rows
+        if str(row.get("fit_status") or "") != "insufficient_history"
+        and (
+            row.get("specific_variance_proxy") is None
+            or row.get("specific_volatility_proxy") is None
+        )
+    )
+    if incomplete:
+        sample = ", ".join(incomplete[:5])
+        raise cpar_meta_service.CparReadNotReady(
+            "The active cPAR package is missing specific-risk fields required by idiosyncratic-risk-aware "
+            f"surfaces (package_run_id={package_run_id}; sample rics: {sample}). "
+            "Run a fresh cPAR package build."
+        )
+
+
+def _risk_share_payload(
+    factor_variance_rows: list[dict[str, object]],
+    *,
+    idio_variance_proxy: float,
+    total_variance_proxy: float,
+) -> dict[str, float]:
+    buckets = {
+        "market": 0.0,
+        "industry": 0.0,
+        "style": 0.0,
+        "idio": 0.0,
+    }
+    if total_variance_proxy > _EPSILON:
+        buckets["idio"] = float(idio_variance_proxy / total_variance_proxy * 100.0)
+    for row in factor_variance_rows:
+        share = float(row.get("variance_share") or 0.0) * 100.0
+        group = str(row.get("group") or "")
+        if group == "market":
+            buckets["market"] += share
+        elif group == "sector":
+            buckets["industry"] += share
+        elif group == "style":
+            buckets["style"] += share
+    return buckets
+
+
+def _attach_risk_mix(
+    rows: list[dict[str, object]],
+    *,
+    aggregate_loadings: dict[str, float],
+    covariance_rows: list[dict[str, Any]],
+    contribution_field: str,
+    idio_contribution_by_ric: dict[str, float],
+    total_variance: float,
+) -> list[dict[str, object]]:
+    factor_adjustment_by_id = {
+        factor_id: float(metrics.get("covariance_adjustment") or 0.0)
+        for factor_id, metrics in _factor_risk_metrics(
+            aggregate_loadings,
+            covariance_rows=covariance_rows,
+            total_variance=total_variance,
+        ).items()
+    }
+    enriched: list[dict[str, object]] = []
+    for row in rows:
+        if str(row.get("coverage") or "") != "covered":
+            enriched.append({**row, "risk_mix": None})
+            continue
+        bucket_totals = {
+            "market": 0.0,
+            "industry": 0.0,
+            "style": 0.0,
+            "idio": abs(float(idio_contribution_by_ric.get(str(row.get("ric") or ""), 0.0))),
+        }
+        for contribution in list(row.get(contribution_field) or []):
+            factor_id = str(contribution.get("factor_id") or "")
+            group = str(contribution.get("group") or "")
+            value = abs(float(contribution.get("beta") or 0.0) * float(factor_adjustment_by_id.get(factor_id, 0.0)))
+            if value <= _EPSILON:
+                continue
+            if group == "market":
+                bucket_totals["market"] += value
+            elif group == "sector":
+                bucket_totals["industry"] += value
+            elif group == "style":
+                bucket_totals["style"] += value
+        bucket_total = sum(bucket_totals.values())
+        if bucket_total <= _EPSILON:
+            enriched.append({**row, "risk_mix": None})
+            continue
+        scale = 100.0 / bucket_total
+        enriched.append(
+            {
+                **row,
+                "risk_mix": {
+                    key: float(value * scale)
+                    for key, value in bucket_totals.items()
+                },
+            }
+        )
+    return enriched
+
+
 def load_cpar_portfolio_account_context(
     *,
     account_id: str,
     data_db=None,
 ) -> tuple[dict[str, object], dict[str, object], list[dict[str, Any]]]:
-    package = cpar_meta_service.require_active_package(data_db=data_db)
+    package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
 
     try:
         accounts = holdings_reads.load_holdings_accounts()
@@ -631,7 +772,7 @@ def load_cpar_portfolio_holdings_context(
     *,
     data_db=None,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, Any]]]:
-    package = cpar_meta_service.require_active_package(data_db=data_db)
+    package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
 
     try:
         accounts = holdings_reads.load_holdings_accounts()
@@ -652,7 +793,7 @@ def load_cpar_portfolio_aggregate_context(
     *,
     data_db=None,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, Any]]]:
-    package = cpar_meta_service.require_active_package(data_db=data_db)
+    package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
 
     try:
         accounts = holdings_reads.load_contributing_holdings_accounts()
@@ -718,6 +859,7 @@ def load_cpar_portfolio_support_rows(
         except cpar_source_reads.CparSourceReadError:
             classification_rows = []
 
+    _require_specific_risk_fit_rows(fit_rows, package_run_id=str(package_run_id))
     fit_by_ric = {str(row["ric"]): row for row in fit_rows}
     price_by_ric = {str(row["ric"]): row for row in price_rows}
     classification_by_ric = {str(row["ric"]): row for row in classification_rows}
@@ -754,11 +896,15 @@ def build_cpar_portfolio_hedge_snapshot(
         "portfolio_reason": "No live holdings positions are loaded for this account.",
         "aggregate_thresholded_loadings": [],
         "aggregate_display_loadings": [],
+        "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0},
         "factor_variance_contributions": [],
         "display_factor_variance_contributions": [],
         "factor_chart": [],
         "display_factor_chart": [],
         "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
+        "factor_variance_proxy": 0.0,
+        "idio_variance_proxy": 0.0,
+        "total_variance_proxy": 0.0,
         "hedge_status": None,
         "hedge_reason": None,
         "hedge_legs": [],
@@ -798,6 +944,36 @@ def build_cpar_portfolio_hedge_snapshot(
     )
     position_rows = _attach_thresholded_contributions(position_rows, fit_by_ric=fit_by_ric)
     position_rows = _attach_display_contributions(position_rows, display_loadings_by_ric=display_loadings_by_ric)
+    idio_contribution_by_ric, idio_variance_proxy = _specific_risk_contributions(position_rows)
+    factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_loadings,
+        covariance_rows=covariance_rows,
+    )
+    factor_variance_proxy = _factor_variance_total(factor_variance_rows)
+    total_variance_proxy = float(factor_variance_proxy + idio_variance_proxy)
+    factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_loadings,
+        covariance_rows=covariance_rows,
+        total_variance=total_variance_proxy,
+    )
+    display_factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_display_loadings,
+        covariance_rows=covariance_rows,
+    )
+    display_total_variance_proxy = float(_factor_variance_total(display_factor_variance_rows) + idio_variance_proxy)
+    display_factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_display_loadings,
+        covariance_rows=covariance_rows,
+        total_variance=display_total_variance_proxy,
+    )
+    position_rows = _attach_risk_mix(
+        position_rows,
+        aggregate_loadings=aggregate_loadings,
+        covariance_rows=covariance_rows,
+        contribution_field="thresholded_contributions",
+        idio_contribution_by_ric=idio_contribution_by_ric,
+        total_variance=total_variance_proxy,
+    )
 
     priced_gross_market_value = sum(
         abs(float(row["market_value"]))
@@ -852,21 +1028,26 @@ def build_cpar_portfolio_hedge_snapshot(
                 position_rows=position_rows,
                 covariance_rows=covariance_rows,
                 contribution_field="thresholded_contributions",
+                total_variance=total_variance_proxy,
             ),
             "aggregate_display_loadings": _factor_rows(aggregate_display_loadings),
-            "display_factor_variance_contributions": _factor_variance_contribution_rows(
-                aggregate_display_loadings,
-                covariance_rows=covariance_rows,
+            "risk_shares": _risk_share_payload(
+                factor_variance_rows,
+                idio_variance_proxy=idio_variance_proxy,
+                total_variance_proxy=total_variance_proxy,
             ),
+            "factor_variance_proxy": float(factor_variance_proxy),
+            "idio_variance_proxy": float(idio_variance_proxy),
+            "total_variance_proxy": float(total_variance_proxy),
+            "factor_variance_contributions": factor_variance_rows,
+            "display_factor_variance_contributions": display_factor_variance_rows,
             "display_factor_chart": _factor_chart_rows(
                 loadings=aggregate_display_loadings,
-                variance_rows=_factor_variance_contribution_rows(
-                    aggregate_display_loadings,
-                    covariance_rows=covariance_rows,
-                ),
+                variance_rows=display_factor_variance_rows,
                 position_rows=position_rows,
                 covariance_rows=covariance_rows,
                 contribution_field="display_contributions",
+                total_variance=display_total_variance_proxy,
             ),
             "hedge_status": str(preview.status),
             "hedge_reason": preview.reason,
@@ -916,12 +1097,16 @@ def build_cpar_risk_snapshot(
         "coverage_breakdown": _coverage_breakdown([]),
         "aggregate_thresholded_loadings": [],
         "aggregate_display_loadings": [],
+        "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0},
         "factor_variance_contributions": [],
         "display_factor_variance_contributions": [],
         "factor_chart": [],
         "display_factor_chart": [],
         "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
         "display_cov_matrix": _cov_matrix_payload(covariance_rows=resolved_display_covariance_rows),
+        "factor_variance_proxy": 0.0,
+        "idio_variance_proxy": 0.0,
+        "total_variance_proxy": 0.0,
         "positions": [],
     }
     if not positions:
@@ -952,6 +1137,36 @@ def build_cpar_risk_snapshot(
     )
     position_rows = _attach_thresholded_contributions(position_rows, fit_by_ric=fit_by_ric)
     position_rows = _attach_display_contributions(position_rows, display_loadings_by_ric=display_loadings_by_ric)
+    idio_contribution_by_ric, idio_variance_proxy = _specific_risk_contributions(position_rows)
+    factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_loadings,
+        covariance_rows=covariance_rows,
+    )
+    factor_variance_proxy = _factor_variance_total(factor_variance_rows)
+    total_variance_proxy = float(factor_variance_proxy + idio_variance_proxy)
+    factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_loadings,
+        covariance_rows=covariance_rows,
+        total_variance=total_variance_proxy,
+    )
+    display_factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_display_loadings,
+        covariance_rows=resolved_display_covariance_rows,
+    )
+    display_total_variance_proxy = float(_factor_variance_total(display_factor_variance_rows) + idio_variance_proxy)
+    display_factor_variance_rows = _factor_variance_contribution_rows(
+        aggregate_display_loadings,
+        covariance_rows=resolved_display_covariance_rows,
+        total_variance=display_total_variance_proxy,
+    )
+    position_rows = _attach_risk_mix(
+        position_rows,
+        aggregate_loadings=aggregate_loadings,
+        covariance_rows=covariance_rows,
+        contribution_field="thresholded_contributions",
+        idio_contribution_by_ric=idio_contribution_by_ric,
+        total_variance=total_variance_proxy,
+    )
 
     priced_gross_market_value = sum(
         abs(float(row["market_value"]))
@@ -999,21 +1214,26 @@ def build_cpar_risk_snapshot(
                 position_rows=position_rows,
                 covariance_rows=covariance_rows,
                 contribution_field="thresholded_contributions",
+                total_variance=total_variance_proxy,
             ),
             "aggregate_display_loadings": _factor_rows(aggregate_display_loadings),
-            "display_factor_variance_contributions": _factor_variance_contribution_rows(
-                aggregate_display_loadings,
-                covariance_rows=resolved_display_covariance_rows,
+            "risk_shares": _risk_share_payload(
+                factor_variance_rows,
+                idio_variance_proxy=idio_variance_proxy,
+                total_variance_proxy=total_variance_proxy,
             ),
+            "factor_variance_proxy": float(factor_variance_proxy),
+            "idio_variance_proxy": float(idio_variance_proxy),
+            "total_variance_proxy": float(total_variance_proxy),
+            "factor_variance_contributions": factor_variance_rows,
+            "display_factor_variance_contributions": display_factor_variance_rows,
             "display_factor_chart": _factor_chart_rows(
                 loadings=aggregate_display_loadings,
-                variance_rows=_factor_variance_contribution_rows(
-                    aggregate_display_loadings,
-                    covariance_rows=resolved_display_covariance_rows,
-                ),
+                variance_rows=display_factor_variance_rows,
                 position_rows=position_rows,
                 covariance_rows=resolved_display_covariance_rows,
                 contribution_field="display_contributions",
+                total_variance=display_total_variance_proxy,
             ),
         }
     )

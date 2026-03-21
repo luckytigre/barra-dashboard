@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.data import cpar_outputs, cpar_source_reads
 from backend.services import cpar_meta_service, cpar_portfolio_snapshot_service
 
@@ -13,7 +14,7 @@ def _package() -> dict[str, object]:
         "profile": "cpar-weekly",
         "started_at": "2026-03-14T00:00:00Z",
         "completed_at": "2026-03-14T00:01:00Z",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1_registry_v1",
         "data_authority": "neon",
         "lookback_weeks": 52,
@@ -220,7 +221,13 @@ def test_support_rows_treats_classification_failures_as_degraded_context(
     monkeypatch.setattr(
         cpar_outputs,
         "load_package_instrument_fits_for_rics",
-        lambda *args, **kwargs: [{"ric": "AAPL.OQ", "fit_status": "ok", "thresholded_loadings": {"SPY": 1.0}}],
+        lambda *args, **kwargs: [{
+            "ric": "AAPL.OQ",
+            "fit_status": "ok",
+            "thresholded_loadings": {"SPY": 1.0},
+            "specific_variance_proxy": 0.04,
+            "specific_volatility_proxy": 0.2,
+        }],
     )
     monkeypatch.setattr(
         cpar_outputs,
@@ -283,6 +290,8 @@ def test_build_cpar_risk_snapshot_uses_display_covariance_for_display_analytics(
                 "spy_trade_beta_raw": 1.0,
                 "raw_loadings": {"SPY": 1.0, "XLK": 1.0},
                 "thresholded_loadings": {"SPY": 1.0, "XLK": 1.0},
+                "specific_variance_proxy": 0.25,
+                "specific_volatility_proxy": 0.5,
             }
         },
         price_by_ric={"AAPL.OQ": {"ric": "AAPL.OQ", "adj_close": 100.0, "date": "2026-03-14"}},
@@ -308,3 +317,7 @@ def test_build_cpar_risk_snapshot_uses_display_covariance_for_display_analytics(
     assert payload["display_cov_matrix"]["correlation"][0][xlk_index] == pytest.approx(0.0)
     assert raw_xlk["covariance_adjustment"] == pytest.approx(1.8)
     assert display_xlk["covariance_adjustment"] == pytest.approx(1.0)
+    assert payload["idio_variance_proxy"] == pytest.approx(0.25)
+    assert payload["total_variance_proxy"] == pytest.approx(payload["factor_variance_proxy"] + payload["idio_variance_proxy"])
+    assert payload["risk_shares"]["idio"] > 0
+    assert payload["positions"][0]["risk_mix"]["idio"] > 0

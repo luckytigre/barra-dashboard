@@ -33,44 +33,24 @@ function methodLabel(row: CparPortfolioPositionRow): string {
 }
 
 function normalizeRiskMix(row: CparPortfolioPositionRow) {
-  let market = 0;
-  let industry = 0;
-  let style = 0;
-  const contributions = row.display_contributions.length > 0
-    ? row.display_contributions
-    : row.thresholded_contributions;
-  for (const contribution of contributions) {
-    const value = Math.abs(Number(contribution.beta || 0));
-    if (!value) continue;
-    if (contribution.group === "market") market += value;
-    else if (contribution.group === "sector") industry += value;
-    else if (contribution.group === "style") style += value;
-  }
-  const total = market + industry + style;
-  if (total <= 0) {
-    return {
-      market: 0,
-      industry: 0,
-      style: 0,
-      idio: row.coverage === "covered" ? 0 : 100,
-    };
-  }
-  const scale = 100 / total;
+  const raw = row.risk_mix;
+  if (!raw) return null;
   return {
-    market: market * scale,
-    industry: industry * scale,
-    style: style * scale,
-    idio: 0,
+    market: Number(raw.market ?? 0) || 0,
+    industry: Number(raw.industry ?? 0) || 0,
+    style: Number(raw.style ?? 0) || 0,
+    idio: Number(raw.idio ?? 0) || 0,
   };
 }
 
 function riskMixLabel(row: CparPortfolioPositionRow): string {
   const mix = normalizeRiskMix(row);
+  if (!mix) return "—";
   return `Mkt ${mix.market.toFixed(1)}% / Ind ${mix.industry.toFixed(1)}% / Sty ${mix.style.toFixed(1)}% / Idio ${mix.idio.toFixed(1)}%`;
 }
 
 function riskMixSortValue(row: CparPortfolioPositionRow): number {
-  return normalizeRiskMix(row).idio;
+  return normalizeRiskMix(row)?.idio ?? -1;
 }
 
 export default function CparRiskPositionsContributionTable({

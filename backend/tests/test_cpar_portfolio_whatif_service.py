@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.services import cpar_meta_service, cpar_portfolio_whatif_service
 
 
@@ -10,7 +11,7 @@ def _package() -> dict[str, object]:
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
         "profile": "cpar-weekly",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1_registry_v1",
         "data_authority": "neon",
         "lookback_weeks": 52,
@@ -50,6 +51,8 @@ def _fit_by_ric() -> dict[str, dict[str, object]]:
             "warnings": [],
             "spy_trade_beta_raw": 1.1,
             "thresholded_loadings": {"SPY": 1.1, "XLK": 0.30},
+            "specific_variance_proxy": 0.04,
+            "specific_volatility_proxy": 0.2,
         },
         "MSFT.OQ": {
             "ric": "MSFT.OQ",
@@ -59,6 +62,8 @@ def _fit_by_ric() -> dict[str, dict[str, object]]:
             "warnings": [],
             "spy_trade_beta_raw": 0.9,
             "thresholded_loadings": {"SPY": 0.9, "XLK": 0.20},
+            "specific_variance_proxy": 0.03,
+            "specific_volatility_proxy": 0.1732050808,
         },
         "NVDA.OQ": {
             "ric": "NVDA.OQ",
@@ -68,6 +73,8 @@ def _fit_by_ric() -> dict[str, dict[str, object]]:
             "warnings": [],
             "spy_trade_beta_raw": 1.3,
             "thresholded_loadings": {"SPY": 1.3, "XLK": 0.45},
+            "specific_variance_proxy": 0.05,
+            "specific_volatility_proxy": 0.2236067977,
         },
     }
 
@@ -162,8 +169,10 @@ def test_portfolio_whatif_service_supports_new_active_package_rows(
     assert payload["hypothetical"]["factor_variance_contributions"][0]["factor_id"] == "SPY"
     assert payload["hypothetical"]["factor_variance_contributions"][0]["variance_share"] == pytest.approx(
         payload["hypothetical"]["factor_variance_contributions"][0]["variance_contribution"]
-        / payload["hypothetical"]["pre_hedge_factor_variance_proxy"]
+        / payload["hypothetical"]["total_variance_proxy"]
     )
+    assert payload["hypothetical"]["idio_variance_proxy"] > 0
+    assert payload["hypothetical"]["risk_shares"]["idio"] > 0
     assert payload["hypothetical"]["factor_chart"][0]["factor_id"] == "SPY"
     assert payload["hypothetical"]["factor_chart"][0]["drilldown"][0]["ric"] == "AAPL.OQ"
     assert payload["hypothetical"]["factor_chart"][0]["drilldown"][0]["vol_scaled_loading"] > 0

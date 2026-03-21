@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from backend.cpar.factor_registry import serialize_factor_registry
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION, serialize_factor_registry
 from backend.data import cpar_outputs
 
 
@@ -29,6 +29,16 @@ def require_active_package(*, data_db=None) -> dict[str, object]:
         raise CparReadNotReady(str(exc)) from exc
     except cpar_outputs.CparAuthorityReadError as exc:
         raise CparReadUnavailable(str(exc)) from exc
+
+
+def require_specific_risk_package(*, data_db=None) -> dict[str, object]:
+    package = require_active_package(data_db=data_db)
+    if str(package.get("method_version") or "") != CPAR1_METHOD_VERSION:
+        raise CparReadNotReady(
+            "The active cPAR package predates specific-risk support. "
+            "Run a fresh cPAR package build before reading idiosyncratic-risk-aware surfaces."
+        )
+    return package
 
 
 def package_meta_payload(package: dict[str, object]) -> dict[str, object]:

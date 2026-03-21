@@ -74,6 +74,13 @@ export interface CparFactorVarianceContribution {
   variance_share: number | null;
 }
 
+export interface CparRiskShares {
+  market: number;
+  industry: number;
+  style: number;
+  idio: number;
+}
+
 export interface CparCoverageBucket {
   positions_count: number;
   gross_market_value: number;
@@ -199,10 +206,13 @@ export interface CparPortfolioPositionRow {
   fit_status: CparFitStatus | null;
   warnings: CparWarning[];
   beta_spy_trade: number | null;
+  specific_variance_proxy?: number | null;
+  specific_volatility_proxy?: number | null;
   coverage: CparPortfolioCoverage;
   coverage_reason: string | null;
   display_contributions: CparLoading[];
   thresholded_contributions: CparLoading[];
+  risk_mix?: CparRiskShares | null;
 }
 
 export interface CparFactorDrilldownRow {
@@ -288,12 +298,16 @@ export interface CparRiskData extends CparPackageMeta {
   coverage_breakdown: CparCoverageBreakdown;
   aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
+  risk_shares: CparRiskShares;
   display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
   display_cov_matrix?: CparCovMatrix;
   cov_matrix: CparCovMatrix;
+  factor_variance_proxy: number;
+  idio_variance_proxy: number;
+  total_variance_proxy: number;
   pre_hedge_factor_variance_proxy?: number | null;
   positions: CparPortfolioPositionRow[];
 }
@@ -314,12 +328,16 @@ export interface CparPortfolioHedgeData extends CparPackageMeta {
   coverage_breakdown: CparCoverageBreakdown;
   aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
+  risk_shares: CparRiskShares;
   display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
   factor_chart: CparFactorChartRow[];
   display_cov_matrix?: CparCovMatrix;
   cov_matrix: CparCovMatrix;
+  factor_variance_proxy: number;
+  idio_variance_proxy: number;
+  total_variance_proxy: number;
   hedge_status: CparHedgeStatus | null;
   hedge_reason: string | null;
   hedge_legs: CparHedgeLeg[];
@@ -378,12 +396,7 @@ export interface CparExploreHoldingDelta {
   delta_quantity: number;
 }
 
-export interface CparExploreRiskShares {
-  market: number;
-  industry: number;
-  style: number;
-  idio: number;
-}
+export type CparExploreRiskShares = CparRiskShares;
 
 export interface CparExploreExposureDrilldownRow {
   ric: string | null;

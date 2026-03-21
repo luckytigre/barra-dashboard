@@ -156,6 +156,8 @@ def ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
             "thresholded_loadings_json",
             "factor_variance_proxy",
             "factor_volatility_proxy",
+            "specific_variance_proxy",
+            "specific_volatility_proxy",
             "updated_at",
         },
         required_primary_key=("package_run_id", "ric"),
@@ -260,6 +262,8 @@ def ensure_sqlite_schema(conn: sqlite3.Connection) -> None:
             thresholded_loadings_json TEXT NOT NULL,
             factor_variance_proxy REAL,
             factor_volatility_proxy REAL,
+            specific_variance_proxy REAL,
+            specific_volatility_proxy REAL,
             updated_at TEXT NOT NULL,
             PRIMARY KEY (package_run_id, ric)
         )

@@ -28,7 +28,7 @@ It does not add:
   - coverage summary plus explicit exclusion buckets
   - one signed factor-loadings chart with per-factor drilldown, reconciled from one aggregate book snapshot
   - one 5Y factor-return history block inside each factor drilldown
-  - positions contribution mix table derived from per-row display contributions
+  - positions contribution mix table derived from backend-owned row `risk_mix`
   - one full market/industry/style factor correlation heatmap from the package-pinned residualized display covariance surface
 - now has a stable backend contract:
   - `coverage_breakdown` for explicit exclusion buckets
@@ -36,7 +36,11 @@ It does not add:
   - `display_cov_matrix`
   - `display_factor_variance_contributions`
   - `display_factor_chart`
-  - `positions[].display_contributions`
+  - `risk_shares`
+  - `factor_variance_proxy`
+  - `idio_variance_proxy`
+  - `total_variance_proxy`
+  - `positions[].risk_mix`
 - explanatory factor displays must use those display-basis fields, not hedge-trade-space fields
 - is the canonical route for that workflow now
 
@@ -201,12 +205,12 @@ Read failures:
 - owns one signed factor-loadings chart with per-factor drilldown, 5Y factor-return history, positions contribution mix, and the full factor correlation heatmap
 - now intentionally borrows the cUSE risk-page layout rhythm without importing cUSE feature owners or cUSE payload semantics
 - uses display-basis loadings for explanatory charts and tables
-- uses the residualized display covariance surface for the heatmap, display risk shares, and display factor drilldown metrics
+- uses the residualized display covariance surface for the heatmap, display factor drilldown metrics, and display-side variance attribution
 - does not display hedge-trade-space or thresholded hedge vectors outside hedge-specific surfaces
 - now avoids a duplicate factor-summary table under the chart, leaving the signed chart plus drilldown as the primary factor read
 - still stops short of a full cUSE-style analytics workspace:
   - no variance-attribution table
-  - no specific-risk decomposition
+  - no separate idio drilldown table beyond the top-line risk decomposition and row-level risk mix
   - no cPAR-vs-cUSE comparison layer
   - no apply/mutation semantics
 - any richer risk charts or decomposition views must stay subordinate to that same aggregate-book analytics workflow

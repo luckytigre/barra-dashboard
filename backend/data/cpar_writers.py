@@ -140,8 +140,9 @@ def write_cpar_outputs_sqlite(
                 package_run_id, package_date, ric, ticker, display_name, fit_status, warnings_json, observed_weeks,
                 lookback_weeks, longest_gap_weeks, price_field_used, hq_country_code, market_step_alpha,
                 market_step_beta, block_alpha, spy_trade_beta_raw, raw_loadings_json,
-                thresholded_loadings_json, factor_variance_proxy, factor_volatility_proxy, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                thresholded_loadings_json, factor_variance_proxy, factor_volatility_proxy,
+                specific_variance_proxy, specific_volatility_proxy, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -165,6 +166,8 @@ def write_cpar_outputs_sqlite(
                     _json_text(row.get("thresholded_loadings", {})),
                     row.get("factor_variance_proxy"),
                     row.get("factor_volatility_proxy"),
+                    row.get("specific_variance_proxy"),
+                    row.get("specific_volatility_proxy"),
                     row["updated_at"],
                 )
                 for row in instrument_fits
@@ -343,8 +346,9 @@ def write_cpar_outputs_postgres(
                     package_run_id, package_date, ric, ticker, display_name, fit_status, warnings_json, observed_weeks,
                     lookback_weeks, longest_gap_weeks, price_field_used, hq_country_code, market_step_alpha,
                     market_step_beta, block_alpha, spy_trade_beta_raw, raw_loadings_json,
-                    thresholded_loadings_json, factor_variance_proxy, factor_volatility_proxy, updated_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s)
+                    thresholded_loadings_json, factor_variance_proxy, factor_volatility_proxy,
+                    specific_variance_proxy, specific_volatility_proxy, updated_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s)
                 ON CONFLICT (package_run_id, ric) DO UPDATE SET
                     package_date = EXCLUDED.package_date,
                     ticker = EXCLUDED.ticker,
@@ -364,6 +368,8 @@ def write_cpar_outputs_postgres(
                     thresholded_loadings_json = EXCLUDED.thresholded_loadings_json,
                     factor_variance_proxy = EXCLUDED.factor_variance_proxy,
                     factor_volatility_proxy = EXCLUDED.factor_volatility_proxy,
+                    specific_variance_proxy = EXCLUDED.specific_variance_proxy,
+                    specific_volatility_proxy = EXCLUDED.specific_volatility_proxy,
                     updated_at = EXCLUDED.updated_at
                 """,
                 [
@@ -388,6 +394,8 @@ def write_cpar_outputs_postgres(
                         _json_text(row.get("thresholded_loadings", {})),
                         row.get("factor_variance_proxy"),
                         row.get("factor_volatility_proxy"),
+                        row.get("specific_variance_proxy"),
+                        row.get("specific_volatility_proxy"),
                         row["updated_at"],
                     )
                     for row in instrument_fits

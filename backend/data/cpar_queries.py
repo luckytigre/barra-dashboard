@@ -80,6 +80,8 @@ def _normalize_fit_row(row: dict[str, Any]) -> dict[str, Any]:
         "thresholded_loadings": _decode_json(row.get("thresholded_loadings_json"), default={}),
         "factor_variance_proxy": None if row.get("factor_variance_proxy") is None else float(row.get("factor_variance_proxy")),
         "factor_volatility_proxy": None if row.get("factor_volatility_proxy") is None else float(row.get("factor_volatility_proxy")),
+        "specific_variance_proxy": None if row.get("specific_variance_proxy") is None else float(row.get("specific_variance_proxy")),
+        "specific_volatility_proxy": None if row.get("specific_volatility_proxy") is None else float(row.get("specific_volatility_proxy")),
         "package_run_id": str(row.get("package_run_id") or ""),
         "updated_at": str(row.get("updated_at") or ""),
     }

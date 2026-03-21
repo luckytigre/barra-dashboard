@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.cpar.factor_registry import ordered_factor_ids
 from backend.data import cpar_outputs
 from backend.services import cpar_meta_service, cpar_search_service
@@ -31,7 +32,7 @@ def _package_run(
         "status": "ok",
         "started_at": f"{package_date}T00:00:00Z",
         "completed_at": f"{package_date}T00:01:00Z",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1_registry_v1",
         "lookback_weeks": 52,
         "half_life_weeks": 26,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.services import cpar_explore_whatif_service, cpar_meta_service
 
 
@@ -10,7 +11,7 @@ def _package() -> dict[str, object]:
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
         "profile": "cpar-weekly",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1_registry_v1",
         "data_authority": "neon",
         "lookback_weeks": 52,

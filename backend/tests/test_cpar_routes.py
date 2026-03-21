@@ -233,12 +233,16 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
                 "insufficient_history": {"positions_count": 0, "gross_market_value": 0.0},
             },
             "aggregate_display_loadings": [],
+            "risk_shares": {"market": 62.5, "industry": 17.5, "style": 10.0, "idio": 10.0},
             "factor_variance_contributions": [],
             "display_factor_variance_contributions": [],
             "factor_chart": [],
             "display_factor_chart": [],
             "cov_matrix": {"factors": ["SPY"], "correlation": [[1.0]]},
             "display_cov_matrix": {"factors": ["SPY"], "correlation": [[1.0]]},
+            "factor_variance_proxy": 0.18,
+            "idio_variance_proxy": 0.02,
+            "total_variance_proxy": 0.2,
             "positions": [],
         },
     )
@@ -251,6 +255,8 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
     assert res.json()["accounts_count"] == 3
     assert "aggregate_display_loadings" in res.json()
     assert "display_cov_matrix" in res.json()
+    assert res.json()["risk_shares"]["idio"] == 10.0
+    assert res.json()["total_variance_proxy"] == 0.2
 
 
 def test_cpar_risk_route_maps_not_ready_to_503(monkeypatch) -> None:

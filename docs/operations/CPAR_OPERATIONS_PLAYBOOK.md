@@ -73,6 +73,8 @@ Read behavior:
 - latest successful package wins
 - child coverage is required for the requested surface
 - hedge preview requires complete covariance coverage
+- idiosyncratic-risk-aware read surfaces additionally require the idio-capable method version `cPAR1_idio_v1`
+- if the active package predates that method version, aggregate risk and cPAR what-if reads fail closed with `not_ready` until a fresh package is published
 - missing required coverage returns cPAR-specific `503 not_ready`
 - the package banner exposes package date/source-as-of freshness plus completion time so stale-but-readable packages remain visible to operators
 - frontend pages gate dependent detail/account reads on package metadata first; a package-level `not_ready` or `unavailable` state should not keep probing deeper cPAR routes on the same page load
@@ -105,7 +107,7 @@ Current frontend-backed read surfaces:
 The shared snapshot assembly in `backend/services/cpar_portfolio_snapshot_service.py` still underpins both:
 - aggregate `/api/cpar/risk`
 - account-scoped `/api/cpar/portfolio/hedge` and `/api/cpar/portfolio/whatif`
-That shared snapshot now carries explicit `coverage_breakdown`, hedge-basis `factor_variance_contributions`, additive display-basis `display_factor_variance_contributions`, hedge-basis `factor_chart`, additive explanatory `display_factor_chart`, per-position `thresholded_contributions`, additive `display_contributions`, and the package-pinned `cov_matrix`; those fields are still derived read surfaces from the same package-scoped snapshot, not a second risk engine.
+That shared snapshot now carries explicit `coverage_breakdown`, hedge-basis `factor_variance_contributions`, additive display-basis `display_factor_variance_contributions`, hedge-basis `factor_chart`, additive explanatory `display_factor_chart`, per-position `thresholded_contributions`, additive `display_contributions`, package-owned `risk_shares`, `factor_variance_proxy`, `idio_variance_proxy`, `total_variance_proxy`, row-level `risk_mix`, and the package-pinned `cov_matrix`; those fields are still derived read surfaces from the same package-scoped snapshot, not a second risk engine.
 For aggregate `/cpar/risk`, the shared snapshot now also carries additive `display_cov_matrix`, derived read-time from the persisted proxy-return panel plus persisted market-orthogonalization transforms. That display matrix is package-pinned and explanatory only; the persisted raw ETF `cov_matrix` remains the hedge-space covariance surface.
 The aggregate `/cpar/risk` backend path now avoids loading every raw holdings row into Python:
 - aggregate positions are netted in the shared holdings adapter
@@ -177,7 +179,8 @@ If `/cpar/risk` shows unexpected exclusions or coverage drift:
 - inspect the positions contribution-mix table next:
   - covered rows should show the largest weighted display factor contributions
   - excluded rows should show no contribution mix and should still surface the exclusion reason inline
-- `thresholded_contributions` are intentionally populated only for covered rows; excluded rows contribute nothing to the aggregate book vector or factor-only variance decomposition
+- `thresholded_contributions` are intentionally populated only for covered rows; excluded rows contribute nothing to the aggregate book vector or total-variance decomposition
+- `risk_mix` is intentionally populated only for covered rows; excluded rows should render without a synthetic mix
 
 If cPAR explanatory charts look like hedge vectors:
 - `/cpar/risk` and `/cpar/explore` should read display-basis fields, not hedge-trade-space fields

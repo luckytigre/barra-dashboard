@@ -200,6 +200,12 @@ def _build_holding_delta_rows(
 
 
 def _risk_shares(snapshot: dict[str, object]) -> dict[str, float]:
+    if isinstance(snapshot.get("risk_shares"), dict):
+        shares = dict(snapshot.get("risk_shares") or {})
+        return {
+            key: round(float(shares.get(key, 0.0) or 0.0), 2)
+            for key in ("market", "industry", "style", "idio")
+        }
     totals = {
         "market": 0.0,
         "industry": 0.0,

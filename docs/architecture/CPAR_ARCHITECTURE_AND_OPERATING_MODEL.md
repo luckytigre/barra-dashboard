@@ -146,15 +146,18 @@ The active package is the latest successful `cpar_package_runs` row that has the
 
 Current read behavior:
 - metadata/search/detail use the active successful package
+- aggregate risk, account hedge baselines, and cPAR what-if previews additionally require the idio-capable method version `cPAR1_idio_v1`
+- older factor-only packages are treated as `not_ready` for those surfaces until a fresh cPAR package is built
 - aggregate risk additionally requires live holdings rows across all accounts plus latest shared-source prices on or before the active package date
 - hedge preview additionally requires complete covariance coverage
 - account-level portfolio hedge additionally requires live holdings rows plus latest shared-source prices on or before the active package date
 - the shared snapshot assembly now also exposes:
   - explicit coverage buckets
-  - factor-only variance decomposition from aggregate thresholded hedge vectors plus active-package covariance
+  - total variance decomposition from aggregate thresholded hedge vectors plus active-package covariance and per-instrument specific-risk proxies
   - additive display-loadings analytics from aggregate display vectors plus active-package covariance
   - hedge-basis factor-chart rows plus additive display-basis factor-chart rows
   - per-position weighted thresholded contributions plus additive display contributions
+  - backend-owned `risk_shares`, `factor_variance_proxy`, `idio_variance_proxy`, `total_variance_proxy`, and row `risk_mix`
 - `/api/cpar/risk` additionally exposes the full package-pinned covariance matrix for the frontend heatmap
 - the current implementation keeps the frontend meta-first gate intact, but shortens the backend risk path by:
   - reading pre-aggregated all-account holdings rows from the shared holdings adapter

@@ -156,6 +156,23 @@ For proxy ETFs themselves:
 - non-market proxy ETFs such as `XLK` or `IWM` are still governed by the same market-step, orthogonalized residual block, ridge, and back-transform pipeline
 - they should not be hard-coded to identity vectors because their modeled loadings are defined in the same residualized cPAR trade space as every other fitted instrument
 
+## Specific Risk Proxy
+
+`cPAR1_idio_v1` now persists a per-instrument specific-risk proxy alongside the factor vector.
+
+Definition:
+- after the market step and post-market ridge block are fit on the observed weekly sample, keep the final weighted residual series `eta_t`
+- compute weighted specific variance as the weighted residual variance on that observed sample
+- specific volatility is the square root of that variance proxy
+
+Operationally:
+- `specific_variance_proxy = Var_w(eta_t)`
+- `specific_volatility_proxy = sqrt(max(specific_variance_proxy, 0))`
+
+This does not change hedge construction in this slice.
+The hedge engine still optimizes factor risk in raw ETF trade space.
+The new specific-risk proxy is used by package-pinned risk, portfolio, and what-if read surfaces so those pages can report total variance and idiosyncratic share truthfully.
+
 ## Hedge Engine Rules
 
 The hedge engine lives in `backend/cpar/hedge_engine.py`.

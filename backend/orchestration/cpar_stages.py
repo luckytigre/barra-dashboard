@@ -275,6 +275,8 @@ def _fit_instrument_row(
         "thresholded_loadings": {},
         "factor_variance_proxy": None,
         "factor_volatility_proxy": None,
+        "specific_variance_proxy": None,
+        "specific_volatility_proxy": None,
     }
     if summary.fit_status == status_rules.FIT_STATUS_INSUFFICIENT:
         return fit_row
@@ -306,6 +308,7 @@ def _fit_instrument_row(
     raw_loadings = _ordered_loadings(trade_space.raw_loadings)
     thresholded = _ordered_loadings(backtransform.threshold_trade_space_loadings(trade_space.raw_loadings))
     variance_proxy = _variance_proxy(thresholded, covariance_lookup)
+    specific_variance_proxy = float(regression.weighted_std(post_market.residuals, weights) ** 2)
     fit_row.update(
         {
             "market_step_alpha": float(market_step.alpha),
@@ -316,6 +319,8 @@ def _fit_instrument_row(
             "thresholded_loadings": thresholded,
             "factor_variance_proxy": float(variance_proxy),
             "factor_volatility_proxy": float(math.sqrt(max(variance_proxy, 0.0))),
+            "specific_variance_proxy": specific_variance_proxy,
+            "specific_volatility_proxy": float(math.sqrt(max(specific_variance_proxy, 0.0))),
         }
     )
     return fit_row

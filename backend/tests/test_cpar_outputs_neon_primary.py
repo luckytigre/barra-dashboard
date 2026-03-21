@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.data import cpar_outputs
 
 
@@ -23,7 +24,7 @@ def _package_run() -> dict[str, object]:
         "status": "ok",
         "started_at": "2026-03-14T00:00:00Z",
         "completed_at": "2026-03-14T00:01:00Z",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1",
         "lookback_weeks": 52,
         "half_life_weeks": 26,
@@ -101,6 +102,8 @@ def _instrument_fits() -> list[dict[str, object]]:
             "thresholded_loadings": {"SPY": 1.1},
             "factor_variance_proxy": 0.2,
             "factor_volatility_proxy": 0.4472135955,
+            "specific_variance_proxy": 0.05,
+            "specific_volatility_proxy": 0.2236067977,
         }
     ]
 
