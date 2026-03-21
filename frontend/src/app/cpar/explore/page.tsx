@@ -9,6 +9,7 @@ import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/co
 import CparExploreDetailModule from "@/features/cpar/components/CparExploreDetailModule";
 import CparExploreLoadingsSection from "@/features/cpar/components/CparExploreLoadingsSection";
 import CparExploreSearchModule from "@/features/cpar/components/CparExploreSearchModule";
+import CparExploreSupportSection from "@/features/cpar/components/CparExploreSupportSection";
 
 function buildExploreHref(item: CparSearchItem): string {
   const params = new URLSearchParams();
@@ -189,8 +190,8 @@ function CparExplorePageInner() {
                   <div className="cpar-inline-message neutral">
                     <strong>Explore stays on persisted fit interpretation.</strong>
                     <span>
-                      This page stays focused on the selected package row, its source-context augmentation, and its
-                      persisted loadings. Hedge-specific interaction stays on `/cpar/hedge`.
+                      This page stays focused on the selected package row, its thresholded loadings, and its package-date
+                      source context. Hedge mode switching and post-hedge interpretation stay on `/cpar/hedge`.
                     </span>
                   </div>
                 )
@@ -201,7 +202,10 @@ function CparExplorePageInner() {
       </div>
 
       {detail && !detailBlocked && !metaState ? (
-        <CparExploreLoadingsSection detail={detail} hedgeHref={buildHedgeHref(detail.ticker, detail.ric)} />
+        <>
+          <CparExploreLoadingsSection detail={detail} />
+          <CparExploreSupportSection detail={detail} hedgeHref={buildHedgeHref(detail.ticker, detail.ric)} />
+        </>
       ) : null}
     </div>
   );

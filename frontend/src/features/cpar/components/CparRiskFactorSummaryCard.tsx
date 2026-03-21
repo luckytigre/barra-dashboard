@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import HelpLabel from "@/components/HelpLabel";
-import { formatCparNumber, formatCparPercent } from "@/lib/cparTruth";
+import { formatCparNumber } from "@/lib/cparTruth";
 import type { CparPortfolioHedgeData } from "@/lib/types/cpar";
 import CparRiskFactorDrilldown from "./CparRiskFactorDrilldown";
 import CparRiskFactorLoadingsChart from "./CparRiskFactorLoadingsChart";
@@ -59,56 +58,6 @@ export default function CparRiskFactorSummaryCard({
           />
 
           {selectedFactor ? <CparRiskFactorDrilldown factor={selectedFactor} /> : null}
-
-          <div className="dash-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Factor</th>
-                  <th>Group</th>
-                  <th className="text-right">
-                    <span className="col-help-wrap">
-                      <HelpLabel
-                        label="Beta"
-                        plain="Aggregate thresholded loading on this factor after weighting covered holdings rows by signed market value."
-                        math="β_f = Σ (w_i × thresholded_loading_i,f)"
-                        interpret={{
-                          lookFor: "Large signed portfolio factor bets.",
-                          good: "Top betas align with the account’s intended cPAR hedge posture.",
-                        }}
-                      />
-                    </span>
-                  </th>
-                  <th className="text-right">
-                    <span className="col-help-wrap">
-                      <HelpLabel
-                        label="% Pre Var"
-                        plain="Share of the pre-hedge factor variance proxy attributed to this factor within the factor-only cPAR surface."
-                        math="share_f = (β_f × (Fβ)_f) / (βᵀFβ)"
-                        interpret={{
-                          lookFor: "Which factors dominate the portfolio’s pre-hedge factor-only variance.",
-                          good: "Dominant factors are intentional, not accidental concentration.",
-                        }}
-                      />
-                    </span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {factorRows.map((row) => (
-                  <tr key={row.factor_id}>
-                    <td>
-                      <strong>{row.label}</strong>
-                      <span className="cpar-table-sub">{row.factor_id}</span>
-                    </td>
-                    <td>{row.group}</td>
-                    <td className="text-right cpar-number-cell">{formatCparNumber(row.aggregate_beta, 3)}</td>
-                    <td className="text-right cpar-number-cell">{formatCparPercent(row.variance_share, 1)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
         </>
       )}
     </section>

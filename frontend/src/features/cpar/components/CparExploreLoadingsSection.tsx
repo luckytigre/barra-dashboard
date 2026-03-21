@@ -1,112 +1,156 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { formatCparNumber } from "@/lib/cparTruth";
 import type { CparTickerDetailData } from "@/lib/types/cpar";
-import CparLoadingsTable from "./CparLoadingsTable";
+import CparExploreLoadingsChart from "./CparExploreLoadingsChart";
 
 export default function CparExploreLoadingsSection({
   detail,
-  hedgeHref,
 }: {
   detail: CparTickerDetailData;
-  hedgeHref: string;
 }) {
+  const thresholdedRows = useMemo(() => (
+    [...detail.thresholded_loadings].sort((left, right) => (
+      left.display_order - right.display_order
+      || Math.abs(right.beta) - Math.abs(left.beta)
+      || left.factor_id.localeCompare(right.factor_id)
+    ))
+  ), [detail.thresholded_loadings]);
+  const rawRows = useMemo(() => (
+    [...detail.raw_loadings].sort((left, right) => (
+      left.display_order - right.display_order
+      || Math.abs(right.beta) - Math.abs(left.beta)
+      || left.factor_id.localeCompare(right.factor_id)
+    ))
+  ), [detail.raw_loadings]);
+  const [selectedFactorId, setSelectedFactorId] = useState<string | null>(thresholdedRows[0]?.factor_id || null);
+
+  useEffect(() => {
+    setSelectedFactorId((current) => (
+      current && thresholdedRows.some((row) => row.factor_id === current)
+        ? current
+        : thresholdedRows[0]?.factor_id || null
+    ));
+  }, [thresholdedRows]);
+
+  const selectedThresholded = thresholdedRows.find((row) => row.factor_id === selectedFactorId) || thresholdedRows[0] || null;
+  const selectedRaw = rawRows.find((row) => row.factor_id === selectedThresholded?.factor_id) || null;
+  const rawOnlyRows = rawRows.filter((row) => !thresholdedRows.some((item) => item.factor_id === row.factor_id));
+
   return (
-    <>
-      <section className="chart-card cpar-explore-loadings-module" data-testid="cpar-loadings-panel">
-        <div className="cpar-explore-module-header">
-          <div>
-            <div className="cpar-explore-kicker">Loadings</div>
-            <h3 className="cpar-explore-module-title">Persisted Factor Interpretation</h3>
-            <div className="cpar-explore-module-subtitle">
-              `/cpar/explore` stays on the persisted fit row. Raw and thresholded loadings remain visible here while
-              hedge mode switching stays on `/cpar/hedge`.
-            </div>
+    <section className="chart-card cpar-explore-loadings-module" data-testid="cpar-loadings-panel">
+      <div className="cpar-explore-module-header">
+        <div>
+          <div className="cpar-explore-kicker">Loadings</div>
+          <h3 className="cpar-explore-module-title">Thresholded Factor Interpretation</h3>
+          <div className="cpar-explore-module-subtitle">
+            `/cpar/explore` stays on the persisted fit row. Thresholded loadings lead because they match the hedge
+            trade space; raw ETF loadings stay visible as secondary context below.
           </div>
-          <div className="cpar-explore-module-status">{detail.thresholded_loadings.length} thresholded</div>
         </div>
+        <div className="cpar-explore-module-status">{thresholdedRows.length} thresholded</div>
+      </div>
 
-        <div className="explore-hero-stats cpar-explore-hero-stats cpar-explore-loadings-stats">
-          <div className="explore-hero-stat">
-            <span className="label">Raw Factors</span>
-            <span className="value">{detail.raw_loadings.length}</span>
-          </div>
-          <div className="explore-hero-stat">
-            <span className="label">Thresholded</span>
-            <span className="value">{detail.thresholded_loadings.length}</span>
-          </div>
-          <div className="explore-hero-stat">
-            <span className="label">Market Step</span>
-            <span className="value">{formatCparNumber(detail.beta_market_step1, 3)}</span>
-          </div>
-          <div className="explore-hero-stat">
-            <span className="label">Trade Beta</span>
-            <span className="value">{formatCparNumber(detail.beta_spy_trade, 3)}</span>
-          </div>
+      <div className="explore-hero-stats cpar-explore-hero-stats cpar-explore-loadings-stats">
+        <div className="explore-hero-stat">
+          <span className="label">Thresholded</span>
+          <span className="value">{thresholdedRows.length}</span>
         </div>
-
-        <div className="cpar-two-column cpar-explore-loadings-grid">
-          <CparLoadingsTable title="Raw ETF Loadings" rows={detail.raw_loadings} />
-          <CparLoadingsTable
-            title="Thresholded ETF Loadings"
-            rows={detail.thresholded_loadings}
-            emptyText="Thresholding zeroed every non-market leg in the persisted trade-space payload."
-          />
+        <div className="explore-hero-stat">
+          <span className="label">Raw Factors</span>
+          <span className="value">{rawRows.length}</span>
         </div>
-      </section>
-
-      <section className="chart-card cpar-explore-handoff-card" data-testid="cpar-hedge-workspace-card">
-        <div className="cpar-explore-module-header">
-          <div>
-            <div className="cpar-explore-kicker">Hedge Workflow</div>
-            <h3 className="cpar-explore-module-title">Continue In `/cpar/hedge`</h3>
-            <div className="cpar-explore-module-subtitle">
-              Hedge preview, mode switching, and post-hedge interpretation remain isolated on the dedicated hedge page.
-            </div>
-          </div>
-          <div className="cpar-explore-module-status">No refit</div>
+        <div className="explore-hero-stat">
+          <span className="label">Market Step</span>
+          <span className="value">{formatCparNumber(detail.beta_market_step1, 3)}</span>
         </div>
-
-        <div className="cpar-inline-message neutral">
-          <strong>Open the same instrument in the hedge workspace.</strong>
-          <span>
-            The hedge page reuses the same active-package ticker and RIC selection, then applies the persisted hedge
-            route without any request-time refit or build behavior.
-          </span>
-          <div className="cpar-badge-row compact">
-            <Link href={hedgeHref} className="cpar-detail-chip" prefetch={false}>
-              Continue To /cpar/hedge
-            </Link>
-          </div>
+        <div className="explore-hero-stat">
+          <span className="label">Trade Beta</span>
+          <span className="value">{formatCparNumber(detail.beta_spy_trade, 3)}</span>
         </div>
-      </section>
+      </div>
 
       {detail.fit_status === "limited_history" ? (
-        <section className="chart-card cpar-explore-limited-note">
-          <div className="cpar-explore-module-header">
-            <div>
-              <div className="cpar-explore-kicker">Interpretation Note</div>
-              <h3 className="cpar-explore-module-title">Limited History Requires More Caution</h3>
-              <div className="cpar-explore-module-subtitle">
-                `limited_history` still renders persisted loadings and keeps the hedge workspace available, but
-                adjacent-package comparisons deserve more caution than a full-history `ok` row.
+        <div className="cpar-inline-message warning">
+          <strong>Limited history stays visible, but deserves more caution.</strong>
+          <span>Use the persisted loadings, then confirm hedge stability on `/cpar/hedge` before treating the package row as operational.</span>
+        </div>
+      ) : null}
+
+      {thresholdedRows.length === 0 ? (
+        <div className="detail-history-empty compact">
+          Thresholding zeroed every non-market leg in the persisted trade-space payload.
+        </div>
+      ) : (
+        <>
+          <CparExploreLoadingsChart
+            rows={thresholdedRows}
+            selectedFactorId={selectedThresholded?.factor_id || null}
+            onSelectFactor={setSelectedFactorId}
+          />
+
+          {selectedThresholded ? (
+            <div className="cpar-explore-selected-loading">
+              <div>
+                <div className="cpar-explore-panel-title">{selectedThresholded.label}</div>
+                <div className="cpar-explore-panel-subtitle">
+                  Thresholded loadings are the cPAR-native interpretation surface for this page. Raw ETF loadings remain visible below for comparison.
+                </div>
+              </div>
+              <div className="cpar-badge-row compact">
+                <span className="cpar-detail-chip">{selectedThresholded.factor_id}</span>
+                <span className="cpar-detail-chip">Thresholded {formatCparNumber(selectedThresholded.beta, 3)}</span>
+                {selectedRaw ? <span className="cpar-detail-chip">Raw {formatCparNumber(selectedRaw.beta, 3)}</span> : null}
               </div>
             </div>
-          </div>
-          <div className="detail-history-empty compact">
-            If you continue to `/cpar/hedge`, compare the stability and non-market reduction metrics before using the
-            persisted hedge output operationally.
-          </div>
-          {detail.pre_hedge_factor_variance_proxy !== null ? (
-            <div className="cpar-badge-row compact">
-              <span className="cpar-detail-chip">
-                Current pre-hedge variance proxy: {detail.pre_hedge_factor_variance_proxy?.toFixed(3)}
-              </span>
-            </div>
           ) : null}
-        </section>
+        </>
+      )}
+
+      {rawOnlyRows.length > 0 ? (
+        <div className="cpar-badge-row compact">
+          <span className="cpar-detail-chip">{rawOnlyRows.length} raw-only factor{rawOnlyRows.length === 1 ? "" : "s"}</span>
+          {rawOnlyRows.slice(0, 3).map((row) => (
+            <span key={row.factor_id} className="cpar-detail-chip">
+              {row.factor_id} {formatCparNumber(row.beta, 3)}
+            </span>
+          ))}
+        </div>
       ) : null}
-    </>
+
+      <details className="cpar-explore-raw-details">
+        <summary>Raw ETF loadings</summary>
+        {rawRows.length === 0 ? (
+          <div className="detail-history-empty compact">
+            No persisted raw ETF loadings were available for this cPAR fit.
+          </div>
+        ) : (
+          <div className="dash-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Factor</th>
+                  <th>Group</th>
+                  <th className="text-right">Raw Beta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rawRows.map((row) => (
+                  <tr key={row.factor_id}>
+                    <td>
+                      <strong>{row.label}</strong>
+                      <span className="cpar-table-sub">{row.factor_id}</span>
+                    </td>
+                    <td>{row.group}</td>
+                    <td className="text-right cpar-number-cell">{formatCparNumber(row.beta, 3)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </details>
+    </section>
   );
 }

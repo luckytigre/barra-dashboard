@@ -30,6 +30,15 @@ function formatScenarioQuantity(value: number): string {
   return String(Number(value.toFixed(4)));
 }
 
+function hasCparRiskContext(data: {
+  factor_chart: Array<unknown>;
+  hedge_legs: Array<unknown>;
+  post_hedge_exposures: Array<unknown>;
+} | null | undefined): boolean {
+  if (!data) return false;
+  return data.factor_chart.length > 0 || data.hedge_legs.length > 0 || data.post_hedge_exposures.length > 0;
+}
+
 function CparRiskWorkspaceInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -115,6 +124,9 @@ function CparRiskWorkspaceInner() {
     || (normalizedWhatIf && !sameCparPackageIdentity(normalizedWhatIf, normalizedWhatIf.current))
     || (normalizedWhatIf && !sameCparPackageIdentity(normalizedWhatIf, normalizedWhatIf.hypothetical)),
   );
+  const baselineHedgeData = !whatIfPackageMismatch && normalizedWhatIf ? normalizedWhatIf.current : normalizedPortfolio;
+  const comparisonHedgeData = !whatIfPackageMismatch && normalizedWhatIf ? normalizedWhatIf.hypothetical : null;
+  const displayPortfolio = baselineHedgeData || normalizedPortfolio;
   const selectedAccount = (accountsData?.accounts || []).find((row) => row.account_id === selectedAccountId) || null;
 
   function stageScenarioRow(item: CparSearchItem, quantityDelta: number): string | null {
@@ -232,8 +244,8 @@ function CparRiskWorkspaceInner() {
         </section>
       ) : normalizedPortfolio ? (
         <>
-          {normalizedPortfolio.aggregate_thresholded_loadings.length > 0 ? (
-            <CparRiskFactorSummaryCard portfolio={normalizedPortfolio} />
+          {displayPortfolio && displayPortfolio.factor_chart.length > 0 ? (
+            <CparRiskFactorSummaryCard portfolio={displayPortfolio} />
           ) : null}
 
           <div className="cpar-two-column">
@@ -249,18 +261,46 @@ function CparRiskWorkspaceInner() {
                 router.push(`/cpar/risk?${params.toString()}`);
               }}
             />
-            <CparRiskCoverageSummaryCard portfolio={normalizedPortfolio} />
+            <CparRiskCoverageSummaryCard portfolio={displayPortfolio || normalizedPortfolio} />
           </div>
 
-          {normalizedPortfolio.aggregate_thresholded_loadings.length > 0 && scenarioRows.length === 0 ? (
-            <CparPortfolioHedgePanel
-              data={normalizedPortfolio}
-              mode={mode}
-              onModeChange={setMode}
-            />
+          {hasCparRiskContext(baselineHedgeData) ? (
+            comparisonHedgeData ? (
+              <div className="cpar-two-column">
+                <CparPortfolioHedgePanel
+                  data={baselineHedgeData!}
+                  mode={mode}
+                  onModeChange={setMode}
+                  title="Current Account Hedge"
+                  subtitle="This is the live covered account vector under the active cPAR package before any staged share deltas are applied."
+                  testId="cpar-portfolio-current-hedge-panel"
+                />
+                <CparPortfolioHedgePanel
+                  data={comparisonHedgeData}
+                  mode={mode}
+                  onModeChange={setMode}
+                  title="Hypothetical Account Hedge"
+                  subtitle="This is the same account after applying the staged cPAR what-if deltas under the same active package and persisted covariance surface."
+                  testId="cpar-portfolio-hypothetical-hedge-panel"
+                />
+              </div>
+            ) : (
+              <CparPortfolioHedgePanel
+                data={baselineHedgeData!}
+                mode={mode}
+                onModeChange={setMode}
+                title="Current Account Hedge"
+                subtitle={
+                  scenarioRows.length > 0
+                    ? "This incumbent hedge baseline stays visible while staged scenario rows are validated or while the hypothetical preview recomputes."
+                    : "The workflow aggregates covered holdings rows into one active-package cPAR exposure vector, then applies the persisted covariance surface without any request-time fitting."
+                }
+                testId={scenarioRows.length > 0 ? "cpar-portfolio-current-hedge-panel" : "cpar-portfolio-hedge-panel"}
+              />
+            )
           ) : null}
 
-          <CparRiskPositionsContributionTable rows={normalizedPortfolio.positions} />
+          <CparRiskPositionsContributionTable rows={(displayPortfolio || normalizedPortfolio).positions} />
 
           <CparPortfolioWhatIfBuilder
             resetKey={`${selectedAccountId || "none"}:${meta?.package_run_id || "none"}`}
@@ -312,19 +352,15 @@ function CparRiskWorkspaceInner() {
                 </div>
               </section>
             ) : normalizedWhatIf ? (
-              <CparRiskWhatIfPreviewSection
-                whatIf={normalizedWhatIf}
-                mode={mode}
-                onModeChange={setMode}
-              />
+              <CparRiskWhatIfPreviewSection whatIf={normalizedWhatIf} />
             ) : null
           ) : null}
 
-          {normalizedPortfolio.aggregate_thresholded_loadings.length === 0 ? (
+          {!hasCparRiskContext(displayPortfolio || normalizedPortfolio) ? (
             <section className="chart-card">
               <h3>Risk Summary Deferred</h3>
               <div className="section-subtitle">
-                No covered holdings rows contributed to the aggregate thresholded portfolio vector, so the factor-only risk summary stays withheld until the account has priced and package-covered rows.
+                No chart-ready cPAR risk surface was available for this account, so the factor-only summary stays withheld until the account has priced and package-covered rows.
               </div>
               <div className="cpar-inline-message neutral">
                 <strong>Still explicit.</strong>

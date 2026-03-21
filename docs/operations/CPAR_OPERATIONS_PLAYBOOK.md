@@ -109,7 +109,9 @@ That shared snapshot now also carries explicit `coverage_breakdown`, factor-only
 `/cpar/risk` now renders those fields directly as:
 - coverage summary plus explicit exclusion buckets
 - one signed factor-loadings chart with per-factor drilldown
+- one persistent incumbent hedge panel, with current vs hypothetical comparison only when the what-if envelope is coherent
 - one positions contribution-mix table
+`/cpar/explore` now keeps the selected-instrument hero first, uses one thresholded-loadings chart as the primary interpretation surface, keeps raw ETF loadings as secondary detail, demotes persisted facts and package-date source context below that chart, and folds the `/cpar/hedge` handoff into the same support block rather than a separate card.
 Current frontend ownership for those pages is now routed through cPAR-specific wrappers:
 - `frontend/src/hooks/useCparApi.ts`
 - `frontend/src/lib/cparApi.ts`

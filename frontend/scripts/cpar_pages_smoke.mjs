@@ -438,8 +438,13 @@ try {
     await sourceContextCard.getByText("Technology").waitFor();
     await sourceContextCard.getByText("adj_close", { exact: false }).waitFor();
     await page.getByTestId("cpar-loadings-panel").waitFor();
-    await page.getByTestId("cpar-hedge-workspace-card").waitFor();
     await page.getByRole("link", { name: "Continue To /cpar/hedge" }).waitFor();
+    await page.getByTestId("cpar-explore-loadings-chart").waitFor();
+    await page.getByTestId("cpar-explore-support").waitFor();
+    await page.getByText("Thresholded Factor Interpretation").waitFor();
+    assert.equal(await page.getByTestId("cpar-hedge-workspace-card").count(), 0);
+    await page.getByText("Raw ETF loadings", { exact: true }).click();
+    await page.getByText("Raw Beta").waitFor();
     assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
     assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
 

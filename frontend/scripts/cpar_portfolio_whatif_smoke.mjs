@@ -435,6 +435,9 @@ try {
             build_profile: "cpar-weekly",
           }, 503);
         }
+        if (scenario === "loading") {
+          await delay(600);
+        }
         return fulfillJson({
           package_run_id: scenario === "package_mismatch" ? "run_old" : "run_curr",
           package_date: scenario === "package_mismatch" ? "2026-03-07" : "2026-03-14",
@@ -514,7 +517,7 @@ try {
     await page.getByTestId("cpar-portfolio-whatif-scenarios").waitFor();
     await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
     await page.getByTestId("cpar-portfolio-hypothetical-hedge-panel").waitFor();
-    await page.getByTestId("cpar-risk-factor-summary").locator("tbody").getByText("SPY").waitFor();
+    await page.getByTestId("cpar-risk-factor-chart").getByText("SPY").waitFor();
     await page.getByRole("heading", { name: "Hypothetical Account Hedge" }).waitFor();
     await page.getByTestId("cpar-portfolio-whatif-scenarios").getByText("NVIDIA Corp").waitFor();
     assert.equal(await page.getByRole("button", { name: "SYNC" }).count(), 0);
@@ -528,7 +531,7 @@ try {
 
     await page.getByLabel("NVDA quantity").fill("0");
     await page.getByTestId("cpar-portfolio-whatif-invalid").waitFor();
-    assert.equal(await page.getByTestId("cpar-portfolio-current-hedge-panel").count(), 0);
+    await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
     assert.equal(await page.getByTestId("cpar-portfolio-hypothetical-hedge-panel").count(), 0);
     await page.getByLabel("NVDA quantity").fill("6");
     await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
@@ -536,6 +539,18 @@ try {
 
     await page.getByRole("button", { name: "Market Neutral" }).first().click();
     await page.getByText("SPY-only hypothetical hedge").waitFor();
+
+    scenario = "loading";
+    await gotoWithRetry(page, `${BASE_URL}/cpar/risk?account_id=acct_main`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("cpar-portfolio-whatif-builder").waitFor();
+    await page.getByTestId("cpar-search-input").fill("NVDA");
+    await page.getByRole("button", { name: /NVDA/i }).first().click();
+    await page.getByTestId("cpar-whatif-quantity-input").fill("6");
+    await page.getByTestId("cpar-whatif-add-btn").click();
+    await page.getByTestId("cpar-portfolio-whatif-loading").waitFor();
+    await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
+    assert.equal(await page.getByTestId("cpar-portfolio-hypothetical-hedge-panel").count(), 0);
+    await page.getByTestId("cpar-portfolio-hypothetical-hedge-panel").waitFor();
 
     scenario = "package_mismatch";
     await gotoWithRetry(page, `${BASE_URL}/cpar/risk?account_id=acct_main`, { waitUntil: "domcontentloaded" });
@@ -545,7 +560,7 @@ try {
     await page.getByTestId("cpar-whatif-quantity-input").fill("6");
     await page.getByTestId("cpar-whatif-add-btn").click();
     await page.getByTestId("cpar-portfolio-whatif-package-mismatch").waitFor();
-    assert.equal(await page.getByTestId("cpar-portfolio-current-hedge-panel").count(), 0);
+    await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
     assert.equal(await page.getByTestId("cpar-portfolio-hypothetical-hedge-panel").count(), 0);
 
     scenario = "whatif_not_ready";
@@ -556,6 +571,7 @@ try {
     await page.getByTestId("cpar-whatif-quantity-input").fill("6");
     await page.getByTestId("cpar-whatif-add-btn").click();
     await page.getByTestId("cpar-portfolio-whatif-error").waitFor();
+    await page.getByTestId("cpar-portfolio-current-hedge-panel").waitFor();
     await page.getByText("What-if package not ready.").waitFor();
 
     if (capturedPageError) {

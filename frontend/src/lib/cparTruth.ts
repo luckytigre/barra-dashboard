@@ -296,6 +296,22 @@ function normalizeCparVarianceContributions(value: unknown): CparFactorVarianceC
   return Array.isArray(value) ? value as CparFactorVarianceContribution[] : [];
 }
 
+function normalizeCparFactorChartRows(value: unknown): CparFactorChartRow[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((row) => {
+    const drilldown = Array.isArray((row as CparFactorChartRow).drilldown)
+      ? (row as CparFactorChartRow).drilldown.map((item) => ({
+          ...item,
+          warnings: Array.isArray(item.warnings) ? item.warnings : [],
+        }))
+      : [];
+    return {
+      ...(row as CparFactorChartRow),
+      drilldown,
+    };
+  });
+}
+
 function deriveCparFactorChartRows(
   portfolio: Pick<CparPortfolioHedgeData, "aggregate_thresholded_loadings" | "factor_variance_contributions" | "positions">,
 ): CparFactorChartRow[] {
@@ -390,16 +406,20 @@ export function normalizeCparPortfolioHedgeData(
     : [];
   const aggregateThresholdedLoadings = normalizeCparLoadings(portfolio.aggregate_thresholded_loadings);
   const factorVarianceContributions = normalizeCparVarianceContributions(portfolio.factor_variance_contributions);
+  const hasFactorChartField = Object.prototype.hasOwnProperty.call(portfolio, "factor_chart");
+  const factorChart = normalizeCparFactorChartRows(portfolio.factor_chart);
   return {
     ...portfolio,
     aggregate_thresholded_loadings: aggregateThresholdedLoadings,
     coverage_breakdown: normalizeCparCoverageBreakdown(portfolio.coverage_breakdown || EMPTY_CPAR_COVERAGE_BREAKDOWN),
     factor_variance_contributions: factorVarianceContributions,
-    factor_chart: deriveCparFactorChartRows({
-      aggregate_thresholded_loadings: aggregateThresholdedLoadings,
-      factor_variance_contributions: factorVarianceContributions,
-      positions,
-    }),
+    factor_chart: hasFactorChartField
+      ? factorChart
+      : deriveCparFactorChartRows({
+          aggregate_thresholded_loadings: aggregateThresholdedLoadings,
+          factor_variance_contributions: factorVarianceContributions,
+          positions,
+        }),
     positions,
   };
 }

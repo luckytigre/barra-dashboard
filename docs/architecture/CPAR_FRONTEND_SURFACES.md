@@ -185,6 +185,9 @@ Read failures:
 - keeps raw and thresholded loadings visible
 - may show package-date source context for identity/classification/latest source price, but it still does not become a cUSE-style quote/history page in this slice
 - now presents the selected instrument as one cPAR-owned detail module rather than a stack of small generic cards, but the page owner still keeps all package-truth, ambiguity, `insufficient_history`, and package-mismatch branching explicit
+- now leads with the selected-instrument hero and uses one cPAR-owned thresholded-loadings chart as the primary interpretation surface
+- now demotes persisted facts plus package-date source context below the thresholded-loadings read instead of ahead of it
+- folds the `/cpar/hedge` handoff into the support block after the primary interpretation read instead of keeping a separate handoff card
 - does not own hedge mode switching or post-hedge interpretation anymore
 
 `/cpar/hedge`
@@ -196,6 +199,8 @@ Read failures:
 - remains a narrow account-level hedge workflow
 - owns account selection, coverage/exclusion explanation, one signed factor-loadings chart with per-factor drilldown, positions contribution mix, staged scenario rows, and current vs hypothetical account hedge preview
 - now intentionally borrows the cUSE risk-page layout rhythm without importing cUSE feature owners or cUSE payload semantics
+- now keeps the incumbent account hedge visible even while staged rows are invalid, loading, or fail closed; hypothetical comparison only appears when the what-if envelope is coherent
+- now avoids a duplicate factor-summary table under the chart, leaving the signed chart plus drilldown as the primary factor read
 - still stops short of a full cUSE-style analytics workspace:
   - no covariance heatmap
   - no specific-risk decomposition

@@ -191,6 +191,14 @@ try {
               gross_quantity: 12,
               last_position_updated_at: "2026-03-18T15:00:00Z",
             },
+            {
+              account_id: "acct_offset",
+              account_name: "Offset Account",
+              is_active: true,
+              positions_count: 2,
+              gross_quantity: 10,
+              last_position_updated_at: "2026-03-18T15:00:00Z",
+            },
           ],
         });
       }
@@ -198,6 +206,136 @@ try {
       if (method === "GET" && pathName === "/api/cpar/portfolio/hedge") {
         const accountId = requestUrl.searchParams.get("account_id") || "";
         const mode = requestUrl.searchParams.get("mode") || "factor_neutral";
+        if (accountId === "acct_offset") {
+          return fulfillJson({
+            package_run_id: "run_curr",
+            package_date: "2026-03-14",
+            profile: "cpar-weekly",
+            method_version: "cPAR1",
+            factor_registry_version: "cPAR1_registry_v1",
+            data_authority: "neon",
+            lookback_weeks: 52,
+            half_life_weeks: 26,
+            min_observations: 39,
+            source_prices_asof: "2026-03-14",
+            classification_asof: "2026-03-14",
+            universe_count: 1240,
+            fit_ok_count: 1180,
+            fit_limited_count: 48,
+            fit_insufficient_count: 12,
+            account_id: "acct_offset",
+            account_name: "Offset Account",
+            mode,
+            positions_count: 2,
+            covered_positions_count: 2,
+            excluded_positions_count: 0,
+            gross_market_value: 1500,
+            net_market_value: 0,
+            covered_gross_market_value: 1500,
+            coverage_ratio: 1,
+            coverage_breakdown: {
+              covered: { positions_count: 2, gross_market_value: 1500 },
+              missing_price: { positions_count: 0, gross_market_value: 0 },
+              missing_cpar_fit: { positions_count: 0, gross_market_value: 0 },
+              insufficient_history: { positions_count: 0, gross_market_value: 0 },
+            },
+            portfolio_status: "ok",
+            portfolio_reason: null,
+            aggregate_thresholded_loadings: [],
+            factor_variance_contributions: [],
+            factor_chart: [
+              {
+                factor_id: "SPY",
+                label: "Market",
+                group: "market",
+                display_order: 0,
+                beta: 0,
+                aggregate_beta: 0,
+                positive_contribution_beta: 0.6,
+                negative_contribution_beta: -0.6,
+                variance_contribution: null,
+                variance_share: null,
+                drilldown: [
+                  {
+                    ric: "LONG.OQ",
+                    ticker: "LONG",
+                    display_name: "Long Sleeve",
+                    market_value: 750,
+                    portfolio_weight: 0.5,
+                    fit_status: "ok",
+                    warnings: [],
+                    coverage: "covered",
+                    coverage_reason: null,
+                    factor_beta: 1.2,
+                    contribution_beta: 0.6,
+                  },
+                  {
+                    ric: "HEDGE.OQ",
+                    ticker: "HEDGE",
+                    display_name: "Hedge Sleeve",
+                    market_value: -750,
+                    portfolio_weight: -0.5,
+                    fit_status: "ok",
+                    warnings: [],
+                    coverage: "covered",
+                    coverage_reason: null,
+                    factor_beta: 1.2,
+                    contribution_beta: -0.6,
+                  },
+                ],
+              },
+            ],
+            hedge_status: "hedge_ok",
+            hedge_reason: "Offset book stays chartable",
+            hedge_legs: [],
+            post_hedge_exposures: [
+              { factor_id: "SPY", label: "Market", group: "market", display_order: 0, pre_beta: 0.0, hedge_leg: 0.0, post_beta: 0.0 },
+            ],
+            pre_hedge_factor_variance_proxy: 0,
+            post_hedge_factor_variance_proxy: 0,
+            gross_hedge_notional: 0,
+            net_hedge_notional: 0,
+            non_market_reduction_ratio: 0,
+            positions: [
+              {
+                account_id: "acct_offset",
+                ric: "LONG.OQ",
+                ticker: "LONG",
+                display_name: "Long Sleeve",
+                quantity: 5,
+                price: 150,
+                price_date: "2026-03-14",
+                price_field_used: "adj_close",
+                market_value: 750,
+                portfolio_weight: 0.5,
+                fit_status: "ok",
+                warnings: [],
+                beta_spy_trade: 1.2,
+                coverage: "covered",
+                coverage_reason: null,
+                thresholded_contributions: [],
+              },
+              {
+                account_id: "acct_offset",
+                ric: "HEDGE.OQ",
+                ticker: "HEDGE",
+                display_name: "Hedge Sleeve",
+                quantity: -5,
+                price: 150,
+                price_date: "2026-03-14",
+                price_field_used: "adj_close",
+                market_value: -750,
+                portfolio_weight: -0.5,
+                fit_status: "ok",
+                warnings: [],
+                beta_spy_trade: 1.2,
+                coverage: "covered",
+                coverage_reason: null,
+                thresholded_contributions: [],
+              },
+            ],
+          });
+        }
         if (accountId === "acct_empty") {
           return fulfillJson({
             package_run_id: "run_curr",
@@ -592,6 +730,12 @@ try {
     await page.getByText("No holdings rows in this account have both price coverage and a usable persisted cPAR fit in the active package.").waitFor();
     await page.getByTestId("cpar-risk-positions").waitFor();
     assert.equal(await page.getByTestId("cpar-portfolio-hedge-panel").count(), 0);
+
+    await page.selectOption('[data-testid="cpar-portfolio-account-select"]', "acct_offset");
+    await page.getByTestId("cpar-risk-factor-summary").waitFor();
+    await page.getByTestId("cpar-risk-factor-chart").getByText("SPY").waitFor();
+    await page.getByTestId("cpar-portfolio-hedge-panel").waitFor();
+    assert.equal(await page.getByText("Risk Summary Deferred").count(), 0);
 
     if (capturedPageError) {
       throw capturedPageError;
