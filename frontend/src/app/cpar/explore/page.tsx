@@ -7,22 +7,14 @@ import { canNavigateCparSearchResult, readCparError, sameCparPackageIdentity } f
 import type { CparSearchItem } from "@/lib/types/cpar";
 import { CparInlineLoadingState, CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import CparExploreDetailModule from "@/features/cpar/components/CparExploreDetailModule";
-import CparExploreLoadingsSection from "@/features/cpar/components/CparExploreLoadingsSection";
 import CparExploreSearchModule from "@/features/cpar/components/CparExploreSearchModule";
-import CparExploreSupportSection from "@/features/cpar/components/CparExploreSupportSection";
+import CparHedgePanel from "@/features/cpar/components/CparHedgePanel";
 
 function buildExploreHref(item: CparSearchItem): string {
   const params = new URLSearchParams();
   if (item.ticker) params.set("ticker", item.ticker);
   params.set("ric", item.ric);
   return `/cpar/explore?${params.toString()}`;
-}
-
-function buildHedgeHref(ticker: string | null | undefined, ric: string): string {
-  const params = new URLSearchParams();
-  if (ticker) params.set("ticker", ticker);
-  params.set("ric", ric);
-  return `/cpar/hedge?${params.toString()}`;
 }
 
 function ExploreSelectionState({
@@ -77,7 +69,7 @@ function CparExplorePageInner() {
   const detailBlocked = detail?.fit_status === "insufficient_history" || detailPackageMismatch;
 
   return (
-    <div className="cpar-page">
+    <div className="cpar-page explore-page-stack">
       {metaState ? (
         <section className="chart-card cpar-alert-card" data-testid="cpar-explore-not-ready">
           <h3>{metaState.kind === "not_ready" ? "cPAR Explore Not Ready" : "cPAR Explore Unavailable"}</h3>
@@ -85,7 +77,73 @@ function CparExplorePageInner() {
         </section>
       ) : null}
 
-      <div className="cpar-explore-top-grid">
+      {!ticker && ric ? (
+        <ExploreSelectionState
+          title="Ticker Required For Detail"
+          message="This active-package search hit has no ticker symbol, and the current cPAR detail route is ticker-keyed. Use another search result with a ticker, or extend the backend route contract in a later slice."
+          tone="warning"
+        />
+      ) : metaState ? (
+        <ExploreSelectionState
+          title="Active Package Metadata Unavailable"
+          message="Reload after the active cPAR package is readable again before opening detail or the hedge workflow."
+          tone="warning"
+        />
+      ) : detailLoading && !detail ? (
+        <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
+          <div className="cpar-explore-module-header">
+            <div>
+              <div className="cpar-explore-kicker">Selected Instrument</div>
+              <h3 className="cpar-explore-module-title">Loading Persisted Fit Detail</h3>
+            </div>
+          </div>
+          <CparInlineLoadingState message={`Loading cPAR detail for ${ric || ticker}...`} />
+        </section>
+      ) : detailState ? (
+        <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
+          <div className="cpar-explore-module-header">
+            <div>
+              <div className="cpar-explore-kicker">Selected Instrument</div>
+              <h3 className="cpar-explore-module-title">
+                {detailState.kind === "ambiguous"
+                  ? "Resolve Ticker Ambiguity"
+                  : detailState.kind === "missing"
+                    ? "Ticker Not Found"
+                    : "Detail Read Unavailable"}
+              </h3>
+            </div>
+          </div>
+          <div className={`cpar-inline-message ${detailState.kind === "ambiguous" ? "warning" : "error"}`}>
+            <strong>
+              {detailState.kind === "ambiguous"
+                ? "Ticker is ambiguous."
+                : detailState.kind === "missing"
+                  ? "Ticker not found."
+                  : "Detail unavailable."}
+            </strong>
+            <span>{detailState.message}</span>
+            {detailState.kind === "ambiguous" ? <span>Choose a specific RIC from the search results below.</span> : null}
+          </div>
+        </section>
+      ) : detailPackageMismatch ? (
+        <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
+          <div className="cpar-explore-module-header">
+            <div>
+              <div className="cpar-explore-kicker">Selected Instrument</div>
+              <h3 className="cpar-explore-module-title">Reload To Pin One Package</h3>
+            </div>
+          </div>
+          <div className="cpar-inline-message error" data-testid="cpar-package-mismatch">
+            <strong>Active package changed during read.</strong>
+            <span>The banner package no longer matches the persisted detail row.</span>
+            <span>Reload the page to pin one cPAR package before reading loadings or hedge output.</span>
+          </div>
+        </section>
+      ) : detail ? (
+        <CparExploreDetailModule detail={detail} />
+      ) : null}
+
+      <div className="explore-detail-grid">
         <CparExploreSearchModule
           initialQuery={querySeed}
           selectedRic={ric}
@@ -95,118 +153,33 @@ function CparExplorePageInner() {
           }}
         />
 
-        <div className="cpar-explore-detail-stack">
-          {!ticker && ric ? (
-            <ExploreSelectionState
-              title="Ticker Required For Detail"
-              message="This active-package search hit has no ticker symbol, and the current cPAR detail route is ticker-keyed. Use another search result with a ticker, or extend the backend route contract in a later slice."
-              tone="warning"
-            />
-          ) : !ticker ? (
-            <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
-              <div className="cpar-explore-module-header">
-                <div>
-                  <div className="cpar-explore-kicker">Selected Instrument</div>
-                  <h3 className="cpar-explore-module-title">Pick One Persisted Fit Row</h3>
-                  <div className="cpar-explore-module-subtitle">
-                    `/cpar/explore` stays on one active-package row, its persisted loadings, and supplemental
-                    package-date source context.
-                  </div>
-                </div>
-              </div>
-              <div className="detail-history-empty">
-                Select a search result to load one cPAR package row and review its persisted fit detail.
-              </div>
-            </section>
-          ) : metaState ? (
-            <ExploreSelectionState
-              title="Active Package Metadata Unavailable"
-              message="Reload after the active cPAR package is readable again before opening detail or the hedge workspace."
-              tone="warning"
-            />
-          ) : detailLoading && !detail ? (
-            <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
-              <div className="cpar-explore-module-header">
-                <div>
-                  <div className="cpar-explore-kicker">Selected Instrument</div>
-                  <h3 className="cpar-explore-module-title">Loading Persisted Fit Detail</h3>
-                </div>
-              </div>
-              <CparInlineLoadingState message={`Loading cPAR detail for ${ric || ticker}...`} />
-            </section>
-          ) : detailState ? (
-            <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
-              <div className="cpar-explore-module-header">
-                <div>
-                  <div className="cpar-explore-kicker">Selected Instrument</div>
-                  <h3 className="cpar-explore-module-title">
-                    {detailState.kind === "ambiguous"
-                      ? "Resolve Ticker Ambiguity"
-                      : detailState.kind === "missing"
-                        ? "Ticker Not Found"
-                        : "Detail Read Unavailable"}
-                  </h3>
-                </div>
-              </div>
-              <div className={`cpar-inline-message ${detailState.kind === "ambiguous" ? "warning" : "error"}`}>
-                <strong>
-                  {detailState.kind === "ambiguous"
-                    ? "Ticker is ambiguous."
-                    : detailState.kind === "missing"
-                      ? "Ticker not found."
-                      : "Detail unavailable."}
-                </strong>
-                <span>{detailState.message}</span>
-                {detailState.kind === "ambiguous" ? <span>Choose a specific RIC from the search results on the left.</span> : null}
-              </div>
-            </section>
-          ) : detailPackageMismatch ? (
-            <section className="chart-card cpar-explore-selection-state" data-testid="cpar-detail-panel">
-              <div className="cpar-explore-module-header">
-                <div>
-                  <div className="cpar-explore-kicker">Selected Instrument</div>
-                  <h3 className="cpar-explore-module-title">Reload To Pin One Package</h3>
-                </div>
-              </div>
-              <div className="cpar-inline-message error" data-testid="cpar-package-mismatch">
-                <strong>Active package changed during read.</strong>
-                <span>The banner package no longer matches the persisted detail row.</span>
-                <span>Reload the page to pin one cPAR package before reading loadings or opening the hedge workspace.</span>
-              </div>
-            </section>
-          ) : detail ? (
-            <CparExploreDetailModule
-              detail={detail}
-              footer={
-                detailBlocked ? (
-                  <div className="cpar-inline-message warning" data-testid="cpar-insufficient-history">
-                    <strong>Loadings and the hedge workflow are blocked.</strong>
-                    <span>
-                      This row is persisted as `insufficient_history`, so the frontend only renders identity, package
-                      metadata, and warnings.
-                    </span>
-                  </div>
-                ) : (
-                  <div className="cpar-inline-message neutral">
-                    <strong>Explore stays on persisted fit interpretation.</strong>
-                    <span>
-                      This page stays focused on the selected package row, its thresholded loadings, and its package-date
-                      source context. Hedge mode switching and post-hedge interpretation stay on `/cpar/hedge`.
-                    </span>
-                  </div>
-                )
-              }
-            />
-          ) : null}
-        </div>
+        {detail && !detailBlocked && !metaState && !detailState && !detailPackageMismatch ? (
+          <CparHedgePanel
+            ticker={detail.ticker || ticker || detail.ric}
+            ric={detail.ric}
+            fitStatus={detail.fit_status}
+            expectedPackageRunId={detail.package_run_id}
+            expectedPackageDate={detail.package_date}
+          />
+        ) : detail?.fit_status === "insufficient_history" ? (
+          <section className="chart-card" data-testid="cpar-explore-workflow-panel">
+            <h3>Hedge Preview</h3>
+            <div className="cpar-inline-message warning" data-testid="cpar-insufficient-history">
+              <strong>Hedge workflow is blocked.</strong>
+              <span>
+                This row is persisted as `insufficient_history`, so cPAR explore stays on the selected quote detail only.
+              </span>
+            </div>
+          </section>
+        ) : (
+          <section className="chart-card" data-testid="cpar-explore-workflow-panel">
+            <h3>Hedge Preview</h3>
+            <div className="detail-history-empty compact">
+              Select one active-package ticker to open the cPAR quote card and its persisted hedge workflow.
+            </div>
+          </section>
+        )}
       </div>
-
-      {detail && !detailBlocked && !metaState ? (
-        <>
-          <CparExploreLoadingsSection detail={detail} />
-          <CparExploreSupportSection detail={detail} hedgeHref={buildHedgeHref(detail.ticker, detail.ric)} />
-        </>
-      ) : null}
     </div>
   );
 }

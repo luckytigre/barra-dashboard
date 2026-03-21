@@ -431,22 +431,15 @@ try {
     assert.equal(await exploreSearchResults.locator("button").first().isDisabled(), true);
     await page.getByTestId("cpar-search-input").press("Enter");
     const detailPanel = page.getByTestId("cpar-detail-panel");
-    await detailPanel.getByText("Apple Inc.").waitFor();
-    const sourceContextCard = page.getByTestId("cpar-source-context-card");
-    await sourceContextCard.waitFor();
-    await sourceContextCard.getByText("Apple Incorporated Source").waitFor();
-    await sourceContextCard.getByText("Technology").waitFor();
-    await sourceContextCard.getByText("adj_close", { exact: false }).waitFor();
-    await page.getByTestId("cpar-loadings-panel").waitFor();
-    await page.getByRole("link", { name: "Continue To /cpar/hedge" }).waitFor();
+    await detailPanel.getByRole("button").click();
+    await detailPanel.getByText("Apple Incorporated Source").waitFor();
+    await detailPanel.getByText("Technology · Computers · Consumer Electronics").waitFor();
+    await detailPanel.getByText("adj_close", { exact: false }).waitFor();
     await page.getByTestId("cpar-explore-loadings-chart").waitFor();
-    await page.getByTestId("cpar-explore-support").waitFor();
-    await page.getByText("Thresholded Factor Interpretation").waitFor();
-    assert.equal(await page.getByTestId("cpar-hedge-workspace-card").count(), 0);
-    await page.getByText("Raw ETF loadings", { exact: true }).click();
-    await page.getByText("Raw Beta").waitFor();
-    assert.equal(await page.getByTestId("cpar-hedge-panel").count(), 0);
-    assert.equal(await page.getByTestId("cpar-post-hedge-table").count(), 0);
+    await page.getByTestId("cpar-hedge-panel").waitFor();
+    await page.getByText("Hedge Preview").waitFor();
+    assert.equal(await page.getByTestId("cpar-explore-support").count(), 0);
+    assert.equal(await page.getByTestId("cpar-loadings-panel").count(), 0);
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ric=AAPL.NA`, { waitUntil: "domcontentloaded" });
     await detailPanel.waitFor();
@@ -456,14 +449,17 @@ try {
     assert.equal(await page.getByRole("button", { name: "RECALC" }).count(), 0);
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=MSFT&ric=MSFT.OQ`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("cpar-source-context-card").getByText("No shared-source context rows were found on or before the active package date.").waitFor();
+    await page.getByTestId("cpar-detail-panel").getByRole("button").click();
+    await page.getByTestId("cpar-detail-panel").getByText("Supplemental package-date source context is missing.").waitFor();
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=NFLX&ric=NFLX.OQ`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("cpar-source-context-card").getByText("Supplemental shared-source context is only partially available.").waitFor();
-    await page.getByTestId("cpar-source-context-card").getByText("Netflix Source Name").waitFor();
+    await page.getByTestId("cpar-detail-panel").getByRole("button").click();
+    await page.getByTestId("cpar-detail-panel").getByText("Supplemental package-date source context is partial.").waitFor();
+    await page.getByTestId("cpar-detail-panel").getByText("Netflix Source Name").waitFor();
 
     await gotoWithRetry(page, `${BASE_URL}/cpar/explore?ticker=TSLA&ric=TSLA.OQ`, { waitUntil: "domcontentloaded" });
-    await page.getByTestId("cpar-source-context-card").getByText("Supplemental shared-source context is temporarily unavailable.").waitFor();
+    await page.getByTestId("cpar-detail-panel").getByRole("button").click();
+    await page.getByTestId("cpar-detail-panel").getByText("Supplemental package-date source context is unavailable.").waitFor();
 
     if (capturedPageError) {
       throw capturedPageError;
