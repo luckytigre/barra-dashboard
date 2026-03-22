@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import TableRowToggle from "@/components/TableRowToggle";
-import { describeCparFitStatus } from "@/lib/cparTruth";
+import { describeCparFitStatus, formatCparMarketValueThousands } from "@/lib/cparTruth";
 import type { CparPortfolioPositionRow } from "@/lib/types/cpar";
 
 const COLLAPSED_ROWS = 8;
@@ -10,11 +10,7 @@ type SortKey = "ticker" | "method" | "trbc_industry_group" | "quantity" | "marke
 type MarketValueSortMode = "abs" | "signed";
 
 function fmtMarketValue(value: number | null | undefined): string {
-  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
-  const abs = Math.abs(value);
-  if (abs >= 1e6) return `${(abs / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${(abs / 1e3).toFixed(1)}K`;
-  return abs.toFixed(2);
+  return formatCparMarketValueThousands(value, { absolute: true });
 }
 
 function fmtShares(value: number | null | undefined): string {

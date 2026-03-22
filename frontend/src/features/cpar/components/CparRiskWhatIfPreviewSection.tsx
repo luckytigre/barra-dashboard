@@ -1,13 +1,36 @@
 "use client";
 
-import { formatCparNumber } from "@/lib/cparTruth";
+import { useMemo } from "react";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
+import { formatCparMarketValueThousands, formatCparNumber } from "@/lib/cparTruth";
 import type { CparPortfolioWhatIfData } from "@/lib/types/cpar";
+
+type SortKey = "instrument" | "current" | "delta" | "hypothetical" | "market_value_delta" | "coverage";
 
 export default function CparRiskWhatIfPreviewSection({
   whatIf,
 }: {
   whatIf: CparPortfolioWhatIfData;
 }) {
+  const comparators = useMemo<Record<SortKey, (left: CparPortfolioWhatIfData["scenario_rows"][number], right: CparPortfolioWhatIfData["scenario_rows"][number]) => number>>(
+    () => ({
+      instrument: (left, right) => compareText(left.ticker || left.ric, right.ticker || right.ric),
+      current: (left, right) => compareNumber(left.current_quantity, right.current_quantity),
+      delta: (left, right) => compareNumber(left.quantity_delta, right.quantity_delta),
+      hypothetical: (left, right) => compareNumber(left.hypothetical_quantity, right.hypothetical_quantity),
+      market_value_delta: (left, right) => compareNumber(left.market_value_delta, right.market_value_delta),
+      coverage: (left, right) => compareText(left.coverage_reason || left.coverage, right.coverage_reason || right.coverage),
+    }),
+    [],
+  );
+  const { sortedRows, handleSort, arrow } = useSortableRows<
+    CparPortfolioWhatIfData["scenario_rows"][number],
+    SortKey
+  >({
+    rows: whatIf.scenario_rows,
+    comparators,
+  });
+
   return (
     <section className="chart-card" data-testid="cpar-portfolio-whatif-scenarios">
       <h3>Scenario Preview Rows</h3>
@@ -19,16 +42,16 @@ export default function CparRiskWhatIfPreviewSection({
         <table>
           <thead>
             <tr>
-              <th>Instrument</th>
-              <th className="text-right">Current Qty</th>
-              <th className="text-right">Delta</th>
-              <th className="text-right">Hyp Qty</th>
-              <th className="text-right">MV Delta</th>
-              <th>Coverage</th>
+              <th onClick={() => handleSort("instrument")}>Instrument{arrow("instrument")}</th>
+              <th className="text-right" onClick={() => handleSort("current")}>Current Qty{arrow("current")}</th>
+              <th className="text-right" onClick={() => handleSort("delta")}>Delta{arrow("delta")}</th>
+              <th className="text-right" onClick={() => handleSort("hypothetical")}>Hyp Qty{arrow("hypothetical")}</th>
+              <th className="text-right" onClick={() => handleSort("market_value_delta")}>MV Delta{arrow("market_value_delta")}</th>
+              <th onClick={() => handleSort("coverage")}>Coverage{arrow("coverage")}</th>
             </tr>
           </thead>
           <tbody>
-            {whatIf.scenario_rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.ric}>
                 <td>
                   <strong>{row.ticker || row.ric}</strong>
@@ -37,7 +60,7 @@ export default function CparRiskWhatIfPreviewSection({
                 <td className="text-right cpar-number-cell">{formatCparNumber(row.current_quantity, 2)}</td>
                 <td className="text-right cpar-number-cell">{formatCparNumber(row.quantity_delta, 2)}</td>
                 <td className="text-right cpar-number-cell">{formatCparNumber(row.hypothetical_quantity, 2)}</td>
-                <td className="text-right cpar-number-cell">{formatCparNumber(row.market_value_delta, 2)}</td>
+                <td className="text-right cpar-number-cell">{formatCparMarketValueThousands(row.market_value_delta)}</td>
                 <td>{row.coverage_reason || row.coverage}</td>
               </tr>
             ))}

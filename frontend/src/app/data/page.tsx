@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
+import { compareDateText, compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import { useDataDiagnostics } from "@/hooks/useCuse4Api";
 import type { DataTableStats } from "@/lib/types/cuse4";
+
+type SourceTableSortKey = "dataset" | "rows" | "tickers" | "date_range" | "updated" | "job";
+type CacheTableSortKey = "key" | "description" | "updated";
 
 function fmtInt(n?: number | null): string {
   if (typeof n !== "number" || !Number.isFinite(n)) return "—";
@@ -80,6 +84,39 @@ export default function DataPage() {
   const dupesClean = dupes?.computed
     ? (dupes.duplicate_groups === 0 && dupes.duplicate_extra_rows === 0)
     : null;
+  const sourceTableComparators = useMemo<Record<SourceTableSortKey, (left: (typeof refreshRows)[number], right: (typeof refreshRows)[number]) => number>>(
+    () => ({
+      dataset: (left, right) => compareText(left.label, right.label),
+      rows: (left, right) => compareNumber(left.table?.row_count, right.table?.row_count),
+      tickers: (left, right) => compareNumber(left.table?.ticker_count, right.table?.ticker_count),
+      date_range: (left, right) => compareDateText(left.table?.max_date, right.table?.max_date),
+      updated: (left, right) => compareDateText(left.table?.last_updated_at, right.table?.last_updated_at),
+      job: (left, right) => compareText(left.table?.last_job_run_id, right.table?.last_job_run_id),
+    }),
+    [],
+  );
+  const cacheTableComparators = useMemo<Record<CacheTableSortKey, (left: (typeof cacheRows)[number], right: (typeof cacheRows)[number]) => number>>(
+    () => ({
+      key: (left, right) => compareText(left.key, right.key),
+      description: (left, right) => compareText(CACHE_DESC[left.key], CACHE_DESC[right.key]),
+      updated: (left, right) => compareDateText(left.updated_at_utc, right.updated_at_utc),
+    }),
+    [cacheRows],
+  );
+  const { sortedRows: sortedRefreshRows, handleSort: handleSourceTableSort, arrow: sourceTableArrow } = useSortableRows<
+    (typeof refreshRows)[number],
+    SourceTableSortKey
+  >({
+    rows: refreshRows,
+    comparators: sourceTableComparators,
+  });
+  const { sortedRows: sortedCacheRows, handleSort: handleCacheSort, arrow: cacheArrow } = useSortableRows<
+    (typeof cacheRows)[number],
+    CacheTableSortKey
+  >({
+    rows: cacheRows,
+    comparators: cacheTableComparators,
+  });
 
   return (
     <div>
@@ -190,16 +227,16 @@ export default function DataPage() {
           <table>
             <thead>
               <tr>
-                <th>Dataset</th>
-                <th className="text-right">Rows</th>
-                <th className="text-right">Tickers</th>
-                <th>Date Range</th>
-                <th>Last Updated</th>
-                <th>Last Job</th>
+                <th onClick={() => handleSourceTableSort("dataset")}>Dataset{sourceTableArrow("dataset")}</th>
+                <th className="text-right" onClick={() => handleSourceTableSort("rows")}>Rows{sourceTableArrow("rows")}</th>
+                <th className="text-right" onClick={() => handleSourceTableSort("tickers")}>Tickers{sourceTableArrow("tickers")}</th>
+                <th onClick={() => handleSourceTableSort("date_range")}>Date Range{sourceTableArrow("date_range")}</th>
+                <th onClick={() => handleSourceTableSort("updated")}>Last Updated{sourceTableArrow("updated")}</th>
+                <th onClick={() => handleSourceTableSort("job")}>Last Job{sourceTableArrow("job")}</th>
               </tr>
             </thead>
             <tbody>
-              {refreshRows.map(({ label, table }) => (
+              {sortedRefreshRows.map(({ label, table }) => (
                 <tr key={label}>
                   <td>
                     {label}
@@ -400,13 +437,13 @@ export default function DataPage() {
           <table>
             <thead>
               <tr>
-                <th>Cache Key</th>
-                <th>Description</th>
-                <th>Last Refreshed (UTC)</th>
+                <th onClick={() => handleCacheSort("key")}>Cache Key{cacheArrow("key")}</th>
+                <th onClick={() => handleCacheSort("description")}>Description{cacheArrow("description")}</th>
+                <th onClick={() => handleCacheSort("updated")}>Last Refreshed (UTC){cacheArrow("updated")}</th>
               </tr>
             </thead>
             <tbody>
-              {cacheRows.map((r) => (
+              {sortedCacheRows.map((r) => (
                 <tr key={r.key}>
                   <td><span className="data-cache-key">{r.key}</span></td>
                   <td>

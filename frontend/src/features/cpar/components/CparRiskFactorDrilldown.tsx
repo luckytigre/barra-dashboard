@@ -5,12 +5,18 @@ import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
 import CparFactorHistoryChart from "@/features/cpar/components/CparFactorHistoryChart";
 import { useCparFactorHistory } from "@/hooks/useCparApi";
-import { describeCparFitStatus, formatCparNumber, formatCparPercent, readCparError } from "@/lib/cparTruth";
+import {
+  describeCparFitStatus,
+  formatCparMarketValueThousands,
+  formatCparNumber,
+  formatCparPercent,
+  readCparError,
+} from "@/lib/cparTruth";
 import type { CparFactorChartRow, CparRiskExposureMode } from "@/lib/types/cpar";
 
 const COLLAPSED_ROWS = 8;
 
-type SortKey = "ticker" | "market_value" | "weight" | "beta" | "sensitivity" | "contribution";
+type SortKey = "ticker" | "coverage" | "market_value" | "weight" | "beta" | "sensitivity" | "contribution";
 
 export default function CparRiskFactorDrilldown({
   factor,
@@ -79,6 +85,13 @@ export default function CparRiskFactorDrilldown({
         const leftTicker = String(left.ticker || left.ric || "");
         const rightTicker = String(right.ticker || right.ric || "");
         return sortAsc ? leftTicker.localeCompare(rightTicker) : rightTicker.localeCompare(leftTicker);
+      }
+      if (sortKey === "coverage") {
+        const leftFit = left.fit_status ? describeCparFitStatus(left.fit_status).label : "";
+        const rightFit = right.fit_status ? describeCparFitStatus(right.fit_status).label : "";
+        const leftCoverage = `Covered ${leftFit}`.trim();
+        const rightCoverage = `Covered ${rightFit}`.trim();
+        return sortAsc ? leftCoverage.localeCompare(rightCoverage) : rightCoverage.localeCompare(leftCoverage);
       }
       const leftValue = sortKey === "sensitivity"
         ? (isRiskContribution ? left.covariance_adjusted_loading : left.vol_scaled_loading)
@@ -168,7 +181,7 @@ export default function CparRiskFactorDrilldown({
           <thead>
             <tr>
               <th onClick={() => handleSort("ticker")}>Ticker{arrow("ticker")}</th>
-              <th>Coverage</th>
+              <th onClick={() => handleSort("coverage")}>Coverage{arrow("coverage")}</th>
               <th className="text-right" onClick={() => handleSort("market_value")}>Mkt Value{arrow("market_value")}</th>
               <th className="text-right" onClick={() => handleSort("weight")}>
                 <span className="col-help-wrap">
@@ -239,7 +252,7 @@ export default function CparRiskFactorDrilldown({
                         {fit ? <span className={`cpar-badge ${fit.tone}`}>{fit.label}</span> : null}
                       </div>
                     </td>
-                    <td className="text-right cpar-number-cell">{formatCparNumber(row.market_value, 2)}</td>
+                    <td className="text-right cpar-number-cell">{formatCparMarketValueThousands(row.market_value)}</td>
                     <td className="text-right">{`${((row.portfolio_weight || 0) * 100).toFixed(2)}%`}</td>
                     <td className="text-right">
                       <span className={(row.factor_beta || 0) >= 0 ? "positive" : "negative"}>

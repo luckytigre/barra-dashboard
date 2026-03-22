@@ -1,8 +1,12 @@
 "use client";
 
+import { useMemo } from "react";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import type { CparHedgeMode, CparPortfolioHedgeData } from "@/lib/types/cpar";
 import { describeCparHedgeStatus, formatCparNumber, formatCparPercent } from "@/lib/cparTruth";
 import CparPostHedgeTable from "./CparPostHedgeTable";
+
+type SortKey = "leg" | "group" | "weight";
 
 const MODES: { value: CparHedgeMode; label: string; detail: string }[] = [
   {
@@ -43,6 +47,21 @@ export default function CparPortfolioHedgePanel({
   testId?: string;
 }) {
   const status = data.hedge_status ? describeCparHedgeStatus(data.hedge_status) : null;
+  const comparators = useMemo<Record<SortKey, (left: CparPortfolioHedgeData["hedge_legs"][number], right: CparPortfolioHedgeData["hedge_legs"][number]) => number>>(
+    () => ({
+      leg: (left, right) => compareText(left.label || left.factor_id, right.label || right.factor_id),
+      group: (left, right) => compareText(left.group, right.group),
+      weight: (left, right) => compareNumber(left.weight, right.weight),
+    }),
+    [],
+  );
+  const { sortedRows: sortedLegs, handleSort, arrow } = useSortableRows<
+    CparPortfolioHedgeData["hedge_legs"][number],
+    SortKey
+  >({
+    rows: data.hedge_legs,
+    comparators,
+  });
 
   return (
     <section className="cpar-hedge-panel" data-testid={testId}>
@@ -83,20 +102,20 @@ export default function CparPortfolioHedgePanel({
           <table>
             <thead>
               <tr>
-                <th>Leg</th>
-                <th>Group</th>
-                <th className="text-right">Weight</th>
+                <th onClick={() => handleSort("leg")}>Leg{arrow("leg")}</th>
+                <th onClick={() => handleSort("group")}>Group{arrow("group")}</th>
+                <th className="text-right" onClick={() => handleSort("weight")}>Weight{arrow("weight")}</th>
               </tr>
             </thead>
             <tbody>
-              {data.hedge_legs.length === 0 ? (
+              {sortedLegs.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="cpar-empty-row">
                     No hedge legs were required for this portfolio mode.
                   </td>
                 </tr>
               ) : (
-                data.hedge_legs.map((row) => (
+                sortedLegs.map((row) => (
                   <tr key={row.factor_id}>
                     <td>
                       <strong>{row.label || row.factor_id}</strong>

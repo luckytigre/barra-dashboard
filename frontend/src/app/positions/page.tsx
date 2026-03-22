@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import ConfirmActionModal from "@/components/ConfirmActionModal";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import {
   useHoldingsAccounts,
   useHoldingsModes,
@@ -20,6 +21,8 @@ import ManualPositionEditor from "@/features/holdings/components/ManualPositionE
 import { useHoldingsManager } from "@/features/holdings/hooks/useHoldingsManager";
 import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/lib/cuse4Truth";
 import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
+
+type ModelDiffSortKey = "account" | "ticker" | "method" | "status" | "live" | "modeled" | "delta";
 
 function modeLabel(m: HoldingsImportMode): string {
   if (m === "replace_account") return "Full Replace Account";
@@ -193,6 +196,25 @@ export default function PositionsPage() {
         return rank(a.status) - rank(b.status) || deltaB - deltaA || a.accountScope.localeCompare(b.accountScope) || a.ticker.localeCompare(b.ticker);
       });
   }, [liveHoldingsRows, modeledPositions]);
+  const diffComparators = useMemo<Record<ModelDiffSortKey, (left: (typeof modelVsLiveDiffs)[number], right: (typeof modelVsLiveDiffs)[number]) => number>>(
+    () => ({
+      account: (left, right) => compareText(left.accountScope, right.accountScope),
+      ticker: (left, right) => compareText(left.ticker, right.ticker),
+      method: (left, right) => compareText(left.method, right.method),
+      status: (left, right) => compareText(left.status, right.status),
+      live: (left, right) => compareNumber(left.live, right.live),
+      modeled: (left, right) => compareNumber(left.modeled, right.modeled),
+      delta: (left, right) => compareNumber(left.delta, right.delta),
+    }),
+    [modelVsLiveDiffs],
+  );
+  const { sortedRows: sortedModelVsLiveDiffs, handleSort: handleModelDiffSort, arrow: modelDiffArrow } = useSortableRows<
+    (typeof modelVsLiveDiffs)[number],
+    ModelDiffSortKey
+  >({
+    rows: modelVsLiveDiffs,
+    comparators: diffComparators,
+  });
 
   const getLedgerDraftQuantityText = (row: (typeof holdingsRows)[number]) =>
     getDraftQuantityText({
@@ -387,17 +409,17 @@ export default function PositionsPage() {
                 <table>
                   <thead>
                     <tr>
-                      <th>Account Scope</th>
-                      <th>Ticker</th>
-                      <th>Method</th>
-                      <th>Status</th>
-                      <th className="text-right">Live Qty</th>
-                      <th className="text-right">Modeled Qty</th>
-                      <th className="text-right">Delta</th>
+                      <th onClick={() => handleModelDiffSort("account")}>Account Scope{modelDiffArrow("account")}</th>
+                      <th onClick={() => handleModelDiffSort("ticker")}>Ticker{modelDiffArrow("ticker")}</th>
+                      <th onClick={() => handleModelDiffSort("method")}>Method{modelDiffArrow("method")}</th>
+                      <th onClick={() => handleModelDiffSort("status")}>Status{modelDiffArrow("status")}</th>
+                      <th className="text-right" onClick={() => handleModelDiffSort("live")}>Live Qty{modelDiffArrow("live")}</th>
+                      <th className="text-right" onClick={() => handleModelDiffSort("modeled")}>Modeled Qty{modelDiffArrow("modeled")}</th>
+                      <th className="text-right" onClick={() => handleModelDiffSort("delta")}>Delta{modelDiffArrow("delta")}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {modelVsLiveDiffs.slice(0, 10).map((row) => (
+                    {sortedModelVsLiveDiffs.slice(0, 10).map((row) => (
                       <tr key={`${row.accountScope}:${row.ticker}`}>
                         <td>{row.accountScope || "—"}</td>
                         <td>{row.ticker}</td>

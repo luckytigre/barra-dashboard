@@ -108,6 +108,23 @@ export function formatCparNumber(value: number | null | undefined, digits = 2): 
   return value.toFixed(digits);
 }
 
+export function formatCparMarketValueThousands(
+  value: number | null | undefined,
+  options: {
+    digits?: number;
+    absolute?: boolean;
+  } = {},
+): string {
+  if (typeof value !== "number" || Number.isNaN(value)) return "—";
+  const { digits = 1, absolute = false } = options;
+  const normalized = absolute ? Math.abs(value) : value;
+  const scaled = normalized / 1000;
+  return `${scaled.toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  })}K`;
+}
+
 export function formatCparPercent(value: number | null | undefined, digits = 1): string {
   if (typeof value !== "number" || Number.isNaN(value)) return "—";
   return `${(value * 100).toFixed(digits)}%`;

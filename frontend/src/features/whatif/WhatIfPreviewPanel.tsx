@@ -1,12 +1,19 @@
 "use client";
 
-import type { Ref } from "react";
+import { useMemo, type Ref } from "react";
 import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import { shortFactorLabel } from "@/lib/factorLabels";
 import type { WhatIfPreviewData } from "@/lib/types/cuse4";
 import { formatAsOfDate } from "@/lib/cuse4Truth";
 import { exposureMethodDisplayLabel } from "@/lib/exposureOrigin";
 import { fmtQty, WHAT_IF_MODES, type WhatIfMode } from "@/features/whatif/whatIfUtils";
+
+type RiskShareSortKey = "bucket" | "current" | "hypothetical" | "delta";
+type HoldingDeltaSortKey = "account" | "ticker" | "method" | "current" | "hypothetical" | "delta";
+type FactorDeltaSortKey = "factor" | "current" | "hypothetical" | "delta";
+type HoldingDeltaRow = WhatIfPreviewData["holding_deltas"][number];
+type FactorDeltaRow = WhatIfPreviewData["diff"]["factor_deltas"][WhatIfMode][number];
 
 interface WhatIfPreviewPanelProps {
   currentModeFactorOrder: string[];
@@ -64,6 +71,65 @@ export default function WhatIfPreviewPanel({
       || "\u2014"
     );
   };
+  const riskShareRows = useMemo(
+    () => (["market", "industry", "style", "idio"] as const).map((bucket) => ({
+      bucket,
+      current: previewData.current.risk_shares[bucket],
+      hypothetical: previewData.hypothetical.risk_shares[bucket],
+      delta: previewData.diff.risk_shares[bucket],
+    })),
+    [previewData.current.risk_shares, previewData.diff.risk_shares, previewData.hypothetical.risk_shares],
+  );
+  const riskShareComparators = useMemo<Record<RiskShareSortKey, (left: (typeof riskShareRows)[number], right: (typeof riskShareRows)[number]) => number>>(
+    () => ({
+      bucket: (left, right) => compareText(left.bucket, right.bucket),
+      current: (left, right) => compareNumber(left.current, right.current),
+      hypothetical: (left, right) => compareNumber(left.hypothetical, right.hypothetical),
+      delta: (left, right) => compareNumber(left.delta, right.delta),
+    }),
+    [],
+  );
+  const holdingDeltaComparators = useMemo<Record<HoldingDeltaSortKey, (left: HoldingDeltaRow, right: HoldingDeltaRow) => number>>(
+    () => ({
+      account: (left, right) => compareText(left.account_id, right.account_id),
+      ticker: (left, right) => compareText(left.ticker, right.ticker),
+      method: (left, right) => compareText(methodForHoldingDelta(left.account_id, left.ticker), methodForHoldingDelta(right.account_id, right.ticker)),
+      current: (left, right) => compareNumber(left.current_quantity, right.current_quantity),
+      hypothetical: (left, right) => compareNumber(left.hypothetical_quantity, right.hypothetical_quantity),
+      delta: (left, right) => compareNumber(left.delta_quantity, right.delta_quantity),
+    }),
+    [previewData.holding_deltas],
+  );
+  const factorDeltaComparators = useMemo<Record<FactorDeltaSortKey, (left: FactorDeltaRow, right: FactorDeltaRow) => number>>(
+    () => ({
+      factor: (left, right) => compareText(shortFactorLabel(left.factor_id, previewData.current.factor_catalog), shortFactorLabel(right.factor_id, previewData.current.factor_catalog)),
+      current: (left, right) => compareNumber(left.current, right.current),
+      hypothetical: (left, right) => compareNumber(left.hypothetical, right.hypothetical),
+      delta: (left, right) => compareNumber(left.delta, right.delta),
+    }),
+    [mode, previewData.current.factor_catalog, previewData.diff.factor_deltas],
+  );
+  const { sortedRows: sortedRiskShareRows, handleSort: handleRiskShareSort, arrow: riskShareArrow } = useSortableRows<
+    (typeof riskShareRows)[number],
+    RiskShareSortKey
+  >({
+    rows: riskShareRows,
+    comparators: riskShareComparators,
+  });
+  const { sortedRows: sortedHoldingDeltas, handleSort: handleHoldingDeltaSort, arrow: holdingDeltaArrow } = useSortableRows<
+    HoldingDeltaRow,
+    HoldingDeltaSortKey
+  >({
+    rows: previewData.holding_deltas,
+    comparators: holdingDeltaComparators,
+  });
+  const { sortedRows: sortedFactorDeltas, handleSort: handleFactorDeltaSort, arrow: factorDeltaArrow } = useSortableRows<
+    FactorDeltaRow,
+    FactorDeltaSortKey
+  >({
+    rows: previewData.diff.factor_deltas[mode],
+    comparators: factorDeltaComparators,
+  });
 
   return (
     <>
@@ -140,21 +206,21 @@ export default function WhatIfPreviewPanel({
               <table>
                 <thead>
                   <tr>
-                    <th>Bucket</th>
-                    <th className="text-right">Current</th>
-                    <th className="text-right">Hypothetical</th>
-                    <th className="text-right">Delta</th>
+                    <th onClick={() => handleRiskShareSort("bucket")}>Bucket{riskShareArrow("bucket")}</th>
+                    <th className="text-right" onClick={() => handleRiskShareSort("current")}>Current{riskShareArrow("current")}</th>
+                    <th className="text-right" onClick={() => handleRiskShareSort("hypothetical")}>Hypothetical{riskShareArrow("hypothetical")}</th>
+                    <th className="text-right" onClick={() => handleRiskShareSort("delta")}>Delta{riskShareArrow("delta")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(["market", "industry", "style", "idio"] as const).map((bucket) => (
-                    <tr key={bucket}>
-                      <td>{bucket}</td>
-                      <td className="text-right">{previewData.current.risk_shares[bucket].toFixed(2)}%</td>
-                      <td className="text-right">{previewData.hypothetical.risk_shares[bucket].toFixed(2)}%</td>
-                      <td className={`text-right ${previewData.diff.risk_shares[bucket] >= 0 ? "positive" : "negative"}`.trim()}>
-                        {previewData.diff.risk_shares[bucket] >= 0 ? "+" : ""}
-                        {previewData.diff.risk_shares[bucket].toFixed(2)}%
+                  {sortedRiskShareRows.map((row) => (
+                    <tr key={row.bucket}>
+                      <td>{row.bucket}</td>
+                      <td className="text-right">{row.current.toFixed(2)}%</td>
+                      <td className="text-right">{row.hypothetical.toFixed(2)}%</td>
+                      <td className={`text-right ${row.delta >= 0 ? "positive" : "negative"}`.trim()}>
+                        {row.delta >= 0 ? "+" : ""}
+                        {row.delta.toFixed(2)}%
                       </td>
                     </tr>
                   ))}
@@ -167,16 +233,16 @@ export default function WhatIfPreviewPanel({
               <table>
                 <thead>
                   <tr>
-                    <th>Account</th>
-                    <th>Ticker</th>
-                    <th>Method</th>
-                    <th className="text-right">Current</th>
-                    <th className="text-right">Hypothetical</th>
-                    <th className="text-right">Delta</th>
+                    <th onClick={() => handleHoldingDeltaSort("account")}>Account{holdingDeltaArrow("account")}</th>
+                    <th onClick={() => handleHoldingDeltaSort("ticker")}>Ticker{holdingDeltaArrow("ticker")}</th>
+                    <th onClick={() => handleHoldingDeltaSort("method")}>Method{holdingDeltaArrow("method")}</th>
+                    <th className="text-right" onClick={() => handleHoldingDeltaSort("current")}>Current{holdingDeltaArrow("current")}</th>
+                    <th className="text-right" onClick={() => handleHoldingDeltaSort("hypothetical")}>Hypothetical{holdingDeltaArrow("hypothetical")}</th>
+                    <th className="text-right" onClick={() => handleHoldingDeltaSort("delta")}>Delta{holdingDeltaArrow("delta")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {previewData.holding_deltas.length > 0 ? previewData.holding_deltas.map((row) => (
+                  {sortedHoldingDeltas.length > 0 ? sortedHoldingDeltas.map((row) => (
                     <tr key={`${row.account_id}:${row.ticker}`}>
                       <td>{row.account_id}</td>
                       <td>{row.ticker}</td>
@@ -203,14 +269,14 @@ export default function WhatIfPreviewPanel({
             <table>
               <thead>
                 <tr>
-                  <th>Factor</th>
-                  <th className="text-right">Current</th>
-                  <th className="text-right">Hypothetical</th>
-                  <th className="text-right">Delta</th>
+                  <th onClick={() => handleFactorDeltaSort("factor")}>Factor{factorDeltaArrow("factor")}</th>
+                  <th className="text-right" onClick={() => handleFactorDeltaSort("current")}>Current{factorDeltaArrow("current")}</th>
+                  <th className="text-right" onClick={() => handleFactorDeltaSort("hypothetical")}>Hypothetical{factorDeltaArrow("hypothetical")}</th>
+                  <th className="text-right" onClick={() => handleFactorDeltaSort("delta")}>Delta{factorDeltaArrow("delta")}</th>
                 </tr>
-                </thead>
-                <tbody>
-                  {previewData.diff.factor_deltas[mode].map((row) => (
+              </thead>
+              <tbody>
+                {sortedFactorDeltas.map((row) => (
                   <tr key={row.factor_id}>
                     <td>{shortFactorLabel(row.factor_id, previewData.current.factor_catalog)}</td>
                     <td className="text-right">{row.current.toFixed(mode === "risk_contribution" ? 2 : 4)}{mode === "risk_contribution" ? "%" : ""}</td>

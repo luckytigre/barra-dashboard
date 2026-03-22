@@ -1,7 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import { formatCparNumber } from "@/lib/cparTruth";
 import type { CparLoading } from "@/lib/types/cpar";
+
+type SortKey = "factor" | "group" | "beta";
 
 export default function CparLoadingsTable({
   title,
@@ -12,6 +16,19 @@ export default function CparLoadingsTable({
   rows: CparLoading[];
   emptyText?: string;
 }) {
+  const comparators = useMemo<Record<SortKey, (left: CparLoading, right: CparLoading) => number>>(
+    () => ({
+      factor: (left, right) => compareText(left.label || left.factor_id, right.label || right.factor_id),
+      group: (left, right) => compareText(left.group, right.group),
+      beta: (left, right) => compareNumber(left.beta, right.beta),
+    }),
+    [],
+  );
+  const { sortedRows, handleSort, arrow } = useSortableRows<CparLoading, SortKey>({
+    rows,
+    comparators,
+  });
+
   return (
     <section className="chart-card">
       <h3>{title}</h3>
@@ -24,13 +41,13 @@ export default function CparLoadingsTable({
           <table>
             <thead>
               <tr>
-                <th>Factor</th>
-                <th>Group</th>
-                <th className="text-right">Beta</th>
+                <th onClick={() => handleSort("factor")}>Factor{arrow("factor")}</th>
+                <th onClick={() => handleSort("group")}>Group{arrow("group")}</th>
+                <th className="text-right" onClick={() => handleSort("beta")}>Beta{arrow("beta")}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {sortedRows.map((row) => (
                 <tr key={row.factor_id}>
                   <td>
                     <strong>{row.label}</strong>

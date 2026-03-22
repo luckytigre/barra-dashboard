@@ -1,9 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import HelpLabel from "@/components/HelpLabel";
+import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
 import type { HealthDiagnosticsData } from "@/lib/types/cuse4";
 import { Bar, Line } from "./charts";
 import { commonLineOptions, fmtPct, seriesData } from "./utils";
+
+type SortKey = "name" | "forecast" | "realized" | "gap";
 
 export default function SectionCovarianceQuality({ data }: { data: HealthDiagnosticsData }) {
   const eigenvalues = data.section4.eigenvalues ?? [];
@@ -18,6 +22,26 @@ export default function SectionCovarianceQuality({ data }: { data: HealthDiagnos
       },
     ],
   };
+  const forecastRows = useMemo(
+    () => (data.section4.forecast_vs_realized || []).map((row) => ({
+      ...row,
+      gap: (Number(row.realized_vol_60d) || 0) - (Number(row.forecast_vol) || 0),
+    })),
+    [data.section4.forecast_vs_realized],
+  );
+  const comparators = useMemo<Record<SortKey, (left: (typeof forecastRows)[number], right: (typeof forecastRows)[number]) => number>>(
+    () => ({
+      name: (left, right) => compareText(left.name, right.name),
+      forecast: (left, right) => compareNumber(left.forecast_vol, right.forecast_vol),
+      realized: (left, right) => compareNumber(left.realized_vol_60d, right.realized_vol_60d),
+      gap: (left, right) => compareNumber(left.gap, right.gap),
+    }),
+    [],
+  );
+  const { sortedRows, handleSort, arrow } = useSortableRows<(typeof forecastRows)[number], SortKey>({
+    rows: forecastRows,
+    comparators,
+  });
 
   return (
     <div className="chart-card">
@@ -62,15 +86,15 @@ export default function SectionCovarianceQuality({ data }: { data: HealthDiagnos
         <table>
           <thead>
             <tr>
-              <th>Portfolio Sample</th>
-              <th className="text-right">Forecast Vol</th>
-              <th className="text-right">Realized Vol (60d)</th>
-              <th className="text-right">Gap</th>
+              <th onClick={() => handleSort("name")}>Portfolio Sample{arrow("name")}</th>
+              <th className="text-right" onClick={() => handleSort("forecast")}>Forecast Vol{arrow("forecast")}</th>
+              <th className="text-right" onClick={() => handleSort("realized")}>Realized Vol (60d){arrow("realized")}</th>
+              <th className="text-right" onClick={() => handleSort("gap")}>Gap{arrow("gap")}</th>
             </tr>
           </thead>
           <tbody>
-            {(data.section4.forecast_vs_realized || []).map((row) => {
-              const gap = (Number(row.realized_vol_60d) || 0) - (Number(row.forecast_vol) || 0);
+            {sortedRows.map((row) => {
+              const gap = row.gap;
               return (
                 <tr key={row.name}>
                   <td>{row.name}</td>
