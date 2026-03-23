@@ -238,6 +238,19 @@ Current Cloud Run service prep:
     - `frontend_backend_api_origin`
 - the frontend service mirrors `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but that runtime env does not override the rewrite compiled into the image
 
+Current ingress prep:
+- the Terraform `prod` root now defines:
+  - a single global HTTPS load balancer
+  - host-based routing for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
+  - one serverless NEG and backend service per Cloud Run surface
+  - a managed certificate covering all three hostnames
+  - HTTP-to-HTTPS redirect
+  - Cloudflare DNS A records for `app`, `api`, and `control`
+- Cloudflare DNS stays DNS-only for the first cutover:
+  - `cloudflare_proxied=false`
+- this ingress prep does not change the current public `run.app` smoke posture
+- final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
+
 ## Remaining Out Of Scope
 
 - live cloud deployment

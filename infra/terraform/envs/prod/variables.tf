@@ -102,3 +102,9 @@ variable "cloudflare_zone_name" {
   type        = string
   default     = "ceiora.com"
 }
+
+variable "cloudflare_proxied" {
+  description = "Whether the public DNS records should be proxied through Cloudflare. Keep false for the first Google-managed TLS cutover."
+  type        = bool
+  default     = false
+}

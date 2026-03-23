@@ -57,6 +57,16 @@ The `prod` root currently owns:
 - Cloud Run IAM bindings for:
   - public `run.app` smoke access
   - control-service invocation of the `serve-refresh` job
+- ingress prep for final-domain cutover:
+  - global HTTPS load balancer
+  - serverless NEGs
+  - managed certificate
+  - Cloudflare DNS records for `app`, `api`, and `control`
+
+Important ingress rule:
+- this slice does not change the public `run.app` smoke posture of the Cloud Run services
+- it only prepares the later custom-domain cutover path
+- final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
 
 Important frontend rule:
 - the frontend image bakes `BACKEND_API_ORIGIN` at build time

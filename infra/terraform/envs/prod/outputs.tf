@@ -58,6 +58,38 @@ output "serve_refresh_job_name" {
   value       = google_cloud_run_v2_job.serve_refresh.name
 }
 
+output "load_balancer_ip" {
+  description = "Global load balancer IPv4 address for app/api/control."
+  value       = google_compute_global_address.cloud_app.address
+}
+
+output "load_balancer_dns_records" {
+  description = "Cloudflare-managed DNS records for the custom-domain cutover."
+  value = {
+    frontend = {
+      hostname  = local.hostnames.frontend
+      record_id = cloudflare_dns_record.frontend.id
+    }
+    serve = {
+      hostname  = local.hostnames.serve
+      record_id = cloudflare_dns_record.serve.id
+    }
+    control = {
+      hostname  = local.hostnames.control
+      record_id = cloudflare_dns_record.control.id
+    }
+  }
+}
+
+output "load_balancer_host_routing" {
+  description = "Frozen host-based routing contract for the shared HTTPS load balancer."
+  value = {
+    frontend = local.hostnames.frontend
+    serve    = local.hostnames.serve
+    control  = local.hostnames.control
+  }
+}
+
 output "control_service_job_env" {
   description = "Environment values the control service will need for Cloud Run Job dispatch."
   value = {

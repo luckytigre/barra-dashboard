@@ -432,11 +432,22 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 7: Custom Domains, Ingress, And Certificates
 
-- [ ] Add DNS and certificate ownership.
-- [ ] Implement the already chosen production ingress path for custom domains:
+- [x] Freeze the ingress non-goal:
+  - this slice does not tighten the current public `run.app` Cloud Run posture,
+  - it only prepares final-domain cutover resources.
+- [x] Freeze the split-origin ingress rule:
+  - host-based routing must keep `app`, `api`, and `control` on separate backends.
+- [x] Freeze the frontend cutover rule:
+  - final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image.
+- [x] Add DNS and certificate ownership.
+- [x] Implement the already chosen production ingress path for custom domains:
   - global external HTTPS load balancer
   - serverless NEGs
   - managed certificates or explicitly owned certificate path
+- [x] Add Cloudflare DNS ownership for:
+  - `app.ceiora.com`
+  - `api.ceiora.com`
+  - `control.ceiora.com`
 - [ ] Validate:
   - `app.ceiora.com`
   - `api.ceiora.com`
@@ -535,3 +546,9 @@ Additional validation by phase:
   - added public `run.app` invoker bindings for the smoke phase and explicit control-to-job invoke IAM,
   - froze per-surface image refs plus frontend proxy-origin inputs in Terraform variables and outputs,
   - documented the rule that `run.app` smoke requires a frontend image rebuilt against the serve service's `run.app` URL before apply.
+- 2026-03-23: Slice 7 ingress/DNS prep completed:
+  - added a single global HTTPS load balancer with host-based routing for `app`, `api`, and `control`,
+  - added one serverless NEG and backend service per Cloud Run surface,
+  - added a managed multi-domain certificate plus HTTP-to-HTTPS redirect path,
+  - added Cloudflare DNS A records for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` pointing at the shared global IP with `proxied=false`,
+  - explicitly preserved the public `run.app` smoke posture and froze the rule that final-domain cutover must use a frontend image built against `https://api.ceiora.com`.
