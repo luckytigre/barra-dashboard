@@ -17,3 +17,18 @@ output "hostnames" {
   description = "Frozen public hostnames for the cloud stack."
   value       = local.hostnames
 }
+
+output "serve_refresh_job_name" {
+  description = "Cloud Run Job name for serve-refresh execution."
+  value       = google_cloud_run_v2_job.serve_refresh.name
+}
+
+output "control_service_job_env" {
+  description = "Environment values the control service will need for Cloud Run Job dispatch."
+  value = {
+    CLOUD_RUN_JOBS_ENABLED           = "true"
+    CLOUD_RUN_PROJECT_ID             = var.project_id
+    CLOUD_RUN_REGION                 = var.region
+    SERVE_REFRESH_CLOUD_RUN_JOB_NAME = google_cloud_run_v2_job.serve_refresh.name
+  }
+}

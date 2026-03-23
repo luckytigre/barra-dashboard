@@ -127,6 +127,12 @@ CORS_ALLOW_ORIGINS = _env_csv(
 REFRESH_API_TOKEN = str(os.getenv("REFRESH_API_TOKEN", "")).strip()
 OPERATOR_API_TOKEN = str(os.getenv("OPERATOR_API_TOKEN", "")).strip()
 EDITOR_API_TOKEN = str(os.getenv("EDITOR_API_TOKEN", "")).strip()
+CLOUD_RUN_JOBS_ENABLED = _env_bool("CLOUD_RUN_JOBS_ENABLED", False)
+CLOUD_RUN_PROJECT_ID = str(
+    os.getenv("CLOUD_RUN_PROJECT_ID", os.getenv("GOOGLE_CLOUD_PROJECT", "")).strip()
+).strip()
+CLOUD_RUN_REGION = str(os.getenv("CLOUD_RUN_REGION", "")).strip()
+SERVE_REFRESH_CLOUD_RUN_JOB_NAME = str(os.getenv("SERVE_REFRESH_CLOUD_RUN_JOB_NAME", "")).strip()
 
 
 def neon_dsn() -> str:
@@ -196,6 +202,19 @@ def runtime_state_neon_write_required() -> bool:
     return bool(
         runtime_state_primary_reads_enabled()
         and neon_surface_enabled("runtime_state")
+    )
+
+
+def cloud_run_jobs_enabled() -> bool:
+    return bool(CLOUD_RUN_JOBS_ENABLED and cloud_mode())
+
+
+def serve_refresh_cloud_job_configured() -> bool:
+    return bool(
+        cloud_run_jobs_enabled()
+        and CLOUD_RUN_PROJECT_ID
+        and CLOUD_RUN_REGION
+        and SERVE_REFRESH_CLOUD_RUN_JOB_NAME
     )
 
 

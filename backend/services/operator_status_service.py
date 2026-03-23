@@ -169,6 +169,44 @@ def _promote_latest_run_into_refresh_status(
     return promoted
 
 
+def _promote_refresh_status_into_latest_runs(
+    *,
+    latest_runs: dict[str, dict[str, object]],
+    refresh_status: dict[str, object],
+) -> dict[str, dict[str, object]]:
+    current = dict(latest_runs or {})
+    if not isinstance(refresh_status, dict):
+        return current
+    profile = str(refresh_status.get("profile") or "").strip()
+    if not profile:
+        return current
+    refresh_ts = _status_timestamp(refresh_status)
+    existing = dict(current.get(profile) or {})
+    existing_ts = _status_timestamp(existing)
+    if existing and existing_ts and refresh_ts and existing_ts >= refresh_ts:
+        return current
+    refresh_state = str(refresh_status.get("status") or "unknown").strip().lower() or "unknown"
+    current[profile] = {
+        "run_id": refresh_status.get("pipeline_run_id"),
+        "profile": profile,
+        "status": refresh_state,
+        "started_at": refresh_status.get("started_at"),
+        "finished_at": refresh_status.get("finished_at"),
+        "updated_at": refresh_ts or refresh_status.get("started_at"),
+        "duration_seconds": None,
+        "stage_count": None,
+        "completed_stage_count": None,
+        "failed_stage_count": None,
+        "running_stage_count": 1 if refresh_state == "running" else 0,
+        "current_stage": refresh_status.get("current_stage"),
+        "stage_duration_seconds_total": None,
+        "slowest_stage": None,
+        "stages": [],
+        "promoted_from_refresh_status": True,
+    }
+    return current
+
+
 def _load_authoritative_operator_source_dates() -> dict[str, object]:
     return core_reads.load_source_dates()
 
@@ -255,6 +293,10 @@ def build_operator_status_payload() -> dict[str, Any]:
     risk_engine_meta = _decorate_risk_engine_meta(risk_engine_meta_state.get("value") or {})
     refresh_status = get_refresh_status()
     if isinstance(refresh_status, dict):
+        latest_runs = _promote_refresh_status_into_latest_runs(
+            latest_runs=latest_runs,
+            refresh_status=refresh_status,
+        )
         refresh_status = _promote_latest_run_into_refresh_status(
             refresh_status=refresh_status,
             latest_runs=latest_runs,

@@ -47,3 +47,25 @@ def test_read_persisted_refresh_status_preserves_running_value_without_worker_as
     assert out["source"] == "neon"
     assert out["value"]["status"] == "running"
     assert out["value"]["pipeline_run_id"] == "api_run_1"
+
+
+def test_try_claim_refresh_status_fallback_is_single_flight(monkeypatch: pytest.MonkeyPatch) -> None:
+    state_store: dict[str, object] = {}
+
+    monkeypatch.setattr(refresh_status_service.config, "runtime_state_primary_reads_enabled", lambda: False)
+
+    claimed, first = refresh_status_service.try_claim_refresh_status(
+        {"status": "running", "pipeline_run_id": "crj_1"},
+        fallback_loader=lambda state_key: dict(state_store),
+        fallback_writer=lambda state_key, value: state_store.update(value),
+    )
+    duplicate_claimed, second = refresh_status_service.try_claim_refresh_status(
+        {"status": "running", "pipeline_run_id": "crj_2"},
+        fallback_loader=lambda state_key: dict(state_store),
+        fallback_writer=lambda state_key, value: state_store.update(value),
+    )
+
+    assert claimed is True
+    assert first["pipeline_run_id"] == "crj_1"
+    assert duplicate_claimed is False
+    assert second["pipeline_run_id"] == "crj_1"

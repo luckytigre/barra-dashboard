@@ -16,13 +16,13 @@ router = APIRouter()
 
 
 def start_refresh(**kwargs):
-    from backend.services.refresh_manager import start_refresh as _start_refresh
+    from backend.services.refresh_control_service import start_refresh as _start_refresh
 
     return _start_refresh(**kwargs)
 
 
 def get_refresh_status():
-    from backend.services.refresh_manager import get_refresh_status as _get_refresh_status
+    from backend.services.refresh_control_service import get_refresh_status as _get_refresh_status
 
     return _get_refresh_status()
 

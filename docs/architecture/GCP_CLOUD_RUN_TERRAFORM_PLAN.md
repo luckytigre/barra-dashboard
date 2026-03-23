@@ -238,7 +238,6 @@ Required:
 - `DATA_BACKEND=neon`
 - `NEON_DATABASE_URL`
 - `NEON_AUTHORITATIVE_REBUILDS` explicitly set to the intended cloud value
-- `OPERATOR_API_TOKEN`
 - `EDITOR_API_TOKEN`
 
 Expected:
@@ -254,6 +253,10 @@ Required:
 - `NEON_DATABASE_URL`
 - `NEON_AUTHORITATIVE_REBUILDS` explicitly set to the intended cloud value
 - `OPERATOR_API_TOKEN`
+- `CLOUD_RUN_JOBS_ENABLED=true`
+- `CLOUD_RUN_PROJECT_ID=project-4e18de12-63a3-4206-aaa`
+- `CLOUD_RUN_REGION=us-east4`
+- `SERVE_REFRESH_CLOUD_RUN_JOB_NAME=ceiora-prod-serve-refresh`
 
 Optional compatibility only:
 - `REFRESH_API_TOKEN`
@@ -311,7 +314,7 @@ That does not cleanly match a scale-to-zero Cloud Run service.
 Approved migration direction:
 - keep `control_main` as the control API surface
 - move durable refresh execution to Cloud Run Jobs
-- let the control API dispatch and observe jobs instead of owning the worker thread directly
+- let the control API dispatch jobs and rely on persisted runtime-state continuity instead of owning the worker thread directly
 - do not treat `serve-refresh` as independently movable until the stable-core and Neon-readiness prerequisites for that lane are frozen for cloud execution
 
 Do not treat this as optional if the goal is a durable cloud-native runtime.
@@ -380,19 +383,20 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 4: Control-Plane Execution Migration
 
-- [ ] Replace process-local refresh execution assumptions with durable dispatch/execution ownership.
-- [ ] Add Cloud Run Job ownership to the Terraform plan, not as a later optional add-on.
-- [ ] Freeze the first cloud job lane as `serve-refresh` only.
-- [ ] Freeze the `serve-refresh` cloud prerequisite contract:
+- [x] Replace process-local refresh execution assumptions with durable dispatch/execution ownership.
+- [x] Add Cloud Run Job ownership to the Terraform plan, not as a later optional add-on.
+- [x] Freeze the first cloud job lane as `serve-refresh` only.
+- [x] Freeze the `serve-refresh` cloud prerequisite contract:
   - stable core package present
   - required source-sync state present
   - Neon-readiness satisfied
   - `security_master` parity satisfied
-- [ ] Add the operator workflow cutover plan:
+- [x] Add the operator workflow cutover plan:
   - dispatch trigger path
-  - execution status path
+  - persisted status continuity path
   - failure and retry handling
-- [ ] Update the runbook and operator-facing docs when this cutover lands.
+- [ ] Add direct Cloud Run execution observation if we later need job-level operator visibility beyond persisted runtime state.
+- [x] Update the runbook and operator-facing docs when this cutover lands.
 
 ### Slice 5: Frontend + Serve Cloud Run Smoke Rollout
 
@@ -505,3 +509,11 @@ Additional validation by phase:
   - all three images now honor runtime `PORT`,
   - added operator-owned build/push scripts and `make cloud-images-build` / `make cloud-images-push`,
   - validated the full local image build path for frontend, serve, and control.
+- 2026-03-23: Slice 4 control-plane migration completed:
+  - added `refresh_control_service` as the route-facing refresh owner and kept `refresh_manager` as local process/thread compatibility glue,
+  - extracted synchronous refresh execution into `backend/orchestration/refresh_execution.py` so local threads and Cloud Run Jobs share the same status-update path,
+  - added `backend/ops/cloud_run_jobs.py` plus `backend/scripts/run_refresh_job.py` for Cloud Run Jobs dispatch and execution,
+  - extended runtime config with explicit Cloud Run Jobs env flags,
+  - added Terraform ownership for the `serve-refresh` Cloud Run Job and the control-service dispatch env contract,
+  - pinned durable single-flight dispatch through atomic refresh-status claiming in the refresh-status owner so duplicate `serve-refresh` jobs are not dispatched under concurrent requests,
+  - explicitly kept operator status on the persisted runtime-state path and deferred direct Cloud Run Execution observation to a later slice if richer job-level visibility is needed.

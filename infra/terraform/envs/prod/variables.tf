@@ -43,6 +43,18 @@ variable "artifact_registry_repository_id" {
   default     = "ceiora-images"
 }
 
+variable "image_tag" {
+  description = "Default image tag for Cloud Run resources before CI/CD exists."
+  type        = string
+  default     = "latest"
+}
+
+variable "control_image_ref" {
+  description = "Optional explicit image ref for the control image."
+  type        = string
+  default     = ""
+}
+
 variable "cloudflare_zone_name" {
   description = "Cloudflare zone name for public DNS."
   type        = string

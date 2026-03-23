@@ -11,20 +11,11 @@ from typing import Any
 
 from backend import config
 from backend.data.sqlite import cache_get, cache_set
-from backend.orchestration.profiles import (
-    PROFILE_CONFIG,
-    STAGES,
-    planned_stages_for_profile,
-    resolve_profile_name,
-)
-from backend.orchestration.run_model_pipeline import (
-    run_model_pipeline,
-)
+from backend.orchestration.refresh_execution import run_refresh_execution
 from backend.services.holdings_runtime_state import mark_refresh_started
 from backend.services.holdings_runtime_state import mark_refresh_finished
-from backend.services.refresh_profile_policy import assert_refresh_profile_allowed
-from backend.services.refresh_profile_policy import default_refresh_profile
-from backend.services.refresh_profile_policy import runtime_allowed_profiles
+from backend.services.refresh_request_policy import _resolve_profile as _resolve_profile_request
+from backend.services.refresh_request_policy import resolve_refresh_request
 from backend.services.refresh_status_service import default_refresh_status_state
 from backend.services.refresh_status_service import load_persisted_refresh_status
 from backend.services.refresh_status_service import persist_refresh_status
@@ -63,6 +54,11 @@ def _load_initial_state() -> dict[str, Any]:
 
 
 _STATE = default_refresh_status_state()
+
+
+def _resolve_profile(profile: str | None) -> str:
+    """Compatibility shim for legacy tests and local callers."""
+    return _resolve_profile_request(profile)
 
 
 def _ensure_state_loaded() -> None:
@@ -161,48 +157,6 @@ def get_refresh_status() -> dict[str, Any]:
     return _reconcile_orphaned_running_state()
 
 
-def _default_profile() -> str:
-    return default_refresh_profile()
-
-
-def _resolve_profile(profile: str | None) -> str:
-    prof = str(profile or "").strip().lower()
-    if prof:
-        prof = resolve_profile_name(prof)
-        if prof not in PROFILE_CONFIG:
-            raise ValueError(
-                f"Invalid profile '{profile}'. Valid profiles: {', '.join(sorted(PROFILE_CONFIG.keys()))}"
-            )
-        return prof
-    return _default_profile()
-
-
-def _runtime_allowed_profiles() -> set[str]:
-    return runtime_allowed_profiles()
-
-
-def _assert_profile_allowed(profile: str) -> None:
-    assert_refresh_profile_allowed(profile)
-
-
-def _normalize_stage(name: str | None) -> str | None:
-    if name is None:
-        return None
-    clean = str(name).strip().lower()
-    if not clean:
-        return None
-    if clean not in STAGES:
-        raise ValueError(f"Invalid stage '{name}'. Valid stages: {', '.join(STAGES)}")
-    return clean
-
-
-def _validate_stage_window(from_stage: str | None, to_stage: str | None) -> None:
-    if from_stage is None or to_stage is None:
-        return
-    if STAGES.index(from_stage) > STAGES.index(to_stage):
-        raise ValueError("--from-stage must be before or equal to --to-stage")
-
-
 def _run_in_background(
     *,
     job_id: str,
@@ -217,109 +171,19 @@ def _run_in_background(
     refresh_scope: str | None = None,
 ) -> None:
     try:
-        def _stage_callback(event: dict[str, Any]) -> None:
-            snap = _snapshot()
-            _set_state(
-                current_stage=event.get("stage"),
-                current_stage_substage=event.get("refresh_substage"),
-                current_stage_substage_status=event.get("substage_status"),
-                current_stage_diagnostics_section=event.get("diagnostics_section"),
-                stage_index=event.get("stage_index"),
-                stage_count=event.get("stage_count"),
-                stage_started_at=event.get("started_at"),
-                current_stage_message=event.get("message"),
-                current_stage_progress_pct=event.get("progress_pct"),
-                current_stage_items_processed=event.get("items_processed"),
-                current_stage_items_total=event.get("items_total"),
-                current_stage_unit=event.get("unit"),
-                current_stage_heartbeat_at=_now_iso(),
-                serving_publish_completed_at=(
-                    event.get("published_at")
-                    if bool(event.get("publish_complete"))
-                    else snap.get("serving_publish_completed_at")
-                ),
-                serving_publish_snapshot_id=(
-                    event.get("published_snapshot_id")
-                    if bool(event.get("publish_complete"))
-                    else snap.get("serving_publish_snapshot_id")
-                ),
-                serving_publish_run_id=(
-                    event.get("published_run_id")
-                    if bool(event.get("publish_complete"))
-                    else snap.get("serving_publish_run_id")
-                ),
-                serving_publish_payload_count=(
-                    event.get("published_payload_count")
-                    if bool(event.get("publish_complete"))
-                    else snap.get("serving_publish_payload_count")
-                ),
-            )
-
-        result = run_model_pipeline(
+        run_refresh_execution(
+            job_id=job_id,
+            pipeline_run_id=pipeline_run_id,
             profile=profile,
+            mode=mode,
             as_of_date=as_of_date,
-            run_id=(None if resume_run_id else pipeline_run_id),
             resume_run_id=resume_run_id,
             from_stage=from_stage,
             to_stage=to_stage,
-            force_core=bool(force_core),
+            force_core=force_core,
             refresh_scope=refresh_scope,
-            stage_callback=_stage_callback,
-        )
-        terminal = "ok" if str(result.get("status") or "") == "ok" else "failed"
-        _set_state(
-            status=terminal,
-            pipeline_run_id=result.get("run_id"),
-            finished_at=_now_iso(),
-            current_stage=None,
-            current_stage_substage=None,
-            current_stage_substage_status=None,
-            current_stage_diagnostics_section=None,
-            stage_started_at=None,
-            current_stage_message=None,
-            current_stage_progress_pct=None,
-            current_stage_items_processed=None,
-            current_stage_items_total=None,
-            current_stage_unit=None,
-            current_stage_heartbeat_at=None,
-            result=result,
-            error=None if terminal == "ok" else {
-                "type": "pipeline_failed",
-                "message": "Orchestrated pipeline returned failed status.",
-            },
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("Background refresh failed")
-        try:
-            mark_refresh_finished(
-                profile=profile,
-                run_id=str(pipeline_run_id).strip() or None,
-                status="failed",
-                message=str(exc),
-                clear_pending=False,
-            )
-        except Exception:
-            logger.exception("Failed to mark holdings refresh failure state")
-        _set_state(
-            status="failed",
-            finished_at=_now_iso(),
-            current_stage=None,
-            current_stage_substage=None,
-            current_stage_substage_status=None,
-            current_stage_diagnostics_section=None,
-            stage_started_at=None,
-            current_stage_message=None,
-            current_stage_progress_pct=None,
-            current_stage_items_processed=None,
-            current_stage_items_total=None,
-            current_stage_unit=None,
-            current_stage_heartbeat_at=None,
-            error={
-                "type": type(exc).__name__,
-                "message": str(exc),
-                "traceback": traceback.format_exc(limit=12),
-            },
-            suppress_persist_errors=True,
+            snapshot_state=_snapshot,
+            set_state=_set_state,
         )
     finally:
         _set_active_worker(None)
@@ -339,19 +203,18 @@ def start_refresh(
     force_core: bool = False,
 ) -> tuple[bool, dict[str, Any]]:
     """Start refresh in a background thread. Returns (started, status)."""
-    resolved_profile = _resolve_profile(profile)
-    _assert_profile_allowed(resolved_profile)
-    mode = str(PROFILE_CONFIG.get(resolved_profile, {}).get("serving_mode") or "full")
-    stage_from = _normalize_stage(from_stage)
-    stage_to = _normalize_stage(to_stage)
-    _validate_stage_window(stage_from, stage_to)
-    force_core_effective = bool(force_core or force_risk_recompute)
-    planned_stages_for_profile(
-        profile=resolved_profile,
-        from_stage=stage_from,
-        to_stage=stage_to,
-        force_core=force_core_effective,
+    request = resolve_refresh_request(
+        profile=profile,
+        from_stage=from_stage,
+        to_stage=to_stage,
+        force_core=force_core,
+        force_risk_recompute=force_risk_recompute,
     )
+    resolved_profile = str(request["profile"])
+    mode = str(request["mode"])
+    stage_from = request["from_stage"]
+    stage_to = request["to_stage"]
+    force_core_effective = bool(request["force_core"])
 
     if not _RUN_LOCK.acquire(blocking=False):
         reconciled = _reconcile_orphaned_running_state()

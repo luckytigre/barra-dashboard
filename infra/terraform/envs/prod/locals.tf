@@ -1,5 +1,7 @@
 locals {
-  name_prefix = "ceiora-${var.environment}"
+  name_prefix       = "ceiora-${var.environment}"
+  registry_base     = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repository_id}"
+  control_image_ref = var.control_image_ref != "" ? var.control_image_ref : "${local.registry_base}/control:${var.image_tag}"
 
   hostnames = {
     frontend = "app.${var.cloudflare_zone_name}"

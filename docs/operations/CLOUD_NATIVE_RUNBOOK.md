@@ -102,9 +102,13 @@ Required:
 - `NEON_DATABASE_URL`
 - `NEON_AUTHORITATIVE_REBUILDS=true` for the intended cloud steady state
 - `OPERATOR_API_TOKEN`
+- `CLOUD_RUN_JOBS_ENABLED=true`
+- `CLOUD_RUN_PROJECT_ID=project-4e18de12-63a3-4206-aaa`
+- `CLOUD_RUN_REGION=us-east4`
+- `SERVE_REFRESH_CLOUD_RUN_JOB_NAME=ceiora-prod-serve-refresh`
 
 Expected behavior:
-- owns `serve-refresh`
+- dispatches `serve-refresh` to the Cloud Run Job surface
 - does not need to expose public dashboard read routes
 - uses Neon-backed runtime/control truth and should fail closed when that authority is unavailable
 
@@ -146,11 +150,17 @@ Pages and components should not select backend origins directly.
 Refresh execution ownership is deliberately split:
 
 - `backend/services/refresh_manager.py`
-  - process-local execution owner for the control-plane app
+  - process-local execution owner for local compatibility only
+- `backend/services/refresh_control_service.py`
+  - application-facing refresh control surface for routes and control clients
 - `backend/services/refresh_status_service.py`
   - read-only persisted refresh-status owner
 - `backend/services/refresh_dispatcher.py`
   - runtime-aware dispatch owner for “request serve-refresh” flows
+- `backend/ops/cloud_run_jobs.py`
+  - Cloud Run Jobs dispatch adapter for the control-plane app
+- `backend/scripts/run_refresh_job.py`
+  - Cloud Run Job entrypoint for synchronous `serve-refresh` execution
 
 This prevents a serve-only process from reconciling or mutating shared refresh state as though it owned the worker.
 
@@ -183,7 +193,8 @@ The Terraform foundation currently creates the substrate only:
 - service accounts
 - Secret Manager secret containers and access bindings
 
-It does not yet create running Cloud Run services, Cloud Run Jobs, or final ingress resources.
+It does not yet create running Cloud Run services or final ingress resources.
+It now also defines the first Cloud Run Job surface for `serve-refresh`.
 
 ## Image Build Contract
 
@@ -202,6 +213,14 @@ Runtime contract:
 - all three images honor Cloud Run's injected `PORT`
 - `BACKEND_CONTROL_ORIGIN`, `OPERATOR_API_TOKEN`, and `EDITOR_API_TOKEN` stay runtime env/secret inputs
 - runtime secrets are not baked into the images
+
+Current Cloud Run Job prep:
+- the Terraform `prod` root now defines a `serve-refresh` Cloud Run Job resource
+- the control service is expected to dispatch to that job via:
+  - `CLOUD_RUN_JOBS_ENABLED=true`
+  - `CLOUD_RUN_PROJECT_ID`
+  - `CLOUD_RUN_REGION`
+  - `SERVE_REFRESH_CLOUD_RUN_JOB_NAME`
 
 ## Remaining Out Of Scope
 

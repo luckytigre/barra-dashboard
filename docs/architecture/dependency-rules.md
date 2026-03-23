@@ -133,7 +133,9 @@ Prohibited patterns:
 - catch-all `utils` modules that are actually mini-frameworks
 
 Current reviewed exception:
-- `backend/services/refresh_manager.py` is allowed because it owns concrete process-local refresh lifecycle control inside the control-plane surface
+- `backend/services/refresh_control_service.py` is allowed because it owns the application-facing refresh control flow for routes and control clients
+- `backend/services/refresh_manager.py` is allowed because it owns concrete process-local refresh lifecycle control for local compatibility
+- `backend/ops/cloud_run_jobs.py` is allowed because provider-specific Cloud Run Jobs dispatch belongs in an operational adapter, not in routes
 
 Additional cloud-runtime rule:
 - serve-facing services may read persisted refresh status, but they may not import refresh-manager execution helpers that assume local worker ownership

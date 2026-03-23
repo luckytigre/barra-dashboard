@@ -100,9 +100,11 @@ Practical rule:
 ### Refresh / rebuild
 
 Use:
-- `refresh_manager` for process-local refresh lifecycle inside the control-plane surface
+- `refresh_control_service` for the application-facing refresh control path used by routes and control clients
+- `refresh_manager` for process-local refresh lifecycle inside the local compatibility surface
 - `refresh_status_service` for read-only persisted refresh-status reads from serve-facing/operator-facing surfaces that do not own the worker
 - `refresh_dispatcher` for runtime-aware “request serve-refresh” behavior when a mutation flow may or may not be allowed to start refresh locally
+- `backend/ops/cloud_run_jobs.py` for provider-specific Cloud Run Jobs dispatch
 - `run_model_pipeline` and `backend/orchestration/*` for staged rebuild workflows
 
 Do not:

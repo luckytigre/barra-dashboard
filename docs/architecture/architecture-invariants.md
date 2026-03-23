@@ -52,7 +52,8 @@ These are the non-negotiable structural rules for this repository.
    Current cPAR slices must not reuse cUSE4 serving-payload or runtime-state surfaces by implication.
 
 13. Cloud serve surfaces stay stateless and do not own refresh execution.
-   `backend/services/refresh_manager.py` is the reviewed control-plane execution owner for process-local refresh lifecycle.
+   `backend/services/refresh_control_service.py` is the reviewed application-facing control surface for refresh routes.
+   `backend/services/refresh_manager.py` remains the reviewed process-local execution owner for local thread-based lifecycle compatibility.
    Serve-facing readers must use the persisted refresh-status surface and must not reconcile worker ownership as though they own the control process.
 
 ## Existing Guardrails

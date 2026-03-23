@@ -5,12 +5,14 @@ description = "cUSE4 Factor Risk Dashboard - Backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.109.0",
+    "google-auth>=2.38.0",
     "uvicorn[standard]>=0.27.0",
     "psycopg[binary]>=3.1.0",
     "pandas>=2.1.0",
     "numpy>=1.26.0",
     "pydantic>=2.5.0",
     "python-dotenv>=1.0.0",
+    "requests>=2.32.0",
     "scipy>=1.12.0",
     "exchange-calendars>=4.5.0",
     "openpyxl>=3.1.0",
