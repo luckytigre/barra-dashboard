@@ -11,6 +11,15 @@ Define the process split and environment contract needed to run the app in a clo
 This is deployment prep only.
 It does not imply that the repo has already been deployed to a cloud provider.
 
+## Frozen Production Hostnames
+
+- frontend: `https://app.ceiora.com`
+- serve API: `https://api.ceiora.com`
+- control API: `https://control.ceiora.com`
+
+Temporary smoke validation should use Cloud Run `run.app` hostnames first.
+Do not treat the final custom-domain cutover as complete until the `run.app` smoke path is clean.
+
 ## Process Split
 
 ### Serve App
@@ -73,25 +82,31 @@ This remains the compatibility surface for local development and existing tests.
 
 Required:
 - `APP_RUNTIME_ROLE=cloud-serve`
+- `DATA_BACKEND=neon`
 - `BACKEND_API_ORIGIN` is not used here; that is a frontend setting
 - `NEON_DATABASE_URL`
+- `NEON_AUTHORITATIVE_REBUILDS=true` for the intended cloud steady state
 - operator/editor tokens as appropriate
 
 Expected behavior:
 - Neon-backed serving/runtime reads
 - no local refresh execution ownership
 - holdings writes may mark state dirty but return control-plane-required refresh metadata in cloud mode
+- fail closed if Neon-backed serving or runtime truth is unavailable instead of silently falling back to local SQLite
 
 ### Backend control app
 
 Required:
 - `APP_RUNTIME_ROLE=cloud-serve`
+- `DATA_BACKEND=neon`
 - `NEON_DATABASE_URL`
+- `NEON_AUTHORITATIVE_REBUILDS=true` for the intended cloud steady state
 - `OPERATOR_API_TOKEN`
 
 Expected behavior:
 - owns `serve-refresh`
 - does not need to expose public dashboard read routes
+- uses Neon-backed runtime/control truth and should fail closed when that authority is unavailable
 
 ### Frontend
 
@@ -101,10 +116,17 @@ Required for split deployment:
 - `BACKEND_CONTROL_ORIGIN`
   - control app origin
   - if omitted, frontend operator/control proxies fall back to `BACKEND_API_ORIGIN`
-
-Operator/editor tokens for frontend proxy routes:
+  - that fallback is local/single-origin compatibility behavior, not the intended cloud steady state
 - `OPERATOR_API_TOKEN`
 - `EDITOR_API_TOKEN`
+
+Cloud steady-state values:
+- `BACKEND_API_ORIGIN=https://api.ceiora.com`
+- `BACKEND_CONTROL_ORIGIN=https://control.ceiora.com`
+
+Local compatibility values:
+- `BACKEND_API_ORIGIN=http://127.0.0.1:8000`
+- omit `BACKEND_CONTROL_ORIGIN` to reuse the same local backend
 
 ## Frontend Proxy Ownership
 
@@ -131,6 +153,17 @@ Refresh execution ownership is deliberately split:
   - runtime-aware dispatch owner for “request serve-refresh” flows
 
 This prevents a serve-only process from reconciling or mutating shared refresh state as though it owned the worker.
+
+## Cloud Readiness Gates
+
+Before real cloud reads or cloud `serve-refresh` ownership are treated as production-valid:
+- `security_master` bootstrap/parity must be satisfied
+- source-sync expectations must be satisfied
+- stable-core expectations must be satisfied
+- Neon-readiness must be satisfied for the lanes being exposed
+
+`NEON_AUTHORITATIVE_REBUILDS=false` remains a rollback switch for local-SQLite rebuild authority.
+That is not the intended steady-state value for Cloud Run services.
 
 ## Container Prep Assets
 

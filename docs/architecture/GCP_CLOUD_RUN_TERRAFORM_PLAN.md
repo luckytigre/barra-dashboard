@@ -323,27 +323,27 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 1: Freeze Cloud Topology And Terraform Conventions
 
-- [ ] Freeze the canonical cloud topology:
+- [x] Freeze the canonical cloud topology:
   - local app
   - Cloud Run frontend
   - Cloud Run serve
   - Cloud Run control
   - Cloud Run Jobs
-- [ ] Freeze the hostname plan:
+- [x] Freeze the hostname plan:
   - `app.ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
-- [ ] Freeze the single-environment naming convention as `prod`.
-- [ ] Freeze the initial auth model for public vs operator surfaces.
-- [ ] Freeze the cloud fail-closed authority contract:
+- [x] Freeze the single-environment naming convention as `prod`.
+- [x] Freeze the initial auth model for public vs operator surfaces.
+- [x] Freeze the cloud fail-closed authority contract:
   - Neon-backed serving reads
   - Neon-backed runtime/operator state
   - explicit `NEON_AUTHORITATIVE_REBUILDS` behavior
-- [ ] Freeze the prerequisite source-of-truth gate for cloud reads:
+- [x] Freeze the prerequisite source-of-truth gate for cloud reads:
   - `security_master` bootstrap/parity
   - source-sync expectations
   - stable-core expectations
-- [ ] Update `.env.example` so the split-origin and token contract is explicit:
+- [x] Update `.env.example` so the split-origin and token contract is explicit:
   - `BACKEND_CONTROL_ORIGIN`
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
@@ -492,3 +492,8 @@ Additional validation by phase:
   - billing, ADC, Docker, and Cloudflare token access are all confirmed,
   - `app.ceiora.com` is detached from Vercel and no longer part of the temporary smoke path,
   - Slice 2 and Slice 3 now assume execution readiness instead of workstation/tool discovery.
+- 2026-03-23: Slice 1 completed:
+  - `.env.example` now preserves local defaults while explicitly documenting the split-origin cloud env contract,
+  - the cloud runbook now freezes `app.ceiora.com` / `api.ceiora.com` / `control.ceiora.com`,
+  - `BACKEND_CONTROL_ORIGIN` fallback is now documented as local/single-origin compatibility only,
+  - the cloud runbook now explicitly carries the source-of-truth gate and `NEON_AUTHORITATIVE_REBUILDS` steady-state vs rollback distinction.
