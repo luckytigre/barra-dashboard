@@ -400,6 +400,18 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 5: Frontend + Serve Cloud Run Smoke Rollout
 
+- [x] Add Cloud Run service ownership in Terraform for:
+  - frontend
+  - serve
+  - control
+- [x] Freeze per-surface image refs and runtime env/secret wiring in Terraform outputs and variables.
+- [x] Freeze the frontend smoke-build rule:
+  - final-domain images default to `https://api.ceiora.com`,
+  - `run.app` smoke requires rebuilding the frontend image against the serve service's `run.app` URL and overriding `frontend_image_ref` plus `frontend_backend_api_origin`,
+  - the frontend Cloud Run service mirrors `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but changing the service env alone does not retarget the compiled rewrite.
+- [x] Freeze temporary Cloud Run layer access for smoke:
+  - all three services are explicitly internet-reachable at `run.app`,
+  - control remains token-protected in-app even though Cloud Run ingress is public for the first smoke phase.
 - [ ] Deploy frontend and serve first against default `run.app` hostnames for smoke validation.
 - [ ] Freeze the temporary control-origin coexistence rule for this phase:
   - either operator/control routes are intentionally unavailable in the public smoke environment,
@@ -517,3 +529,9 @@ Additional validation by phase:
   - added Terraform ownership for the `serve-refresh` Cloud Run Job and the control-service dispatch env contract,
   - pinned durable single-flight dispatch through atomic refresh-status claiming in the refresh-status owner so duplicate `serve-refresh` jobs are not dispatched under concurrent requests,
   - explicitly kept operator status on the persisted runtime-state path and deferred direct Cloud Run Execution observation to a later slice if richer job-level visibility is needed.
+- 2026-03-23: Slice 5 service/runtime prep completed:
+  - added Terraform-owned Cloud Run service definitions for frontend, serve, and control,
+  - added Artifact Registry reader access for all runtime service accounts,
+  - added public `run.app` invoker bindings for the smoke phase and explicit control-to-job invoke IAM,
+  - froze per-surface image refs plus frontend proxy-origin inputs in Terraform variables and outputs,
+  - documented the rule that `run.app` smoke requires a frontend image rebuilt against the serve service's `run.app` URL before apply.

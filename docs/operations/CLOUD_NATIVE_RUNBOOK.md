@@ -193,8 +193,13 @@ The Terraform foundation currently creates the substrate only:
 - service accounts
 - Secret Manager secret containers and access bindings
 
-It does not yet create running Cloud Run services or final ingress resources.
+It now also defines Cloud Run service resources for:
+- frontend
+- serve
+- control
+
 It now also defines the first Cloud Run Job surface for `serve-refresh`.
+It still does not own final ingress resources or live deployed traffic by itself.
 
 ## Image Build Contract
 
@@ -221,6 +226,17 @@ Current Cloud Run Job prep:
   - `CLOUD_RUN_PROJECT_ID`
   - `CLOUD_RUN_REGION`
   - `SERVE_REFRESH_CLOUD_RUN_JOB_NAME`
+
+Current Cloud Run service prep:
+- the Terraform `prod` root now defines frontend, serve, and control service resources
+- all three services are intentionally public at the Cloud Run layer for the first `run.app` smoke phase
+- the control service stays operator-token-protected in-app
+- the frontend image build must follow this rule:
+  - final-domain default: `BACKEND_API_ORIGIN=https://api.ceiora.com`
+  - `run.app` smoke: rebuild the frontend image against the serve service's `run.app` URL, then set:
+    - `frontend_image_ref`
+    - `frontend_backend_api_origin`
+- the frontend service mirrors `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but that runtime env does not override the rewrite compiled into the image
 
 ## Remaining Out Of Scope
 

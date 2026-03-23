@@ -1,13 +1,36 @@
 locals {
-  name_prefix       = "ceiora-${var.environment}"
-  registry_base     = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repository_id}"
-  control_image_ref = var.control_image_ref != "" ? var.control_image_ref : "${local.registry_base}/control:${var.image_tag}"
+  name_prefix        = "ceiora-${var.environment}"
+  registry_base      = "${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_registry_repository_id}"
+  frontend_image_ref = var.frontend_image_ref != "" ? var.frontend_image_ref : "${local.registry_base}/frontend:${var.image_tag}"
+  serve_image_ref    = var.serve_image_ref != "" ? var.serve_image_ref : "${local.registry_base}/serve:${var.image_tag}"
+  control_image_ref  = var.control_image_ref != "" ? var.control_image_ref : "${local.registry_base}/control:${var.image_tag}"
 
   hostnames = {
     frontend = "app.${var.cloudflare_zone_name}"
     serve    = "api.${var.cloudflare_zone_name}"
     control  = "control.${var.cloudflare_zone_name}"
   }
+
+  frontend_backend_api_origin = (
+    var.frontend_backend_api_origin != ""
+    ? var.frontend_backend_api_origin
+    : "https://${local.hostnames.serve}"
+  )
+
+  frontend_backend_control_origin = (
+    var.frontend_backend_control_origin != ""
+    ? var.frontend_backend_control_origin
+    : "https://${local.hostnames.control}"
+  )
+
+  public_cors_allow_origins = join(
+    ",",
+    [
+      "https://${local.hostnames.frontend}",
+      "https://${local.hostnames.serve}",
+      "https://${local.hostnames.control}",
+    ],
+  )
 
   secret_ids = {
     neon_database_url  = "${local.name_prefix}-neon-database-url"

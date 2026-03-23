@@ -49,6 +49,23 @@ The `prod` root currently owns:
 - service accounts
 - Secret Manager secret containers
 - secret access bindings for the Cloud Run surfaces
+- Cloud Run service definitions for:
+  - frontend
+  - serve
+  - control
+- Cloud Run Job definition for `serve-refresh`
+- Cloud Run IAM bindings for:
+  - public `run.app` smoke access
+  - control-service invocation of the `serve-refresh` job
+
+Important frontend rule:
+- the frontend image bakes `BACKEND_API_ORIGIN` at build time
+- the Terraform `prod` root therefore treats `frontend_backend_api_origin` and `frontend_image_ref` as explicit rollout inputs
+- the frontend Cloud Run service mirrors the same `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but changing the service env alone does not retarget the compiled rewrite
+- for final-domain rollout, the default stays `https://api.ceiora.com`
+- for `run.app` smoke, rebuild and push a frontend image against the serve service's `run.app` URL, then override:
+  - `frontend_image_ref`
+  - `frontend_backend_api_origin`
 
 Secret values are intentionally out of band. After the secret containers exist, add versions manually:
 

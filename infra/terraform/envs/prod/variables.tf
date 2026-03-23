@@ -49,10 +49,52 @@ variable "image_tag" {
   default     = "latest"
 }
 
+variable "frontend_image_ref" {
+  description = "Optional explicit image ref for the frontend image."
+  type        = string
+  default     = ""
+}
+
+variable "serve_image_ref" {
+  description = "Optional explicit image ref for the serve image."
+  type        = string
+  default     = ""
+}
+
 variable "control_image_ref" {
   description = "Optional explicit image ref for the control image."
   type        = string
   default     = ""
+}
+
+variable "frontend_backend_api_origin" {
+  description = "Origin baked into and exposed by the frontend service for API proxying. Override with the serve run.app URL for smoke images."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_backend_control_origin" {
+  description = "Origin exposed by the frontend service for control-plane proxying."
+  type        = string
+  default     = ""
+}
+
+variable "frontend_max_instances" {
+  description = "Maximum Cloud Run instances for the frontend service."
+  type        = number
+  default     = 3
+}
+
+variable "serve_max_instances" {
+  description = "Maximum Cloud Run instances for the serve API."
+  type        = number
+  default     = 3
+}
+
+variable "control_max_instances" {
+  description = "Maximum Cloud Run instances for the control API."
+  type        = number
+  default     = 2
 }
 
 variable "cloudflare_zone_name" {
