@@ -251,6 +251,14 @@ Current ingress prep:
 - this ingress prep does not change the current public `run.app` smoke posture
 - final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
 
+Current observability prep:
+- Terraform now manages `_Default` Cloud Logging retention for the rollout project
+- Terraform now defines Cloud Monitoring uptime checks for:
+  - `https://app.ceiora.com/`
+  - `https://api.ceiora.com/api/cpar/meta`
+- `control.ceiora.com` is intentionally not a public uptime target
+  - validate it with an operator-token smoke instead
+
 ## Remaining Out Of Scope
 
 - live cloud deployment
@@ -266,3 +274,55 @@ Before using these split surfaces for real deployment:
 - frontend `typecheck` and `build` should pass
 - operator/control proxy routes should be smoke-checked against separate origins
 - docs and the tracked plan should be current
+
+## First Rollout Order
+
+1. Bootstrap and Terraform state
+- `cd infra/terraform/bootstrap`
+- `terraform init`
+- `terraform apply`
+- `cd ../envs/prod`
+- `cp backend.hcl.example backend.hcl`
+- `terraform init -backend-config=backend.hcl`
+
+2. Create secret containers and add versions
+- `terraform apply` for the prod root once the secret containers are in the plan
+- then add runtime secret versions out of band:
+  - `NEON_DATABASE_URL`
+  - `OPERATOR_API_TOKEN`
+  - `EDITOR_API_TOKEN`
+
+3. Build and push images
+- final-domain default:
+  - build/push frontend against `https://api.ceiora.com`
+  - build/push serve and control normally
+- `run.app` smoke exception:
+  - apply the Cloud Run services first,
+  - capture the serve `run.app` URL from Terraform outputs,
+  - rebuild/push the frontend image against that serve `run.app` URL,
+  - override `frontend_image_ref` and `frontend_backend_api_origin`
+
+4. Smoke the `run.app` surfaces before domain cutover
+- frontend root
+- serve `/api/cpar/meta`
+- control `/api/refresh/status` with `X-Operator-Token`
+- verify the control service can dispatch the `serve-refresh` Cloud Run Job
+
+5. Cut over custom domains
+- apply the ingress and DNS resources
+- wait for the managed certificate to become active
+- switch to the final-domain frontend image built against `https://api.ceiora.com`
+- re-run app/api/control smoke against:
+  - `https://app.ceiora.com`
+  - `https://api.ceiora.com`
+  - `https://control.ceiora.com`
+
+## Control Smoke
+
+Use the operator token for the control-plane smoke:
+
+```bash
+curl -i \
+  -H "X-Operator-Token: ${OPERATOR_API_TOKEN}" \
+  https://control.ceiora.com/api/refresh/status
+```

@@ -456,10 +456,12 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 8: Observability And Operations
 
-- [ ] Add log retention expectations.
-- [ ] Add minimal uptime checks or equivalent health validation.
-- [ ] Add operator runbook steps for cloud troubleshooting.
-- [ ] Update docs so the local app and cloud app are both clearly supported paths.
+- [x] Add log retention expectations.
+- [x] Add minimal uptime checks or equivalent health validation.
+- [x] Freeze the control-plane observability rule:
+  - `control.ceiora.com` remains an operator-token smoke target, not a public uptime probe.
+- [x] Add operator runbook steps for cloud troubleshooting.
+- [x] Update docs so the local app and cloud app are both clearly supported paths.
 
 ## Validation Expectations
 
@@ -552,3 +554,8 @@ Additional validation by phase:
   - added a managed multi-domain certificate plus HTTP-to-HTTPS redirect path,
   - added Cloudflare DNS A records for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` pointing at the shared global IP with `proxied=false`,
   - explicitly preserved the public `run.app` smoke posture and froze the rule that final-domain cutover must use a frontend image built against `https://api.ceiora.com`.
+- 2026-03-23: Slice 8 observability/runbook prep completed:
+  - added Terraform ownership for `_Default` Cloud Logging retention,
+  - added Cloud Monitoring uptime checks for `app.ceiora.com` and `api.ceiora.com`,
+  - explicitly kept `control.ceiora.com` on an operator-token smoke path instead of a public uptime probe,
+  - expanded the runbook with the exact secret-version, image-build, Terraform, smoke, and custom-domain sequencing needed for the first live rollout while preserving the local app as a first-class path.

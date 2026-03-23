@@ -108,3 +108,9 @@ variable "cloudflare_proxied" {
   type        = bool
   default     = false
 }
+
+variable "default_log_retention_days" {
+  description = "Retention period for the project's default Cloud Logging bucket."
+  type        = number
+  default     = 30
+}

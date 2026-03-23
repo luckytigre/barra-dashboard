@@ -68,6 +68,11 @@ Important ingress rule:
 - it only prepares the later custom-domain cutover path
 - final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
 
+Observability prep owned here:
+- `_Default` Cloud Logging retention
+- uptime checks for `app.ceiora.com` and `api.ceiora.com`
+- `control.ceiora.com` remains an operator-token smoke target and is documented in the runbook instead of being a public uptime probe
+
 Important frontend rule:
 - the frontend image bakes `BACKEND_API_ORIGIN` at build time
 - the Terraform `prod` root therefore treats `frontend_backend_api_origin` and `frontend_image_ref` as explicit rollout inputs
