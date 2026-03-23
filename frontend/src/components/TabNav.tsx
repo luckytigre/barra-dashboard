@@ -1,24 +1,33 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBackground, type BgMode } from "./BackgroundContext";
-import { useOperatorStatus } from "@/hooks/useApi";
-import { runServeRefreshAndRevalidate } from "@/lib/refresh";
+import { useOperatorStatus } from "@/hooks/useCuse4Api";
+import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
-const TABS = [
-  { href: "/exposures", label: "Risk" },
-  { href: "/explore", label: "Explore" },
-  { href: "/health", label: "Health" },
-  { href: "/positions", label: "Positions" },
+const CUSE_TABS = [
+  { href: "/cuse/exposures", label: "Risk", matchPrefix: "/cuse/exposures" },
+  { href: "/cuse/explore", label: "Explore", matchPrefix: "/cuse/explore" },
+  { href: "/cuse/health", label: "Health", matchPrefix: "/cuse/health" },
 ];
+
+const CPAR_TABS = [
+  { href: "/cpar/risk", label: "Risk", matchPrefix: "/cpar/risk" },
+  { href: "/cpar/explore", label: "Explore", matchPrefix: "/cpar/explore" },
+  { href: "/cpar/hedge", label: "Hedge", matchPrefix: "/cpar/hedge" },
+  { href: "/cpar/health", label: "Health", matchPrefix: "/cpar/health" },
+];
+
+const POSITIONS_TABS = [{ href: "/positions", label: "Positions", matchPrefix: "/positions" }];
 
 const BG_OPTIONS: { value: BgMode; label: string }[] = [
   { value: "topo", label: "Topographic" },
   { value: "flow", label: "Flow" },
   { value: "none", label: "None" },
 ];
+const LANDING_FAMILY_TRANSITION_EVENT = "landing-family-transition-start";
 
 function parseIsoMs(iso?: string | null): number | null {
   if (!iso) return null;
@@ -44,13 +53,20 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 
 export default function TabNav() {
   const pathname = usePathname();
+  const activePath = pathname || "";
+  const isPositionsPage = activePath === "/positions";
+  const activeFamily = activePath.startsWith("/cpar") ? "cpar" : activePath.startsWith("/cuse") ? "cuse" : null;
+  const [transitionFamily, setTransitionFamily] = useState<"cuse" | "cpar" | null>(null);
+  const prevFamilyRef = useRef<string | null>(null);
+  const badgeSlotRef = useRef<HTMLSpanElement>(null);
+  const showOperatorChrome = activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data";
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshActionState, setRefreshActionState] = useState<"idle" | "running" | "failed">("idle");
   const [clockMs, setClockMs] = useState<number>(0);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { mode, setMode } = useBackground();
-  const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus();
+  const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus(showOperatorChrome);
   const holdingsSync = operatorStatusData?.holdings_sync;
   const neonSyncHealth = operatorStatusData?.neon_sync_health;
   const pending = Boolean(holdingsSync?.pending);
@@ -61,17 +77,79 @@ export default function TabNav() {
   const refreshStatus = String(refreshState?.status || "idle").toLowerCase();
   const refreshIsRunning = refreshStatus === "running";
 
+  useLayoutEffect(() => {
+    const el = badgeSlotRef.current;
+    if (!el) return;
+
+    if (activeFamily) {
+      setTransitionFamily(null);
+      const prev = prevFamilyRef.current;
+      prevFamilyRef.current = activeFamily;
+
+      if (!prev) {
+        // Entering from landing — start hidden, then fade in via CSS transition
+        el.style.transition = "none";
+        el.style.opacity = "0";
+        requestAnimationFrame(() => {
+          el.style.transition = "opacity 0.65s ease-out";
+          el.style.opacity = "1";
+        });
+      } else if (prev !== activeFamily) {
+        // Switching families — quick cross-fade
+        el.style.transition = "none";
+        el.style.opacity = "0";
+        setTimeout(() => {
+          el.style.transition = "opacity 0.3s ease-out";
+          el.style.opacity = "1";
+        }, 120);
+      }
+    } else {
+      prevFamilyRef.current = null;
+      el.style.transition = "none";
+      el.style.opacity = "0";
+    }
+  }, [activeFamily]);
+
   useEffect(() => {
+    const onTransitionStart = (event: Event) => {
+      const detail = (event as CustomEvent<{ family?: "cuse" | "cpar" }>).detail;
+      if (detail?.family === "cuse" || detail?.family === "cpar") {
+        setTransitionFamily(detail.family);
+      }
+    };
+    window.addEventListener(LANDING_FAMILY_TRANSITION_EVENT, onTransitionStart as EventListener);
+    return () => {
+      window.removeEventListener(LANDING_FAMILY_TRANSITION_EVENT, onTransitionStart as EventListener);
+    };
+  }, []);
+
+  const isLanding = activePath === "/" && !transitionFamily;
+
+  useEffect(() => {
+    if (!navRef.current) return;
+    if (isLanding) {
+      navRef.current.style.backgroundColor = "";
+      navRef.current.style.boxShadow = "";
+      return;
+    }
+    if (isPositionsPage) {
+      navRef.current.style.backgroundColor = "rgba(0, 0, 0, 0.94)";
+      navRef.current.style.boxShadow = "0 10px 28px rgba(0, 0, 0, 0.38)";
+      return;
+    }
     const onScroll = () => {
       if (!navRef.current) return;
       const y = window.scrollY;
       const t = Math.min(1, y / 120);
-      const opacity = 0.78 - t * 0.26;
-      navRef.current.style.backgroundColor = `rgba(16, 16, 19, ${opacity})`;
+      const bgOpacity = 0.78 - t * 0.26;
+      const shadowOpacity = 0.25 + t * 0.35;
+      const shadowSpread = 8 + t * 18;
+      navRef.current.style.backgroundColor = `rgba(16, 16, 19, ${bgOpacity})`;
+      navRef.current.style.boxShadow = `0 ${shadowSpread}px ${shadowSpread * 2.5}px rgba(2, 6, 14, ${shadowOpacity})`;
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isLanding, isPositionsPage]);
 
   // Close menu on outside click
   useEffect(() => {
@@ -104,15 +182,17 @@ export default function TabNav() {
   }, [refreshIsRunning, refreshActionState]);
 
   useEffect(() => {
+    if (!showOperatorChrome) return;
     if (!refreshIsRunning) return;
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void mutateOperatorStatus();
     }, 5000);
     return () => window.clearInterval(id);
-  }, [refreshIsRunning, mutateOperatorStatus]);
+  }, [showOperatorChrome, refreshIsRunning, mutateOperatorStatus]);
 
   useEffect(() => {
+    if (!showOperatorChrome) return undefined;
     if (refreshIsRunning) return undefined;
     const refreshVisibleState = () => {
       if (document.visibilityState !== "visible") return;
@@ -126,7 +206,7 @@ export default function TabNav() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [refreshIsRunning, mutateOperatorStatus]);
+  }, [showOperatorChrome, refreshIsRunning, mutateOperatorStatus]);
 
   async function handleRefreshNow() {
     if (refreshActionState === "running" || refreshIsRunning) return;
@@ -197,45 +277,117 @@ export default function TabNav() {
   const refreshActionTitle = pending
     ? "Publish latest holdings edits into the served analytics snapshot"
     : "Run serve-refresh";
+  const tabs = useMemo(() => {
+    if (activePath === "/positions") return POSITIONS_TABS;
+    if (activePath.startsWith("/cpar")) return CPAR_TABS;
+    if (activePath.startsWith("/cuse") || activePath === "/data") return CUSE_TABS;
+    return [];
+  }, [activePath]);
+  const effectiveFamily = activeFamily ?? transitionFamily;
+
+  const tabsCenterRef = useRef<HTMLDivElement>(null);
+  const indicatorRef = useRef<HTMLSpanElement>(null);
+  const hasAnimatedRef = useRef(false);
+
+  const syncIndicator = useCallback(() => {
+    const container = tabsCenterRef.current;
+    const indicator = indicatorRef.current;
+    if (!container || !indicator) return;
+    const activeEl = container.querySelector<HTMLElement>(".dash-tab-btn.active");
+    if (!activeEl) {
+      indicator.style.opacity = "0";
+      return;
+    }
+    const left = activeEl.offsetLeft;
+    const width = activeEl.offsetWidth;
+    if (!hasAnimatedRef.current) {
+      indicator.style.transition = "none";
+      hasAnimatedRef.current = true;
+      requestAnimationFrame(() => {
+        indicator.style.transition = "";
+      });
+    }
+    indicator.style.transform = `translateX(${left}px)`;
+    indicator.style.width = `${width}px`;
+    indicator.style.opacity = "1";
+  }, []);
+
+  useEffect(() => {
+    syncIndicator();
+  }, [activePath, tabs, syncIndicator]);
 
   return (
-    <nav ref={navRef} className="dash-tabs">
-      <span className="dash-tabs-brand">Ceiora</span>
+    <nav
+      ref={navRef}
+      className={`dash-tabs${isLanding ? " dash-tabs-landing" : ""}${isPositionsPage ? " dash-tabs-positions" : ""}`}
+    >
+      <div className="dash-tabs-brand-cluster">
+        <Link href="/" className="dash-tabs-brand">
+          Ceiora
+        </Link>
+        <span
+          ref={badgeSlotRef}
+          className={`dash-tabs-family-badge-slot${effectiveFamily ? " is-active" : ""}${!activeFamily && transitionFamily ? " is-preview" : ""}`}
+          aria-hidden={effectiveFamily ? undefined : "true"}
+        >
+          {effectiveFamily ? (
+            <span
+              className={`dash-tabs-family-badge dash-tabs-family-badge-${effectiveFamily}`}
+              style={!activeFamily ? { visibility: "hidden" } : undefined}
+            >
+              {effectiveFamily === "cuse" ? (
+                <>
+                  <span className="dash-tabs-family-badge-prefix">c</span>USE
+                </>
+              ) : (
+                <>
+                  <span className="dash-tabs-family-badge-prefix">c</span>PAR
+                </>
+              )}
+            </span>
+          ) : null}
+        </span>
+      </div>
 
-      <div className="dash-tabs-center">
-        {TABS.map((tab) => (
+      <div ref={tabsCenterRef} className="dash-tabs-center">
+        {tabs.map((tab) => (
           <Link
             key={tab.href}
             href={tab.href}
-            className={`dash-tab-btn ${pathname === tab.href ? "active" : ""}`}
+            className={`dash-tab-btn ${activePath === tab.href || (tab.matchPrefix && activePath.startsWith(tab.matchPrefix)) ? "active" : ""}`}
           >
             {tab.label}
           </Link>
         ))}
+        <span ref={indicatorRef} className="dash-tab-indicator" aria-hidden="true" />
       </div>
 
       <div className="dash-tabs-actions">
-        <button
-          className={`dash-health-signal ${signal.tone}`}
-          type="button"
-          onClick={() => {
-            setRefreshActionState("idle");
-            void mutateOperatorStatus();
-          }}
-          title={signal.detail}
-          aria-label={signal.aria}
-        >
-          <span className="dash-health-dot" />
-          <span className="dash-health-detail">{signal.detail}</span>
-        </button>
-        <button
-          className={`dash-recompute-btn ${refreshActionState === "failed" ? "failed" : ""}`}
-          onClick={handleRefreshNow}
-          disabled={refreshActionState === "running" || refreshIsRunning}
-          title={refreshActionTitle}
-        >
-          {refreshActionState === "running" || refreshIsRunning ? "RUNNING" : refreshActionLabel}
-        </button>
+        {showOperatorChrome && (
+          <>
+            <button
+              className={`dash-health-signal ${signal.tone}`}
+              type="button"
+              onClick={() => {
+                setRefreshActionState("idle");
+                void mutateOperatorStatus();
+              }}
+              title={signal.detail}
+              aria-label={signal.aria}
+            >
+              <span className="dash-health-dot" />
+              <span className="dash-health-detail">{signal.detail}</span>
+            </button>
+            <button
+              className={`dash-recompute-btn ${refreshActionState === "failed" ? "failed" : ""}`}
+              onClick={handleRefreshNow}
+              disabled={refreshActionState === "running" || refreshIsRunning}
+              title={refreshActionTitle}
+            >
+              {refreshActionState === "running" || refreshIsRunning ? "RUNNING" : refreshActionLabel}
+            </button>
+          </>
+        )}
         <div ref={menuRef} style={{ position: "relative" }}>
           <button
             className="dash-menu-btn"
@@ -268,14 +420,23 @@ export default function TabNav() {
 
           {menuOpen && (
             <div className="dash-dropdown">
+              <div className="dash-dropdown-section">Navigation</div>
+              <Link
+                href="/positions"
+                className={`dash-dropdown-item${pathname === "/positions" ? " active" : ""}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                Positions
+              </Link>
               <div className="dash-dropdown-section">Settings</div>
               <Link
                 href="/data"
                 className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
                 onClick={() => setMenuOpen(false)}
               >
-                Data
+                cUSE data
               </Link>
+              <span className="dash-dropdown-item disabled" aria-disabled="true">cPAR data</span>
               <div className="dash-dropdown-section">Background</div>
               {BG_OPTIONS.map((opt) => (
                 <button

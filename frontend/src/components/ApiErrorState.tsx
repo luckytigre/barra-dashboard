@@ -6,8 +6,8 @@ import {
   triggerDailyMaintenanceRefresh,
   triggerRefreshProfile,
   useOperatorStatus,
-} from "@/hooks/useApi";
-import { runServeRefreshAndRevalidate } from "@/lib/refresh";
+} from "@/hooks/useCuse4Api";
+import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
 function parseError(error: unknown): {
   message: string;

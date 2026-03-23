@@ -35,6 +35,8 @@ export interface Position {
   source: string;
   trbc_industry_group: string;
   exposures: Record<string, number>;
+  specific_var?: number | null;
+  specific_vol?: number | null;
   risk_contrib_pct: number;
   model_status?: ModelStatus;
   model_status_reason?: string;
@@ -140,6 +142,7 @@ export interface CovMatrix {
 
 export interface RiskData extends ServingSnapshotMeta {
   risk_shares: RiskShares;
+  vol_scaled_shares?: RiskShares;
   component_shares: Omit<RiskShares, "idio">;
   factor_details: FactorDetail[];
   factor_catalog?: FactorCatalogEntry[];

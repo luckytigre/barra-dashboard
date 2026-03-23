@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
 import { shortFactorLabel } from "@/lib/factorLabels";
-import type { HealthDiagnosticsData } from "@/lib/types";
+import type { HealthDiagnosticsData } from "@/lib/types/cuse4";
 import { Bar, ChartJS, Line, type ChartData } from "./charts";
 import {
   buildHistogramData,

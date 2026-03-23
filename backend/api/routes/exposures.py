@@ -1,11 +1,12 @@
-"""GET /api/exposures?mode= — per-factor values with position-level drilldown."""
+"""GET /api/exposures?mode= — cUSE4 per-factor values with position drilldown."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
 from backend.api.routes.readiness import raise_cache_not_ready
-from backend.services import dashboard_payload_service, factor_history_service
+from backend.services import cuse4_dashboard_payload_service as dashboard_payload_service
+from backend.services import cuse4_factor_history_service as factor_history_service
 
 router = APIRouter()
 

@@ -1,3 +1,7 @@
+// Transitional mixed-family compatibility barrel.
+// New cUSE4-owned frontend code should import from `@/lib/cuse4Api`.
+// New cPAR-owned frontend code should import from `@/lib/cparApi`.
+
 const BASE = "";
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -20,6 +24,30 @@ export class ApiError extends Error {
 }
 
 export const apiPath = {
+  cparMeta: () => "/api/cpar/meta",
+  cparSearch: (query: string, limit: number) =>
+    `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  cparTicker: (ticker: string, ric?: string | null) =>
+    ric && ric.trim().length > 0
+      ? `/api/cpar/ticker/${encodeURIComponent(ticker)}?ric=${encodeURIComponent(ric.trim())}`
+      : `/api/cpar/ticker/${encodeURIComponent(ticker)}`,
+  cparTickerHistory: (ticker: string, years: number, ric?: string | null) => {
+    const params = new URLSearchParams();
+    params.set("years", String(years));
+    if (ric && ric.trim().length > 0) params.set("ric", ric.trim());
+    return `/api/cpar/ticker/${encodeURIComponent(ticker)}/history?${params.toString()}`;
+  },
+  cparRisk: () => "/api/cpar/risk",
+  cparFactorHistory: (factorId: string, years: number) =>
+    `/api/cpar/factors/history?factor_id=${encodeURIComponent(factorId)}&years=${years}`,
+  cparPortfolioHedge: (accountId: string, mode: string) => {
+    const params = new URLSearchParams();
+    params.set("account_id", accountId.trim());
+    params.set("mode", mode);
+    return `/api/cpar/portfolio/hedge?${params.toString()}`;
+  },
+  cparPortfolioWhatIf: () => "/api/cpar/portfolio/whatif",
+  cparExploreWhatIf: () => "/api/cpar/explore/whatif",
   portfolio: () => "/api/portfolio",
   portfolioWhatIf: () => "/api/portfolio/whatif",
   portfolioWhatIfApply: () => "/api/portfolio/whatif/apply",

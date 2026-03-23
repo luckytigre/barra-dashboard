@@ -1,4 +1,9 @@
-"""Canonical operator-status payload assembly."""
+"""Compatibility module for cUSE4 operator-status payload assembly.
+
+Prefer importing `backend.services.cuse4_operator_status_service` from the
+default cUSE4 operator route. This module remains as the compatibility home for
+older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +16,9 @@ from backend.analytics.refresh_context import derive_estimation_exposure_anchor_
 from backend.analytics.refresh_policy import risk_recompute_due as _risk_recompute_due_impl
 from backend.data import core_reads, job_runs, runtime_state, sqlite
 from backend.orchestration.profiles import profile_catalog
-from backend.services.refresh_manager import _runtime_allowed_profiles, get_refresh_status
+from backend.services.refresh_profile_policy import runtime_allowed_profiles
 from backend.services.holdings_runtime_state import get_holdings_sync_state
+from backend.services.refresh_status_service import load_persisted_refresh_status
 from backend.trading_calendar import previous_or_same_xnys_session
 
 
@@ -217,6 +223,10 @@ def _decorate_risk_engine_meta(meta: dict[str, Any] | None) -> dict[str, Any]:
     return out
 
 
+def get_refresh_status() -> dict[str, Any]:
+    return load_persisted_refresh_status(fallback_loader=sqlite.cache_get)
+
+
 def build_operator_status_payload() -> dict[str, Any]:
     catalog = profile_catalog()
     profiles = [str(item.get("profile") or "") for item in catalog]
@@ -289,7 +299,7 @@ def build_operator_status_payload() -> dict[str, Any]:
             + ", ".join(sorted(newer_local_archive_fields))
             + "; run a source-syncing lane before trusting Neon-authoritative rebuilds."
         )
-    allowed_profiles = sorted(_runtime_allowed_profiles())
+    allowed_profiles = sorted(runtime_allowed_profiles())
     local_only_profiles = sorted(set(profiles) - set(allowed_profiles))
     source_authority = core_reads.core_read_backend_name()
     rebuild_authority = "neon" if config.neon_authoritative_rebuilds_enabled() else "local_sqlite"
@@ -374,9 +384,9 @@ def build_operator_status_payload() -> dict[str, Any]:
             ),
             "rebuild_authority": rebuild_authority,
             "rebuild_authority_plain_english": (
-                "Core and cold-core rebuilds are configured to read from Neon after source sync."
+                "Core rebuild lanes are configured to read from Neon after source sync."
                 if rebuild_authority == "neon"
-                else "Core and cold-core rebuilds still read from local SQLite until Neon-authoritative rebuilds are enabled."
+                else "Core rebuild lanes are pinned to local SQLite because Neon-authoritative rebuilds are disabled or Neon is not the active backend."
             ),
             "diagnostics_scope": "local_sqlite_and_cache",
             "diagnostics_scope_plain_english": (

@@ -46,6 +46,15 @@ These are the non-negotiable structural rules for this repository.
    Their projected loadings must read durable core outputs, refresh only on the core-package cadence, persist once per active core package, expose `projection_asof = core_state_through_date`, and be read by serving rather than recomputed opportunistically.
    Missing projected outputs for the active core package must surface explicit degraded/unavailable state instead of silent omission.
 
+12. cPAR stays parallel to cUSE4 and keeps its own owned surfaces.
+   Pure cPAR logic belongs in `backend/cpar/*`.
+   cPAR integration still belongs in the normal repo layers.
+   Current cPAR slices must not reuse cUSE4 serving-payload or runtime-state surfaces by implication.
+
+13. Cloud serve surfaces stay stateless and do not own refresh execution.
+   `backend/services/refresh_manager.py` is the reviewed control-plane execution owner for process-local refresh lifecycle.
+   Serve-facing readers must use the persisted refresh-status surface and must not reconcile worker ownership as though they own the control process.
+
 ## Existing Guardrails
 
 The repository already enforces several of these with lightweight tests in [test_architecture_boundaries.py](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/tests/test_architecture_boundaries.py):
@@ -62,6 +71,7 @@ The repository already enforces several of these with lightweight tests in [test
 - serving-only refreshes silently advancing the stable core package
 - serving-time price logic contaminating canonical model-estimation history
 - user-facing and developer-facing semantics drifting back to vague compatibility fields
+- serve-only processes mutating shared refresh state as though they owned the control-plane worker
 
 ## Low-Overhead Maintenance Rule
 

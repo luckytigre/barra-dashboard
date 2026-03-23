@@ -107,6 +107,59 @@ def portfolio_factor_exposure(
     return weighted_exposure
 
 
+def _specific_variance_total(
+    positions: list[dict[str, Any]],
+    specific_risk_by_ticker: dict[str, dict[str, float | int | str]] | None = None,
+) -> float:
+    spec_map = specific_risk_by_ticker or {}
+    raw_specific = 0.0
+    for pos in positions:
+        ticker = str(pos.get("ticker", "")).upper()
+        w_i = float(pos.get("weight", 0.0) or 0.0)
+        spec_row = spec_map.get(ticker, {})
+        spec_var = float(spec_row.get("specific_var", 0.0) or 0.0)
+        if not np.isfinite(spec_var) or spec_var < 0:
+            spec_var = 0.0
+        raw_specific += (w_i ** 2) * spec_var
+    return max(0.0, float(raw_specific))
+
+
+def vol_scaled_decomposition(
+    *,
+    cov: pd.DataFrame,
+    positions: list[dict[str, Any]],
+    specific_risk_by_ticker: dict[str, dict[str, float | int | str]] | None = None,
+) -> dict[str, float]:
+    """Nonnegative portfolio footprint using absolute factor sensitivities plus idiosyncratic volatility."""
+    if cov.empty:
+        return {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0}
+
+    factors = [str(c) for c in cov.columns]
+    if not factors:
+        return {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0}
+
+    exposure_map = {f: portfolio_factor_exposure(positions, f) for f in factors}
+    f_mat = cov.reindex(index=factors, columns=factors).to_numpy(dtype=float)
+    buckets = {category: 0.0 for category in SYSTEMATIC_CATEGORIES}
+    for i, factor in enumerate(factors):
+        factor_var = float(f_mat[i, i]) if i < f_mat.shape[0] else 0.0
+        factor_vol = float(np.sqrt(max(0.0, factor_var)))
+        sensitivity = abs(float(exposure_map.get(factor, 0.0)) * factor_vol)
+        buckets[factor_category(factor)] += sensitivity
+
+    idio_vol = float(np.sqrt(_specific_variance_total(positions, specific_risk_by_ticker)))
+    total = float(sum(buckets.values()) + idio_vol)
+    if total <= 1e-12:
+        return {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0}
+
+    return {
+        "market": round(float(buckets["market"] / total * 100.0), 2),
+        "industry": round(float(buckets["industry"] / total * 100.0), 2),
+        "style": round(float(buckets["style"] / total * 100.0), 2),
+        "idio": round(float(idio_vol / total * 100.0), 2),
+    }
+
+
 def risk_decomposition(
     *,
     cov: pd.DataFrame,
@@ -146,17 +199,7 @@ def risk_decomposition(
     )
     raw_systematic = float(sum(systematic_by_category.values()))
 
-    spec_map = specific_risk_by_ticker or {}
-    raw_specific = 0.0
-    for pos in positions:
-        ticker = str(pos.get("ticker", "")).upper()
-        w_i = float(pos.get("weight", 0.0) or 0.0)
-        spec_row = spec_map.get(ticker, {})
-        spec_var = float(spec_row.get("specific_var", 0.0) or 0.0)
-        if not np.isfinite(spec_var) or spec_var < 0:
-            spec_var = 0.0
-        raw_specific += (w_i ** 2) * spec_var
-    raw_specific = max(0.0, raw_specific)
+    raw_specific = _specific_variance_total(positions, specific_risk_by_ticker)
     raw_total = raw_systematic + raw_specific
 
     if raw_systematic <= 0:

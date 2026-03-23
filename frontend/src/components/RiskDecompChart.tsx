@@ -13,44 +13,48 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { tooltipOptions } from "@/lib/charts/chartTheme";
-import type { RiskShares } from "@/lib/types";
+import type { RiskShares } from "@/lib/types/cuse4";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 interface RiskDecompChartProps {
   shares: RiskShares;
+  showIdio?: boolean;
 }
 
-export default function RiskDecompChart({ shares }: RiskDecompChartProps) {
+export default function RiskDecompChart({ shares, showIdio = true }: RiskDecompChartProps) {
   const labels = ["Risk Decomposition"];
+  const datasets = [
+    {
+      label: "Market",
+      data: [shares.market || 0],
+      backgroundColor: "#58b6c7",
+      barThickness: 18,
+    },
+    {
+      label: "Industry",
+      data: [shares.industry || 0],
+      backgroundColor: "#cc3558",
+      barThickness: 18,
+    },
+    {
+      label: "Style",
+      data: [shares.style || 0],
+      backgroundColor: "#f5bae4",
+      barThickness: 18,
+    },
+  ];
+  if (showIdio) {
+    datasets.push({
+      label: "Idiosyncratic",
+      data: [shares.idio || 0],
+      backgroundColor: "#ff8f2a",
+      barThickness: 18,
+    });
+  }
   const data: ChartData<"bar", number[], string> = {
     labels,
-    datasets: [
-      {
-        label: "Market",
-        data: [shares.market || 0],
-        backgroundColor: "#58b6c7",
-        barThickness: 18,
-      },
-      {
-        label: "Industry",
-        data: [shares.industry || 0],
-        backgroundColor: "#cc3558",
-        barThickness: 18,
-      },
-      {
-        label: "Style",
-        data: [shares.style || 0],
-        backgroundColor: "#f5bae4",
-        barThickness: 18,
-      },
-      {
-        label: "Idiosyncratic",
-        data: [shares.idio || 0],
-        backgroundColor: "#ff8f2a",
-        barThickness: 18,
-      },
-    ],
+    datasets,
   };
 
   const options: ChartOptions<"bar"> = {

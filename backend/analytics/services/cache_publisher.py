@@ -48,6 +48,7 @@ def stage_refresh_cache_snapshot(
     total_value: float,
     risk_shares: RiskSharesPayload,
     component_shares: ComponentSharesPayload,
+    vol_scaled_shares: RiskSharesPayload | None = None,
     factor_details: list[FactorDetailPayload],
     cov_matrix: CovarianceMatrixPayload,
     latest_r2: float | None,
@@ -128,6 +129,8 @@ def stage_refresh_cache_snapshot(
         "refresh_started_at": refresh_started_at,
         "source_dates": effective_source_dates,
     }
+    if isinstance(vol_scaled_shares, dict):
+        risk_data["vol_scaled_shares"] = dict(vol_scaled_shares)
     _stage_cache("risk", risk_data)
 
     universe_loadings["run_id"] = str(run_id)

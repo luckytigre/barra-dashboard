@@ -3,7 +3,7 @@
 import WhatIfBuilderPanel from "@/features/whatif/WhatIfBuilderPanel";
 import WhatIfPreviewPanel from "@/features/whatif/WhatIfPreviewPanel";
 import { useWhatIfScenarioLab } from "@/features/whatif/useWhatIfScenarioLab";
-import type { UniverseSearchItem, UniverseTickerItem } from "@/lib/types";
+import type { UniverseSearchItem, UniverseTickerItem } from "@/lib/types/cuse4";
 import type { ExplorePositionSummary } from "@/features/whatif/whatIfUtils";
 
 export default function ExploreWhatIfSection({

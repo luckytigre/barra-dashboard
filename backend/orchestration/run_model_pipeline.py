@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from backend import config
 from backend.analytics.pipeline import RISK_ENGINE_METHOD_VERSION, run_refresh
-from backend.data import core_reads, job_runs, rebuild_cross_section_snapshot, sqlite
+from backend.data import core_reads, job_runs, model_outputs, rebuild_cross_section_snapshot, sqlite
 from backend.orchestration import finalize_run, post_run_publish, runtime_support, stage_execution, stage_planning, stage_runner
 from backend.orchestration.profiles import (
     PROFILE_CONFIG,
@@ -36,16 +36,49 @@ from backend.risk_model import (
 from backend.services.neon_mirror import run_neon_mirror_cycle
 from backend.services import neon_authority
 from backend.services.holdings_runtime_state import mark_refresh_finished
-from backend.scripts.backfill_pit_history_lseg import run_backfill as backfill_pit_history
-from backend.scripts.backfill_prices_range_lseg import backfill_prices
 from backend.universe import bootstrap_cuse4_source_tables, build_and_persist_estu_membership
-from backend.scripts.download_data_lseg import download_from_lseg
 from backend.trading_calendar import is_xnys_session, previous_or_same_xnys_session
 
 
 DATA_DB = Path(config.DATA_DB_PATH)
 CACHE_DB = Path(config.SQLITE_PATH)
 logger = logging.getLogger(__name__)
+
+
+def _download_from_lseg_impl(**kwargs):
+    from backend.scripts.download_data_lseg import download_from_lseg
+
+    return download_from_lseg(**kwargs)
+
+
+def _backfill_prices_impl(**kwargs):
+    from backend.scripts.backfill_prices_range_lseg import backfill_prices
+
+    return backfill_prices(**kwargs)
+
+
+def _backfill_pit_history_impl(**kwargs):
+    from backend.scripts.backfill_pit_history_lseg import run_backfill
+
+    return run_backfill(**kwargs)
+
+
+# Keep patch points stable for existing tests/callers while avoiding eager LSEG imports.
+def download_from_lseg(**kwargs):
+    return _download_from_lseg_impl(**kwargs)
+
+
+def backfill_prices(**kwargs):
+    return _backfill_prices_impl(**kwargs)
+
+
+def backfill_pit_history(**kwargs):
+    return _backfill_pit_history_impl(**kwargs)
+
+
+_download_from_lseg = download_from_lseg
+_backfill_prices = backfill_prices
+_backfill_pit_history = backfill_pit_history
 
 
 def _neon_primary_backend_selected() -> bool:
@@ -287,6 +320,7 @@ def _repair_pit_gap(
 
 def _run_stage(
     *,
+    run_id: str = "stage_test_run",
     profile: str,
     stage: str,
     as_of_date: str,
@@ -306,6 +340,7 @@ def _run_stage(
 ) -> dict[str, Any]:
     return stage_runner.run_stage(
         profile=profile,
+        run_id=run_id,
         stage=stage,
         as_of_date=as_of_date,
         should_run_core=should_run_core,
@@ -324,6 +359,7 @@ def _run_stage(
         config_module=config,
         core_reads_module=core_reads,
         sqlite_module=sqlite,
+        persist_model_outputs_fn=model_outputs.persist_model_outputs,
         bootstrap_cuse4_source_tables_fn=bootstrap_cuse4_source_tables,
         download_from_lseg_fn=download_from_lseg,
         repair_price_gap_fn=_repair_price_gap,

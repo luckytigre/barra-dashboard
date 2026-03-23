@@ -3,10 +3,13 @@
 ## Core Policy
 - Holdings writes and holdings-serving reads are both Neon-authoritative when a Neon DSN is configured.
 - Local SQLite is the only direct LSEG landing zone and the optional deep archive on the local machine.
-- Neon is the intended authoritative operating database for serving and, once enabled, for core/cold-core rebuilds.
+- Neon is the authoritative operating database for serving and, by default when Neon is the active backend with a configured DSN, for core/cold-core rebuilds too.
 - Model outputs and durable serving payloads now write to Neon first when Neon is configured; local SQLite remains a mirror and local diagnostic surface during migration.
-- Operator health/runtime truth is beginning to move to Neon-backed runtime state, but broader analytics cache state is still transitional.
-- The Neon-backed runtime-state surface is intentionally small and operator-facing: `risk_engine_meta`, `neon_sync_health`, and the active snapshot pointer.
+- Durable `model_outputs` reads are now interpreted by contract:
+  - rebuild/runtime consumers should use the current rebuild-authority surface
+  - data diagnostics should read only the local SQLite archive surface
+- Operator health/runtime truth now persists through the Neon-backed runtime-state surface for the core operator/control-room keys, while broader analytics cache state remains transitional.
+- The Neon-backed runtime-state surface is intentionally operator-facing: `risk_engine_meta`, `neon_sync_health`, `refresh_status`, `holdings_sync_state`, and the active snapshot pointer.
 - `/api/health` and `/api/operator/status` now expose runtime-state status/source fields so missing Neon runtime truth is visible instead of looking healthy by omission.
 - `RECALC`/holdings-dirty state is backend-persisted, not browser-local.
 - Risk engine recompute cadence: weekly (`RISK_RECOMPUTE_INTERVAL_DAYS=7` by default).
@@ -41,6 +44,31 @@
 - Production backend command:
   - `BACKEND_WORKERS=1 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 1`
   - or `make backend-prod`
+- Cloud-native prep entrypoints are now available but not required for the hobby profile:
+  - serve app: `make backend-serve-prod`
+  - control app: `make backend-control-prod`
+  - process split details live in [CLOUD_NATIVE_RUNBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/operations/CLOUD_NATIVE_RUNBOOK.md)
+
+## Fresh Machine Cloud-Serve Bootstrap
+- A fresh `cloud-serve` machine should not require a preexisting large local `backend/runtime/data.db` to serve the app.
+- Required authority inputs for that machine are:
+  - Neon access (`NEON_DATABASE_URL`)
+  - runtime role `APP_RUNTIME_ROLE=cloud-serve`
+  - operator/editor tokens as needed for exposed endpoints
+- In that mode:
+  - cUSE durable serving payloads should read from Neon and not fall back to local SQLite
+  - runtime/operator state should read from Neon and not fall back to local SQLite
+  - holdings should read from Neon and fail closed if Neon is unavailable
+  - cPAR package reads should use the Neon authority store and fail closed if no package exists there
+  - the public/editor-facing serve app should not expose refresh execution routes
+  - operator/control routes should be served from the separate control app surface
+  - the frontend may target a separate control origin through `BACKEND_CONTROL_ORIGIN`; when unset it falls back to `BACKEND_API_ORIGIN`
+- Small local scratch/cache/workspace files may still appear, but they are not the historical source warehouse and are not the serving authority.
+- Local SQLite remains required only for:
+  - direct LSEG ingest
+  - deep archive retention
+  - explicit local diagnostics
+  - rebuild scratch/workspace paths during the current migration state
 
 ## Volume Pull Policy
 - Canonical daily OHLCV ingest (`download_data_lseg.py`) maps `volume` from `TR.Volume`.
@@ -84,14 +112,18 @@
 - `universe-add`: finalization lane after explicit `security_master` merge and targeted source backfills for new names.
 
 Rebuild-authority rule:
-- While `NEON_AUTHORITATIVE_REBUILDS=false`, `core-weekly` and `cold-core` still rebuild from local SQLite. Run `source-daily` first if you need the latest local ingest reflected.
+- By default, `core-weekly` and `cold-core` rebuild from Neon after source sync whenever `DATA_BACKEND=neon` and a Neon DSN is configured.
+- Set `NEON_AUTHORITATIVE_REBUILDS=false` only if you intentionally need to roll those lanes back to local SQLite. In that rollback mode, run `source-daily` first if you need the latest local ingest reflected.
 - If Neon ever gets ahead of the intended `source-daily` target date because of a premature/invalid session stamp, rerunning `source-daily` now heals that state instead of refusing the publish.
-- When `NEON_AUTHORITATIVE_REBUILDS=true`, those rebuild lanes execute in this order:
+- In the default Neon-authoritative path, those rebuild lanes execute in this order:
   - `source_sync`: publish source tables from local SQLite into Neon without downgrading newer Neon source dates
   - `neon_readiness`: validate Neon table coverage/retention and materialize a scratch SQLite rebuild workspace from Neon
   - core stages run from that Neon-backed scratch workspace
   - final mirror publishes rebuilt analytics back into Neon
   - local derived tables/cache are refreshed from the scratch workspace so the private mirror stays congruent
+- Rehearsal/cutover safety rule:
+  - `neon_readiness` must surface a valid scratch workspace payload; malformed workspace metadata now fails the run closed instead of letting later stages guess paths
+  - if syncing the rebuilt workspace derivatives back into the local mirror fails, the run also fails closed
 - In both cases, local SQLite remains the only direct LSEG ingress point.
 
 Runtime-role rule:
@@ -99,6 +131,11 @@ Runtime-role rule:
 - `cloud-serve`: only `serve-refresh` is allowed.
 - In `cloud-serve`, a bare `POST /api/refresh` now defaults safely to `serve-refresh`.
 - Explicit deeper lanes remain blocked in `cloud-serve` even if requested by old mode-based callers.
+- In the split app model, `/api/refresh` and `/api/refresh/status` belong to the control app, not the serve app.
+
+Parallel cPAR note:
+- cPAR has its own dedicated operating assumptions and does not share the cUSE4 refresh API/operator flow.
+- Current cPAR runtime-role, build-entrypoint, and authority behavior is documented in [CPAR_OPERATIONS_PLAYBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/operations/CPAR_OPERATIONS_PLAYBOOK.md).
 
 ## Operator UI Policy
 - Health page is the primary control room.
@@ -122,6 +159,12 @@ Runtime-role rule:
 - Verify backend/frontend/proxy health: `make app-check`
 - Show tracked PIDs, URLs, and log paths: `make app-status`
 - Canonical launcher scripts live under `scripts/local_app/` and write runtime state under `backend/runtime/local_app/`.
+- `scripts/local_app/up.sh` now waits for the backend/frontend listeners to bind and exits nonzero if either process dies during startup; if startup fails, check the tailed log output immediately rather than trusting the pid files.
+- Additional local split entrypoints are available for cloud-native prep validation:
+  - `make backend-serve`
+  - `make backend-control`
+- `make setup` now provisions `.venv_local` for the real local app/runtime path. `backend/.venv` may still exist for repo tests, but the launcher scripts and ingest/rebuild commands should use `.venv_local`.
+- Live local ingest and Neon-authoritative rebuild commands should run from `.venv_local` (or another environment with real `lseg-data` installed). `serve-refresh` and other non-ingest lanes should not require `lseg-data` just to import/run.
 
 ## Key Commands
 - Orchestrated refresh via API:
@@ -130,6 +173,8 @@ Runtime-role rule:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh"`
 - Cloud-mode authenticated serve-refresh:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=serve-refresh" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
+- Split-control authenticated serve-refresh:
+  - `curl -X POST "http://localhost:8001/api/refresh?profile=serve-refresh" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
 - API refresh explicit source-daily profile:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily"`
 - API refresh explicit weekly core recompute:
@@ -138,20 +183,24 @@ Runtime-role rule:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=cold-core"`
 - API refresh partial stage run:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily-plus-core-if-due&from_stage=ingest&to_stage=risk_model"`
-  - if `NEON_AUTHORITATIVE_REBUILDS=true` and you target core stages explicitly, include `neon_readiness` in the window or the run will fail closed before core work starts
+  - if Neon-authoritative rebuilds are active and you target core stages explicitly, include `neon_readiness` in the window or the run will fail closed before core work starts
 - Orchestrated refresh via CLI module:
   - `python3 -m backend.scripts.run_model_pipeline --profile serve-refresh`
 - Orchestrated refresh via script wrapper:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily-plus-core-if-due`
 - Source-only refresh via script wrapper:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily`
+- Repair Neon sync health from an already-successful workspace without rerunning the full core lane:
+  - `python3 -m backend.scripts.repair_neon_sync_health --run-id job_20260322T172131Z --profile core-weekly --as-of-date 2026-03-20 --json`
 - Cold-core refresh via script wrapper:
   - `python3 -m backend.scripts.run_model_pipeline --profile cold-core`
 - Resume a previous run id:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily-plus-core-if-due --resume-run-id <run_id>`
 - Refresh data from LSEG:
-  - `python3 -m backend.scripts.download_data_lseg --db-path backend/runtime/data.db`
+  - `.venv_local/bin/python -m backend.scripts.download_data_lseg --db-path backend/runtime/data.db`
   - Explicit `--tickers`, `--rics`, and index-derived names only operate on instruments already present in `security_master`; the command now reports any requested names that were not seeded there.
+- When running those local-ingest commands directly, prefer `.venv_local/bin/python -m ...` so the process uses the same LSEG-capable environment as the local app scripts.
+- `make doctor` verifies `.venv_local`, core backend imports, whether `lseg.data` is available in that environment, and whether clean duplicate aliases are still present in the seed/local `security_master`.
 - Repair historical volume coverage only (writes `TR.Volume` into `security_prices_eod.volume`):
   - `python3 -m backend.scripts.backfill_prices_range_lseg --db-path backend/runtime/data.db --start-date 2012-01-03 --end-date 2026-03-04 --volume-only --only-null-volume`
   - Explicit `--rics` repairs likewise only target seeded `security_master` rows and report unmatched requested RICs in the result payload.
@@ -184,8 +233,9 @@ Runtime-role rule:
   - when model persistence does run, factor returns now load incrementally from the latest durable date when the risk-engine fingerprint still matches; schema/method drift falls back to a full reload.
 - durable serving payload writes now default to partial upsert semantics.
   - only the canonical serving-refresh writer opts into `replace_all=true`, which keeps destructive delete behavior explicit instead of implicit.
-- `refresh_status`: background orchestrator state snapshot.
+- `refresh_status`: background orchestrator state snapshot, persisted through `runtime_state_current` with local SQLite only as the local-ingest mirror/fallback lane.
   - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
+- `holdings_sync_state`: holdings-dirty and serving-refresh bookkeeping state, likewise persisted through `runtime_state_current` with local SQLite only as the local-ingest mirror/fallback lane.
 - operator lane summaries expose the latest persisted run state, while richer in-flight stage progress remains part of `refresh_status` and backend/operator diagnostics.
 
 ## Factor-Return Durability And Parity

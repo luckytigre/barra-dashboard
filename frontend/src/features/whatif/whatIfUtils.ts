@@ -1,5 +1,5 @@
-import type { WhatIfScenarioRow } from "@/lib/types";
-export { refreshFailureMessage } from "@/lib/refresh";
+import type { WhatIfScenarioRow } from "@/lib/types/cuse4";
+export { refreshFailureMessage } from "@/lib/cuse4Refresh";
 
 export type WhatIfMode = "raw" | "sensitivity" | "risk_contribution";
 

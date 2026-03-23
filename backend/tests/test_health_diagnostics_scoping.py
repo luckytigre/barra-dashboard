@@ -63,16 +63,17 @@ def test_compute_exposure_turnover_only_builds_sampled_dates(monkeypatch) -> Non
     def _fake_build_eligibility_context(_path, *, dates=None):
         assert dates is not None
         built_dates.extend(str(d) for d in dates)
-        date_key = str(dates[0])
         return SimpleNamespace(
             exposure_snapshots={
-                date_key: pd.DataFrame(
+                str(d): pd.DataFrame(
                     {
                         "ticker": ["AAA"],
                         "trbc_business_sector": ["Tech"],
+                        "snapshot_date": [str(d)],
                     },
                     index=pd.Index(["AAA.N"], name="ric"),
                 )
+                for d in dates
             }
         )
 
@@ -96,7 +97,7 @@ def test_compute_exposure_turnover_only_builds_sampled_dates(monkeypatch) -> Non
 
     def _fake_build_factor_exposure_matrix(snapshot_df, *, eligibility, core_country_codes=None):
         value = 1.0 if snapshot_df["ric"].iloc[0] == "AAA.N" else 0.0
-        if "2026-01-03" in built_dates[-1]:
+        if snapshot_df["snapshot_date"].iloc[0] == "2026-01-03":
             value = 2.0
         return pd.DataFrame({"Factor": [value]}, index=pd.Index(["AAA.N"], name="ric"))
 

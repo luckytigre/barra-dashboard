@@ -1,4 +1,4 @@
-import type { ExposureOrigin, ModelStatus } from "@/lib/types";
+import type { ExposureOrigin, ModelStatus } from "@/lib/types/cuse4";
 
 export type ExposureTier = "core" | "fundamental" | "returns";
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import importlib
+import sys
 from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,46 @@ from backend.services import refresh_manager
 
 _UNUSED_DATA_DB = Path("__unused_test_data__.db")
 _UNUSED_CACHE_DB = Path("__unused_test_cache__.db")
+
+
+def test_run_model_pipeline_import_does_not_require_lseg_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in [
+        "backend.orchestration.run_model_pipeline",
+        "backend.scripts.download_data_lseg",
+        "backend.scripts.backfill_prices_range_lseg",
+        "backend.scripts.backfill_pit_history_lseg",
+        "lseg",
+        "lseg.data",
+    ]:
+        sys.modules.pop(name, None)
+
+    imported = importlib.import_module("backend.orchestration.run_model_pipeline")
+
+    assert callable(imported._download_from_lseg)
+    assert callable(imported._backfill_prices)
+    assert callable(imported._backfill_pit_history)
+
+
+def test_refresh_manager_import_does_not_require_lseg_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in [
+        "backend.services.refresh_manager",
+        "backend.orchestration.run_model_pipeline",
+        "backend.scripts.download_data_lseg",
+        "backend.scripts.backfill_prices_range_lseg",
+        "backend.scripts.backfill_pit_history_lseg",
+        "lseg",
+        "lseg.data",
+    ]:
+        sys.modules.pop(name, None)
+
+    imported = importlib.import_module("backend.services.refresh_manager")
+
+    assert callable(imported.start_refresh)
+    assert callable(imported.get_refresh_status)
 
 
 def test_default_profile_is_local_daily_plus_core(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -684,6 +725,33 @@ def test_neon_readiness_stage_prepares_workspace(monkeypatch: pytest.MonkeyPatch
     assert out["workspace"]["data_db"].endswith("data.db")
 
 
+def test_neon_readiness_stage_surfaces_workspace_preparation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTHORITATIVE_REBUILDS", True)
+    monkeypatch.setattr(run_model_pipeline.config, "DATA_BACKEND", "neon")
+    monkeypatch.setattr(
+        run_model_pipeline.neon_authority,
+        "prepare_neon_rebuild_workspace",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("Neon rebuild readiness failed: missing_table:security_master")),
+    )
+
+    with pytest.raises(RuntimeError, match="Neon rebuild readiness failed: missing_table:security_master"):
+        run_model_pipeline._run_stage(
+            profile="core-weekly",
+            stage="neon_readiness",
+            as_of_date="2026-03-14",
+            should_run_core=True,
+            serving_mode="full",
+            force_core=False,
+            core_reason="due",
+            data_db=_UNUSED_DATA_DB,
+            cache_db=_UNUSED_CACHE_DB,
+            workspace_root=tmp_path / "workspace",
+        )
+
+
 @pytest.mark.parametrize(
     ("should_run_core", "expected_recompute"),
     [
@@ -759,7 +827,9 @@ def test_risk_model_stage_writes_workspace_cache_without_global_path_mutation(
     tmp_path: Path,
 ) -> None:
     workspace_cache_db = tmp_path / "workspace_cache.db"
+    workspace_data_db = tmp_path / "workspace_data.db"
     original_cache_path = str(run_model_pipeline.config.SQLITE_PATH)
+    captured: dict[str, object] = {}
 
     monkeypatch.setattr(
         run_model_pipeline,
@@ -779,6 +849,20 @@ def test_risk_model_stage_writes_workspace_cache_without_global_path_mutation(
         "latest_factor_return_date",
         lambda cache_db: "2026-03-13",
     )
+    monkeypatch.setattr(
+        run_model_pipeline.core_reads,
+        "load_source_dates",
+        lambda **_kwargs: {
+            "prices_asof": "2026-03-14",
+            "fundamentals_asof": "2026-02-28",
+            "classification_asof": "2026-02-28",
+        },
+    )
+    monkeypatch.setattr(
+        run_model_pipeline.model_outputs,
+        "persist_model_outputs",
+        lambda **kwargs: captured.update(kwargs) or {"status": "ok", "authority_store": "sqlite"},
+    )
 
     out = run_model_pipeline._run_stage(
         profile="cold-core",
@@ -788,7 +872,7 @@ def test_risk_model_stage_writes_workspace_cache_without_global_path_mutation(
         serving_mode="full",
         force_core=False,
         core_reason="due",
-        data_db=tmp_path / "workspace_data.db",
+        data_db=workspace_data_db,
         cache_db=workspace_cache_db,
     )
 
@@ -796,6 +880,11 @@ def test_risk_model_stage_writes_workspace_cache_without_global_path_mutation(
     assert str(run_model_pipeline.config.SQLITE_PATH) == original_cache_path
     assert run_model_pipeline.sqlite.cache_get_live("risk_engine_meta", db_path=workspace_cache_db)["status"] == "ok"
     assert run_model_pipeline.sqlite.cache_get_live("risk_engine_cov", db_path=workspace_cache_db)["factors"] == ["Market"]
+    assert out["model_outputs_write"]["status"] == "ok"
+    assert captured["data_db"] == workspace_data_db
+    assert captured["cache_db"] == workspace_cache_db
+    assert captured["refresh_mode"] == "cold-core"
+    assert captured["source_dates"]["prices_asof"] == "2026-03-14"
 
 
 def test_explicit_neon_core_window_fails_without_neon_readiness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -944,10 +1033,11 @@ def test_get_refresh_status_reconciles_orphaned_running_state(monkeypatch: pytes
         def release(self) -> None:
             self._locked = False
 
-    monkeypatch.setattr(refresh_manager, "cache_set", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(refresh_manager, "_persist_state", lambda *_args, **_kwargs: {"status": "ok"})
     monkeypatch.setattr(refresh_manager, "mark_refresh_finished", lambda **kwargs: captured.update(kwargs))
     monkeypatch.setattr(refresh_manager, "_RUN_LOCK", _FakeLock())
     monkeypatch.setattr(refresh_manager, "_ACTIVE_WORKER", None)
+    monkeypatch.setattr(refresh_manager, "_STATE_LOADED", True)
     monkeypatch.setattr(
         refresh_manager,
         "_STATE",

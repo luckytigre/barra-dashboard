@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Position } from "@/lib/types";
+import type { Position } from "@/lib/types/cuse4";
 import TableRowToggle from "@/components/TableRowToggle";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
 import { exposureMethodDisplayLabel, exposureMethodRank } from "@/lib/exposureOrigin";

@@ -54,9 +54,11 @@ from backend.risk_model import (
     build_specific_risk_from_cache,
     compute_daily_factor_returns,
     risk_decomposition,
+    vol_scaled_decomposition,
 )
 from backend.risk_model.projected_loadings import (
     compute_projected_loadings,
+    latest_persisted_projection_asof,
     load_persisted_projected_loadings,
 )
 from backend.universe import bootstrap_cuse4_source_tables, build_and_persist_estu_membership
@@ -496,8 +498,8 @@ def run_refresh(
     cached_specific_count = _specific_risk_entry_count(specific_risk_by_security)
 
     if risk_engine_meta_source == "model_run_metadata":
-        persisted_cov_payload = model_outputs.load_latest_persisted_covariance_payload()
-        persisted_specific_payload = model_outputs.load_latest_persisted_specific_risk_payload()
+        persisted_cov_payload = model_outputs.load_latest_rebuild_authority_covariance_payload()
+        persisted_specific_payload = model_outputs.load_latest_rebuild_authority_specific_risk_payload()
         if _persisted_risk_artifacts_are_richer(
             cached_cov=cov,
             cached_specific=specific_risk_by_security,
@@ -698,7 +700,23 @@ def run_refresh(
                 projection_universe_rows = load_projection_only_universe_rows(_proj_conn)
             finally:
                 _proj_conn.close()
-            should_refresh_projection_outputs = bool(refresh_projected_loadings or recomputed_this_refresh)
+            persisted_projection_asof = (
+                latest_persisted_projection_asof(
+                    data_db=effective_data_db,
+                    projection_rics=projection_universe_rows,
+                )
+                if projection_universe_rows and active_core_state_through_date
+                else None
+            )
+            should_refresh_projection_outputs = bool(
+                refresh_projected_loadings
+                or recomputed_this_refresh
+                or (
+                    projection_universe_rows
+                    and active_core_state_through_date
+                    and persisted_projection_asof != active_core_state_through_date
+                )
+            )
             if projection_universe_rows and should_refresh_projection_outputs and active_core_state_through_date:
                 _emit_refresh_progress(
                     progress_callback,
@@ -809,6 +827,17 @@ def run_refresh(
         "industry": float(raw_risk_shares.get("industry", 0.0)),
         "style": float(raw_risk_shares.get("style", 0.0)),
         "idio": float(raw_risk_shares.get("idio", 0.0)),
+    }
+    raw_vol_scaled_shares = vol_scaled_decomposition(
+        cov=cov,
+        positions=positions,
+        specific_risk_by_ticker=specific_risk_by_ticker,
+    )
+    vol_scaled_shares: RiskSharesPayload = {
+        "market": float(raw_vol_scaled_shares.get("market", 0.0)),
+        "industry": float(raw_vol_scaled_shares.get("industry", 0.0)),
+        "style": float(raw_vol_scaled_shares.get("style", 0.0)),
+        "idio": float(raw_vol_scaled_shares.get("idio", 0.0)),
     }
     component_shares: ComponentSharesPayload = {
         "market": float(raw_component_shares.get("market", 0.0)),
@@ -929,6 +958,8 @@ def run_refresh(
             d[k] = _safe(v)
     for k in risk_shares:
         risk_shares[k] = _safe(risk_shares[k])
+    for k in vol_scaled_shares:
+        vol_scaled_shares[k] = _safe(vol_scaled_shares[k])
     for k in component_shares:
         component_shares[k] = _safe(component_shares[k])
 
@@ -951,6 +982,7 @@ def run_refresh(
         positions=positions,
         total_value=total_value,
         risk_shares=risk_shares,
+        vol_scaled_shares=vol_scaled_shares,
         component_shares=component_shares,
         factor_details=factor_details,
         cov_matrix=cov_matrix,

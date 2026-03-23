@@ -1,4 +1,10 @@
-"""Universe route service."""
+"""cUSE4 universe cached read service.
+
+This module serves the current default cUSE4 universe/search/detail surfaces.
+It is not a generic cross-model universe abstraction. cPAR owns separate
+search/detail services under `backend/services/cpar_*`.
+Prefer importing `backend.services.cuse4_universe_service` from cUSE4 routes.
+"""
 
 from __future__ import annotations
 

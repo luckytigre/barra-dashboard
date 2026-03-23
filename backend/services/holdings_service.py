@@ -1,7 +1,13 @@
-"""Holdings application service for Neon-backed portfolio mutations."""
+"""Compatibility module for cUSE4 holdings read/mutation semantics.
+
+Prefer importing `backend.services.cuse4_holdings_service` from the default
+cUSE4 holdings and portfolio routes. This module remains as the compatibility
+home for older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from backend.data.neon import connect, resolve_dsn
@@ -16,21 +22,15 @@ from backend.services.neon_holdings import (
     parse_holdings_rows,
     remove_single_position,
 )
-from backend.services.refresh_manager import start_refresh
+from backend.services.refresh_dispatcher import request_serve_refresh
+
+logger = logging.getLogger(__name__)
 
 
 def trigger_light_refresh_if_requested(trigger: bool) -> dict[str, Any] | None:
     if not bool(trigger):
         return None
-    started, state = start_refresh(
-        profile="serve-refresh",
-        force_risk_recompute=False,
-        refresh_scope="holdings_only",
-    )
-    return {
-        "started": bool(started),
-        "state": state,
-    }
+    return request_serve_refresh(refresh_scope="holdings_only")
 
 
 def record_holdings_dirty(
@@ -41,13 +41,16 @@ def record_holdings_dirty(
     import_batch_id: str | None,
     change_count: int,
 ) -> None:
-    mark_holdings_dirty(
-        action=action,
-        account_id=account_id,
-        summary=summary,
-        import_batch_id=import_batch_id,
-        change_count=change_count,
-    )
+    try:
+        mark_holdings_dirty(
+            action=action,
+            account_id=account_id,
+            summary=summary,
+            import_batch_id=import_batch_id,
+            change_count=change_count,
+        )
+    except Exception:
+        logger.exception("Failed to persist holdings dirty state")
 
 
 def load_holdings_accounts() -> list[dict[str, Any]]:

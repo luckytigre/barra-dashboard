@@ -41,6 +41,7 @@ def test_load_risk_response_normalizes_country_fields() -> None:
     payload = {
         "risk": {
             "risk_shares": {"country": 1.0, "style": 99.0},
+            "vol_scaled_shares": {"country": 2.0, "style": 98.0},
             "component_shares": {"country": 0.2, "style": 0.8},
             "factor_details": [{"factor": "Country: US", "category": "country"}],
             "cov_matrix": {"factors": ["market"], "correlation": [[1.0]]},
@@ -64,6 +65,8 @@ def test_load_risk_response_normalizes_country_fields() -> None:
     )
     assert response["risk_shares"]["market"] == 1.0
     assert "country" not in response["risk_shares"]
+    assert response["vol_scaled_shares"]["market"] == 2.0
+    assert "country" not in response["vol_scaled_shares"]
     assert response["component_shares"]["market"] == 0.2
     assert response["factor_details"][0]["factor_id"] == "Country: US"
     assert response["factor_details"][0]["category"] == "market"

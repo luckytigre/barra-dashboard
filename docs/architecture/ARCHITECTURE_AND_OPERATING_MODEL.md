@@ -18,7 +18,11 @@ This document is the canonical description of the operating model and active arc
 
 Use the following docs for more specific views instead of repeating that detail here:
 - `../operations/OPERATIONS_PLAYBOOK.md` for named refresh lanes, operational commands, and retention rules
+- `../operations/CLOUD_NATIVE_RUNBOOK.md` for the serve-app vs control-app process split and split-origin frontend proxy contract
+- `CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md` for the current cPAR system surfaces
+- `../operations/CPAR_OPERATIONS_PLAYBOOK.md` for current cPAR runtime-role and authority behavior
 - `../reference/protocols/UNIVERSE_ADD_RUNBOOK.md` for the approved universe-add workflow
+- `MODEL_FAMILIES_AND_OWNERSHIP.md` for current cUSE4 vs cPAR ownership boundaries and file-placement guidance
 - `archive/current-state.md` for the last deep architecture diagnosis snapshot
 - `archive/target-architecture.md` for the last target-shape snapshot
 - `archive/module-inventory.md` for the last module-by-module ownership snapshot
@@ -38,17 +42,35 @@ This plan is intentionally operational rather than theoretical. It maps directly
 
 ## System Identity
 
-This system is the cUSE factor model framework.
+This repository currently hosts two model families:
 
-It is inspired by Barra USE4 methodology but is not a direct implementation.
+- `cUSE4`: the incumbent/default risk system
+- `cPAR`: the new explicitly namespaced parallel system
+
+The current app and many current integration surfaces remain cUSE4-first by default.
+That does not make them generic shared model surfaces.
+
+`cUSE4` is inspired by Barra USE4 methodology but is not a direct implementation.
 
 `Barra` references in this codebase represent lineage only, not system identity.
+
+Pure model-family ownership is:
+
+- `backend/risk_model/*` for pure cUSE4 model logic
+- `backend/cpar/*` for pure cPAR model logic
+
+Integration-layer ownership remains in the repo's normal layers and is documented in `MODEL_FAMILIES_AND_OWNERSHIP.md`.
 
 ## Design Principles
 
 - Local SQLite remains the only direct LSEG ingest landing zone and the optional deep archive.
 - Neon is the authoritative operating database for the standalone tool once source sync has published the retained working set.
-- During migration, `NEON_AUTHORITATIVE_REBUILDS` controls whether core/cold-core still rebuild from local SQLite or from Neon.
+- `NEON_AUTHORITATIVE_REBUILDS` now defaults on when Neon is the active data backend and a Neon DSN is configured; set it to `false` only to force a rollback to local-SQLite rebuild authority.
+- In `cloud-serve`, a fresh machine should be able to serve cUSE/cPAR runtime surfaces from Neon without a preexisting large local `data.db`; local SQLite remains only for ingest, archive, explicit local diagnostics, and scratch/workspace files.
+- Cloud-native prep now assumes two app surfaces:
+  - a stateless serve app for public/editor-facing reads and holdings mutations
+  - a control app for refresh execution and operator/control diagnostics
+- In that split model, the serve app must not own refresh execution or reconcile process-local refresh-worker state.
 - The active cUSE model-history window is defined by retained `barra_raw_cross_section_history`, not by the deepest source archive.
 - `security_master` is the only universe authority.
 - The committed universe artifact is `data/reference/security_master_seed.csv`.
@@ -86,6 +108,7 @@ Key actions:
 Rule:
 - Universe maintenance is explicit and file-driven.
 - The committed `security_master_seed.csv` is a registry/bootstrap input only; LSEG enrichment is the authority for live identifiers and the source for derived eligibility flags.
+- When `DATA_BACKEND=neon`, Neon `security_master` is the operating source of truth for app/runtime reads; local SQLite remains the ingest/archive/mirror surface that feeds or repairs Neon.
 - No separate universe-builder artifacts should be needed at runtime.
 - After approved universe changes, regenerate and commit `data/reference/security_master_seed.csv`.
 
@@ -135,9 +158,13 @@ Key rule:
 - Current policy remains `CROSS_SECTION_MIN_AGE_DAYS=7`.
 - The active cUSE model-history horizon is defined by retained `barra_raw_cross_section_history`.
 - Ordinary `core-weekly` recomputes should ignore deeper source/archive history outside that retained model window.
-- The intended rebuild authority is Neon so the tool can run standalone after local LSEG ingest publishes forward.
-- While `NEON_AUTHORITATIVE_REBUILDS=false`, local SQLite still remains the actual rebuild authority for core/cold-core.
+- Neon rebuild authority is now the default operating path whenever the app is running against Neon with a configured DSN, so the tool can run standalone after local LSEG ingest publishes forward.
+- Set `NEON_AUTHORITATIVE_REBUILDS=false` only when you intentionally need to pin core/cold-core rebuilds back to local SQLite for rollback or local-only troubleshooting.
+- Durable `model_outputs` readers are contract-split:
+  - rebuild-authority readers follow the currently configured rebuild authority
+  - local diagnostic readers inspect only the local SQLite archive and must not be treated as app-serving truth
 - When rebuild lanes use a workspace/local override, the orchestrator now passes explicit `data_db` / `cache_db` targets through execution instead of mutating process-wide runtime paths.
+- Neon-authoritative rebuild rehearsal must fail closed if `neon_readiness` cannot produce a valid scratch workspace or if the derived local mirror sync from that workspace fails.
 - The risk-model math window is narrower than retained model history:
   - covariance / specific risk use `LOOKBACK_DAYS` (currently ~2 trading years)
   - factor-return / raw cross-section history may be retained for longer (for example ~5 years)
@@ -178,19 +205,19 @@ Examples:
 The dashboard should stay thin. Each page should read one of a small number of serving surfaces rather than rebuilding logic in the browser.
 
 Canonical page-to-backend wiring:
-- `Risk` (`/exposures`)
+- `Risk` (`/cuse/exposures`)
   - reads: `/api/exposures`, `/api/risk`, `/api/portfolio`
   - purpose: factor-level portfolio views plus portfolio risk split and per-position drilldown
-- `Explore`
+- `Explore` (`/cuse/explore`)
   - reads: `/api/universe/search`, `/api/universe/ticker/{ticker}`, `/api/universe/ticker/{ticker}/history`, `/api/universe/factors`, `/api/portfolio`, `/api/portfolio/whatif`
   - purpose: single-name inspection plus account-aware what-if preview against the current live holdings ledger, with optional apply + `serve-refresh` once a scenario is accepted
-- `Positions`
+- `Positions` (`/positions`)
   - reads: `/api/holdings/*`, `/api/portfolio`, `/api/universe/search`
   - purpose: holdings editing/import and current model portfolio view
-- `Data`
+- `Data` (`/data`)
   - reads: `/api/data/diagnostics`
   - purpose: source-table lineage, coverage, cache surfaces, and integrity diagnostics
-- `Health`
+- `Health` (`/cuse/health`)
   - reads: `/api/operator/status`, `/api/risk`, `/api/health/diagnostics`
   - purpose: live operator control-room status plus top-level model quality and deeper model-diagnostics study, loaded on demand because it is the heaviest dashboard page
 
@@ -270,8 +297,8 @@ Should not do by default:
 - full historical raw-history rebuild
 
 Migration note:
-- while `NEON_AUTHORITATIVE_REBUILDS=false`, operators should still run a source-syncing lane before `core-weekly` because the rebuild path remains local-SQLite-first
-- once `NEON_AUTHORITATIVE_REBUILDS=true`, `core-weekly` should be treated as a Neon-authoritative rebuild lane with local ingest as its prerequisite
+- `core-weekly` should now be treated as a Neon-authoritative rebuild lane with local ingest as its prerequisite whenever the app is running against Neon with a configured DSN
+- if you set `NEON_AUTHORITATIVE_REBUILDS=false`, operators should also treat `core-weekly` and `cold-core` as local-SQLite rebuild lanes again until that rollback is removed
 
 ### D) Structural data change
 

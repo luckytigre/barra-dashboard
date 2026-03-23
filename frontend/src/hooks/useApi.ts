@@ -1,8 +1,23 @@
 "use client";
 
+// Transitional mixed-family compatibility barrel.
+// New cUSE4-owned frontend code should import from `@/hooks/useCuse4Api`.
+// New cPAR-owned frontend code should import from `@/hooks/useCparApi`.
+
 import useSWR from "swr";
 import { ApiError, apiFetch, apiPath } from "@/lib/api";
 import type {
+  FactorHistoryData,
+  CparHedgeMode,
+  CparFactorHistoryData,
+  CparMetaData,
+  CparRiskData,
+  CparTickerDetailData,
+  CparTickerHistoryData,
+  CparExploreWhatIfData,
+  CparPortfolioHedgeData,
+  CparPortfolioWhatIfData,
+  CparSearchData,
   PortfolioData,
   WhatIfApplyResponse,
   WhatIfPreviewData,
@@ -15,7 +30,6 @@ import type {
   HoldingsPositionEditResponse,
   ExposuresData,
   RiskData,
-  FactorHistoryData,
   UniverseTickerData,
   UniverseTickerHistoryData,
   UniverseSearchData,
@@ -55,6 +69,97 @@ function operatorStatusRefreshInterval(data?: OperatorStatusData): number {
 
 export function usePortfolio() {
   return useSWR<PortfolioData>(apiPath.portfolio(), apiFetch, SWR_OPTS);
+}
+
+export function useCparMeta() {
+  return useSWR<CparMetaData>(apiPath.cparMeta(), apiFetch, SWR_OPTS);
+}
+
+export function useCparSearch(query: string, limit = 10) {
+  const q = query.trim();
+  const key = q.length > 0 ? apiPath.cparSearch(q, limit) : null;
+  return useSWR<CparSearchData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparTicker(ticker: string | null, ric?: string | null) {
+  const cleanTicker = ticker?.trim().toUpperCase() || null;
+  const cleanRic = ric?.trim().toUpperCase() || null;
+  const key = cleanTicker ? apiPath.cparTicker(cleanTicker, cleanRic) : null;
+  return useSWR<CparTickerDetailData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparTickerHistory(ticker: string | null, years = 5, ric?: string | null) {
+  const cleanTicker = ticker?.trim().toUpperCase() || null;
+  const cleanRic = ric?.trim().toUpperCase() || null;
+  const key = cleanTicker ? apiPath.cparTickerHistory(cleanTicker, years, cleanRic) : null;
+  return useSWR<CparTickerHistoryData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparRisk(enabled = true) {
+  return useSWR<CparRiskData>(enabled ? apiPath.cparRisk() : null, apiFetch, SWR_OPTS);
+}
+
+export function useCparFactorHistory(factorId: string | null, years = 5, enabled = true) {
+  const cleanFactorId = factorId?.trim().toUpperCase() || null;
+  const key = enabled && cleanFactorId ? apiPath.cparFactorHistory(cleanFactorId, years) : null;
+  return useSWR<CparFactorHistoryData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparPortfolioHedge(
+  accountId: string | null,
+  mode: CparHedgeMode,
+  enabled = true,
+) {
+  const cleanAccountId = accountId?.trim() || null;
+  const key = enabled && cleanAccountId ? apiPath.cparPortfolioHedge(cleanAccountId, mode) : null;
+  return useSWR<CparPortfolioHedgeData>(key, apiFetch, SWR_OPTS);
+}
+
+export function useCparPortfolioWhatIf(
+  accountId: string | null,
+  mode: CparHedgeMode,
+  scenarioRows: Array<{ ric: string; ticker?: string | null; quantity_delta: number }>,
+  enabled = true,
+) {
+  const cleanAccountId = accountId?.trim() || null;
+  const cleanScenarioRows = scenarioRows.map((row) => ({
+    ric: row.ric.trim().toUpperCase(),
+    ticker: row.ticker?.trim().toUpperCase() || null,
+    quantity_delta: row.quantity_delta,
+  }));
+  const serializedRows = JSON.stringify(cleanScenarioRows);
+  const key = enabled && cleanAccountId && cleanScenarioRows.length > 0
+    ? [apiPath.cparPortfolioWhatIf(), cleanAccountId, mode, serializedRows]
+    : null;
+  return useSWR<CparPortfolioWhatIfData>(
+    key,
+    ([path, account_id, hedgeMode, rows]) => apiFetch<CparPortfolioWhatIfData>(String(path), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        account_id,
+        mode: hedgeMode,
+        scenario_rows: JSON.parse(String(rows)),
+      }),
+    }),
+    SWR_OPTS,
+  );
+}
+
+export async function previewCparExploreWhatIf(payload: {
+  scenario_rows: Array<{
+    account_id: string;
+    ticker?: string | null;
+    ric: string;
+    quantity: number;
+    source?: string | null;
+  }>;
+}): Promise<CparExploreWhatIfData> {
+  return apiFetch<CparExploreWhatIfData>(apiPath.cparExploreWhatIf(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 export function useHoldingsModes() {
@@ -116,8 +221,8 @@ export function useDataDiagnostics(opts?: { includeExactRowCounts?: boolean; inc
   return useSWR<DataDiagnosticsData>(apiPath.dataDiagnostics(opts), apiFetch, HEAVY_DIAGNOSTICS_OPTS);
 }
 
-export function useOperatorStatus() {
-  return useSWR<OperatorStatusData>(apiPath.operatorStatus(), apiFetch, {
+export function useOperatorStatus(enabled = true) {
+  return useSWR<OperatorStatusData>(enabled ? apiPath.operatorStatus() : null, apiFetch, {
     ...SWR_OPTS,
     refreshInterval: operatorStatusRefreshInterval,
   });

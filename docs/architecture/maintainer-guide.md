@@ -16,6 +16,9 @@ The repository is organized around five backend layers:
 
 Frontend pages should read a small number of backend surfaces and rely on shared freshness/truth helpers rather than rebuilding semantics locally.
 
+Model-family ownership is documented separately in `MODEL_FAMILIES_AND_OWNERSHIP.md`.
+Use that note when deciding whether a surface is currently cUSE4-owned by default or should be explicitly namespaced for cPAR.
+
 ## Local Environment
 
 Use a single root virtualenv for local work:
@@ -24,8 +27,8 @@ Use a single root virtualenv for local work:
 - activate with `source .venv_local/bin/activate`
 - the local app scripts and backend commands assume `.venv_local`
 - the repository is standardized on Python `3.14.x`
-- `make doctor` verifies interpreter wiring, core imports, and basic LSEG readiness
-- `make doctor` performs a live non-destructive LSEG connectivity check against a real instrument query; it validates real session/credential readiness, not just local imports
+- `make doctor` verifies `.venv_local`, core backend imports, whether `lseg.data` is importable in that environment, and that clean duplicate aliases are not still present in the seed/local `security_master`
+- install the real LSEG runtime into `.venv_local` when you need ingest/rebuild lanes; the backend package extra is `.[lseg]`, and `./scripts/setup_local_env.sh` also attempts `pip install lseg-data`
 
 ## Where New Code Should Go
 
@@ -62,6 +65,28 @@ When the change is about:
 - schema maintenance
 - provider-specific read/write behavior
 
+## Model Families
+
+Current repo reality:
+
+- `cUSE4` is still the incumbent/default risk system across many integration surfaces
+- `cPAR` is the new explicitly namespaced parallel system
+
+Practical rule:
+
+- do not move existing cUSE4 files only to make the tree look symmetric with cPAR
+- do make ownership explicit in docs and in new namespaced cPAR surfaces
+- when touching pure cUSE4 model logic, keep it in `backend/risk_model/*`
+- when touching pure cPAR model logic, keep it in `backend/cpar/*`
+- when touching cPAR integration, keep it in normal repo layers with `cpar_*` naming
+- when touching default cUSE4 frontend imports, prefer the explicit cUSE4 surfaces:
+  - `frontend/src/hooks/useCuse4Api.ts`
+  - `frontend/src/lib/cuse4Api.ts`
+  - `frontend/src/lib/types/cuse4.ts`
+  - `frontend/src/lib/cuse4Truth.ts`
+  - `frontend/src/lib/cuse4Refresh.ts`
+  - `frontend/src/features/cuse4/components/*` for shared cUSE4 visual components
+
 ## Where New Code Should NOT Go
 
 - do not put cross-store truth assembly in routes
@@ -75,13 +100,33 @@ When the change is about:
 ### Refresh / rebuild
 
 Use:
-- `refresh_manager` for process-local refresh lifecycle
+- `refresh_manager` for process-local refresh lifecycle inside the control-plane surface
+- `refresh_status_service` for read-only persisted refresh-status reads from serve-facing/operator-facing surfaces that do not own the worker
+- `refresh_dispatcher` for runtime-aware “request serve-refresh” behavior when a mutation flow may or may not be allowed to start refresh locally
 - `run_model_pipeline` and `backend/orchestration/*` for staged rebuild workflows
 
 Do not:
 - mutate module globals to retarget one run
 - hide stage behavior in unrelated helper modules
 - let serving-only paths synthesize or advance core artifacts when the stable core package is stale or missing
+- let a serve-only process reconcile shared refresh state as though it owned the control-plane worker
+
+### App surfaces
+
+Current approved entrypoints:
+
+- `backend.main:app`
+  - full local/all-in-one compatibility surface
+- `backend.serve_main:app`
+  - stateless serving surface
+- `backend.control_main:app`
+  - operator/control surface
+
+Frontend split-origin proxy ownership lives in:
+- `frontend/src/app/api/_backend.ts`
+- the operator/control App Router proxy handlers under `frontend/src/app/api/*`
+
+Pages/components should not choose backend origins directly.
 
 ### Serving
 

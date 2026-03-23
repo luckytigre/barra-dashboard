@@ -22,13 +22,19 @@ from backend.orchestration.run_model_pipeline import (
 )
 from backend.services.holdings_runtime_state import mark_refresh_started
 from backend.services.holdings_runtime_state import mark_refresh_finished
+from backend.services.refresh_profile_policy import assert_refresh_profile_allowed
+from backend.services.refresh_profile_policy import default_refresh_profile
+from backend.services.refresh_profile_policy import runtime_allowed_profiles
+from backend.services.refresh_status_service import default_refresh_status_state
+from backend.services.refresh_status_service import load_persisted_refresh_status
+from backend.services.refresh_status_service import persist_refresh_status
 
 logger = logging.getLogger(__name__)
 
-_STATUS_CACHE_KEY = "refresh_status"
 _RUN_LOCK = threading.Lock()
 _STATE_LOCK = threading.Lock()
 _ACTIVE_WORKER: threading.Thread | None = None
+_STATE_LOADED = False
 
 
 def _now_iso() -> str:
@@ -36,66 +42,44 @@ def _now_iso() -> str:
 
 
 def _default_state() -> dict[str, Any]:
-    return {
-        "status": "idle",
-        "job_id": None,
-        "pipeline_run_id": None,
-        "profile": None,
-        "requested_profile": None,
-        "mode": None,
-        "as_of_date": None,
-        "resume_run_id": None,
-        "from_stage": None,
-        "to_stage": None,
-        "refresh_scope": None,
-        "force_core": False,
-        "force_risk_recompute": False,
-        "current_stage": None,
-        "current_stage_substage": None,
-        "current_stage_substage_status": None,
-        "current_stage_diagnostics_section": None,
-        "stage_index": None,
-        "stage_count": None,
-        "stage_started_at": None,
-        "current_stage_message": None,
-        "current_stage_progress_pct": None,
-        "current_stage_items_processed": None,
-        "current_stage_items_total": None,
-        "current_stage_unit": None,
-        "current_stage_heartbeat_at": None,
-        "serving_publish_completed_at": None,
-        "serving_publish_snapshot_id": None,
-        "serving_publish_run_id": None,
-        "serving_publish_payload_count": None,
-        "requested_at": None,
-        "started_at": None,
-        "finished_at": None,
-        "result": None,
-        "error": None,
-    }
+    return default_refresh_status_state()
+
+
+def _persist_state(state: dict[str, Any]) -> dict[str, Any]:
+    return persist_refresh_status(state, fallback_writer=cache_set)
 
 
 def _load_initial_state() -> dict[str, Any]:
-    cached = cache_get(_STATUS_CACHE_KEY)
-    if isinstance(cached, dict):
-        base = _default_state()
-        base.update(cached)
-        if base.get("status") == "running":
-            # After process restart, a previously running task cannot be resumed.
-            base["status"] = "unknown"
-            base["error"] = {
-                "type": "process_restart",
-                "message": "Refresh state was running before process restart.",
-            }
-            base["finished_at"] = _now_iso()
-        return base
-    return _default_state()
+    base = load_persisted_refresh_status(fallback_loader=cache_get)
+    if base.get("status") == "running":
+        # After process restart, a previously running task cannot be resumed.
+        base["status"] = "unknown"
+        base["error"] = {
+            "type": "process_restart",
+            "message": "Refresh state was running before process restart.",
+        }
+        base["finished_at"] = _now_iso()
+    return base
 
 
-_STATE = _load_initial_state()
+_STATE = default_refresh_status_state()
+
+
+def _ensure_state_loaded() -> None:
+    global _STATE_LOADED, _STATE
+    with _STATE_LOCK:
+        if _STATE_LOADED:
+            return
+    loaded = _load_initial_state()
+    with _STATE_LOCK:
+        if _STATE_LOADED:
+            return
+        _STATE = loaded
+        _STATE_LOADED = True
 
 
 def _snapshot() -> dict[str, Any]:
+    _ensure_state_loaded()
     with _STATE_LOCK:
         return dict(_STATE)
 
@@ -112,10 +96,17 @@ def _get_active_worker() -> threading.Thread | None:
 
 
 def _set_state(**updates: Any) -> dict[str, Any]:
+    suppress_persist_errors = bool(updates.pop("suppress_persist_errors", False))
+    _ensure_state_loaded()
     with _STATE_LOCK:
         _STATE.update(updates)
         snap = dict(_STATE)
-    cache_set(_STATUS_CACHE_KEY, snap)
+    try:
+        persist_refresh_status(snap, fallback_writer=cache_set)
+    except Exception:
+        if not suppress_persist_errors:
+            raise
+        logger.exception("Failed to persist refresh status to runtime_state")
     return snap
 
 
@@ -159,6 +150,7 @@ def _reconcile_orphaned_running_state() -> dict[str, Any]:
             "type": "refresh_worker_missing",
             "message": "Refresh state was running but no background worker is alive.",
         },
+        suppress_persist_errors=True,
     )
     _set_active_worker(None)
     return reconciled
@@ -170,7 +162,7 @@ def get_refresh_status() -> dict[str, Any]:
 
 
 def _default_profile() -> str:
-    return "serve-refresh" if config.cloud_mode() else "source-daily-plus-core-if-due"
+    return default_refresh_profile()
 
 
 def _resolve_profile(profile: str | None) -> str:
@@ -186,19 +178,11 @@ def _resolve_profile(profile: str | None) -> str:
 
 
 def _runtime_allowed_profiles() -> set[str]:
-    if config.cloud_mode():
-        return {"serve-refresh"}
-    return set(PROFILE_CONFIG.keys())
+    return runtime_allowed_profiles()
 
 
 def _assert_profile_allowed(profile: str) -> None:
-    allowed = _runtime_allowed_profiles()
-    if profile in allowed:
-        return
-    raise ValueError(
-        f"Profile '{profile}' is not allowed when APP_RUNTIME_ROLE={config.APP_RUNTIME_ROLE}. "
-        f"Allowed profiles: {', '.join(sorted(allowed))}"
-    )
+    assert_refresh_profile_allowed(profile)
 
 
 def _normalize_stage(name: str | None) -> str | None:
@@ -335,6 +319,7 @@ def _run_in_background(
                 "message": str(exc),
                 "traceback": traceback.format_exc(limit=12),
             },
+            suppress_persist_errors=True,
         )
     finally:
         _set_active_worker(None)
@@ -455,6 +440,7 @@ def start_refresh(
             status="failed",
             finished_at=_now_iso(),
             error={"type": type(exc).__name__, "message": str(exc)},
+            suppress_persist_errors=True,
         )
         return False, failed_state
     return True, running_state

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from backend.api.auth import require_role
-from backend.services import holdings_service
+from backend.services import cuse4_holdings_service as holdings_service
 
 router = APIRouter()
 

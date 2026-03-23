@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from backend.risk_model.factor_catalog import MARKET_FACTOR
-from backend.risk_model.risk_attribution import risk_decomposition
+from backend.risk_model.risk_attribution import risk_decomposition, vol_scaled_decomposition
 
 
 def test_risk_decomposition_emits_market_bucket() -> None:
@@ -94,3 +94,50 @@ def test_risk_decomposition_emits_market_bucket_for_factor_ids() -> None:
     assert by_factor["market"]["category"] == "market"
     assert by_factor["industry_software_services"]["category"] == "industry"
     assert by_factor["style_beta_score"]["category"] == "style"
+
+
+def test_vol_scaled_decomposition_is_nonnegative_and_normalized() -> None:
+    cov = pd.DataFrame(
+        [
+            [0.0400, 0.0000, 0.0000],
+            [0.0000, 0.0900, 0.0000],
+            [0.0000, 0.0000, 0.0100],
+        ],
+        index=[MARKET_FACTOR, "Software & Services", "Beta"],
+        columns=[MARKET_FACTOR, "Software & Services", "Beta"],
+    )
+    positions = [
+        {
+            "ticker": "SHOP",
+            "weight": 0.7,
+            "exposures": {
+                MARKET_FACTOR: 1.0,
+                "Software & Services": 1.0,
+                "Beta": -0.4,
+            },
+        },
+        {
+            "ticker": "AAPL",
+            "weight": 0.3,
+            "exposures": {
+                MARKET_FACTOR: 1.0,
+                "Software & Services": 1.0,
+                "Beta": 0.6,
+            },
+        },
+    ]
+
+    shares = vol_scaled_decomposition(
+        cov=cov,
+        positions=positions,
+        specific_risk_by_ticker={
+            "SHOP": {"specific_var": 0.04},
+            "AAPL": {"specific_var": 0.01},
+        },
+    )
+
+    assert shares["market"] > 0.0
+    assert shares["industry"] > 0.0
+    assert shares["style"] >= 0.0
+    assert shares["idio"] > 0.0
+    assert abs(sum(shares.values()) - 100.0) < 0.05

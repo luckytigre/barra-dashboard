@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import ExposureBarChart from "@/components/ExposureBarChart";
-import TickerWeeklyPriceChart from "@/components/TickerWeeklyPriceChart";
+import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
+import TickerWeeklyPriceChart from "@/features/cuse4/components/TickerWeeklyPriceChart";
 import { exposureMethodLabel, normalizeExposureOrigin } from "@/lib/exposureOrigin";
-import type { FactorCatalogEntry, FactorExposure, UniverseTickerItem, WeeklyPricePoint } from "@/lib/types";
+import type { FactorCatalogEntry, FactorExposure, UniverseTickerItem, WeeklyPricePoint } from "@/lib/types/cuse4";
 
 interface PositionSummary {
   shares: number;

@@ -1,4 +1,9 @@
-"""Canonical serving-payload assembly for dashboard routes."""
+"""Compatibility module for cUSE4 dashboard payload assembly.
+
+Prefer importing `backend.services.cuse4_dashboard_payload_service` from the
+default cUSE4 route family. This module remains as the compatibility home for
+existing tests and older callers.
+"""
 
 from __future__ import annotations
 
@@ -234,7 +239,7 @@ def load_risk_response(
     sanity = payloads.get("model_sanity")
     if sanity is None:
         sanity = {"status": "no-data", "warnings": [], "checks": {}}
-    return {
+    response = {
         **dict(data),
         "risk_shares": _normalize_systematic_shares(data.get("risk_shares")),
         "component_shares": _normalize_systematic_shares(data.get("component_shares")),
@@ -243,6 +248,10 @@ def load_risk_response(
         "model_sanity": _normalize_model_sanity(sanity),
         "_cached": True,
     }
+    vol_scaled_shares = _normalize_systematic_shares(data.get("vol_scaled_shares"))
+    if isinstance(vol_scaled_shares, dict):
+        response["vol_scaled_shares"] = vol_scaled_shares
+    return response
 
 
 def load_portfolio_response(

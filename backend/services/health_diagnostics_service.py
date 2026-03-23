@@ -1,4 +1,9 @@
-"""Health-diagnostics route service."""
+"""Compatibility module for cUSE4 health-diagnostics route semantics.
+
+Prefer importing `backend.services.cuse4_health_diagnostics_service` from the
+default cUSE4 route family. This module remains as the compatibility home for
+older callers and tests that still bind directly to it.
+"""
 
 from __future__ import annotations
 
