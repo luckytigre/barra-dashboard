@@ -2,14 +2,14 @@
 
 Date: 2026-03-21
 Owner: Codex
-Status: `run.app` rollout live and validated, Cloudflare DNS cutover completed, managed-certificate activation and final HTTPS validation pending
+Status: custom-domain rollout live and validated on `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
 
 ## Purpose
 
 Define the process split and environment contract needed to run the app in a cloud-native shape without relying on one all-in-one web process.
 
-This runbook now covers the live Cloud Run rollout path as well as the remaining cutover steps.
-The `run.app` rollout is live, Cloudflare DNS now points `app` / `api` / `control` at the GCP load balancer, and the frontend is already promoted to the final-domain image. The remaining gate is Google managed-certificate activation followed by final HTTPS smoke.
+This runbook now covers the live Cloud Run rollout path as well as the rollback/reference path.
+The `run.app` rollout remains a valid reference path, but the production cutover is now live on the final custom domains.
 
 ## Frozen Production Hostnames
 
@@ -177,7 +177,7 @@ That is not the intended steady-state value for Cloud Run services.
 
 ## Container Prep Assets
 
-Prepared but not deployed:
+Repo-owned rollout assets:
 - `backend/Dockerfile.serve`
 - `backend/Dockerfile.control`
 - `frontend/Dockerfile`
@@ -185,21 +185,29 @@ Prepared but not deployed:
 - `infra/terraform/bootstrap`
 - `infra/terraform/envs/prod`
 
-These are baseline build assets only. Provider-specific deploy manifests remain out of scope.
-The Terraform foundation currently creates the substrate only:
+These assets are now the live deployment surface for the single `prod` environment.
+The Terraform foundation now owns:
 - remote-state bucket bootstrap
 - required project APIs
 - Artifact Registry
 - service accounts
 - Secret Manager secret containers and access bindings
+- Cloud Run service resources for:
+  - frontend
+  - serve
+  - control
+- the first Cloud Run Job surface for `serve-refresh`
+- final ingress resources:
+  - global HTTPS load balancer
+  - serverless NEGs
+  - forwarding rules and proxies
+  - managed certificate resources
+  - Cloudflare DNS records
+- observability basics:
+  - logging retention
+  - uptime checks for `app` and `api`
 
-It now also defines Cloud Run service resources for:
-- frontend
-- serve
-- control
-
-It now also defines the first Cloud Run Job surface for `serve-refresh`.
-It still does not own final ingress resources or live deployed traffic by itself.
+Provider-specific deploy manifests outside this Terraform/Cloud Run path remain out of scope.
 
 ## Image Build Contract
 
@@ -346,9 +354,13 @@ Before using these split surfaces for real deployment:
   - eligibility reads needed to use Neon/core-read paths instead of SQLite-only source tables,
   - the control service needed to reconcile persisted `running` refresh state against terminal Cloud Run execution status so OOM-killed jobs do not remain stuck forever.
 - Those repo fixes are now in place.
-- Current remaining rollout blockers before final-domain validation can be closed:
-  - wait for the managed certificate to move from `PROVISIONING` to `ACTIVE` now that Cloudflare DNS points `app`, `api`, and `control` at `34.50.154.73`,
-  - run final HTTPS smoke against `app.ceiora.com`, `api.ceiora.com`, `control.ceiora.com`, and the frontend-proxied control routes after that activation.
+- Final-domain validation is now complete:
+  - the Google-managed certificate is `ACTIVE`,
+  - `https://app.ceiora.com/` returns `200`,
+  - `https://api.ceiora.com/api/cpar/meta` returns `200`,
+  - `https://control.ceiora.com/api/refresh/status` returns `200` with the operator token,
+  - `https://app.ceiora.com/api/refresh/status` returns `200` with the operator token,
+  - a post-cutover `serve-refresh` dispatch completed successfully through the control plane and reconciled in persisted runtime status.
 - Separate cloud caveat still open after cutover:
   - address `security_master` parity if projection-only loadings should become available in cloud mode instead of remaining fail-closed/unavailable.
 - Latest validated `run.app` state:
@@ -361,6 +373,7 @@ Before using these split surfaces for real deployment:
   - the Google load balancer, serverless NEGs, forwarding rules, and managed certificate resource are live on `34.50.154.73`,
   - Cloudflare DNS now points `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` at that shared ingress IP,
   - the frontend Cloud Run service is already running the final-domain bake against `https://api.ceiora.com` and `https://control.ceiora.com`,
+  - the managed certificate is active and the final custom-domain HTTPS path is now the primary validated ingress,
   - projection-only loadings still warn and degrade unavailable when `security_master` parity is absent, but the refresh path remains green and publishes serving payloads.
 
 ## Control Smoke

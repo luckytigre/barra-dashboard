@@ -427,7 +427,7 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 ### Slice 6: Control Cloud Run Rollout
 
 - [x] Deploy the control API after Slice 5 is implemented.
-- [ ] Validate operator/control routes through `control.ceiora.com`.
+- [x] Validate operator/control routes through `control.ceiora.com`.
 - [ ] Confirm scale-to-zero behavior does not break job dispatch/status visibility.
 - [x] Keep operator credentials required in cloud mode.
 - [x] Keep `cloud-serve` refresh dispatch fail-closed:
@@ -452,11 +452,11 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - `app.ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
-- [ ] Validate:
+- [x] Validate:
   - `app.ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
-- [ ] Document any split between temporary `run.app` testing and final custom-domain ingress.
+- [x] Document any split between temporary `run.app` testing and final custom-domain ingress.
 
 ### Slice 8: Observability And Operations
 
@@ -629,3 +629,9 @@ Additional validation by phase:
   - promoted the frontend Cloud Run service to the final-domain image `frontend:20260323-finaldomain-r1` with `https://api.ceiora.com` and `https://control.ceiora.com` origins,
   - verified the HTTP listener redirects to HTTPS on the final domains,
   - left Slice 7 validation open until the Google-managed certificate becomes `ACTIVE` and final HTTPS smoke passes.
+- 2026-03-23: Final-domain validation completed:
+  - the Google-managed certificate `ceiora-prod-cloud-app-cert` is now `ACTIVE` for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`,
+  - `https://app.ceiora.com/`, `https://api.ceiora.com/api/cpar/meta`, `https://control.ceiora.com/api/refresh/status`, and the frontend-proxied `https://app.ceiora.com/api/refresh/status` all returned `200`,
+  - a post-cutover `serve-refresh` dispatch completed successfully as Cloud Run execution `ceiora-prod-serve-refresh-q5n2f` and reconciled back into persisted runtime status,
+  - Slice 6 control-route validation and Slice 7 custom-domain validation are now closed,
+  - scale-to-zero behavior remains the last intentionally open cloud-runtime validation item.
