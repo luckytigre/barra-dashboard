@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.cpar.factor_registry import CPAR1_METHOD_VERSION
 from backend.data import cpar_outputs
 from backend.services import (
     cpar_meta_service,
@@ -15,7 +16,7 @@ def _package() -> dict[str, object]:
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
         "profile": "cpar-weekly",
-        "method_version": "cPAR1",
+        "method_version": CPAR1_METHOD_VERSION,
         "factor_registry_version": "cPAR1_registry_v1",
         "data_authority": "neon",
         "lookback_weeks": 52,
@@ -63,6 +64,8 @@ def _fit_row(
         "thresholded_loadings": dict(loadings),
         "factor_variance_proxy": 0.2,
         "factor_volatility_proxy": 0.447,
+        "specific_variance_proxy": 0.04,
+        "specific_volatility_proxy": 0.2,
     }
 
 
@@ -127,8 +130,8 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
                 ric="AAPL.OQ",
                 ticker="AAPL",
                 market_step_beta=0.9,
-                raw_loadings={"SPY": 1.1, "XLK": 0.3},
-                thresholded_loadings={"SPY": 1.1, "XLK": 0.3},
+                raw_loadings={"SPY": 0.9, "XLK": 0.3},
+                thresholded_loadings={"SPY": 0.9, "XLK": 0.3},
             ),
             _fit_row(ric="MSFT.OQ", ticker="MSFT", fit_status="insufficient_history", thresholded_loadings={"SPY": 1.0, "XLK": 0.2}),
         ],
@@ -173,31 +176,31 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
         "label": "Market",
         "group": "market",
         "display_order": 0,
-        "beta": pytest.approx(1.1),
-        "variance_contribution": pytest.approx(1.276),
-        "variance_share": pytest.approx(1.276 / 1.432),
+        "beta": pytest.approx(0.9),
+        "variance_contribution": pytest.approx(0.864),
+        "variance_share": pytest.approx(0.864 / 1.048),
     }
     assert payload["factor_variance_contributions"][1]["label"] == "Technology"
     assert payload["factor_variance_contributions"][1]["group"] == "sector"
     assert payload["factor_variance_contributions"][1]["display_order"] > 0
     assert payload["factor_variance_contributions"][1]["beta"] == pytest.approx(0.3)
-    assert payload["factor_variance_contributions"][1]["variance_contribution"] == pytest.approx(0.156)
-    assert payload["factor_variance_contributions"][1]["variance_share"] == pytest.approx(0.156 / 1.432)
+    assert payload["factor_variance_contributions"][1]["variance_contribution"] == pytest.approx(0.144)
+    assert payload["factor_variance_contributions"][1]["variance_share"] == pytest.approx(0.144 / 1.048)
     assert [row["factor_id"] for row in payload["factor_chart"]] == ["SPY", "XLK"]
-    assert payload["factor_chart"][0]["aggregate_beta"] == pytest.approx(1.1)
+    assert payload["factor_chart"][0]["aggregate_beta"] == pytest.approx(0.9)
     assert payload["factor_chart"][0]["factor_volatility"] == pytest.approx(1.0)
-    assert payload["factor_chart"][0]["covariance_adjustment"] == pytest.approx(1.16)
-    assert payload["factor_chart"][0]["sensitivity_beta"] == pytest.approx(1.1)
-    assert payload["factor_chart"][0]["risk_contribution_pct"] == pytest.approx((1.276 / 1.432) * 100.0)
-    assert payload["factor_chart"][0]["positive_contribution_beta"] == pytest.approx(1.1)
+    assert payload["factor_chart"][0]["covariance_adjustment"] == pytest.approx(0.96)
+    assert payload["factor_chart"][0]["sensitivity_beta"] == pytest.approx(0.9)
+    assert payload["factor_chart"][0]["risk_contribution_pct"] == pytest.approx((0.864 / 1.048) * 100.0)
+    assert payload["factor_chart"][0]["positive_contribution_beta"] == pytest.approx(0.9)
     assert payload["factor_chart"][0]["negative_contribution_beta"] == pytest.approx(0.0)
-    assert payload["factor_chart"][0]["variance_share"] == pytest.approx(1.276 / 1.432)
-    assert payload["factor_chart"][0]["drilldown"][0]["factor_beta"] == pytest.approx(1.1)
-    assert payload["factor_chart"][0]["drilldown"][0]["contribution_beta"] == pytest.approx(1.1)
-    assert payload["factor_chart"][0]["drilldown"][0]["vol_scaled_loading"] == pytest.approx(1.1)
-    assert payload["factor_chart"][0]["drilldown"][0]["vol_scaled_contribution"] == pytest.approx(1.1)
-    assert payload["factor_chart"][0]["drilldown"][0]["covariance_adjusted_loading"] == pytest.approx(1.276)
-    assert payload["factor_chart"][0]["drilldown"][0]["risk_contribution_pct"] == pytest.approx((1.276 / 1.432) * 100.0)
+    assert payload["factor_chart"][0]["variance_share"] == pytest.approx(0.864 / 1.048)
+    assert payload["factor_chart"][0]["drilldown"][0]["factor_beta"] == pytest.approx(0.9)
+    assert payload["factor_chart"][0]["drilldown"][0]["contribution_beta"] == pytest.approx(0.9)
+    assert payload["factor_chart"][0]["drilldown"][0]["vol_scaled_loading"] == pytest.approx(0.9)
+    assert payload["factor_chart"][0]["drilldown"][0]["vol_scaled_contribution"] == pytest.approx(0.9)
+    assert payload["factor_chart"][0]["drilldown"][0]["covariance_adjusted_loading"] == pytest.approx(0.864)
+    assert payload["factor_chart"][0]["drilldown"][0]["risk_contribution_pct"] == pytest.approx((0.864 / 1.048) * 100.0)
     assert [row["factor_id"] for row in payload["display_factor_chart"]] == ["SPY", "XLK"]
     assert payload["display_factor_chart"][0]["aggregate_beta"] == pytest.approx(0.9)
     assert payload["display_factor_chart"][0]["drilldown"][0]["factor_beta"] == pytest.approx(0.9)
@@ -207,7 +210,7 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
         "label": "Market",
         "group": "market",
         "display_order": 0,
-        "beta": pytest.approx(1.1),
+        "beta": pytest.approx(0.9),
     }
     assert covered_row["thresholded_contributions"][1]["factor_id"] == "XLK"
     assert covered_row["thresholded_contributions"][1]["label"] == "Technology"
@@ -223,7 +226,7 @@ def test_portfolio_hedge_service_returns_partial_account_payload(monkeypatch: py
         for contribution in row["thresholded_contributions"]:
             factor_id = contribution["factor_id"]
             reconciled[factor_id] = float(reconciled.get(factor_id, 0.0) + float(contribution["beta"]))
-    assert reconciled == {"SPY": pytest.approx(1.1), "XLK": pytest.approx(0.3)}
+    assert reconciled == {"SPY": pytest.approx(0.9), "XLK": pytest.approx(0.3)}
     assert {row["coverage"] for row in payload["positions"]} == {"covered", "insufficient_history", "missing_price"}
 
 

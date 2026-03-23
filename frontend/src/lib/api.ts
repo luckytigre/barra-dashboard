@@ -38,8 +38,8 @@ export const apiPath = {
     return `/api/cpar/ticker/${encodeURIComponent(ticker)}/history?${params.toString()}`;
   },
   cparRisk: () => "/api/cpar/risk",
-  cparFactorHistory: (factorId: string, years: number) =>
-    `/api/cpar/factors/history?factor_id=${encodeURIComponent(factorId)}&years=${years}`,
+  cparFactorHistory: (factorId: string, years: number, mode: string) =>
+    `/api/cpar/factors/history?factor_id=${encodeURIComponent(factorId)}&years=${years}&mode=${encodeURIComponent(mode)}`,
   cparPortfolioHedge: (accountId: string, mode: string) => {
     const params = new URLSearchParams();
     params.set("account_id", accountId.trim());

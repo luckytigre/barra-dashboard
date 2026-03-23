@@ -78,17 +78,9 @@ Weights:
 - exponential half-life = `26` weeks
 - most recent week has age `0`
 
-## Two-Step Fit With Package-Level Orthogonalization
+## One-Shot Fit With Package-Level Orthogonalization
 
-### Step 1: Market Fit
-
-Fit the instrument on raw weekly SPY returns:
-
-`y_t = alpha_market + beta_market * m_t + eps_t`
-
-This is weighted least squares with an intercept.
-
-### Step 2: Package-Level Orthogonalization
+### Step 1: Package-Level Orthogonalization
 
 For every non-market proxy ETF:
 
@@ -101,55 +93,54 @@ Stored transform pieces:
 - proxy market loading `b_f`
 - orthogonalized residual series `u_f,t`
 
-### Step 3: Post-Market Block
+### Step 2: One-Shot Weekly Fit
 
-Use the market-step residual as the dependent variable:
+Fit the instrument directly on:
 
-`eps_t = alpha_block + Z_t * theta + eta_t`
+`y_t = alpha + beta_market * m_t + Z_t * theta + eta_t`
 
 Where:
 - `Z_t` is the matrix of orthogonalized non-market proxy series
+- the market column stays in raw weekly return space
 - regressors are weighted-standardized on the observed sample
-- the intercept is included and never penalized
+- the intercept and market term are never penalized
+- the sector/style block is ridge-penalized jointly
 
 ## Weighted Ridge And Thresholding
 
 `cPAR1` uses ridge, not lasso.
 
 Penalty constants:
-- sectors = `4.0`
-- styles = `8.0`
+- sectors = `1.0`
+- styles = `2.0`
 
-Thresholding happens only after the raw ETF trade-space vector has been recovered.
+Thresholding for cPAR risk/read surfaces happens in residualized factor space.
 
 Rules:
 - market is never thresholded
 - non-market factors are thresholded at `abs(beta) < 0.05`
 - exact boundary `0.05` is kept, not zeroed
 
-## Raw ETF Trade-Space Back-Transform
+## Residualized Read Space And Hedge Trade Space
 
-The non-market raw trade-space coefficients are the de-standardized post-market coefficients.
+The persisted cPAR fit now treats the one-shot residualized basis as the primary explanatory space.
 
-SPY needs an adjustment because non-market raw proxy ETFs themselves contain market content.
+That means:
+- `market_step_beta` now carries the one-shot market coefficient
+- `raw_loadings` and `thresholded_loadings` are residualized-space explanatory coefficients
+- risk pages, explore detail, variance attribution, and covariance heatmaps should all read those residualized-space fields
 
-If proxy `f` has package-level market loading `b_f`, then:
+The raw ETF hedge-space translation is still available when needed.
 
-`beta_spy_trade = beta_market_step1 - Σ(beta_f_raw * b_f)`
+If proxy `f` has package-level market loading `b_f`, then the hedge-space SPY leg is:
 
-The trade-space intercept is:
+`beta_spy_trade = beta_market - Σ(theta_f * b_f)`
 
-`alpha_trade = alpha_market + alpha_block - Σ(beta_f_raw * a_f)`
+and the raw ETF intercept is:
 
-This raw ETF trade-space vector is used for:
-- hedge construction
-- post-hedge residual display
+`alpha_trade = alpha - Σ(theta_f * a_f)`
 
-Application-facing display loadings are a separate read-surface choice layered on top of the kernel:
-- `SPY` display beta should come from the market-step coefficient `beta_market_step1`
-- non-market display betas should come from the post-ridge non-market coefficients before hedge thresholding
-- those non-market coefficients are already what the pipeline persists under `raw_loadings` for non-market factors; only the `SPY` leg differs between explanatory display and hedge trade space
-- hedge-oriented fields such as `beta_spy_trade` and thresholded trade-space vectors should stay confined to hedge workflows
+That hedge-space vector should stay confined to hedge workflows and hedge previews.
 
 For proxy ETFs themselves:
 - `SPY` naturally fits near pure `SPY`
@@ -158,10 +149,10 @@ For proxy ETFs themselves:
 
 ## Specific Risk Proxy
 
-`cPAR1_idio_v1` now persists a per-instrument specific-risk proxy alongside the factor vector.
+`cPAR1_residual_v1` now persists a per-instrument specific-risk proxy alongside the residualized factor vector.
 
 Definition:
-- after the market step and post-market ridge block are fit on the observed weekly sample, keep the final weighted residual series `eta_t`
+- after the one-shot ridge fit is run on the observed weekly sample, keep the final weighted residual series `eta_t`
 - compute weighted specific variance as the weighted residual variance on that observed sample
 - specific volatility is the square root of that variance proxy
 
@@ -170,7 +161,7 @@ Operationally:
 - `specific_volatility_proxy = sqrt(max(specific_variance_proxy, 0))`
 
 This does not change hedge construction in this slice.
-The hedge engine still optimizes factor risk in raw ETF trade space.
+The hedge engine still optimizes factor risk in raw ETF trade space when that path is invoked.
 The new specific-risk proxy is used by package-pinned risk, portfolio, and what-if read surfaces so those pages can report total variance and idiosyncratic share truthfully.
 
 ## Hedge Engine Rules

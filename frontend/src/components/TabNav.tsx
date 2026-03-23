@@ -430,6 +430,13 @@ export default function TabNav() {
               </Link>
               <div className="dash-dropdown-section">Settings</div>
               <Link
+                href="/settings"
+                className={`dash-dropdown-item${pathname === "/settings" ? " active" : ""}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                Global settings
+              </Link>
+              <Link
                 href="/data"
                 className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
                 onClick={() => setMenuOpen(false)}

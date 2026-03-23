@@ -60,10 +60,10 @@ Current boundary rules:
 Core rules:
 - fixed factor registry: `SPY`, sector ETFs, and style ETFs
 - 53 XNYS weekly anchors producing 52 weekly returns
-- market-first weighted fit with intercept
 - package-level market orthogonalization for non-market proxies
-- weighted ridge on the post-market block
-- raw ETF trade-space back-transform before thresholding
+- one-shot weighted ridge on `market + residualized sector/style block`
+- residualized factor-space persistence for cPAR risk/read surfaces
+- raw ETF trade-space translation retained for hedge workflows
 - deterministic hedge generation in raw ETF trade space
 
 The authoritative math contract lives in [CPAR1_MATH_KERNEL.md](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/docs/architecture/CPAR1_MATH_KERNEL.md).
@@ -100,6 +100,12 @@ Frontend consistency rule:
 - if package identity drifts between independent reads, the page fails closed and prompts the user to reload
 - shared banner rendering exposes package freshness so stale active packages remain visible without implying any route-triggered rebuild path
 - factor-history drilldown data is supplemental; if that read degrades, `/cpar/risk` still renders the aggregate package-pinned risk payload
+- cPAR factor drilldown history is daily and arithmetic-cumulative
+- `SPY` remains the raw market series
+- non-market factors support two drilldown-only presentation modes over the same intercept-including daily regression:
+  - `market_adjusted`: chart `alpha + residual = factor_return - beta * market_return`
+  - `residual`: chart the pure zero-mean residual
+- the mode toggle lives in the global `/settings` page under the cPAR section and does not change the package fit itself
 
 ## Risk And Explore Expansion Guardrails
 
@@ -146,15 +152,15 @@ The active package is the latest successful `cpar_package_runs` row that has the
 
 Current read behavior:
 - metadata/search/detail use the active successful package
-- aggregate risk, account hedge baselines, and cPAR what-if previews additionally require the idio-capable method version `cPAR1_idio_v1`
+- aggregate risk, account hedge baselines, and cPAR what-if previews additionally require the residualized idio-capable method version `cPAR1_residual_v1`
 - older factor-only packages are treated as `not_ready` for those surfaces until a fresh cPAR package is built
 - aggregate risk additionally requires live holdings rows across all accounts plus latest shared-source prices on or before the active package date
 - hedge preview additionally requires complete covariance coverage
 - account-level portfolio hedge additionally requires live holdings rows plus latest shared-source prices on or before the active package date
 - the shared snapshot assembly now also exposes:
   - explicit coverage buckets
-  - total variance decomposition from aggregate thresholded hedge vectors plus active-package covariance and per-instrument specific-risk proxies
-  - additive display-loadings analytics from aggregate display vectors plus active-package covariance
+  - total variance decomposition from aggregate residualized thresholded vectors plus residualized explanatory covariance and per-instrument specific-risk proxies
+  - additive display-loadings analytics from aggregate residualized display vectors plus residualized explanatory covariance
   - hedge-basis factor-chart rows plus additive display-basis factor-chart rows
   - per-position weighted thresholded contributions plus additive display contributions
   - backend-owned `risk_shares`, `factor_variance_proxy`, `idio_variance_proxy`, `total_variance_proxy`, and row `risk_mix`
@@ -164,7 +170,7 @@ Current read behavior:
   - fanning out independent package/source/display-covariance reads concurrently after the aggregate book is known
 - factor drilldown history now has a cPAR-owned supplemental route:
   - `GET /api/cpar/factors/history`
-  - backed by daily proxy-price history for the cPAR factor instrument itself
+  - backed by daily proxy-price history with fresh daily market residualization over the displayed window for non-market factors
   - degradeable without suppressing the primary aggregate risk payload
 - account-level what-if additionally requires one account hedge baseline, one active package, and staged signed share deltas that reference either existing holdings rows or active-package search hits
 - missing required relational coverage fails closed with cPAR-specific `503 not_ready`
@@ -207,8 +213,8 @@ Current display-vs-hedge rule:
 - explanatory cPAR pages must use display-loadings surfaces
 - hedge pages must use hedge-trade-space surfaces
 - single-name detail therefore distinguishes:
-  - `beta_market_step1` and `display_loadings` for explanatory display
-  - `beta_spy_trade`, `raw_loadings`, and `thresholded_loadings` for hedge-space interpretation
+  - `beta_market_step1`, `display_loadings`, `raw_loadings`, and `thresholded_loadings` for explanatory residualized display
+  - `beta_spy_trade` for hedge-space interpretation
 
 ## Current Deferred Limits
 

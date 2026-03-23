@@ -39,10 +39,10 @@ def _fit() -> dict[str, object]:
         "hq_country_code": "US",
         "market_step_alpha": 0.01,
         "market_step_beta": 0.98,
-        "block_alpha": 0.0,
+        "block_alpha": None,
         "spy_trade_beta_raw": 1.15,
-        "raw_loadings": {"SPY": 1.15, "XLK": 0.32},
-        "thresholded_loadings": {"SPY": 1.15, "XLK": 0.32},
+        "raw_loadings": {"SPY": 0.98, "XLK": 0.32},
+        "thresholded_loadings": {"SPY": 0.98, "XLK": 0.32},
         "factor_variance_proxy": 0.2,
         "factor_volatility_proxy": 0.4472,
     }

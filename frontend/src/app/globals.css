@@ -5519,6 +5519,231 @@ main {
   line-height: 1.52;
 }
 
+.settings-page {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-shell {
+  padding: 16px 18px 12px;
+}
+
+.settings-header {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 12px;
+}
+
+.settings-kicker {
+  color: rgba(169, 182, 210, 0.78);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-intro {
+  color: rgba(210, 217, 228, 0.72);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(154, 171, 214, 0.08);
+}
+
+.settings-section:first-of-type {
+  padding-top: 10px;
+}
+
+.settings-section-header {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-section-header h3 {
+  margin: 0;
+  color: rgba(242, 246, 255, 0.94);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.settings-section-header-global h3 {
+  color: rgba(255, 196, 108, 0.94);
+}
+
+.settings-section-header-cuse h3 {
+  color: rgba(198, 232, 237, 0.99);
+}
+
+.settings-section-header-cpar h3 {
+  color: rgba(237, 197, 228, 0.99);
+}
+
+.settings-section-desc {
+  color: rgba(169, 182, 210, 0.7);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-option-list {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-option-group {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0;
+  padding-left: 10px;
+}
+
+.settings-inline-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.settings-segmented-option {
+  border: 0;
+  background: transparent;
+  color: rgba(210, 217, 228, 0.72);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.settings-segmented-option:hover {
+  color: rgba(240, 244, 252, 0.92);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-segmented-option.active {
+  color: rgba(245, 248, 255, 0.95);
+  background: rgba(141, 157, 182, 0.22);
+}
+
+.settings-option-label {
+  color: rgba(242, 246, 255, 0.94);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.settings-option-help {
+  color: rgba(210, 217, 228, 0.72);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-choice-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.settings-choice-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(231, 236, 244, 0.86);
+  text-align: left;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.settings-choice-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.settings-choice-card.active {
+  border-color: rgba(167, 191, 232, 0.44);
+  background: rgba(119, 149, 203, 0.08);
+}
+
+.settings-choice-title {
+  color: rgba(247, 249, 252, 0.96);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.settings-choice-desc {
+  color: rgba(210, 217, 228, 0.72);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.settings-empty-row {
+  color: rgba(169, 182, 210, 0.64);
+  font-size: 13px;
+  line-height: 1.55;
+  padding-left: 10px;
+}
+
+.settings-toggle .toggle-switch-track {
+  width: 38px;
+  height: 20px;
+  border-radius: 10px;
+}
+
+.settings-toggle .toggle-switch-track::after {
+  width: 14px;
+  height: 14px;
+}
+
+.settings-toggle.active .toggle-switch-track::after {
+  transform: translateX(18px);
+}
+
+.toggle-switch.toggle-switch-positive.active .toggle-switch-track {
+  background: rgba(74, 179, 104, 0.26);
+  border-color: rgba(101, 206, 131, 0.48);
+}
+
+.toggle-switch.toggle-switch-positive.active .toggle-switch-track::after {
+  background: rgba(117, 231, 146, 0.96);
+}
+
+@media (max-width: 720px) {
+  .settings-inline-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-segmented-control {
+    flex-wrap: wrap;
+  }
+}
+
 .dash-dropdown-item.disabled {
   color: rgba(169, 182, 210, 0.48);
   cursor: default;

@@ -9,7 +9,7 @@ from typing import Any
 from backend.cpar import hedge_engine
 from backend.cpar.factor_registry import build_cpar1_factor_registry
 from backend.data import cpar_outputs, cpar_source_reads, holdings_reads
-from backend.services import cpar_display_loadings, cpar_meta_service
+from backend.services import cpar_display_covariance, cpar_display_loadings, cpar_meta_service
 
 _EPSILON = 1e-12
 
@@ -913,8 +913,10 @@ def build_cpar_portfolio_hedge_snapshot(
     price_by_ric: dict[str, dict[str, Any]],
     classification_by_ric: dict[str, dict[str, Any]],
     covariance_rows: list[dict[str, Any]],
+    display_covariance_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, object]:
     position_count = int(len(positions))
+    resolved_display_covariance_rows = list(display_covariance_rows or covariance_rows)
 
     base_payload: dict[str, object] = {
         **cpar_meta_service.package_meta_payload(package),
@@ -939,7 +941,7 @@ def build_cpar_portfolio_hedge_snapshot(
         "display_factor_variance_contributions": [],
         "factor_chart": [],
         "display_factor_chart": [],
-        "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
+        "cov_matrix": _cov_matrix_payload(covariance_rows=resolved_display_covariance_rows),
         "factor_variance_proxy": 0.0,
         "idio_variance_proxy": 0.0,
         "total_variance_proxy": 0.0,
@@ -969,6 +971,13 @@ def build_cpar_portfolio_hedge_snapshot(
         provisional_rows,
         loadings_by_ric={str(ric): dict((fit or {}).get("thresholded_loadings") or {}) for ric, fit in fit_by_ric.items()},
     )
+    aggregate_trade_loadings, _, _ = _aggregate_loadings(
+        provisional_rows,
+        loadings_by_ric={
+            str(ric): cpar_display_loadings.hedge_trade_loadings_from_fit(fit, thresholded=True)
+            for ric, fit in fit_by_ric.items()
+        },
+    )
     aggregate_display_loadings, _, _ = _aggregate_loadings(
         provisional_rows,
         loadings_by_ric=display_loadings_by_ric,
@@ -985,18 +994,18 @@ def build_cpar_portfolio_hedge_snapshot(
     idio_contribution_by_ric, idio_variance_proxy = _specific_risk_contributions(position_rows)
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
     )
     factor_variance_proxy = _factor_variance_total(factor_variance_rows)
     total_variance_proxy = float(factor_variance_proxy + idio_variance_proxy)
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
         total_variance=total_variance_proxy,
     )
     display_factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_display_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
     )
     display_total_variance_proxy = float(_factor_variance_total(display_factor_variance_rows) + idio_variance_proxy)
     display_factor_variance_rows = _factor_variance_contribution_rows(
@@ -1007,7 +1016,7 @@ def build_cpar_portfolio_hedge_snapshot(
     position_rows = _attach_risk_mix(
         position_rows,
         aggregate_loadings=aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
         contribution_field="thresholded_contributions",
         idio_contribution_by_ric=idio_contribution_by_ric,
         total_variance=total_variance_proxy,
@@ -1046,7 +1055,7 @@ def build_cpar_portfolio_hedge_snapshot(
 
     preview = hedge_engine.build_hedge_preview(
         mode=mode,
-        thresholded_loadings=aggregate_loadings,
+        thresholded_loadings=aggregate_trade_loadings,
         covariance={
             (str(row["factor_id"]), str(row["factor_id_2"])): float(row["covariance"])
             for row in covariance_rows
@@ -1064,7 +1073,7 @@ def build_cpar_portfolio_hedge_snapshot(
             **_factor_analytics_payload(
                 aggregate_loadings=aggregate_loadings,
                 position_rows=position_rows,
-                covariance_rows=covariance_rows,
+                covariance_rows=resolved_display_covariance_rows,
                 contribution_field="thresholded_contributions",
                 total_variance=total_variance_proxy,
             ),
@@ -1088,7 +1097,7 @@ def build_cpar_portfolio_hedge_snapshot(
                 loadings=aggregate_display_loadings,
                 variance_rows=display_factor_variance_rows,
                 position_rows=position_rows,
-                covariance_rows=covariance_rows,
+                covariance_rows=resolved_display_covariance_rows,
                 contribution_field="display_contributions",
                 total_variance=display_total_variance_proxy,
             ),
@@ -1096,7 +1105,7 @@ def build_cpar_portfolio_hedge_snapshot(
             "hedge_reason": preview.reason,
             "hedge_legs": _hedge_leg_rows(preview.hedge_legs),
             "post_hedge_exposures": _post_hedge_exposure_rows(
-                pre_loadings=aggregate_loadings,
+                pre_loadings=aggregate_trade_loadings,
                 hedge_weights=dict(preview.hedge_weights),
                 post_loadings=dict(preview.post_hedge_loadings),
             ),
@@ -1146,7 +1155,7 @@ def build_cpar_risk_snapshot(
         "display_factor_variance_contributions": [],
         "factor_chart": [],
         "display_factor_chart": [],
-        "cov_matrix": _cov_matrix_payload(covariance_rows=covariance_rows),
+        "cov_matrix": _cov_matrix_payload(covariance_rows=resolved_display_covariance_rows),
         "display_cov_matrix": _cov_matrix_payload(covariance_rows=resolved_display_covariance_rows),
         "factor_variance_proxy": 0.0,
         "idio_variance_proxy": 0.0,
@@ -1184,13 +1193,13 @@ def build_cpar_risk_snapshot(
     idio_contribution_by_ric, idio_variance_proxy = _specific_risk_contributions(position_rows)
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
     )
     factor_variance_proxy = _factor_variance_total(factor_variance_rows)
     total_variance_proxy = float(factor_variance_proxy + idio_variance_proxy)
     factor_variance_rows = _factor_variance_contribution_rows(
         aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
         total_variance=total_variance_proxy,
     )
     display_factor_variance_rows = _factor_variance_contribution_rows(
@@ -1206,7 +1215,7 @@ def build_cpar_risk_snapshot(
     position_rows = _attach_risk_mix(
         position_rows,
         aggregate_loadings=aggregate_loadings,
-        covariance_rows=covariance_rows,
+        covariance_rows=resolved_display_covariance_rows,
         contribution_field="thresholded_contributions",
         idio_contribution_by_ric=idio_contribution_by_ric,
         total_variance=total_variance_proxy,
@@ -1256,7 +1265,7 @@ def build_cpar_risk_snapshot(
             **_factor_analytics_payload(
                 aggregate_loadings=aggregate_loadings,
                 position_rows=position_rows,
-                covariance_rows=covariance_rows,
+                covariance_rows=resolved_display_covariance_rows,
                 contribution_field="thresholded_contributions",
                 total_variance=total_variance_proxy,
             ),
@@ -1317,6 +1326,13 @@ def load_cpar_portfolio_hedge_payload(
         package_date=str(package["package_date"]),
         data_db=data_db,
     )
+    try:
+        display_covariance_rows = cpar_display_covariance.load_package_display_covariance_rows(
+            package_run_id=str(package["package_run_id"]),
+            data_db=data_db,
+        )
+    except Exception:
+        display_covariance_rows = None
     return build_cpar_portfolio_hedge_snapshot(
         package=package,
         account=account,
@@ -1326,4 +1342,5 @@ def load_cpar_portfolio_hedge_payload(
         price_by_ric=price_by_ric,
         classification_by_ric=classification_by_ric,
         covariance_rows=covariance_rows,
+        display_covariance_rows=display_covariance_rows,
     )

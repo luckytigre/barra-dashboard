@@ -280,20 +280,22 @@ def test_cpar_factor_history_route_returns_payload(monkeypatch) -> None:
         lambda **kwargs: {
             "factor_id": kwargs["factor_id"],
             "factor_name": "Market",
+            "history_mode": kwargs["mode"],
             "years": kwargs["years"],
             "points": [
                 {"date": "2025-03-14", "factor_return": 0.01, "cum_return": 0.01},
-                {"date": "2025-03-21", "factor_return": -0.02, "cum_return": -0.0102},
+                {"date": "2025-03-21", "factor_return": -0.02, "cum_return": -0.01},
             ],
             "_cached": True,
         },
     )
 
     client = TestClient(_test_app())
-    res = client.get("/api/cpar/factors/history?factor_id=SPY&years=5")
+    res = client.get("/api/cpar/factors/history?factor_id=SPY&years=5&mode=residual")
 
     assert res.status_code == 200
     assert res.json()["factor_id"] == "SPY"
+    assert res.json()["history_mode"] == "residual"
     assert len(res.json()["points"]) == 2
 
 

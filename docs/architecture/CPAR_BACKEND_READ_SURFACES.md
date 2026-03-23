@@ -35,13 +35,15 @@ It does not add:
 
 `GET /api/cpar/ticker/{ticker}`
 - returns one active-package persisted cPAR fit plus source-context augmentation for the resolved ticker/ric
-- now exposes additive display semantics:
+- now exposes residualized explanatory fit semantics:
   - `display_loadings`
   - `beta_market_step1`
-- still preserves hedge-space fields for hedge-specific consumers:
+- still preserves the explicit hedge-space market leg for hedge-specific consumers:
   - `beta_spy_trade`
   - `raw_loadings`
   - `thresholded_loadings`
+- `raw_loadings` and `thresholded_loadings` are now residualized-space explanatory coefficients, not hedge-trade-space vectors
+- hedge-space interpretation lives only through `beta_spy_trade` plus hedge-specific portfolio payloads
 
 `GET /api/cpar/risk`
 - returns the aggregate cPAR risk payload across all loaded holdings accounts
@@ -244,10 +246,10 @@ Current additive display contract:
   - `diff.display_factor_deltas`
 
 Display-loadings rules:
-- `SPY` display beta comes from `market_step_beta`
-- non-market display betas come from the post-ridge non-market coefficients before hedge thresholding
-- for persisted fit rows, those non-market coefficients are already the non-market entries inside `raw_loadings`; only the `SPY` leg is swapped from hedge trade-space `spy_trade_beta_raw` to display-space `market_step_beta`
-- hedge-trade-space fields such as `thresholded_loadings`, `aggregate_thresholded_loadings`, and `positions[].thresholded_contributions` remain valid only for hedge-specific workflows
+- persisted fit rows now store residualized-space explanatory coefficients directly in `raw_loadings` and `thresholded_loadings`
+- `display_loadings` is a presentation helper over that same residualized-space fit contract
+- the only per-name hedge-trade-space escape hatch is `spy_trade_beta_raw`, surfaced to reads as `beta_spy_trade`
+- hedge-trade-space fields such as `aggregate_thresholded_loadings`, account hedge previews, and `positions[].thresholded_contributions` remain valid only for hedge-specific workflows
 
 ## Explicit Deferred Items
 

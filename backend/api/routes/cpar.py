@@ -146,11 +146,13 @@ async def get_cpar_risk():
 async def get_cpar_factor_history(
     factor_id: str = Query(..., min_length=1),
     years: int = Query(5, ge=1, le=10),
+    mode: Literal["residual", "market_adjusted"] = Query(default="market_adjusted"),
 ):
     try:
         return cpar_factor_history_service.load_cpar_factor_history_payload(
             factor_id=factor_id,
             years=int(years),
+            mode=str(mode),
         )
     except cpar_meta_service.CparReadNotReady as exc:
         _raise_cpar_not_ready(str(exc))

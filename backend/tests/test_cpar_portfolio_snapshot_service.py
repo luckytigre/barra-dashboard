@@ -315,7 +315,7 @@ def test_build_cpar_risk_snapshot_uses_display_covariance_for_display_analytics(
     xlk_index = payload["display_cov_matrix"]["factors"].index("XLK")
 
     assert payload["display_cov_matrix"]["correlation"][0][xlk_index] == pytest.approx(0.0)
-    assert raw_xlk["covariance_adjustment"] == pytest.approx(1.8)
+    assert raw_xlk["covariance_adjustment"] == pytest.approx(1.0)
     assert display_xlk["covariance_adjustment"] == pytest.approx(1.0)
     assert payload["idio_variance_proxy"] == pytest.approx(0.25)
     assert payload["total_variance_proxy"] == pytest.approx(payload["factor_variance_proxy"] + payload["idio_variance_proxy"])

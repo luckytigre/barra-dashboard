@@ -92,6 +92,22 @@ class PostMarketRegressionResult:
 
 
 @dataclass
+class OneShotRegressionResult:
+    alpha: float
+    market_beta: float
+    factor_ids: tuple[str, ...]
+    factor_groups: dict[str, str]
+    residualized_betas: dict[str, float]
+    standardized_betas: dict[str, float]
+    means: dict[str, float]
+    scales: dict[str, float]
+    penalties: dict[str, float]
+    dropped_factors: tuple[str, ...]
+    fitted: np.ndarray
+    residuals: np.ndarray
+
+
+@dataclass
 class RawTradeSpaceResult:
     total_intercept: float
     market_step_alpha: float

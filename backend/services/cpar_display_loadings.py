@@ -40,32 +40,34 @@ def ordered_factor_rows(loadings: dict[str, float]) -> list[dict[str, object]]:
 
 def display_loadings_from_fit(fit: dict[str, Any] | None) -> dict[str, float]:
     clean_fit = dict(fit or {})
-    # Persisted `raw_loadings` already carry the de-standardized post-ridge
-    # coefficients for non-market factors. Only the SPY leg differs between
-    # explanatory display (`market_step_beta`) and hedge trade-space
-    # (`spy_trade_beta_raw` / raw_loadings["SPY"]).
     raw_loadings = {
         str(factor_id): numeric
         for factor_id, raw_value in dict(clean_fit.get("raw_loadings") or {}).items()
         if (numeric := _finite_float(raw_value)) is not None
     }
-    market_beta = _finite_float(clean_fit.get("market_step_beta"))
-    if market_beta is None:
-        market_beta = raw_loadings.get(MARKET_FACTOR_ID, 0.0)
+    return {
+        factor_id: float(beta)
+        for factor_id, beta in raw_loadings.items()
+        if abs(float(beta)) > _EPSILON or factor_id == MARKET_FACTOR_ID
+    }
 
-    display: dict[str, float] = {}
-    if abs(float(market_beta)) > _EPSILON or MARKET_FACTOR_ID in raw_loadings:
-        display[MARKET_FACTOR_ID] = float(market_beta)
 
-    for spec in build_cpar1_factor_registry():
-        factor_id = str(spec.factor_id)
-        if factor_id == MARKET_FACTOR_ID:
-            continue
-        beta = raw_loadings.get(factor_id)
-        if beta is None:
-            continue
-        display[factor_id] = float(beta)
-    return display
+def hedge_trade_loadings_from_fit(
+    fit: dict[str, Any] | None,
+    *,
+    thresholded: bool,
+) -> dict[str, float]:
+    clean_fit = dict(fit or {})
+    base_loadings = dict(clean_fit.get("thresholded_loadings") if thresholded else clean_fit.get("raw_loadings") or {})
+    rendered = {
+        str(factor_id): numeric
+        for factor_id, raw_value in base_loadings.items()
+        if (numeric := _finite_float(raw_value)) is not None
+    }
+    market_trade_beta = _finite_float(clean_fit.get("spy_trade_beta_raw"))
+    if market_trade_beta is not None:
+        rendered[MARKET_FACTOR_ID] = float(market_trade_beta)
+    return rendered
 
 
 def scaled_display_contributions(

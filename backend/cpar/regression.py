@@ -8,6 +8,7 @@ import numpy as np
 
 from backend.cpar.contracts import (
     MarketStepResult,
+    OneShotRegressionResult,
     PostMarketRegressionResult,
     WeightedLeastSquaresResult,
 )
@@ -225,6 +226,112 @@ def fit_post_market_block(
         factor_ids=factor_ids,
         factor_groups=groups,
         orthogonalized_betas={factor_id: float(beta_raw[idx]) for idx, factor_id in enumerate(factor_ids)},
+        standardized_betas={factor_id: float(beta_std[idx]) for idx, factor_id in enumerate(factor_ids)},
+        means={factor_id: float(means[idx]) for idx, factor_id in enumerate(factor_ids)},
+        scales={factor_id: float(scales[idx]) for idx, factor_id in enumerate(factor_ids)},
+        penalties={factor_id: float(penalties[idx]) for idx, factor_id in enumerate(factor_ids)},
+        dropped_factors=tuple(factor_ids[idx] for idx in range(len(factor_ids)) if not active_mask[idx]),
+        fitted=np.asarray(fitted, dtype=float),
+        residuals=np.asarray(residuals, dtype=float),
+    )
+
+
+def fit_market_plus_residualized_block(
+    y: Sequence[float] | np.ndarray,
+    market_returns: Sequence[float] | np.ndarray,
+    orthogonalized_factor_returns: Mapping[str, Sequence[float] | np.ndarray],
+    weights: Sequence[float] | np.ndarray,
+    *,
+    factor_groups: Mapping[str, str] | None = None,
+    sector_lambda: float = 1.0,
+    style_lambda: float = 2.0,
+    min_scale: float = _MIN_SCALE,
+) -> OneShotRegressionResult:
+    y_vec = _as_float_vector(y, name="y")
+    market_vec = _as_float_vector(market_returns, name="market_returns")
+    if y_vec.shape[0] != market_vec.shape[0]:
+        raise ValueError("y and market_returns must share the same row count")
+    factor_ids = tuple(str(factor_id) for factor_id in orthogonalized_factor_returns.keys())
+    x_mat = (
+        np.column_stack(
+            [_as_float_vector(orthogonalized_factor_returns[factor_id], name=factor_id) for factor_id in factor_ids]
+        )
+        if factor_ids
+        else np.zeros((y_vec.shape[0], 0), dtype=float)
+    )
+    w = normalize_weights(weights)
+    if w.shape[0] != y_vec.shape[0]:
+        raise ValueError("weights must share the same row count as y")
+    if x_mat.shape[0] != y_vec.shape[0]:
+        raise ValueError("orthogonalized factor rows must share the same row count as y")
+
+    groups = {
+        factor_id: str((factor_groups or {}).get(factor_id) or factor_group_for_id(factor_id)).lower()
+        for factor_id in factor_ids
+    }
+    penalties = build_penalties(
+        factor_ids,
+        factor_groups=groups,
+        sector_lambda=sector_lambda,
+        style_lambda=style_lambda,
+    ) if factor_ids else np.zeros(0, dtype=float)
+    standardized, means, scales, active_mask = weighted_standardize_matrix(
+        x_mat,
+        w,
+        min_scale=min_scale,
+    )
+    active_indices = np.flatnonzero(active_mask)
+    market_design = market_vec.reshape(-1, 1)
+    if active_indices.size == 0:
+        design = np.column_stack([np.ones(y_vec.shape[0], dtype=float), market_design])
+        sqrt_w = np.sqrt(w)
+        lhs = design * sqrt_w[:, None]
+        rhs = y_vec * sqrt_w
+        coefficients, *_ = np.linalg.lstsq(lhs, rhs, rcond=None)
+        fitted = design @ coefficients
+        residuals = y_vec - fitted
+        return OneShotRegressionResult(
+            alpha=float(coefficients[0]),
+            market_beta=float(coefficients[1]),
+            factor_ids=factor_ids,
+            factor_groups=groups,
+            residualized_betas={factor_id: 0.0 for factor_id in factor_ids},
+            standardized_betas={factor_id: 0.0 for factor_id in factor_ids},
+            means={factor_id: float(means[idx]) for idx, factor_id in enumerate(factor_ids)},
+            scales={factor_id: float(scales[idx]) for idx, factor_id in enumerate(factor_ids)},
+            penalties={factor_id: float(penalties[idx]) for idx, factor_id in enumerate(factor_ids)},
+            dropped_factors=factor_ids,
+            fitted=np.asarray(fitted, dtype=float),
+            residuals=np.asarray(residuals, dtype=float),
+        )
+
+    x_active = standardized[:, active_indices]
+    penalties_active = penalties[active_indices]
+    design = np.column_stack([np.ones(y_vec.shape[0], dtype=float), market_design, x_active])
+    sqrt_w = np.sqrt(w)
+    lhs = design * sqrt_w[:, None]
+    rhs = y_vec * sqrt_w
+    penalty_matrix = np.zeros((design.shape[1], design.shape[1]), dtype=float)
+    penalty_matrix[2:, 2:] = np.diag(penalties_active)
+    solution = np.linalg.solve(lhs.T @ lhs + penalty_matrix, lhs.T @ rhs)
+    intercept_std = float(solution[0])
+    market_beta = float(solution[1])
+    beta_std_active = np.asarray(solution[2:], dtype=float)
+    beta_std = np.zeros(len(factor_ids), dtype=float)
+    beta_std[active_indices] = beta_std_active
+    beta_raw = np.zeros(len(factor_ids), dtype=float)
+    beta_raw[active_indices] = beta_std_active / scales[active_indices]
+    intercept_raw = intercept_std - float(
+        np.sum(beta_std_active * means[active_indices] / scales[active_indices])
+    )
+    fitted = intercept_raw + market_vec * market_beta + x_mat @ beta_raw
+    residuals = y_vec - fitted
+    return OneShotRegressionResult(
+        alpha=float(intercept_raw),
+        market_beta=market_beta,
+        factor_ids=factor_ids,
+        factor_groups=groups,
+        residualized_betas={factor_id: float(beta_raw[idx]) for idx, factor_id in enumerate(factor_ids)},
         standardized_betas={factor_id: float(beta_std[idx]) for idx, factor_id in enumerate(factor_ids)},
         means={factor_id: float(means[idx]) for idx, factor_id in enumerate(factor_ids)},
         scales={factor_id: float(scales[idx]) for idx, factor_id in enumerate(factor_ids)},

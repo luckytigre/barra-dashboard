@@ -3,6 +3,7 @@ export type CparFitStatus = "ok" | "limited_history" | "insufficient_history";
 export type CparWarning = "continuity_gap" | "ex_us_caution";
 export type CparHedgeStatus = "hedge_ok" | "hedge_degraded" | "hedge_unavailable";
 export type CparHedgeMode = "factor_neutral" | "market_neutral";
+export type CparFactorHistoryMode = "residual" | "market_adjusted";
 export type CparRiskExposureMode = "raw" | "sensitivity" | "risk_contribution";
 export type CparPortfolioStatus = "ok" | "partial" | "empty" | "unavailable";
 export type CparPortfolioCoverage = "covered" | "missing_price" | "missing_cpar_fit" | "insufficient_history";
@@ -265,6 +266,7 @@ export interface CparFactorHistoryPoint {
 export interface CparFactorHistoryData {
   factor_id: string;
   factor_name: string;
+  history_mode: CparFactorHistoryMode;
   years: number;
   points: CparFactorHistoryPoint[];
   _cached: boolean;

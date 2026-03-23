@@ -15,6 +15,7 @@ import type {
   CparTickerDetailData,
   CparTickerHistoryData,
   CparExploreWhatIfData,
+  CparFactorHistoryMode,
   CparPortfolioHedgeData,
   CparPortfolioWhatIfData,
   CparSearchData,
@@ -99,9 +100,14 @@ export function useCparRisk(enabled = true) {
   return useSWR<CparRiskData>(enabled ? apiPath.cparRisk() : null, apiFetch, SWR_OPTS);
 }
 
-export function useCparFactorHistory(factorId: string | null, years = 5, enabled = true) {
+export function useCparFactorHistory(
+  factorId: string | null,
+  years = 5,
+  mode: CparFactorHistoryMode = "market_adjusted",
+  enabled = true,
+) {
   const cleanFactorId = factorId?.trim().toUpperCase() || null;
-  const key = enabled && cleanFactorId ? apiPath.cparFactorHistory(cleanFactorId, years) : null;
+  const key = enabled && cleanFactorId ? apiPath.cparFactorHistory(cleanFactorId, years, mode) : null;
   return useSWR<CparFactorHistoryData>(key, apiFetch, SWR_OPTS);
 }
 

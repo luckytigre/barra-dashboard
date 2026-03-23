@@ -27,7 +27,7 @@ It does not add:
 - owns a cPAR-native aggregate risk composition:
   - coverage summary plus explicit exclusion buckets
   - one signed factor-loadings chart with per-factor drilldown, reconciled from one aggregate book snapshot
-  - one 5Y factor-return history block inside each factor drilldown
+  - one 5Y daily factor-history block inside each factor drilldown
   - positions contribution mix table derived from backend-owned row `risk_mix`
   - one full market/industry/style factor correlation heatmap from the package-pinned residualized display covariance surface
 - now has a stable backend contract:
@@ -51,10 +51,12 @@ It does not add:
   - persisted fit detail plus source-context augmentation
   - one explanatory factor-exposure chart built from `display_loadings`
   - one preview-only scenario builder and before/after exposure comparison
-- explanatory single-name display must use:
+  - explanatory single-name display must use residualized cPAR factor-space fields:
   - `beta_market_step1`
   - `display_loadings`
-- hedge-trade-space fields remain valid only for hedge-specific consumers
+  - `raw_loadings`
+  - `thresholded_loadings`
+- hedge-trade-space interpretation remains valid only for hedge-specific consumers through `beta_spy_trade`
 
 `/cpar/health`
 - intentionally reset placeholder page
@@ -86,8 +88,8 @@ Shared shell behavior:
 
 `GET /api/cpar/ticker/{ticker}`
 - single-name persisted cPAR fit detail with source-context augmentation
-- explanatory display uses `display_loadings` plus `beta_market_step1`
-- hedge-space fields (`beta_spy_trade`, `raw_loadings`, `thresholded_loadings`) remain present for hedge-specific consumers only
+- explanatory display uses residualized cPAR factor-space loadings plus `beta_market_step1`
+- hedge-space interpretation remains explicit through `beta_spy_trade`
 
 `GET /api/cpar/risk`
 - aggregate all-accounts cPAR risk payload
@@ -102,6 +104,11 @@ Shared shell behavior:
 
 `GET /api/cpar/factors/history`
 - supplemental 5Y factor-return history for cPAR drilldown
+- market factor charts show cumulative daily raw return
+- non-market factor charts support two cPAR-only drilldown modes:
+  - `market_adjusted` = cumulative arithmetic `alpha + residual`
+  - `residual` = cumulative arithmetic zero-mean residual
+- the user-facing mode is controlled from `/settings` under the cPAR section
 - cPAR-owned route/hook path, even though the charting primitive is shared
 - fail-soft at the page level: `/cpar/risk` keeps rendering the aggregate risk payload when this history read is degraded
 
@@ -194,7 +201,7 @@ Read failures:
 
 `/cpar/explore`
 - owns single-name detail, source-context, and preview-only scenario analysis
-- should present explanatory display loadings, not hedge-trade-space loadings
+- should present residualized explanatory loadings, not hedge-trade-space loadings
 
 `/cpar/hedge`
 - is intentionally blank aside from a reset placeholder
@@ -204,9 +211,9 @@ Read failures:
 - is now the aggregate cPAR risk analytics surface across all loaded holdings accounts
 - owns one signed factor-loadings chart with per-factor drilldown, 5Y factor-return history, positions contribution mix, and the full factor correlation heatmap
 - now intentionally borrows the cUSE risk-page layout rhythm without importing cUSE feature owners or cUSE payload semantics
-- uses display-basis loadings for explanatory charts and tables
-- uses the residualized display covariance surface for the heatmap, display factor drilldown metrics, and display-side variance attribution
-- does not display hedge-trade-space or thresholded hedge vectors outside hedge-specific surfaces
+- uses residualized cPAR loadings for explanatory charts and tables
+- uses the residualized display covariance surface for the heatmap, drilldown metrics, and variance attribution
+- does not display hedge-trade-space vectors outside hedge-specific surfaces
 - now avoids a duplicate factor-summary table under the chart, leaving the signed chart plus drilldown as the primary factor read
 - still stops short of a full cUSE-style analytics workspace:
   - no variance-attribution table
@@ -249,5 +256,6 @@ The top header is now route-family aware:
 - `/cuse*` shows `Risk`, `Explore`, `Health`, and shared `Positions`
 - `/cpar*` shows `Risk`, `Explore`, `Health`, `Hedge`, and shared `Positions`
 - `/` stays intentionally minimal and uses the centered family chooser instead of a second family subnav
+- the global menu also exposes `/settings`, which now owns the cPAR drilldown history-mode toggle
 
 The cUSE4 operator-status signal and `serve-refresh` control are intentionally suppressed on `/cpar*` routes so the first cPAR slice does not imply operator coupling that has not been implemented.

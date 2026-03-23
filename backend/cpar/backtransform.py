@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from backend.cpar.contracts import MarketStepResult, OrthogonalizationResult, PostMarketRegressionResult, RawTradeSpaceResult
+from backend.cpar.contracts import (
+    MarketStepResult,
+    OneShotRegressionResult,
+    OrthogonalizationResult,
+    PostMarketRegressionResult,
+    RawTradeSpaceResult,
+)
 from backend.cpar.factor_registry import MARKET_FACTOR_ID
 
 DEFAULT_THRESHOLD = 0.05
@@ -60,3 +66,45 @@ def threshold_trade_space_loadings(
         else:
             thresholded[str(factor_id)] = value
     return thresholded
+
+
+def backtransform_market_trade_beta(
+    *,
+    market_beta: float,
+    residualized_betas: Mapping[str, float],
+    orthogonalization: OrthogonalizationResult,
+) -> float:
+    market_adjustment = sum(
+        float(residualized_betas.get(factor_id, 0.0)) * float(orthogonalization.market_betas.get(factor_id, 0.0))
+        for factor_id in orthogonalization.factor_ids
+    )
+    return float(market_beta - market_adjustment)
+
+
+def backtransform_trade_space_from_one_shot(
+    *,
+    fit: OneShotRegressionResult,
+    orthogonalization: OrthogonalizationResult,
+) -> RawTradeSpaceResult:
+    raw_loadings = {
+        factor_id: float(fit.residualized_betas.get(factor_id, 0.0))
+        for factor_id in fit.factor_ids
+    }
+    market_adjustment = sum(
+        raw_loadings[factor_id] * float(orthogonalization.market_betas.get(factor_id, 0.0))
+        for factor_id in fit.factor_ids
+    )
+    intercept_adjustment = sum(
+        raw_loadings[factor_id] * float(orthogonalization.intercepts.get(factor_id, 0.0))
+        for factor_id in fit.factor_ids
+    )
+    spy_trade_beta = float(fit.market_beta - market_adjustment)
+    total_intercept = float(fit.alpha - intercept_adjustment)
+    return RawTradeSpaceResult(
+        total_intercept=total_intercept,
+        market_step_alpha=float(fit.alpha),
+        market_step_beta=float(fit.market_beta),
+        block_alpha=0.0,
+        spy_trade_beta=spy_trade_beta,
+        raw_loadings={MARKET_FACTOR_ID: spy_trade_beta, **raw_loadings},
+    )

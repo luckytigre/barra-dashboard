@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useAppSettings } from "@/components/AppSettingsContext";
 import HelpLabel from "@/components/HelpLabel";
 import TableRowToggle from "@/components/TableRowToggle";
 import CparFactorHistoryChart from "@/features/cpar/components/CparFactorHistoryChart";
@@ -30,15 +31,23 @@ export default function CparRiskFactorDrilldown({
   const [sortKey, setSortKey] = useState<SortKey>("contribution");
   const [sortAsc, setSortAsc] = useState(false);
   const [contributionSortMode, setContributionSortMode] = useState<ContributionSortMode>("signed");
+  const { cparFactorHistoryMode } = useAppSettings();
   const {
     data: historyData,
     error: historyError,
     isLoading: historyLoading,
-  } = useCparFactorHistory(factor.factor_id, 5);
+  } = useCparFactorHistory(factor.factor_id, 5, cparFactorHistoryMode);
   const historyState = historyError ? readCparError(historyError) : null;
 
   const isSensitivity = mode === "sensitivity";
   const isRiskContribution = mode === "risk_contribution";
+  const isMarketFactor = factor.factor_id === "SPY" || factor.group === "market";
+  const usesMarketAdjustedHistory = !isMarketFactor && cparFactorHistoryMode === "market_adjusted";
+  const historyLabel = isMarketFactor
+    ? "5Y Daily Return"
+    : usesMarketAdjustedHistory
+      ? "5Y Daily Market-Adjusted Return"
+      : "5Y Daily Residual Return";
   const contributionValue = (row: CparFactorChartRow["drilldown"][number]) => (
     isRiskContribution ? row.risk_contribution_pct : isSensitivity ? row.vol_scaled_contribution : row.contribution_beta
   );
@@ -177,7 +186,7 @@ export default function CparRiskFactorDrilldown({
       </div>
       <div className="detail-history">
         <div className="detail-history-header">
-          <h5>5Y Daily Return — {factor.label}</h5>
+          <h5>{historyLabel} — {factor.label}</h5>
           {!historyLoading && historyData?.points && historyData.points.length > 0 ? (
             <div className="detail-history-stats">
               <span
@@ -199,12 +208,18 @@ export default function CparRiskFactorDrilldown({
           ) : null}
         </div>
         {historyLoading ? (
-          <div className="detail-history-empty loading-pulse">Loading 5Y daily history...</div>
+          <div className="detail-history-empty loading-pulse">
+            {isMarketFactor
+              ? "Loading 5Y daily factor history..."
+              : usesMarketAdjustedHistory
+                ? "Loading 5Y daily market-adjusted history..."
+                : "Loading 5Y daily residual history..."}
+          </div>
         ) : historyState ? (
           <div className="detail-history-empty">
             {historyState.kind === "not_ready"
-              ? `Daily cPAR factor returns are not ready for ${factor.label} yet.`
-              : `5Y daily factor-return history is temporarily unavailable for ${factor.label}.`}
+              ? `${isMarketFactor ? "Daily" : usesMarketAdjustedHistory ? "Daily market-adjusted" : "Daily residual"} cPAR factor returns are not ready for ${factor.label} yet.`
+              : `5Y daily ${isMarketFactor ? "factor" : usesMarketAdjustedHistory ? "market-adjusted factor" : "residual factor"}-return history is temporarily unavailable for ${factor.label}.`}
           </div>
         ) : (
           <CparFactorHistoryChart factor={factor.label} points={historyData?.points ?? []} factorVol={factor.factor_volatility} />

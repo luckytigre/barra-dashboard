@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 
 from backend.cpar import backtransform, orthogonalization, regression, returns_panel, status_rules
-from backend.cpar.contracts import FactorSpec, WeeklyReturnSeries, to_serializable_mapping
+from backend.cpar.contracts import FactorSpec, OrthogonalizationResult, WeeklyReturnSeries, to_serializable_mapping
 from backend.cpar.factor_registry import (
     CPAR1_FACTOR_REGISTRY_VERSION,
     CPAR1_METHOD_VERSION,
@@ -197,6 +197,31 @@ def _weighted_covariance_rows(
     return rows
 
 
+def _weighted_residualized_covariance_lookup(
+    factor_specs: tuple[FactorSpec, ...],
+    market_series: WeeklyReturnSeries,
+    orth_result: OrthogonalizationResult,
+) -> dict[tuple[str, str], float]:
+    factor_ids = tuple(spec.factor_id for spec in factor_specs)
+    series_columns: list[np.ndarray] = []
+    for factor_id in factor_ids:
+        if factor_id == MARKET_FACTOR_ID:
+            series_columns.append(np.asarray(market_series.returns, dtype=float))
+            continue
+        idx = orth_result.factor_ids.index(factor_id)
+        series_columns.append(np.asarray(orth_result.residual_matrix[:, idx], dtype=float))
+    matrix = np.column_stack(series_columns)
+    weights = regression.normalize_weights(market_series.weights)
+    means = np.sum(matrix * weights[:, None], axis=0)
+    centered = matrix - means
+    covariance = (centered * weights[:, None]).T @ centered
+    lookup: dict[tuple[str, str], float] = {}
+    for row_idx, left in enumerate(factor_ids):
+        for col_idx, right in enumerate(factor_ids):
+            lookup[(left, right)] = float(covariance[row_idx, col_idx])
+    return lookup
+
+
 def _covariance_lookup(covariance_rows: list[dict[str, Any]]) -> dict[tuple[str, str], float]:
     lookup: dict[tuple[str, str], float] = {}
     for row in covariance_rows:
@@ -234,7 +259,7 @@ def _fit_instrument_row(
     price_anchors: tuple[str, ...],
     market_series: WeeklyReturnSeries,
     orth_result: Any,
-    covariance_lookup: dict[tuple[str, str], float],
+    residualized_covariance_lookup: dict[tuple[str, str], float],
     classification_by_ric: dict[str, dict[str, Any]],
     common_name_by_ric: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
@@ -286,36 +311,33 @@ def _fit_instrument_row(
         return fit_row
 
     weights = regression.normalize_weights(market_series.weights[valid_mask])
-    market_step = regression.fit_market_step(
+    fit = regression.fit_market_plus_residualized_block(
         series.returns[valid_mask],
         market_series.returns[valid_mask],
-        weights,
-    )
-    post_market = regression.fit_post_market_block(
-        market_step.residuals,
         {
             factor_id: orth_result.residual_matrix[valid_mask, idx]
             for idx, factor_id in enumerate(orth_result.factor_ids)
         },
         weights,
         factor_groups=orth_result.factor_groups,
+        sector_lambda=1.0,
+        style_lambda=2.0,
     )
-    trade_space = backtransform.backtransform_trade_space(
-        market_step=market_step,
-        post_market=post_market,
+    trade_space = backtransform.backtransform_trade_space_from_one_shot(
+        fit=fit,
         orthogonalization=orth_result,
     )
-    raw_loadings = _ordered_loadings(trade_space.raw_loadings)
-    thresholded = _ordered_loadings(backtransform.threshold_trade_space_loadings(trade_space.raw_loadings))
-    variance_proxy = _variance_proxy(thresholded, covariance_lookup)
-    specific_variance_proxy = float(regression.weighted_std(post_market.residuals, weights) ** 2)
+    residualized_loadings = _ordered_loadings({MARKET_FACTOR_ID: fit.market_beta, **fit.residualized_betas})
+    thresholded = _ordered_loadings(backtransform.threshold_trade_space_loadings(residualized_loadings))
+    variance_proxy = _variance_proxy(thresholded, residualized_covariance_lookup)
+    specific_variance_proxy = float(regression.weighted_std(fit.residuals, weights) ** 2)
     fit_row.update(
         {
-            "market_step_alpha": float(market_step.alpha),
-            "market_step_beta": float(market_step.beta),
-            "block_alpha": float(post_market.alpha),
+            "market_step_alpha": float(fit.alpha),
+            "market_step_beta": float(fit.market_beta),
+            "block_alpha": None,
             "spy_trade_beta_raw": float(trade_space.spy_trade_beta),
-            "raw_loadings": raw_loadings,
+            "raw_loadings": residualized_loadings,
             "thresholded_loadings": thresholded,
             "factor_variance_proxy": float(variance_proxy),
             "factor_volatility_proxy": float(math.sqrt(max(variance_proxy, 0.0))),
@@ -446,7 +468,11 @@ def run_package_build_stage(
         factor_series_by_id,
         package_date=package_date,
     )
-    covariance_lookup = _covariance_lookup(covariance_rows)
+    residualized_covariance_lookup = _weighted_residualized_covariance_lookup(
+        factor_specs,
+        market_series,
+        orth_result,
+    )
     _emit_progress(progress_callback, message="Fitting cPAR instrument rows in raw ETF trade space.", progress_kind="compute")
     instrument_fits = [
         _fit_instrument_row(
@@ -456,7 +482,7 @@ def run_package_build_stage(
             price_anchors=price_anchors,
             market_series=market_series,
             orth_result=orth_result,
-            covariance_lookup=covariance_lookup,
+            residualized_covariance_lookup=residualized_covariance_lookup,
             classification_by_ric=classification_by_ric,
             common_name_by_ric=common_name_by_ric,
         )

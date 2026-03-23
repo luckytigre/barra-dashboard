@@ -36,6 +36,10 @@ Related docs:
 - Google Cloud Run is the target compute surface for the cloud app.
 - Scale-to-zero is a hard requirement unless a later validated exception is documented here.
 - The cloud app should be standalone and Neon-backed.
+- In `cloud-serve`, cUSE payloads, runtime/operator state, holdings, and cPAR package reads must remain Neon-authoritative and fail closed instead of falling back to local SQLite.
+- `NEON_AUTHORITATIVE_REBUILDS` is a separate contract from Neon serving reads:
+  - default-on when Neon is the active backend and a Neon DSN is configured,
+  - set `NEON_AUTHORITATIVE_REBUILDS=false` only as an explicit rollback to local-SQLite rebuild authority.
 - Custom domain family:
   - `ceiora.com` for the frontend
   - `api.ceiora.com` for the serve API
@@ -51,6 +55,7 @@ Related docs:
   It is not intended for anonymous browser-direct usage.
 - The first durable cloud job migration moves `serve-refresh` only.
 - `core-weekly` and `cold-core` remain outside the first cloud job cutover unless this file is explicitly amended later.
+- Cloud `serve-refresh` cutover is valid only after the repo's stable-core, source-sync, Neon-readiness, and `security_master` parity prerequisites are frozen and documented for cloud execution.
 
 ## Objective
 
@@ -88,6 +93,12 @@ Already present:
   - [backend/control_main.py](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/control_main.py)
 - frozen route matrix in [router_registry.py](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/api/router_registry.py)
 - frontend split-origin helper in [_backend.ts](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/frontend/src/app/api/_backend.ts)
+- refresh-status read ownership already split into a dedicated service
+- refresh dispatch ownership already split into a dedicated service
+- current local app/runtime bootstrap now has concrete owners:
+  - [scripts/setup_local_env.sh](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/scripts/setup_local_env.sh)
+  - [scripts/local_app/up.sh](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/scripts/local_app/up.sh)
+  - [scripts/doctor.sh](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/scripts/doctor.sh)
 - baseline container assets:
   - [backend/Dockerfile.serve](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/Dockerfile.serve)
   - [backend/Dockerfile.control](/Users/shaun/Library/CloudStorage/Dropbox/040%20-%20Creating/ceiora-risk/backend/Dockerfile.control)
@@ -113,6 +124,14 @@ Entrypoint:
 Ownership:
 - not managed by Terraform
 - not replaced by the cloud app
+- canonical local bootstrap and health commands are now:
+  - `./scripts/setup_local_env.sh`
+  - `make app-up`
+  - `make app-down`
+  - `make app-check`
+  - `make app-status`
+  - `make doctor`
+- the canonical local Python environment is `.venv_local`, not `backend/.venv`
 
 ### Cloud Frontend
 
@@ -206,12 +225,14 @@ Required:
 - `APP_RUNTIME_ROLE=cloud-serve`
 - `DATA_BACKEND=neon`
 - `NEON_DATABASE_URL`
+- `NEON_AUTHORITATIVE_REBUILDS` explicitly set to the intended cloud value
 - `OPERATOR_API_TOKEN`
 - `EDITOR_API_TOKEN`
 
 Expected:
 - no local refresh execution ownership
 - no local SQLite serving authority
+- fail-closed Neon-serving behavior for cUSE, holdings, runtime/operator state, and cPAR package reads
 
 ### Backend control
 
@@ -219,6 +240,7 @@ Required:
 - `APP_RUNTIME_ROLE=cloud-serve`
 - `DATA_BACKEND=neon`
 - `NEON_DATABASE_URL`
+- `NEON_AUTHORITATIVE_REBUILDS` explicitly set to the intended cloud value
 - `OPERATOR_API_TOKEN`
 
 Optional compatibility only:
@@ -268,6 +290,7 @@ Approved migration direction:
 - keep `control_main` as the control API surface
 - move durable refresh execution to Cloud Run Jobs
 - let the control API dispatch and observe jobs instead of owning the worker thread directly
+- do not treat `serve-refresh` as independently movable until the stable-core and Neon-readiness prerequisites for that lane are frozen for cloud execution
 
 Do not treat this as optional if the goal is a durable cloud-native runtime.
 
@@ -280,13 +303,21 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - Cloud Run frontend
   - Cloud Run serve
   - Cloud Run control
-  - later Cloud Run Jobs
+  - Cloud Run Jobs
 - [ ] Freeze the hostname plan:
   - `ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
 - [ ] Freeze the single-environment naming convention as `prod`.
 - [ ] Freeze the initial auth model for public vs operator surfaces.
+- [ ] Freeze the cloud fail-closed authority contract:
+  - Neon-backed serving reads
+  - Neon-backed runtime/operator state
+  - explicit `NEON_AUTHORITATIVE_REBUILDS` behavior
+- [ ] Freeze the prerequisite source-of-truth gate for cloud reads:
+  - `security_master` bootstrap/parity
+  - source-sync expectations
+  - stable-core expectations
 - [ ] Update `.env.example` so the split-origin and token contract is explicit.
 
 ### Slice 2: Terraform Foundation
@@ -322,6 +353,11 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 - [ ] Replace process-local refresh execution assumptions with durable dispatch/execution ownership.
 - [ ] Add Cloud Run Job ownership to the Terraform plan, not as a later optional add-on.
 - [ ] Freeze the first cloud job lane as `serve-refresh` only.
+- [ ] Freeze the `serve-refresh` cloud prerequisite contract:
+  - stable core package present
+  - required source-sync state present
+  - Neon-readiness satisfied
+  - `security_master` parity satisfied
 - [ ] Add the operator workflow cutover plan:
   - dispatch trigger path
   - execution status path
@@ -339,6 +375,7 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - split-origin proxy behavior
   - no local SQLite dependency in cloud mode
   - expected behavior when operator/control routes are not yet public
+  - projection-only instruments and other fail-closed degraded states still behave correctly
 
 ### Slice 6: Control Cloud Run Rollout
 
@@ -388,6 +425,8 @@ Additional validation by phase:
   - Docker builds succeed for frontend, serve, and control
 - Cloud rollout:
   - isolated smoke checks against `run.app` URLs before domain cutover
+  - cloud fail-closed checks for missing Neon/runtime truth
+  - projection-only output checks against the stable core package
 - Control-plane migration:
   - dispatch/status tests
   - background execution ownership tests
@@ -410,3 +449,8 @@ Additional validation by phase:
   - Cloud Run Jobs are part of the initial migration path, not a vague later add-on,
   - the temporary frontend/control coexistence step is now explicit,
   - the first cloud job lane is frozen to `serve-refresh` only.
+- 2026-03-23: Repo re-review after newer work tightened the plan again:
+  - the local fallback path is now explicitly `.venv_local` + `scripts/local_app/*` + `make doctor`,
+  - cloud env assumptions now explicitly include fail-closed Neon authority behavior and `NEON_AUTHORITATIVE_REBUILDS`,
+  - `serve-refresh` cloud cutover now carries explicit stable-core, source-sync, Neon-readiness, and `security_master` parity prerequisites,
+  - cloud acceptance testing now explicitly includes projection-only outputs and other fail-closed degraded states.

@@ -42,15 +42,16 @@ export default function LandingSummary() {
         </h3>
         <p className="landing-summary-card-subtitle">Parsimonious and Actionable Regression</p>
         <p className="landing-summary-card-body">
-          Returns-based regression using real, tradable ETF proxies.
-          Every factor is something you can buy or sell — SPY for market,
-          sector SPDRs for industries, iShares style ETFs for momentum,
-          value, quality, low-vol, and size.
+          Returns-based regression built on real ETF proxies, but expressed in
+          residualized factor space for risk reading. Market stays explicit;
+          sector and style sleeves are residualized to market, then fit jointly
+          so the cPAR surface emphasizes incremental structure instead of raw ETF
+          overlap.
         </p>
         <dl className="landing-summary-traits">
           <div className="landing-summary-trait">
             <dt>Method</dt>
-            <dd>Three-step time-series regression on weekly returns — market fit first, then ridge regression on the residual using orthogonalized sector and style proxies jointly</dd>
+            <dd>One-shot weighted ridge on weekly returns with market unpenalized and a market-residualized sector/style block fit jointly</dd>
           </div>
           <div className="landing-summary-trait">
             <dt>Factors</dt>
@@ -58,15 +59,15 @@ export default function LandingSummary() {
           </div>
           <div className="landing-summary-trait">
             <dt>Factor hierarchy</dt>
-            <dd>Market beta is estimated first and stripped. Sector and style ETF returns are then orthogonalized to the market — the post-market block regresses on these residualized series jointly. This ensures sector and style betas measure incremental exposure beyond market, and final coefficients are back-transformed into raw ETF space for direct tradability.</dd>
+            <dd>Sector and style ETF returns are residualized to market at the package level. cPAR then fits market plus that residual block together, so non-market loadings describe incremental exposure beyond market without requiring a separate second-stage regression.</dd>
           </div>
           <div className="landing-summary-trait">
             <dt>Exposures</dt>
-            <dd>Regression betas in raw ETF units — directly interpretable as hedge ratios, with ridge regularization and post-fit thresholding for sparsity</dd>
+            <dd>Risk pages show residualized factor-space loadings. Hedge workflows can still translate that fit back into actionable raw ETF hedge space when needed.</dd>
           </div>
           <div className="landing-summary-trait">
             <dt>Strengths</dt>
-            <dd>Every loading maps to a tradable instrument, hedge construction is deterministic, outputs are sparse and stable across rebalances</dd>
+            <dd>Compact tradable proxy set, clearer incremental risk reading than raw ETF betas, and a direct bridge back to raw ETF hedges when actionability matters</dd>
           </div>
         </dl>
       </div>
