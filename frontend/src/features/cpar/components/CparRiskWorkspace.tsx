@@ -23,6 +23,7 @@ function CparRiskWorkspaceInner() {
     isLoading: riskLoading,
   } = useCparRisk(Boolean(meta) && !metaState);
   const normalizedRisk = useMemo(() => normalizeCparRiskData(risk), [risk]);
+  const volScaledShares = normalizedRisk?.vol_scaled_shares ?? normalizedRisk?.risk_shares ?? { market: 0, industry: 0, style: 0, idio: 100 };
   const riskState = riskError ? readCparError(riskError) : null;
   const packageMismatch = Boolean(meta && normalizedRisk && !sameCparPackageIdentity(meta, normalizedRisk));
 
@@ -72,9 +73,9 @@ function CparRiskWorkspaceInner() {
           <div className="chart-card" style={{ marginBottom: 12 }}>
             <h3>Risk Decomposition</h3>
             <div className="section-subtitle">
-              Share of total portfolio risk split across market, industry, style, and idiosyncratic components.
+              Vol-scaled footprint split across market, industry, style, and idiosyncratic components.
             </div>
-            <CparRiskDecompChart shares={normalizedRisk.risk_shares} />
+            <CparRiskDecompChart shares={volScaledShares} />
           </div>
           <CparRiskFactorSummaryCard portfolio={normalizedRisk} />
           <CparRiskPositionsContributionTable rows={normalizedRisk.positions} />

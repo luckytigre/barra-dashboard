@@ -140,6 +140,7 @@ export interface CovMatrix {
 
 export interface RiskData extends ServingSnapshotMeta {
   risk_shares: RiskShares;
+  vol_scaled_shares?: RiskShares;
   component_shares: Omit<RiskShares, "idio">;
   factor_details: FactorDetail[];
   factor_catalog?: FactorCatalogEntry[];

@@ -687,6 +687,43 @@ def _risk_share_payload(
     return buckets
 
 
+def _vol_scaled_share_payload(
+    loadings: dict[str, float],
+    *,
+    covariance_rows: list[dict[str, Any]],
+    idio_variance_proxy: float,
+) -> dict[str, float]:
+    buckets = {
+        "market": 0.0,
+        "industry": 0.0,
+        "style": 0.0,
+        "idio": float(math.sqrt(max(float(idio_variance_proxy), 0.0))),
+    }
+    metrics_by_factor = _factor_risk_metrics(loadings, covariance_rows=covariance_rows)
+    for row in _factor_rows(loadings):
+        factor_id = str(row.get("factor_id") or "")
+        if not factor_id:
+            continue
+        group = str(row.get("group") or "")
+        factor_vol = float((metrics_by_factor.get(factor_id) or {}).get("factor_volatility") or 0.0)
+        sensitivity = abs(float(row.get("beta") or 0.0) * factor_vol)
+        if sensitivity <= _EPSILON:
+            continue
+        if group == "market":
+            buckets["market"] += sensitivity
+        elif group == "sector":
+            buckets["industry"] += sensitivity
+        elif group == "style":
+            buckets["style"] += sensitivity
+    total = float(sum(buckets.values()))
+    if total <= _EPSILON:
+        return {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0}
+    return {
+        key: round(float(value / total * 100.0), 2)
+        for key, value in buckets.items()
+    }
+
+
 def _attach_risk_mix(
     rows: list[dict[str, object]],
     *,
@@ -897,6 +934,7 @@ def build_cpar_portfolio_hedge_snapshot(
         "aggregate_thresholded_loadings": [],
         "aggregate_display_loadings": [],
         "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0},
+        "vol_scaled_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0},
         "factor_variance_contributions": [],
         "display_factor_variance_contributions": [],
         "factor_chart": [],
@@ -1036,6 +1074,11 @@ def build_cpar_portfolio_hedge_snapshot(
                 idio_variance_proxy=idio_variance_proxy,
                 total_variance_proxy=total_variance_proxy,
             ),
+            "vol_scaled_shares": _vol_scaled_share_payload(
+                aggregate_display_loadings,
+                covariance_rows=covariance_rows,
+                idio_variance_proxy=idio_variance_proxy,
+            ),
             "factor_variance_proxy": float(factor_variance_proxy),
             "idio_variance_proxy": float(idio_variance_proxy),
             "total_variance_proxy": float(total_variance_proxy),
@@ -1098,6 +1141,7 @@ def build_cpar_risk_snapshot(
         "aggregate_thresholded_loadings": [],
         "aggregate_display_loadings": [],
         "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0},
+        "vol_scaled_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 100.0},
         "factor_variance_contributions": [],
         "display_factor_variance_contributions": [],
         "factor_chart": [],
@@ -1221,6 +1265,11 @@ def build_cpar_risk_snapshot(
                 factor_variance_rows,
                 idio_variance_proxy=idio_variance_proxy,
                 total_variance_proxy=total_variance_proxy,
+            ),
+            "vol_scaled_shares": _vol_scaled_share_payload(
+                aggregate_display_loadings,
+                covariance_rows=resolved_display_covariance_rows,
+                idio_variance_proxy=idio_variance_proxy,
             ),
             "factor_variance_proxy": float(factor_variance_proxy),
             "idio_variance_proxy": float(idio_variance_proxy),

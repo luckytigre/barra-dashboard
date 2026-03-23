@@ -3,7 +3,12 @@
 from backend.risk_model.covariance import build_factor_covariance_from_cache
 from backend.risk_model.daily_factor_returns import compute_daily_factor_returns, load_specific_residuals
 from backend.risk_model.raw_cross_section_history import rebuild_raw_cross_section_history
-from backend.risk_model.risk_attribution import STYLE_COLUMN_TO_LABEL, portfolio_factor_exposure, risk_decomposition
+from backend.risk_model.risk_attribution import (
+    STYLE_COLUMN_TO_LABEL,
+    portfolio_factor_exposure,
+    risk_decomposition,
+    vol_scaled_decomposition,
+)
 from backend.risk_model.specific_risk import build_specific_risk_from_cache
 
 __all__ = [
@@ -15,4 +20,5 @@ __all__ = [
     "STYLE_COLUMN_TO_LABEL",
     "portfolio_factor_exposure",
     "risk_decomposition",
+    "vol_scaled_decomposition",
 ]

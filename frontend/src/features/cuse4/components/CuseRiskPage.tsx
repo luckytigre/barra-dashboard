@@ -39,6 +39,7 @@ export default function ExposuresPage() {
   const riskDetails = riskData?.factor_details ?? [];
   const factorCatalog = riskData?.factor_catalog ?? [];
   const riskShares = riskData?.risk_shares ?? { market: 0, industry: 0, style: 0, idio: 100 };
+  const volScaledShares = riskData?.vol_scaled_shares ?? riskShares;
   const cov = riskData?.cov_matrix
     ? {
         factors: riskData.cov_matrix.factors ?? [],
@@ -173,12 +174,12 @@ export default function ExposuresPage() {
       <div className="chart-card" style={{ marginBottom: 12 }}>
         <h3>Risk Decomposition</h3>
         <div className="section-subtitle">
-          Share of total portfolio risk split across market, industry, style, and idiosyncratic components.
+          Vol-scaled footprint split across market, industry, style, and idiosyncratic components.
         </div>
         {riskLoading ? (
           <AnalyticsLoadingViz message="Loading portfolio risk mix..." />
         ) : (
-          <RiskDecompChart shares={riskShares} />
+          <RiskDecompChart shares={volScaledShares} />
         )}
       </div>
 

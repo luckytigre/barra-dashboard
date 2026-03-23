@@ -54,6 +54,7 @@ from backend.risk_model import (
     build_specific_risk_from_cache,
     compute_daily_factor_returns,
     risk_decomposition,
+    vol_scaled_decomposition,
 )
 from backend.risk_model.projected_loadings import (
     compute_projected_loadings,
@@ -810,6 +811,17 @@ def run_refresh(
         "style": float(raw_risk_shares.get("style", 0.0)),
         "idio": float(raw_risk_shares.get("idio", 0.0)),
     }
+    raw_vol_scaled_shares = vol_scaled_decomposition(
+        cov=cov,
+        positions=positions,
+        specific_risk_by_ticker=specific_risk_by_ticker,
+    )
+    vol_scaled_shares: RiskSharesPayload = {
+        "market": float(raw_vol_scaled_shares.get("market", 0.0)),
+        "industry": float(raw_vol_scaled_shares.get("industry", 0.0)),
+        "style": float(raw_vol_scaled_shares.get("style", 0.0)),
+        "idio": float(raw_vol_scaled_shares.get("idio", 0.0)),
+    }
     component_shares: ComponentSharesPayload = {
         "market": float(raw_component_shares.get("market", 0.0)),
         "industry": float(raw_component_shares.get("industry", 0.0)),
@@ -929,6 +941,8 @@ def run_refresh(
             d[k] = _safe(v)
     for k in risk_shares:
         risk_shares[k] = _safe(risk_shares[k])
+    for k in vol_scaled_shares:
+        vol_scaled_shares[k] = _safe(vol_scaled_shares[k])
     for k in component_shares:
         component_shares[k] = _safe(component_shares[k])
 
@@ -951,6 +965,7 @@ def run_refresh(
         positions=positions,
         total_value=total_value,
         risk_shares=risk_shares,
+        vol_scaled_shares=vol_scaled_shares,
         component_shares=component_shares,
         factor_details=factor_details,
         cov_matrix=cov_matrix,

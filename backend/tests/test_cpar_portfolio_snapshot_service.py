@@ -320,4 +320,7 @@ def test_build_cpar_risk_snapshot_uses_display_covariance_for_display_analytics(
     assert payload["idio_variance_proxy"] == pytest.approx(0.25)
     assert payload["total_variance_proxy"] == pytest.approx(payload["factor_variance_proxy"] + payload["idio_variance_proxy"])
     assert payload["risk_shares"]["idio"] > 0
+    assert payload["vol_scaled_shares"]["style"] >= 0
+    assert payload["vol_scaled_shares"]["idio"] > 0
+    assert pytest.approx(sum(payload["vol_scaled_shares"].values()), abs=0.05) == 100.0
     assert payload["positions"][0]["risk_mix"]["idio"] > 0

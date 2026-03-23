@@ -299,6 +299,7 @@ export interface CparRiskData extends CparPackageMeta {
   aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
   risk_shares: CparRiskShares;
+  vol_scaled_shares?: CparRiskShares;
   display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
@@ -329,6 +330,7 @@ export interface CparPortfolioHedgeData extends CparPackageMeta {
   aggregate_display_loadings: CparLoading[];
   aggregate_thresholded_loadings: CparLoading[];
   risk_shares: CparRiskShares;
+  vol_scaled_shares?: CparRiskShares;
   display_factor_variance_contributions: CparFactorVarianceContribution[];
   factor_variance_contributions: CparFactorVarianceContribution[];
   display_factor_chart: CparFactorChartRow[];
