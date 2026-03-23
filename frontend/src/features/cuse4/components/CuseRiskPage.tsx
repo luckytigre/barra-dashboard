@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useExposures, usePortfolio, useRisk } from "@/hooks/useCuse4Api";
-import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
+import ExposureBarChart, { chartPresentationThreshold } from "@/features/cuse4/components/ExposureBarChart";
 import FactorDrilldown from "@/features/cuse4/components/FactorDrilldown";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ExposurePositionsTable from "@/features/cuse4/components/ExposurePositionsTable";
@@ -50,6 +50,18 @@ export default function ExposuresPage() {
     () => deriveRawLoadingSharesFromRiskDetails(riskDetails, positions),
     [positions, riskDetails],
   );
+  const visibleFactorIds = useMemo(() => {
+    const rawThreshold = chartPresentationThreshold("raw");
+    const sensitivityThreshold = chartPresentationThreshold("sensitivity");
+    const contributionThreshold = chartPresentationThreshold("risk_contribution");
+    return riskDetails
+      .filter((detail) => (
+        Math.abs(Number(detail.exposure || 0)) >= rawThreshold
+        || Math.abs(Number(detail.sensitivity || 0)) >= sensitivityThreshold
+        || Math.abs(Number(detail.pct_of_total || 0)) >= contributionThreshold
+      ))
+      .map((detail) => detail.factor_id);
+  }, [riskDetails]);
   const cov = riskData?.cov_matrix
     ? {
         factors: riskData.cov_matrix.factors ?? [],
@@ -236,6 +248,7 @@ export default function ExposuresPage() {
           factors={chartFactors}
           mode={mode as "raw" | "sensitivity" | "risk_contribution"}
           factorCatalog={factorCatalog}
+          visibleFactorIds={visibleFactorIds}
           onBarClick={(f) => setSelectedFactor(f === selectedFactor ? null : f)}
         />
       </div>

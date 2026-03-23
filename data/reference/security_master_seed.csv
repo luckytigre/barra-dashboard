@@ -5308,6 +5308,11 @@ ZYME.OQ,ZYME,US98985Y1082,Nasdaq Stock Exchange Global Select Market
 ZYXIQ.PK,ZYXIQ,US98986M1036,USA Pink Sheets
 ZZ.PH,ZZ,,
 SPY.P,SPY,,NYSE ARCA,projection_only
+QQQ.OQ,QQQ,US46090E1038,NASDAQ Stock Exchange Global Market,projection_only
+IWM.P,IWM,US4642876555,NYSE Arca,projection_only
+VOO.P,VOO,US9229083632,NYSE Arca,projection_only
+IVV.P,IVV,US4642872000,NYSE Arca,projection_only
+VTI.P,VTI,US9229087690,NYSE Arca,projection_only
 XLE.P,XLE,,NYSE ARCA,projection_only
 XLF.P,XLF,,NYSE ARCA,projection_only
 XLI.P,XLI,,NYSE ARCA,projection_only

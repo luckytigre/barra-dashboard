@@ -143,6 +143,18 @@ def test_sync_workspace_derivatives_to_local_mirror_copies_core_outputs(tmp_path
     source_data_conn.execute(
         "INSERT INTO barra_raw_cross_section_history VALUES ('AAA.OQ', '2026-03-14', 'AAA')"
     )
+    source_data_conn.execute(
+        "CREATE TABLE projected_instrument_meta (ric TEXT, as_of_date TEXT, projection_method TEXT)"
+    )
+    source_data_conn.execute(
+        "INSERT INTO projected_instrument_meta VALUES ('SPY.P', '2026-03-20', 'ols_returns_regression')"
+    )
+    source_data_conn.execute(
+        "CREATE TABLE projected_instrument_loadings (ric TEXT, ticker TEXT, as_of_date TEXT, factor_name TEXT, exposure REAL)"
+    )
+    source_data_conn.execute(
+        "INSERT INTO projected_instrument_loadings VALUES ('SPY.P', 'SPY', '2026-03-20', 'Market', 1.0)"
+    )
     source_data_conn.commit()
     source_data_conn.close()
 
@@ -174,6 +186,12 @@ def test_sync_workspace_derivatives_to_local_mirror_copies_core_outputs(tmp_path
     assert target_data_conn.execute(
         "SELECT COUNT(*) FROM barra_raw_cross_section_history"
     ).fetchone()[0] == 1
+    assert target_data_conn.execute(
+        "SELECT COUNT(*) FROM projected_instrument_meta"
+    ).fetchone()[0] == 1
+    assert target_data_conn.execute(
+        "SELECT COUNT(*) FROM projected_instrument_loadings"
+    ).fetchone()[0] == 1
     target_data_conn.close()
     target_cache_conn = sqlite3.connect(str(local_cache))
     assert target_cache_conn.execute("SELECT COUNT(*) FROM daily_factor_returns").fetchone()[0] == 1
@@ -181,3 +199,7 @@ def test_sync_workspace_derivatives_to_local_mirror_copies_core_outputs(tmp_path
         "SELECT COUNT(*) FROM cache WHERE key='risk_engine_meta'"
     ).fetchone()[0] == 1
     target_cache_conn.close()
+
+
+def test_workspace_source_tables_include_factor_return_history() -> None:
+    assert "model_factor_returns_daily" in neon_authority.WORKSPACE_SOURCE_TABLES

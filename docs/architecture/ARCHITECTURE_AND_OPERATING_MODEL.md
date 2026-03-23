@@ -177,7 +177,7 @@ Interpretation:
 ### Projection-Only Derived Outputs
 
 Purpose:
-- Support instruments such as SPY and sector ETFs without letting them enter native cUSE estimation.
+- Support instruments such as SPY, QQQ, broad-market ETFs, and sector ETFs without letting them enter native cUSE estimation.
 
 Rules:
 - Served exposure methodology is explicit:

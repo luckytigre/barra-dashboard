@@ -21,6 +21,7 @@ WORKSPACE_SOURCE_TABLES = (
     "security_fundamentals_pit",
     "security_classification_pit",
     "barra_raw_cross_section_history",
+    "model_factor_returns_daily",
 )
 
 LOCAL_MIRROR_DATA_TABLES = (
@@ -29,6 +30,8 @@ LOCAL_MIRROR_DATA_TABLES = (
     "model_factor_covariance_daily",
     "model_specific_risk_daily",
     "model_run_metadata",
+    "projected_instrument_loadings",
+    "projected_instrument_meta",
 )
 
 LOCAL_MIRROR_CACHE_TABLES = (

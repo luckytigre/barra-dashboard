@@ -36,9 +36,11 @@ interface ExposureBarChartProps {
   mode?: "raw" | "sensitivity" | "risk_contribution";
   orderByFactors?: string[];
   factorCatalog?: FactorCatalogEntry[];
+  presentationThreshold?: number;
+  visibleFactorIds?: string[];
 }
 
-function chartPresentationThreshold(mode: ExposureBarChartProps["mode"]): number {
+export function chartPresentationThreshold(mode: ExposureBarChartProps["mode"]): number {
   if (mode === "risk_contribution") return 0.05;
   if (mode === "sensitivity") return 0.001;
   return 0.03;
@@ -99,13 +101,18 @@ export default function ExposureBarChart({
   mode = "raw",
   orderByFactors,
   factorCatalog,
+  presentationThreshold: presentationThresholdOverride,
+  visibleFactorIds,
 }: ExposureBarChartProps) {
   const axisLabel = mode === "risk_contribution"
     ? "% of total risk"
     : mode === "sensitivity"
       ? "vol-scaled loading"
       : "factor loading";
-  const presentationThreshold = chartPresentationThreshold(mode);
+  const presentationThreshold = Math.max(
+    presentationThresholdOverride ?? chartPresentationThreshold(mode),
+    1e-12,
+  );
   const leftLabel = mode === "risk_contribution" ? "Hedging" : "Short";
   const rightLabel = mode === "risk_contribution" ? "Risk-adding" : "Long";
   const xTick = (n: number) => {
@@ -113,6 +120,7 @@ export default function ExposureBarChart({
     return n.toFixed(3);
   };
 
+  const visibleFactorSet = visibleFactorIds ? new Set(visibleFactorIds) : null;
   // Visual orientation lock:
   // - long arm always right (+)
   // - short arm always left (-)
@@ -168,15 +176,18 @@ export default function ExposureBarChart({
       returnsShortArm,
       net,
     };
-  }).filter((f) => (
-    Math.abs(f.coreLongArm) >= presentationThreshold
-    || Math.abs(f.coreShortArm) >= presentationThreshold
-    || Math.abs(f.fundamentalLongArm) >= presentationThreshold
-    || Math.abs(f.fundamentalShortArm) >= presentationThreshold
-    || Math.abs(f.returnsLongArm) >= presentationThreshold
-    || Math.abs(f.returnsShortArm) >= presentationThreshold
-    || Math.abs(f.net) >= presentationThreshold
-  ));
+  }).filter((f) => {
+    if (visibleFactorSet) return visibleFactorSet.has(f.factor_id);
+    return (
+      Math.abs(f.coreLongArm) >= presentationThreshold
+      || Math.abs(f.coreShortArm) >= presentationThreshold
+      || Math.abs(f.fundamentalLongArm) >= presentationThreshold
+      || Math.abs(f.fundamentalShortArm) >= presentationThreshold
+      || Math.abs(f.returnsLongArm) >= presentationThreshold
+      || Math.abs(f.returnsShortArm) >= presentationThreshold
+      || Math.abs(f.net) >= presentationThreshold
+    );
+  });
 
   // Sort by Toraniko regression hierarchy: industry → style (non-orth → orth).
   // Within each tier, sort by absolute net magnitude descending.
@@ -212,14 +223,18 @@ export default function ExposureBarChart({
   const tierSeparatorPlugin: Plugin<"bar" | "line"> = {
     id: "tierSeparator",
     afterDraw(chart) {
-      const yScale = chart.scales.y;
-      if (!yScale) return;
+      const referenceMeta = chart.getDatasetMeta(0);
+      if (!referenceMeta?.data?.length) return;
       const ctx = chart.ctx;
+      const rowCenters = referenceMeta.data
+        .map((point) => point.y)
+        .filter((value): value is number => Number.isFinite(value));
+      if (rowCenters.length !== sorted.length) return;
       ctx.save();
 
       for (const boundaryIdx of tierBoundaries) {
-        const y1 = yScale.getPixelForValue(boundaryIdx);
-        const y2 = yScale.getPixelForValue(boundaryIdx + 1);
+        const y1 = rowCenters[boundaryIdx];
+        const y2 = rowCenters[boundaryIdx + 1];
         const yMid = (y1 + y2) / 2;
 
         // Separator line
@@ -248,11 +263,15 @@ export default function ExposureBarChart({
         const firstTier = factorTier(sorted[0].factor_id, factorCatalog);
         const firstLabel = TIER_LABELS[firstTier];
         if (firstLabel) {
+          const rowGap = rowCenters.length > 1
+            ? rowCenters[1] - rowCenters[0]
+            : 18;
+          const firstLabelY = Math.max(chart.chartArea.top + 2, rowCenters[0] - rowGap / 2 + 2);
           ctx.font = "600 9px -apple-system, BlinkMacSystemFont, sans-serif";
           ctx.fillStyle = "rgba(169, 182, 210, 0.7)";
           ctx.textAlign = "right";
           ctx.textBaseline = "top";
-          ctx.fillText(firstLabel, chart.chartArea.right - 1, chart.chartArea.top + 2);
+          ctx.fillText(firstLabel, chart.chartArea.right - 1, firstLabelY);
         }
       }
 

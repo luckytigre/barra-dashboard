@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "@/components/ExposureBarChart";
+export { default, chartPresentationThreshold } from "@/components/ExposureBarChart";
