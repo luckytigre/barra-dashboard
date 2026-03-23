@@ -26,6 +26,9 @@ Related docs:
 ## Fixed Decisions
 
 - One cloud environment only for the initial rollout.
+- GCP rollout project:
+  - `project-4e18de12-63a3-4206-aaa`
+- Billing is enabled on the rollout project.
 - The local all-in-one app remains a first-class path for:
   - fast development,
   - local diagnostics,
@@ -36,12 +39,16 @@ Related docs:
 - Google Cloud Run is the target compute surface for the cloud app.
 - Scale-to-zero is a hard requirement unless a later validated exception is documented here.
 - The cloud app should be standalone and Neon-backed.
+- Verified operator-workstation prerequisites now in place:
+  - Google ADC working
+  - Docker working locally
+  - Cloudflare DNS token available via 1Password
 - In `cloud-serve`, cUSE payloads, runtime/operator state, holdings, and cPAR package reads must remain Neon-authoritative and fail closed instead of falling back to local SQLite.
 - `NEON_AUTHORITATIVE_REBUILDS` is a separate contract from Neon serving reads:
   - default-on when Neon is the active backend and a Neon DSN is configured,
   - set `NEON_AUTHORITATIVE_REBUILDS=false` only as an explicit rollback to local-SQLite rebuild authority.
 - Custom domain family:
-  - `ceiora.com` for the frontend
+  - `app.ceiora.com` for the frontend
   - `api.ceiora.com` for the serve API
   - `control.ceiora.com` for the control API
 - Initial cloud access model:
@@ -49,6 +56,7 @@ Related docs:
   - internet-reachable serve API
   - internet-reachable control API, but still protected by operator credentials and not anonymous
 - Production custom-domain routing will use a global external HTTPS load balancer with serverless NEGs, not Cloud Run preview domain mapping.
+- Temporary smoke validation will use Cloud Run `run.app` hostnames before cutover to `app.ceiora.com`.
 - The control API is intended for:
   - the frontend's server-side proxy routes, and
   - explicit operator or automation clients
@@ -56,6 +64,10 @@ Related docs:
 - The first durable cloud job migration moves `serve-refresh` only.
 - `core-weekly` and `cold-core` remain outside the first cloud job cutover unless this file is explicitly amended later.
 - Cloud `serve-refresh` cutover is valid only after the repo's stable-core, source-sync, Neon-readiness, and `security_master` parity prerequisites are frozen and documented for cloud execution.
+- Initial image publishing will start from the verified operator workstation:
+  - local Docker build
+  - push to Artifact Registry
+  - CI/CD image publishing is deferred until the first cloud rollout is stable
 
 ## Objective
 
@@ -136,7 +148,7 @@ Ownership:
 ### Cloud Frontend
 
 Purpose:
-- public Next.js app on `ceiora.com`
+- public Next.js app on `app.ceiora.com`
 - proxies public/editor API traffic to `api.ceiora.com`
 - proxies operator/control traffic to `control.ceiora.com`
 
@@ -210,12 +222,15 @@ Terraform should own:
 - Cloud Run Jobs for control-plane execution
 - Cloud Scheduler resources only when the job-triggering phase starts
 - domain/DNS/load-balancer resources for custom domains
+  - Google provider owns the load balancer, serverless NEGs, and certificates
+  - Cloudflare provider owns public DNS records for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
 - minimal logging/monitoring/uptime resources
 
 Terraform should not own:
 - the local LSEG machine
 - local SQLite artifacts
 - local-only launcher scripts
+- app runtime secrets that belong in Cloud Run/Secret Manager consumption rather than in Terraform state
 
 ## Environment And Secret Contract
 
@@ -245,6 +260,16 @@ Required:
 
 Optional compatibility only:
 - `REFRESH_API_TOKEN`
+
+### Terraform operator credentials
+
+Required on the operator workstation or CI runner:
+- Google ADC credentials for Terraform
+- Cloudflare API token for DNS changes
+
+Rule:
+- The Cloudflare token is a Terraform/operator credential, not an app runtime secret.
+- Do not put the Cloudflare token into Cloud Run runtime env vars or app-facing Secret Manager entries.
 
 ### Frontend
 
@@ -305,7 +330,7 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - Cloud Run control
   - Cloud Run Jobs
 - [ ] Freeze the hostname plan:
-  - `ceiora.com`
+  - `app.ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
 - [ ] Freeze the single-environment naming convention as `prod`.
@@ -318,7 +343,11 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - `security_master` bootstrap/parity
   - source-sync expectations
   - stable-core expectations
-- [ ] Update `.env.example` so the split-origin and token contract is explicit.
+- [ ] Update `.env.example` so the split-origin and token contract is explicit:
+  - `BACKEND_CONTROL_ORIGIN`
+  - `OPERATOR_API_TOKEN`
+  - `EDITOR_API_TOKEN`
+  - cloud/runtime examples for `NEON_AUTHORITATIVE_REBUILDS`
 
 ### Slice 2: Terraform Foundation
 
@@ -326,12 +355,15 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 - [ ] Freeze the bootstrap rule for remote Terraform state:
   - either a tiny bootstrap root with local state creates the state bucket first,
   - or a one-time manual bootstrap step is documented and accepted.
+- [ ] Record the now-fixed rollout project directly in Terraform inputs/examples:
+  - `project-4e18de12-63a3-4206-aaa`
 - [ ] Add provider/version pinning.
 - [ ] Add remote state guidance and backend configuration shape.
 - [ ] Add project-service enablement for the required GCP APIs.
 - [ ] Add Artifact Registry ownership.
 - [ ] Add Secret Manager ownership.
 - [ ] Add service-account and IAM ownership.
+- [ ] Add Cloudflare provider ownership for public DNS records.
 - [ ] Add the custom-domain routing foundation:
   - global external HTTPS load balancer
   - serverless NEGs
@@ -340,12 +372,15 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
 
 ### Slice 3: Container Build And Runtime Contract Hardening
 
-- [ ] Validate that the existing Dockerfiles build cleanly in a Docker-enabled environment.
+- [ ] Run and record successful local builds for:
+  - `backend/Dockerfile.serve`
+  - `backend/Dockerfile.control`
+  - `frontend/Dockerfile`
 - [ ] Tighten container/runtime env contracts so Cloud Run deployment is deterministic.
-- [ ] Decide and document the image build/publish path:
-  - manual build/push
-  - Cloud Build
-  - or GitHub Actions publishing into Artifact Registry
+- [ ] Implement and document the initial image build/publish path:
+  - local Docker build
+  - Artifact Registry push from the verified operator workstation
+- [ ] Defer CI/CD image publishing until after the first cloud rollout is stable.
 - [ ] Keep the local app path unchanged.
 
 ### Slice 4: Control-Plane Execution Migration
@@ -392,7 +427,7 @@ Do not treat this as optional if the goal is a durable cloud-native runtime.
   - serverless NEGs
   - managed certificates or explicitly owned certificate path
 - [ ] Validate:
-  - `ceiora.com`
+  - `app.ceiora.com`
   - `api.ceiora.com`
   - `control.ceiora.com`
 - [ ] Document any split between temporary `run.app` testing and final custom-domain ingress.
@@ -433,9 +468,7 @@ Additional validation by phase:
 
 ## Open Questions
 
-- Which GCP project ID will own the first rollout?
 - Which east-coast region best matches Neon latency and Cloud Run feature support?
-- Should the frontend live on apex `ceiora.com` immediately, or should it start on `app.ceiora.com` and move later?
 
 ## Progress Notes
 
@@ -454,3 +487,8 @@ Additional validation by phase:
   - cloud env assumptions now explicitly include fail-closed Neon authority behavior and `NEON_AUTHORITATIVE_REBUILDS`,
   - `serve-refresh` cloud cutover now carries explicit stable-core, source-sync, Neon-readiness, and `security_master` parity prerequisites,
   - cloud acceptance testing now explicitly includes projection-only outputs and other fail-closed degraded states.
+- 2026-03-23: Implementation-readiness re-review after the local mods settled:
+  - the rollout project is now fixed to `project-4e18de12-63a3-4206-aaa`,
+  - billing, ADC, Docker, and Cloudflare token access are all confirmed,
+  - `app.ceiora.com` is detached from Vercel and no longer part of the temporary smoke path,
+  - Slice 2 and Slice 3 now assume execution readiness instead of workstation/tool discovery.
