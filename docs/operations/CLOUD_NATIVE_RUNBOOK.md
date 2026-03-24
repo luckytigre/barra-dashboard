@@ -214,10 +214,21 @@ Provider-specific deploy manifests outside this Terraform/Cloud Run path remain 
 Operator build entrypoints:
 - `make cloud-images-build`
 - `make cloud-images-push`
+- `make cloud-serve-deploy`
 - `scripts/cloud/build_images.sh`
 - `scripts/cloud/build_and_push_images.sh`
+- `scripts/cloud/deploy_serve.sh`
 - the repo-owned Cloud Run image path now explicitly builds `linux/amd64` images via `docker buildx`; do not use the plain host-architecture Docker default for rollout images.
 - the same scripts also support `BUILD_TARGETS=frontend` for the temporary `run.app` smoke rebuild, so the smoke exception can retarget only the frontend image without rebuilding serve/control.
+- the image-build scripts now stage per-target minimal Docker contexts:
+  - `frontend` builds from a temp context containing only `frontend/`
+  - `serve` / `control` build from a temp context containing only `backend/`
+  - this avoids operator-machine runtime archives, virtualenvs, and other repo-local mass contaminating Cloud Run image builds.
+
+Preferred serve rollout path:
+- `make cloud-serve-deploy`
+  - builds and pushes the `serve` image with the minimal backend-only context
+  - deploys that image directly to the Cloud Run serve service
 
 Build-time contract:
 - the frontend image reads `BACKEND_API_ORIGIN` at build time so the Next rewrite proxy is baked for the target serve API host

@@ -69,6 +69,7 @@ Check:
 - monthly classification/TRBC coverage
 - presence in `security_master`
 - projection-only names have projected outputs current to the active core package date
+- projection-only names still publish as `projected_only` in both `portfolio` and `universe_loadings`; a downgrade to `ineligible` after projected outputs exist is a serving-payload failure, not an expected state
 - presence in search/explore surfaces after serving refresh
 
 ## Step 5: Choose Refresh Depth
@@ -108,6 +109,7 @@ Operator verification:
 ```bash
 curl -s "http://localhost:8000/api/operator/status" | jq
 curl -s "http://localhost:8000/api/health" | jq
+python3 -m backend.scripts.repair_serving_payloads_neon --dry-run --json | jq '.diff'
 ```
 
 ## Done Criteria

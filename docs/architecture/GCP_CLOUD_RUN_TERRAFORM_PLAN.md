@@ -587,6 +587,12 @@ Additional validation by phase:
   - the first service deployment attempt failed because the operator workstation published OCI indexes without a guaranteed `linux/amd64` runtime image,
   - the repo-owned cloud build scripts now default to `docker buildx` with `CLOUD_RUN_PLATFORM=linux/amd64`,
   - `build_and_push_images.sh` now publishes Cloud Run-compatible images directly instead of relying on a separate `docker push` of host-default artifacts.
+- 2026-03-24: Serve deploy-path hardening completed:
+  - `build_images.sh` now stages minimal per-target Docker contexts instead of building serve/control from the broad repo root,
+  - the minimal-context contract is now:
+    - `frontend` context = `frontend/` only
+    - `serve` / `control` context = `backend/` only
+  - added `scripts/cloud/deploy_serve.sh` and `make cloud-serve-deploy` as the deterministic operator path for pushing and rolling the serve image.
 - 2026-03-23: Live rollout phase 4 `run.app` deployment completed:
   - deployed frontend, serve, control, and the `serve-refresh` Cloud Run Job to `us-east4`,
   - basic smoke passed against the Cloud Run hostnames:

@@ -233,6 +233,27 @@ Parallel cPAR note:
   - when model persistence does run, factor returns now load incrementally from the latest durable date when the risk-engine fingerprint still matches; schema/method drift falls back to a full reload.
 - durable serving payload writes now default to partial upsert semantics.
   - only the canonical serving-refresh writer opts into `replace_all=true`, which keeps destructive delete behavior explicit instead of implicit.
+  - `replace_all=true` is now reserved for the canonical serving payload set only:
+    - `eligibility`
+    - `exposures`
+    - `health_diagnostics`
+    - `model_sanity`
+    - `portfolio`
+    - `refresh_meta`
+    - `risk`
+    - `risk_engine_cov`
+    - `risk_engine_specific_risk`
+    - `universe_factors`
+    - `universe_loadings`
+  - partial updates like the health/refresh-meta patch path remain explicit `replace_all=false` writes and must not be treated as a full publish.
+- projection-only publish invariant:
+  - if persisted projected loadings exist for a `projection_only` ticker at the active core date, serving publish must fail unless that ticker lands as `model_status=projected_only` and `exposure_origin=projected` in both `portfolio` and `universe_loadings`.
+- operator repair path for serving payload drift:
+  - dry-run diff local mirror vs Neon:
+    - `python3 -m backend.scripts.repair_serving_payloads_neon --dry-run --json`
+  - canonical payload-set repair back to Neon:
+    - `python3 -m backend.scripts.repair_serving_payloads_neon --write-mode row_by_row --json`
+  - targeted payload repair is allowed only by explicit `--payload-names ...`; the canonical-set repair remains the default and preferred path.
 - `refresh_status`: background orchestrator state snapshot, persisted through `runtime_state_current` with local SQLite only as the local-ingest mirror/fallback lane.
   - includes current stage progress for in-flight runs (`current_stage`, `stage_index`, `stage_count`, `stage_started_at`) and the optional `refresh_scope` used by holdings-triggered refreshes.
 - `holdings_sync_state`: holdings-dirty and serving-refresh bookkeeping state, likewise persisted through `runtime_state_current` with local SQLite only as the local-ingest mirror/fallback lane.
@@ -309,6 +330,8 @@ Parallel cPAR note:
   - `curl -s "http://localhost:8000/api/data/diagnostics" | jq '.cache_outputs[] | select(.key==\"refresh_meta\")'`
 - Verify risk payload includes engine metadata:
   - `curl -s "http://localhost:8000/api/risk" | jq '.risk_engine'`
+- Verify serving payload manifests are on a single live snapshot:
+  - `python3 -m backend.scripts.repair_serving_payloads_neon --dry-run --json | jq '.diff,.local_snapshot_ids,.neon_snapshot_ids'`
 - Verify latest usable eligibility summary (regression members > 0 preferred):
   - `sqlite3 backend/runtime/cache.db "SELECT date,exp_date,regression_member_n,structural_coverage,regression_coverage FROM daily_universe_eligibility_summary ORDER BY date DESC LIMIT 10;"`
 - Verify no compatibility views remain:

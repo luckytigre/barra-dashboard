@@ -241,6 +241,23 @@ Key rule:
 - The durable serving publish boundary comes before deep diagnostics. Once payload persistence plus active snapshot publish completes, the run should emit a publish milestone and clients may revalidate app-facing surfaces without waiting for diagnostics tail completion.
 - Deep model-health diagnostics belong to `core-weekly`, `cold-core`, or another explicit diagnostics-producing lane rather than the ordinary quick refresh path.
 - The currently active serving payload set should be durable and mirrorable (`serving_payload_current`), not only present in the local cache layer.
+- Full serving promotion now means the canonical payload set, not an arbitrary subset:
+  - `eligibility`
+  - `exposures`
+  - `health_diagnostics`
+  - `model_sanity`
+  - `portfolio`
+  - `refresh_meta`
+  - `risk`
+  - `risk_engine_cov`
+  - `risk_engine_specific_risk`
+  - `universe_factors`
+  - `universe_loadings`
+- Canonical serving promotion must be atomic as a set.
+  - `replace_all=true` is reserved for that canonical set only.
+  - targeted metadata patches such as `health_diagnostics` or `refresh_meta` remain explicit partial writes and must not masquerade as a full publish.
+- Projection-only serving rows are protected at publish time.
+  - If persisted projected loadings exist for a ticker at the active core date, the live serving payloads must publish that ticker as `projected_only` with `exposure_origin=projected`, or the publish fails.
 
 ## Canonical Event Types
 
