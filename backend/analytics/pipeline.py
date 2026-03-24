@@ -228,6 +228,66 @@ def _build_positions_from_universe(
     return _build_positions_from_universe_impl(universe_by_ticker)
 
 
+def _merge_projection_universe_rows(*row_sets: list[dict[str, str]]) -> list[dict[str, str]]:
+    merged: dict[str, dict[str, str]] = {}
+    for rows in row_sets:
+        for row in rows or []:
+            ticker = str(row.get("ticker") or "").strip().upper()
+            ric = str(row.get("ric") or "").strip().upper()
+            if not ticker or not ric:
+                continue
+            merged.setdefault(ticker, {"ticker": ticker, "ric": ric})
+    return [merged[ticker] for ticker in sorted(merged.keys())]
+
+
+def _projection_ok_tickers(projected_loadings_map: dict[str, Any] | None) -> set[str]:
+    if not isinstance(projected_loadings_map, dict):
+        return set()
+    return {
+        str(ticker or "").strip().upper()
+        for ticker, payload in projected_loadings_map.items()
+        if str(getattr(payload, "status", "") or "").strip().lower() == "ok"
+    }
+
+
+def _validate_projection_only_serving_outputs(
+    *,
+    projection_ok_tickers: set[str],
+    universe_by_ticker: dict[str, dict[str, Any]],
+    positions: list[PositionPayload],
+) -> None:
+    if not projection_ok_tickers:
+        return
+    issues: list[str] = []
+    for ticker in sorted(projection_ok_tickers):
+        universe_row = dict(universe_by_ticker.get(ticker) or {})
+        if (
+            str(universe_row.get("model_status") or "").strip() != "projected_only"
+            or str(universe_row.get("exposure_origin") or "").strip() != "projected"
+        ):
+            issues.append(
+                f"{ticker}:universe:{universe_row.get('model_status') or 'missing'}:{universe_row.get('exposure_origin') or 'missing'}"
+            )
+    positions_by_ticker = {
+        str(pos.get("ticker") or "").strip().upper(): pos
+        for pos in positions
+        if str(pos.get("ticker") or "").strip()
+    }
+    for ticker in sorted(projection_ok_tickers.intersection(positions_by_ticker.keys())):
+        pos = dict(positions_by_ticker.get(ticker) or {})
+        if (
+            str(pos.get("model_status") or "").strip() != "projected_only"
+            or str(pos.get("exposure_origin") or "").strip() != "projected"
+        ):
+            issues.append(
+                f"{ticker}:portfolio:{pos.get('model_status') or 'missing'}:{pos.get('exposure_origin') or 'missing'}"
+            )
+    if issues:
+        raise RuntimeError(
+            "Projection-only serving payload integrity failed: " + ", ".join(sorted(issues))
+        )
+
+
 def _load_latest_factor_coverage(
     cache_db: Path,
     *,
@@ -307,6 +367,7 @@ def run_refresh(
     logger.info("Starting refresh pipeline...")
     _emit_refresh_progress(progress_callback, message="Loading refresh context", refresh_substage="context")
     effective_data_db = _resolve_data_db(data_db)
+    canonical_data_db = _resolve_data_db(None)
     effective_cache_db = _resolve_cache_db(cache_db)
     refresh_mode = str(mode or "full").strip().lower()
     refresh_scope_key = str(refresh_scope or "").strip().lower() or None
@@ -721,19 +782,34 @@ def run_refresh(
         projected_loadings_map: dict | None = None
         try:
             import sqlite3 as _sqlite3
+            effective_projection_rows: list[dict[str, str]] = []
+            canonical_projection_rows: list[dict[str, str]] = []
             _proj_conn = _sqlite3.connect(str(effective_data_db))
             try:
-                projection_universe_rows = load_projection_only_universe_rows(_proj_conn)
+                effective_projection_rows = load_projection_only_universe_rows(_proj_conn)
             finally:
                 _proj_conn.close()
-            persisted_projection_asof = (
-                latest_persisted_projection_asof(
+            if canonical_data_db != effective_data_db and canonical_data_db.exists():
+                _canonical_proj_conn = _sqlite3.connect(str(canonical_data_db))
+                try:
+                    canonical_projection_rows = load_projection_only_universe_rows(_canonical_proj_conn)
+                finally:
+                    _canonical_proj_conn.close()
+            projection_universe_rows = _merge_projection_universe_rows(
+                effective_projection_rows,
+                canonical_projection_rows,
+            )
+            persisted_projection_asof = None
+            if projection_universe_rows and active_core_state_through_date:
+                persisted_projection_asof = latest_persisted_projection_asof(
                     data_db=effective_data_db,
                     projection_rics=projection_universe_rows,
                 )
-                if projection_universe_rows and active_core_state_through_date
-                else None
-            )
+                if not persisted_projection_asof and canonical_data_db != effective_data_db and canonical_data_db.exists():
+                    persisted_projection_asof = latest_persisted_projection_asof(
+                        data_db=canonical_data_db,
+                        projection_rics=projection_universe_rows,
+                    )
             should_refresh_projection_outputs = bool(
                 refresh_projected_loadings
                 or recomputed_this_refresh
@@ -772,6 +848,27 @@ def run_refresh(
                     projection_rics=projection_universe_rows,
                     as_of_date=active_core_state_through_date,
                 )
+                effective_ok_tickers = _projection_ok_tickers(projected_loadings_map)
+                missing_projection_tickers = {
+                    str(row.get("ticker") or "").strip().upper()
+                    for row in projection_universe_rows
+                    if str(row.get("ticker") or "").strip()
+                } - effective_ok_tickers
+                if missing_projection_tickers and canonical_data_db != effective_data_db and canonical_data_db.exists():
+                    canonical_projected_loadings = load_persisted_projected_loadings(
+                        data_db=canonical_data_db,
+                        projection_rics=[
+                            row
+                            for row in projection_universe_rows
+                            if str(row.get("ticker") or "").strip().upper() in missing_projection_tickers
+                        ],
+                        as_of_date=active_core_state_through_date,
+                    )
+                    if canonical_projected_loadings:
+                        projected_loadings_map = dict(projected_loadings_map or {})
+                        for ticker, payload in canonical_projected_loadings.items():
+                            if ticker not in projected_loadings_map:
+                                projected_loadings_map[ticker] = payload
                 logger.info(
                     "Loaded persisted projected loadings for %d/%d projection-only instruments at core_state_through_date=%s.",
                     sum(1 for p in projected_loadings_map.values() if p.status == "ok"),
@@ -828,6 +925,11 @@ def run_refresh(
     positions_t0 = time.perf_counter()
     logger.info("Projecting held positions from full-universe cache...")
     positions, total_value = _build_positions_from_universe(universe_loadings["by_ticker"])
+    _validate_projection_only_serving_outputs(
+        projection_ok_tickers=_projection_ok_tickers(projected_loadings_map),
+        universe_by_ticker=universe_loadings["by_ticker"],
+        positions=positions,
+    )
     _record_substage_timing(
         "positions",
         positions_t0,

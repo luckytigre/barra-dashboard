@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+import sqlite3
 
 from backend.analytics import pipeline
+from backend.data import model_outputs
 from backend.orchestration.stage_serving import run_serving_stage
 from backend.risk_model.projected_loadings import ProjectedLoadingResult
 
@@ -311,3 +313,167 @@ def test_run_refresh_recomputes_projection_outputs_when_persisted_asof_is_stale(
     assert recompute_called["value"] is True
     assert captured["projection_core_state_through_date"] == "2026-03-20"
     assert "SPY" in captured["projected_loadings"]
+
+
+def test_run_refresh_uses_canonical_projection_rows_when_workspace_has_none(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    canonical_data_db = tmp_path / "canonical.db"
+    workspace_data_db = tmp_path / "workspace.db"
+    cache_db = tmp_path / "cache.db"
+    source_dates = {
+        "fundamentals_asof": "2026-03-20",
+        "classification_asof": "2026-03-20",
+        "prices_asof": "2026-03-20",
+        "exposures_asof": "2026-03-20",
+        "exposures_latest_available_asof": "2026-03-20",
+    }
+    risk_meta = {
+        "status": "ok",
+        "method_version": pipeline.RISK_ENGINE_METHOD_VERSION,
+        "last_recompute_date": "2026-03-20",
+        "factor_returns_latest_date": "2026-03-20",
+        "core_state_through_date": "2026-03-20",
+        "cross_section_min_age_days": 7,
+        "lookback_days": 504,
+        "specific_risk_ticker_count": 1,
+        "recompute_interval_days": 7,
+        "latest_r2": 0.4,
+    }
+    projection_rows = [{"ric": "SPY.P", "ticker": "SPY"}]
+
+    for db_path, rows in (
+        (workspace_data_db, []),
+        (canonical_data_db, [("SPY.P", "SPY", "projection_only")]),
+    ):
+        conn = sqlite3.connect(str(db_path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE security_master (
+                    ric TEXT,
+                    ticker TEXT,
+                    coverage_role TEXT
+                )
+                """
+            )
+            if rows:
+                conn.executemany(
+                    "INSERT INTO security_master (ric, ticker, coverage_role) VALUES (?, ?, ?)",
+                    rows,
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+    monkeypatch.setattr(
+        pipeline,
+        "_resolve_data_db",
+        lambda db: workspace_data_db if db is not None else canonical_data_db,
+    )
+    monkeypatch.setattr(pipeline.core_reads, "load_source_dates", lambda **kwargs: dict(source_dates))
+    monkeypatch.setattr(pipeline.config, "CUSE4_ENABLE_ESTU_AUDIT", False)
+    monkeypatch.setattr(
+        pipeline,
+        "_resolve_effective_risk_engine_meta",
+        lambda **kwargs: (dict(risk_meta), "model_run_metadata"),
+    )
+    monkeypatch.setattr(
+        pipeline.sqlite,
+        "cache_get_live_first",
+        lambda key, **kwargs: {
+            "risk_engine_cov": {"factors": ["market"], "matrix": [[1.0]]},
+            "risk_engine_specific_risk": {"AAPL.OQ": {"ticker": "AAPL", "specific_var": 0.01, "specific_vol": 0.1}},
+        }.get(key),
+    )
+    monkeypatch.setattr(pipeline.sqlite, "cache_get", lambda key, **kwargs: None)
+    monkeypatch.setattr(
+        pipeline.core_reads,
+        "load_latest_prices",
+        lambda **kwargs: pd.DataFrame(
+            [
+                {"ticker": "AAPL", "ric": "AAPL.OQ", "close": 100.0},
+                {"ticker": "SPY", "ric": "SPY.P", "close": 500.0},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        pipeline.core_reads,
+        "load_latest_fundamentals",
+        lambda **kwargs: pd.DataFrame([{"ticker": "AAPL", "ric": "AAPL.OQ", "market_cap": 1_000_000.0}]),
+    )
+    monkeypatch.setattr(
+        pipeline.core_reads,
+        "load_raw_cross_section_latest",
+        lambda **kwargs: pd.DataFrame([{"ticker": "AAPL", "ric": "AAPL.OQ", "as_of_date": "2026-03-20", "beta_score": 1.0}]),
+    )
+    monkeypatch.setattr(model_outputs, "load_latest_rebuild_authority_risk_engine_state", lambda: {})
+    monkeypatch.setattr(model_outputs, "load_latest_rebuild_authority_covariance_payload", lambda: {})
+    monkeypatch.setattr(model_outputs, "load_latest_rebuild_authority_specific_risk_payload", lambda: {})
+    monkeypatch.setattr(pipeline, "latest_persisted_projection_asof", lambda **kwargs: "2026-03-20")
+    monkeypatch.setattr(
+        pipeline,
+        "load_persisted_projected_loadings",
+        lambda **kwargs: (
+            {}
+            if kwargs.get("data_db") == workspace_data_db
+            else {
+                "SPY": ProjectedLoadingResult(
+                    ric="SPY.P",
+                    ticker="SPY",
+                    exposures={"Market": 1.0},
+                    specific_var=0.01,
+                    specific_vol=0.1,
+                    r_squared=0.95,
+                    obs_count=252,
+                    lookback_days=252,
+                    projection_asof="2026-03-20",
+                    status="ok",
+                )
+            }
+        ),
+    )
+    monkeypatch.setattr(pipeline, "compute_projected_loadings", lambda **kwargs: {})
+
+    monkeypatch.setattr(
+        pipeline,
+        "_build_universe_ticker_loadings",
+        lambda *args, **kwargs: captured.update(kwargs) or (_ for _ in ()).throw(_StopRefresh()),
+    )
+
+    with pytest.raises(_StopRefresh):
+        pipeline.run_refresh(
+            data_db=workspace_data_db,
+            cache_db=cache_db,
+            mode="light",
+            skip_snapshot_rebuild=True,
+            skip_cuse4_foundation=True,
+            skip_risk_engine=True,
+            prefer_local_source_archive=True,
+        )
+
+    assert captured["projection_universe_rows"] == projection_rows
+    assert "SPY" in captured["projected_loadings"]
+
+
+def test_validate_projection_only_serving_outputs_raises_on_native_downgrade() -> None:
+    with pytest.raises(RuntimeError, match="Projection-only serving payload integrity failed"):
+        pipeline._validate_projection_only_serving_outputs(
+            projection_ok_tickers={"SPY"},
+            universe_by_ticker={
+                "SPY": {
+                    "ticker": "SPY",
+                    "model_status": "ineligible",
+                    "exposure_origin": "native",
+                }
+            },
+            positions=[
+                {
+                    "ticker": "SPY",
+                    "model_status": "ineligible",
+                    "exposure_origin": "native",
+                }
+            ],
+        )

@@ -135,11 +135,7 @@ def load_current_payload(payload_name: str) -> dict[str, Any] | list[Any] | None
     clean = str(payload_name or "").strip()
     if not clean:
         return None
-    if _use_neon_reads():
-        payload = _load_current_payload_neon(clean)
-        if payload is not None or not config.serving_outputs_cache_fallback_enabled():
-            return payload
-    return _load_current_payload_sqlite(clean)
+    return load_current_payloads((clean,)).get(clean)
 
 
 def load_current_payloads(payload_names: Iterable[str]) -> dict[str, Any | None]:
@@ -149,6 +145,15 @@ def load_current_payloads(payload_names: Iterable[str]) -> dict[str, Any | None]
         return {}
     if _use_neon_reads():
         payloads = _load_current_payloads_neon(clean_names)
+        mirror_needed = [name for name in clean_names if name in {"portfolio", "universe_loadings"}]
+        if mirror_needed:
+            sqlite_payloads = _load_current_payloads_sqlite(mirror_needed)
+            for name in _projection_downgraded_payload_names(
+                primary_payloads=payloads,
+                mirror_payloads=sqlite_payloads,
+            ):
+                if sqlite_payloads.get(name) is not None:
+                    payloads[name] = sqlite_payloads.get(name)
         if config.serving_outputs_cache_fallback_enabled():
             missing = [name for name in clean_names if payloads.get(name) is None]
             if missing:
@@ -182,6 +187,69 @@ def _decode_payload_json(raw: Any) -> dict[str, Any] | list[Any] | None:
     if isinstance(raw, (dict, list)):
         return raw
     return json.loads(str(raw))
+
+
+def _projection_rows_by_ticker_from_payload(
+    payload_name: str,
+    payload: Any,
+) -> dict[str, tuple[str, str]]:
+    if not isinstance(payload, dict):
+        return {}
+    clean_name = str(payload_name or "").strip()
+    rows: dict[str, tuple[str, str]] = {}
+    if clean_name == "portfolio":
+        for row in payload.get("positions") or []:
+            if not isinstance(row, dict):
+                continue
+            ticker = str(row.get("ticker") or "").strip().upper()
+            if not ticker:
+                continue
+            rows[ticker] = (
+                str(row.get("model_status") or "").strip(),
+                str(row.get("exposure_origin") or "").strip(),
+            )
+        return rows
+    if clean_name == "universe_loadings":
+        by_ticker = payload.get("by_ticker")
+        if not isinstance(by_ticker, dict):
+            return {}
+        for ticker, row in by_ticker.items():
+            if not isinstance(row, dict):
+                continue
+            clean_ticker = str(ticker or row.get("ticker") or "").strip().upper()
+            if not clean_ticker:
+                continue
+            rows[clean_ticker] = (
+                str(row.get("model_status") or "").strip(),
+                str(row.get("exposure_origin") or "").strip(),
+            )
+    return rows
+
+
+def _projection_downgraded_payload_names(
+    *,
+    primary_payloads: dict[str, Any | None],
+    mirror_payloads: dict[str, Any | None],
+) -> list[str]:
+    degraded: list[str] = []
+    for payload_name in ("portfolio", "universe_loadings"):
+        primary_rows = _projection_rows_by_ticker_from_payload(
+            payload_name,
+            primary_payloads.get(payload_name),
+        )
+        mirror_rows = _projection_rows_by_ticker_from_payload(
+            payload_name,
+            mirror_payloads.get(payload_name),
+        )
+        if not primary_rows or not mirror_rows:
+            continue
+        for ticker, mirror_state in mirror_rows.items():
+            if mirror_state != ("projected_only", "projected"):
+                continue
+            if primary_rows.get(ticker) != ("projected_only", "projected"):
+                degraded.append(payload_name)
+                break
+    return sorted(set(degraded))
 
 
 def _load_current_payloads_sqlite(payload_names: Iterable[str]) -> dict[str, Any | None]:
@@ -384,6 +452,7 @@ def _verify_current_payloads_neon(
             "snapshot_id": str(row[1]),
             "run_id": str(row[2]),
             "refresh_mode": str(row[3]),
+            "payload_json": str(row[4]),
         }
         for row in rows
     }
@@ -401,7 +470,7 @@ def _verify_current_payloads_neon(
         if replace_all:
             cur.execute(
                 """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode
+                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
                 FROM serving_payload_current
                 ORDER BY payload_name
                 """
@@ -409,7 +478,7 @@ def _verify_current_payloads_neon(
         elif payload_names:
             cur.execute(
                 """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode
+                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
                 FROM serving_payload_current
                 WHERE payload_name = ANY(%s)
                 ORDER BY payload_name
@@ -419,7 +488,7 @@ def _verify_current_payloads_neon(
         else:
             cur.execute(
                 """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode
+                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
                 FROM serving_payload_current
                 WHERE FALSE
                 """
@@ -431,6 +500,7 @@ def _verify_current_payloads_neon(
             "snapshot_id": str(row[1]),
             "run_id": str(row[2]),
             "refresh_mode": str(row[3]),
+            "payload_json": str(row[4] or ""),
         }
         for row in fetched
     }
@@ -459,7 +529,7 @@ def _verify_current_payloads_neon(
         observed = observed_by_name.get(payload_name)
         if observed is None:
             continue
-        for field in ("snapshot_id", "run_id", "refresh_mode"):
+        for field in ("snapshot_id", "run_id", "refresh_mode", "payload_json"):
             if str(observed.get(field) or "") != str(expected.get(field) or ""):
                 out["issues"].append(
                     f"metadata_mismatch:{payload_name}:{field}:{observed.get(field)}!={expected.get(field)}"
