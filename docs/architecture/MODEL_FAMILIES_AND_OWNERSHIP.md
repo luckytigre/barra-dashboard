@@ -110,7 +110,8 @@ Legacy redirects remain in place from:
 - `/explore`
 - `/health`
 
-The root legacy compatibility entrypoints should remain redirect-only and should not grow separate live page implementations.
+Those legacy root redirects are owned in `frontend/next.config.js` only.
+The root legacy compatibility entrypoints should remain redirect-only and should not grow separate live page implementations or duplicate App Router pages.
 
 ## cPAR Ownership
 

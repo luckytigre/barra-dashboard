@@ -25,7 +25,7 @@ Use this checklist before and after backend/frontend refreshes to keep runtime s
 - Pass criteria:
   - backend endpoints are `200`
   - root route redirects cleanly (`/`)
-  - compatibility redirects resolve cleanly (`/exposures`, `/explore`, `/health`)
+  - compatibility redirects resolve cleanly from the `next.config.js`-owned legacy roots (`/exposures`, `/explore`, `/health`)
   - canonical frontend routes render (`/cuse/exposures`, `/cuse/explore`, `/cuse/health`, `/data`, `/positions`)
   - frontend API proxies return expected keys (`refresh`, `positions`, `risk_shares`)
 
@@ -37,6 +37,7 @@ Use this checklist before and after backend/frontend refreshes to keep runtime s
 - If refresh/holdings flows changed, add/execute a matching targeted test.
 - If health/risk math changed, also run a broader backend slice before considering the runtime clean.
 - If factor definitions, regression inference fields, or style membership changed, run `cold-core` once to rebuild factor history and then a follow-up `serve-refresh` to confirm the lightweight path serves the new factor set cleanly.
+- Verify no duplicate App Router pages exist for the legacy cUSE roots under `frontend/src/app/exposures`, `frontend/src/app/explore`, or `frontend/src/app/health`.
 - Verify no accidental transient files are staged (`frontend/.next*`, temp exports, logs).
 
 ## 5) Rollback Pointers

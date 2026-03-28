@@ -235,7 +235,7 @@ Current cPAR frontend smokes cover:
 - `/cpar/risk` baseline flow
 - `/cpar/risk` signed factor-loadings chart plus drilldown, 5Y factor history, positions contribution mix, and full-factor correlation heatmap
 - `/cpar/risk` fail-closed branches on the aggregate risk payload
-- family-route redirects for `/exposures`, `/explore`, `/health`, `/cpar`, and `/cpar/portfolio`
+- family-route redirects for `/exposures`, `/explore`, `/health`, `/cpar`, and `/cpar/portfolio`, with the legacy root redirects owned in `frontend/next.config.js` only
 
 ## Deferred After This Slice
 
