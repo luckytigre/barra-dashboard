@@ -63,6 +63,7 @@
   - the public/editor-facing serve app should not expose refresh execution routes
   - operator/control routes should be served from the separate control app surface
   - the frontend may target a separate control origin through `BACKEND_CONTROL_ORIGIN`; when unset it falls back to `BACKEND_API_ORIGIN`
+  - the frontend must not hold operator/editor secrets in runtime env; privileged frontend `/api/*` routes should forward caller-supplied auth headers instead
 - Small local scratch/cache/workspace files may still appear, but they are not the historical source warehouse and are not the serving authority.
 - Local SQLite remains required only for:
   - direct LSEG ingest

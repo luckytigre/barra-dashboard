@@ -11,23 +11,24 @@ export function controlBackendOrigin(): string {
   );
 }
 
-export function operatorHeaders(extra: Record<string, string> = {}): HeadersInit {
-  const token = (process.env.OPERATOR_API_TOKEN || process.env.REFRESH_API_TOKEN || "").trim();
-  if (!token) return extra;
-  return { ...extra, "X-Operator-Token": token };
-}
+const AUTH_HEADER_NAMES = ["authorization", "x-operator-token", "x-editor-token", "x-refresh-token"] as const;
 
-export function editorHeaders(extra: Record<string, string> = {}): HeadersInit {
-  const token = (process.env.EDITOR_API_TOKEN || process.env.OPERATOR_API_TOKEN || process.env.REFRESH_API_TOKEN || "").trim();
-  if (!token) return extra;
-  return { ...extra, "X-Editor-Token": token };
+export function forwardedAuthHeaders(req: NextRequest, extra: HeadersInit = {}): Headers {
+  const headers = new Headers(extra);
+  for (const name of AUTH_HEADER_NAMES) {
+    const value = req.headers.get(name);
+    if (value) {
+      headers.set(name, value);
+    }
+  }
+  return headers;
 }
 
 export async function proxyJson(req: NextRequest, upstream: string, options?: { method?: string; headers?: HeadersInit }) {
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
   const res = await fetch(upstream, {
     method: options?.method || req.method,
-    headers: options?.headers,
+    headers: forwardedAuthHeaders(req, options?.headers),
     body,
     cache: "no-store",
   });

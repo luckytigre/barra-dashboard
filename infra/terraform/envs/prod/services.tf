@@ -52,25 +52,6 @@ resource "google_cloud_run_v2_service" "frontend" {
         value = local.frontend_backend_control_origin
       }
 
-      env {
-        name = "OPERATOR_API_TOKEN"
-        value_source {
-          secret_key_ref {
-            secret  = module.secret_manager.secret_ids["operator_api_token"]
-            version = "latest"
-          }
-        }
-      }
-
-      env {
-        name = "EDITOR_API_TOKEN"
-        value_source {
-          secret_key_ref {
-            secret  = module.secret_manager.secret_ids["editor_api_token"]
-            version = "latest"
-          }
-        }
-      }
     }
   }
 
