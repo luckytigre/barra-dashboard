@@ -233,9 +233,63 @@ def _pg_date_stats(pg_conn, *, table: str, date_col: str | None) -> dict[str, An
         }
 
 
-def _latest_source_anchor(table_stats: dict[str, dict[str, Any]]) -> str | None:
+def _pg_source_status_current_stats(pg_conn) -> dict[str, Any]:
+    stats = _pg_date_stats(pg_conn, table="security_source_status_current", date_col="observation_as_of_date")
+    if not bool(stats.get("exists")) or int(stats.get("row_count") or 0) <= 0:
+        return stats
+    with pg_conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                MAX(latest_price_date)::text,
+                MAX(latest_fundamentals_as_of_date)::text,
+                MAX(latest_classification_as_of_date)::text
+            FROM security_source_status_current
+            WHERE observation_as_of_date = (
+                SELECT MAX(observation_as_of_date)
+                FROM security_source_status_current
+            )
+            """
+        )
+        row = cur.fetchone()
+    stats["latest_price_date"] = str(row[0]) if row and row[0] is not None else None
+    stats["latest_fundamentals_as_of_date"] = str(row[1]) if row and row[1] is not None else None
+    stats["latest_classification_as_of_date"] = str(row[2]) if row and row[2] is not None else None
+    return stats
+
+
+def _readiness_source_latest_dates(table_stats: dict[str, dict[str, Any]]) -> dict[str, str]:
+    status_stats = table_stats.get("security_source_status_current") or {}
+    raw_dates = {
+        "security_prices_eod": str((table_stats.get("security_prices_eod") or {}).get("max_date") or "").strip(),
+        "security_fundamentals_pit": str((table_stats.get("security_fundamentals_pit") or {}).get("max_date") or "").strip(),
+        "security_classification_pit": str((table_stats.get("security_classification_pit") or {}).get("max_date") or "").strip(),
+    }
+    status_dates = {
+        "security_prices_eod": str(status_stats.get("latest_price_date") or "").strip(),
+        "security_fundamentals_pit": str(status_stats.get("latest_fundamentals_as_of_date") or "").strip(),
+        "security_classification_pit": str(status_stats.get("latest_classification_as_of_date") or "").strip(),
+    }
+    out = {
+        table: (status_dates.get(table) or raw_dates.get(table) or "").strip()
+        for table in raw_dates
+    }
+    price_latest = str(out.get("security_prices_eod") or "").strip()
+    effective_pit_anchor = _latest_closed_pit_anchor(
+        reference_date=price_latest or None,
+        frequency=str(config.SOURCE_DAILY_PIT_FREQUENCY or "monthly").strip().lower(),
+    )
+    if effective_pit_anchor:
+        for table in ("security_fundamentals_pit", "security_classification_pit"):
+            candidate = str(out.get(table) or "").strip()
+            if candidate and candidate > effective_pit_anchor:
+                out[table] = effective_pit_anchor
+    return out
+
+
+def _latest_source_anchor(source_latest_dates: dict[str, str]) -> str | None:
     candidates = [
-        str((table_stats.get(table) or {}).get("max_date") or "").strip()
+        str(source_latest_dates.get(table) or "").strip()
         for table in ("security_prices_eod", "security_fundamentals_pit", "security_classification_pit")
     ]
     clean = [value for value in candidates if value]
@@ -336,14 +390,11 @@ def _assess_neon_rebuild_readiness(
         if int(stats.get("row_count") or 0) <= 0:
             issues.append(f"empty_table:{table}")
 
-    source_anchor = _latest_source_anchor(table_stats)
+    source_latest_dates = _readiness_source_latest_dates(table_stats)
+    source_anchor = _latest_source_anchor(source_latest_dates)
     if not source_anchor:
         issues.append("missing_source_anchor")
 
-    source_latest_dates = {
-        table: str((table_stats.get(table) or {}).get("max_date") or "")
-        for table in ("security_prices_eod", "security_fundamentals_pit", "security_classification_pit")
-    }
     source_observation_max = str(
         (table_stats.get("security_source_observation_daily") or {}).get("max_date") or ""
     ).strip()
@@ -424,7 +475,7 @@ def validate_neon_rebuild_readiness(
             "security_policy_current": _pg_date_stats(pg_conn, table="security_policy_current", date_col=None),
             "security_source_observation_daily": _pg_date_stats(pg_conn, table="security_source_observation_daily", date_col="as_of_date"),
             "security_master_compat_current": _pg_date_stats(pg_conn, table="security_master_compat_current", date_col=None),
-            "security_source_status_current": _pg_date_stats(pg_conn, table="security_source_status_current", date_col="observation_as_of_date"),
+            "security_source_status_current": _pg_source_status_current_stats(pg_conn),
             "source_sync_runs": _pg_date_stats(pg_conn, table="source_sync_runs", date_col="completed_at"),
             "source_sync_watermarks": _pg_date_stats(pg_conn, table="source_sync_watermarks", date_col=None),
             "security_prices_eod": _pg_date_stats(pg_conn, table="security_prices_eod", date_col="date"),

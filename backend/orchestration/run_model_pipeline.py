@@ -396,8 +396,12 @@ def run_model_pipeline(
     to_stage: str | None = None,
     force_core: bool = False,
     refresh_scope: str | None = None,
+    data_db: Path | None = None,
+    cache_db: Path | None = None,
     stage_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    resolved_data_db = Path(data_db or DATA_DB).expanduser().resolve()
+    resolved_cache_db = Path(cache_db or CACHE_DB).expanduser().resolve()
     profile_key, cfg, selected = planned_stages_for_profile(
         profile=profile,
         from_stage=from_stage,
@@ -410,9 +414,9 @@ def run_model_pipeline(
         if resume_run_id and str(resume_run_id).strip()
         else (str(run_id).strip() if run_id and str(run_id).strip() else f"job_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}")
     )
-    job_runs.ensure_schema(DATA_DB)
-    job_runs.fail_stale_running_stages(db_path=DATA_DB)
-    completed = job_runs.completed_stages(db_path=DATA_DB, run_id=effective_run_id) if resume_run_id else set()
+    job_runs.ensure_schema(resolved_data_db)
+    job_runs.fail_stale_running_stages(db_path=resolved_data_db)
+    completed = job_runs.completed_stages(db_path=resolved_data_db, run_id=effective_run_id) if resume_run_id else set()
 
     if stage_planning.selected_stages_include_ingest(selected) and not (as_of_date and str(as_of_date).strip()):
         as_of = stage_planning.current_xnys_session(datetime_cls=datetime)
@@ -428,7 +432,7 @@ def run_model_pipeline(
         as_of = stage_planning.current_xnys_session(datetime_cls=datetime)
     today_utc = datetime.fromisoformat(stage_planning.current_xnys_session(datetime_cls=datetime)).date()
     effective_risk_engine_meta, _ = runtime_support.resolve_effective_risk_engine_meta(
-        cache_db=CACHE_DB,
+        cache_db=resolved_cache_db,
         sqlite_module=sqlite,
     )
     due, due_reason = runtime_support.risk_recompute_due(
@@ -456,8 +460,8 @@ def run_model_pipeline(
     stage_run = stage_execution.run_selected_stages(
         selected=selected,
         stages=STAGES,
-        db_path=DATA_DB,
-        cache_db=CACHE_DB,
+        db_path=resolved_data_db,
+        cache_db=resolved_cache_db,
         profile_key=profile_key,
         effective_run_id=effective_run_id,
         as_of=as_of,
@@ -504,8 +508,8 @@ def run_model_pipeline(
         as_of=as_of,
         effective_run_id=effective_run_id,
         workspace_paths=workspace_paths,
-        data_db=DATA_DB,
-        cache_db=CACHE_DB,
+        data_db=resolved_data_db,
+        cache_db=resolved_cache_db,
         neon_mirror_sqlite_path=neon_mirror_sqlite_path,
         neon_mirror_cache_path=neon_mirror_cache_path,
         neon_sync_enabled=neon_sync_enabled,
@@ -554,7 +558,7 @@ def run_model_pipeline(
         ),
         "local_mirror_sync": local_mirror_sync,
         "workspace_prune": dict(finalization["workspace_prune"]),
-        "run_rows": job_runs.run_rows(db_path=DATA_DB, run_id=effective_run_id),
+        "run_rows": job_runs.run_rows(db_path=resolved_data_db, run_id=effective_run_id),
     }
 
 
