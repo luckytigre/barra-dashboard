@@ -95,6 +95,11 @@ Practical rule:
   - holdings reads/writes from the shared holdings owners above
   - cUSE-only modeled snapshot/control reads from `frontend/src/hooks/useCuse4Api.ts`
   - cPAR read-only method overlays from `frontend/src/hooks/useCparApi.ts`
+- when touching the default cUSE dashboard/factor-history/health service surfaces, prefer:
+  - `backend/services/cuse4_dashboard_payload_service.py`
+  - `backend/services/cuse4_factor_history_service.py`
+  - `backend/services/cuse4_health_diagnostics_service.py`
+  - treat the legacy default-named modules as compatibility shims unless a cleanup slice is explicitly removing them
 
 ## Where New Code Should NOT Go
 
@@ -202,6 +207,7 @@ During repo-tightening work:
 - use the smallest meaningful validation bundle for the touched surface and split the slice again if narrow validation is not possible
 - for docs-only or hygiene-only slices, keep validation to `git diff --check -- <touched paths>` plus directly relevant static checks; do not run backend/runtime gates unless executable behavior changed
 - keep repo-hygiene ignore rules root-anchored and concrete so the cleanup does not hide legitimate source artifacts
+- when a backend route test only needs to override one service call, prefer a route-level callable seam or public injected service kwargs over monkeypatching alias-module globals
 - when route tests need to isolate cUSE alias owners, patch the alias module's public dependency seam function rather than mutating several alias-module globals directly
 
 ## Semantic Contract Rules

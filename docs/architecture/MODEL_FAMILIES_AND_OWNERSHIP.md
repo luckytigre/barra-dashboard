@@ -96,6 +96,9 @@ Examples:
 - `backend/services/cuse4_holdings_service.py`
 - `backend/services/cuse4_operator_status_service.py`
 
+For dashboard, factor-history, and health diagnostics, those `cuse4_*` modules are now the concrete route-facing owners.
+The legacy default-named modules remain compatibility shims for older callers and direct service tests.
+
 Current cUSE4 frontend page family now resolves under:
 
 - `/cuse/exposures`
