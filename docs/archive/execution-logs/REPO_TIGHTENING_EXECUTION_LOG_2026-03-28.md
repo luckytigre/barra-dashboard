@@ -325,3 +325,21 @@ Outcome:
 Validation:
 - `git diff --check -- backend/services/holdings_service.py backend/tests/test_holdings_service.py docs/architecture/REPO_TIGHTENING_PLAN.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
 - `./.venv_local/bin/python -m pytest -q backend/tests/test_holdings_service.py backend/tests/test_holdings_route_dirty_state.py`
+
+## Slice 7A
+
+Scope:
+- `backend/services/cuse4_holdings_service.py`
+- `backend/services/holdings_service.py`
+- `docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md`
+- `docs/architecture/maintainer-guide.md`
+- `docs/architecture/REPO_TIGHTENING_PLAN.md`
+
+Outcome:
+- moved the concrete holdings implementation into `backend/services/cuse4_holdings_service.py`
+- reduced `backend/services/holdings_service.py` to a compatibility shim that still re-exports the full public holdings contract for older callers, direct service tests, and portfolio what-if consumers
+- kept the route-facing cUSE4 holdings API unchanged while making the ownership boundary explicit in code and docs
+
+Validation:
+- `git diff --check -- backend/services/cuse4_holdings_service.py backend/services/holdings_service.py docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md docs/architecture/maintainer-guide.md docs/architecture/REPO_TIGHTENING_PLAN.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_holdings_service.py backend/tests/test_holdings_route_dirty_state.py backend/tests/test_portfolio_whatif_route.py::test_portfolio_whatif_apply_route_returns_service_payload backend/tests/test_model_family_ownership_boundaries.py`
