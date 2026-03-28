@@ -83,6 +83,7 @@ Important frontend rule:
 - the frontend image bakes `BACKEND_API_ORIGIN` at build time
 - the Terraform `prod` root therefore treats `frontend_backend_api_origin` and `frontend_image_ref` as explicit rollout inputs
 - the frontend Cloud Run service mirrors the same `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but changing the service env alone does not retarget the compiled rewrite
+- the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - for final-domain rollout, the default stays `https://api.ceiora.com`
 - for `run.app` smoke, rebuild and push a frontend image against the serve service's `run.app` URL, then override:
   - `frontend_image_ref`

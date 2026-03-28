@@ -1,3 +1,5 @@
+import { readStoredAuthTokens } from "@/lib/authTokens";
+
 const BASE = "";
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -30,12 +32,30 @@ async function parseErrorDetail(res: Response): Promise<unknown> {
   }
 }
 
+function authHeadersForPath(path: string): Headers | null {
+  if (typeof window === "undefined" || !path.startsWith("/api/")) return null;
+  const { operatorToken, editorToken } = readStoredAuthTokens(window.localStorage);
+  const headers = new Headers();
+  if (operatorToken) {
+    headers.set("X-Operator-Token", operatorToken);
+  }
+  if (editorToken) {
+    headers.set("X-Editor-Token", editorToken);
+  }
+  return operatorToken || editorToken ? headers : null;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const url = `${BASE}${path}`;
+  const headers = new Headers(init?.headers);
+  const authHeaders = authHeadersForPath(path);
+  authHeaders?.forEach((value, key) => {
+    headers.set(key, value);
+  });
   try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
+    const res = await fetch(url, { ...init, headers, signal: controller.signal });
     if (!res.ok) {
       const detail = await parseErrorDetail(res);
       throw new ApiError(res.status, url, detail);
