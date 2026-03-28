@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { mutate } from "swr";
+import { ApiError } from "@/lib/apiTransport";
 import {
-  ApiError,
-  applyPortfolioWhatIf,
   previewCparExploreWhatIf,
-  useHoldingsAccounts,
-  useHoldingsPositions,
 } from "@/hooks/useCparApi";
-import { apiPath } from "@/lib/cparApi";
+import { applyPortfolioWhatIf, useHoldingsAccounts, useHoldingsPositions } from "@/hooks/useHoldingsApi";
+import { cparApiPath } from "@/lib/cparApi";
+import { holdingsApiPath } from "@/lib/holdingsApi";
 import { canNavigateCparSearchResult } from "@/lib/cparTruth";
 import type { CparExploreWhatIfData, CparSearchItem } from "@/lib/types/cpar";
 import {
@@ -339,9 +338,9 @@ export function useCparExploreScenarioLab({
         default_source: "cpar_explore",
       });
       await Promise.all([
-        mutate(apiPath.holdingsAccounts()),
-        mutate(apiPath.holdingsPositions(null)),
-        mutate(apiPath.cparRisk()),
+        mutate(holdingsApiPath.holdingsAccounts()),
+        mutate(holdingsApiPath.holdingsPositions(null)),
+        mutate(cparApiPath.cparRisk()),
       ]);
       setScenarioDrafts({});
       setPreviewData(null);

@@ -86,6 +86,11 @@ Practical rule:
   - `frontend/src/lib/cuse4Truth.ts`
   - `frontend/src/lib/cuse4Refresh.ts`
   - `frontend/src/features/cuse4/components/*` for shared cUSE4 visual components
+- when touching intentionally shared holdings/account frontend plumbing, prefer:
+  - `frontend/src/hooks/useHoldingsApi.ts`
+  - `frontend/src/lib/holdingsApi.ts`
+  - `frontend/src/lib/types/holdings.ts`
+  - `frontend/src/lib/apiTransport.ts` only for neutral low-level transport/error handling
 
 ## Where New Code Should NOT Go
 

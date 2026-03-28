@@ -136,8 +136,10 @@ Current frontend boundary decision:
 - a visual match to cUSE is acceptable; inheriting cUSE hooks, payload contracts, or apply semantics is not
 - Slice 6 hardens the frontend import boundary as well:
   - cPAR-owned frontend files now prefer `frontend/src/hooks/useCparApi.ts` and `frontend/src/lib/cparApi.ts`
+  - intentionally shared holdings/account plumbing now lives in `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts`
+  - low-level fetch/error transport now lives in `frontend/src/lib/apiTransport.ts`
   - cPAR contracts now come from `frontend/src/lib/types/cpar.ts` plus shared `frontend/src/lib/types/holdings.ts` where account plumbing is intentionally reused
-  - mixed-family compatibility barrels remain in the repo, but they are no longer the preferred import path for cPAR-owned frontend files
+  - mixed-family compatibility barrels remain in the repo, but they are no longer the preferred import path for cPAR-owned frontend files or the owner of shared holdings/account reuse
 
 Current package-truth decision:
 - a richer cPAR page may continue to compose multiple requests only while it preserves one `package_run_id` / `package_date` across the full page
@@ -225,7 +227,7 @@ The current cPAR implementation intentionally defers:
 - request-time cPAR fitting
 - any reuse of cUSE4 serving payload surfaces
 - broader portfolio analytics beyond the current aggregate risk surface plus the narrow account-level hedge and what-if workflows
-- any cPAR apply or mutation flow
+- any cPAR-native apply or mutation flow beyond the explicit shared holdings apply reuse currently exposed from `/cpar/explore`
 - any broader multi-account or strategy-style cPAR what-if expansion
 
 One current v1 limitation is explicit:

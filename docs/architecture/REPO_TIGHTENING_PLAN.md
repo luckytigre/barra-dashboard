@@ -334,6 +334,7 @@ Required doc updates:
 - `docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md`
 - `docs/architecture/maintainer-guide.md`
 - `docs/architecture/CPAR_FRONTEND_SURFACES.md`
+- `docs/operations/CPAR_OPERATIONS_PLAYBOOK.md`
 
 Validation:
 - `git diff --check -- <touched paths>`
@@ -343,6 +344,8 @@ Validation:
 - `cd frontend && npm run test:cpar-hedge`
 - `cd frontend && npm run test:cpar-portfolio`
 - `cd frontend && npm run test:cpar-portfolio-whatif`
+- `cd frontend && npm run test:explore-whatif`
+- `cd frontend && npm run test:explore-whatif-busy`
 - `cd frontend && npm run test:control-plane-proxies`
 
 Commit boundary:

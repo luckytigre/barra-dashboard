@@ -144,7 +144,9 @@ Preferred cPAR frontend import surfaces now include:
 - `frontend/src/hooks/useCparApi.ts`
 - `frontend/src/lib/cparApi.ts`
 - `frontend/src/lib/types/cpar.ts`
+- shared `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts` only where cPAR intentionally reuses shared holdings/account plumbing
 - shared `frontend/src/lib/types/holdings.ts` only where cPAR intentionally reuses shared holdings/account plumbing
+- `frontend/src/lib/apiTransport.ts` only for neutral low-level fetch/error handling
 
 The mixed-family compatibility barrels:
 
@@ -153,6 +155,7 @@ The mixed-family compatibility barrels:
 - `frontend/src/lib/types.ts`
 
 may remain for compatibility, but they should not be the default import path for cPAR-owned frontend code after the current cleanup slice.
+They also should not be the owner of shared holdings/account reuse inside cPAR surfaces; that shared plumbing should stay explicit through the holdings owners above.
 
 ## Why The Asymmetry Exists
 

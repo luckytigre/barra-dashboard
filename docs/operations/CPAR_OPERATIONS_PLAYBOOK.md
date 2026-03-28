@@ -123,7 +123,12 @@ The account-scoped preview-only what-if route still exists on the backend, but i
 Current frontend ownership for those pages is now routed through cPAR-specific wrappers:
 - `frontend/src/hooks/useCparApi.ts`
 - `frontend/src/lib/cparApi.ts`
-Those wrappers are still thin cPAR-owned facades over the shared transport layer today; they keep cPAR feature owners off direct mixed-family imports while still allowing account-scoped cPAR flows to reuse shared holdings types intentionally.
+Intentionally shared holdings/account frontend plumbing now lives in:
+- `frontend/src/hooks/useHoldingsApi.ts`
+- `frontend/src/lib/holdingsApi.ts`
+Neutral low-level fetch/error transport now lives in:
+- `frontend/src/lib/apiTransport.ts`
+The cPAR wrappers now own only cPAR route helpers and hooks over that neutral transport; they should keep cPAR feature owners off direct mixed-family imports, while any shared holdings/account reuse stays explicit through the holdings owners above.
 `/cpar/risk` no longer reuses the shared holdings-account hook because it is no longer an account selector page.
 Upcoming cPAR risk/explore expansion should keep following the same ownership rule: extend current cPAR route/service owners by default, and only add a new cPAR-specific owner when the authority/read pattern is genuinely different.
 Single-name cPAR detail now uses `GET /api/cpar/ticker/{ticker}` for persisted fit detail and `POST /api/cpar/explore/whatif` for preview-only scenario comparison. It still does not reuse cUSE universe/read surfaces.
@@ -205,6 +210,6 @@ This operations baseline still does not include:
 - cPAR operator dashboard integration
 - route-triggered cPAR builds
 - request-time cPAR fitting
-- cPAR apply or mutation flows
+- cPAR-native apply or mutation flows; `/cpar/explore` may still invoke shared holdings updates through the shared holdings owner
 - cUSE4/cPAR comparison flows
 - broader portfolio analytics beyond the aggregate risk surface plus the preview-only account-level hedge/what-if workflows
