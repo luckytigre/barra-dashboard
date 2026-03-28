@@ -118,7 +118,7 @@ Current owner decisions:
   - service: `backend/services/cpar_risk_service.py`
   - shared lower assembly: `backend/services/cpar_portfolio_snapshot_service.py`
   - shared lower data adapters: `backend/data/holdings_reads.py` for aggregate holdings rows and `backend/data/cpar_outputs.py` / `backend/data/cpar_source_reads.py` for package/source support reads
-- `backend/services/cpar_portfolio_snapshot_service.py` remains the shared lower assembly owner for account-scoped cPAR reads unless a later slice proves a clearer lower-layer split
+- `backend/services/cpar_portfolio_snapshot_service.py` remains the shared lower assembly owner for account-scoped cPAR reads and the current package-pinned aggregate snapshot core reused by `/cpar/risk` and `/cpar/explore` unless a later slice proves a clearer lower-layer split
 - the aggregate risk owner exposes:
   - `coverage_breakdown`
   - `factor_variance_contributions`
@@ -175,6 +175,7 @@ Current read behavior:
   - backed by daily proxy-price history with fresh daily market residualization over the displayed window for non-market factors
   - degradeable without suppressing the primary aggregate risk payload
 - account-level what-if additionally requires one account hedge baseline, one active package, and staged signed share deltas that reference either existing holdings rows or active-package search hits
+- aggregate explore what-if additionally reuses the same package-pinned aggregate snapshot core for both current and hypothetical comparison states
 - missing required relational coverage fails closed with cPAR-specific `503 not_ready`
 - the account-level what-if envelope and its nested `current` / `hypothetical` snapshots are part of the same package-scoped flow as the shared banner and baseline portfolio hedge payload
 - the frontend may keep rendering the incumbent baseline hedge while staged what-if rows are invalid, recomputing, or fail closed, but it must not promote a hypothetical comparison panel unless the what-if envelope and both nested snapshots share the same package identity
