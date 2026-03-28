@@ -1,4 +1,4 @@
-"""Explicit cUSE4 alias for health-diagnostics route semantics."""
+"""Concrete cUSE4 owner for health-diagnostics route semantics."""
 
 from __future__ import annotations
 
@@ -6,12 +6,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from backend.services import health_diagnostics_service as _legacy
+from backend.data.serving_outputs import load_runtime_payload
+from backend.data.sqlite import cache_get
 
 
-HealthDiagnosticsNotReady = _legacy.HealthDiagnosticsNotReady
-cache_get = _legacy.cache_get
-load_runtime_payload = _legacy.load_runtime_payload
+@dataclass(frozen=True)
+class HealthDiagnosticsNotReady(RuntimeError):
+    cache_key: str
+    message: str
+    refresh_profile: str = "cold-core"
 
 
 @dataclass(frozen=True)

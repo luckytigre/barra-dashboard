@@ -246,3 +246,29 @@ Validation blockers:
 
 Notes:
 - the seam problem was concentrated in the cUSE alias owners, but the validation bundle still referenced the wider dashboard/health tests to preserve the planned rollback boundary once the repo-local env is available again
+
+## Slice 5
+
+Scope:
+- `backend/services/cuse4_dashboard_payload_service.py`
+- `backend/services/dashboard_payload_service.py`
+- `backend/services/cuse4_factor_history_service.py`
+- `backend/services/factor_history_service.py`
+- `backend/services/cuse4_health_diagnostics_service.py`
+- `backend/services/health_diagnostics_service.py`
+- `docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md`
+- `docs/architecture/maintainer-guide.md`
+
+Outcome:
+- made the `cuse4_*` dashboard, factor-history, and health-diagnostics modules the concrete route-facing owners
+- reduced the legacy default-named service modules to explicit compatibility shims that re-export the cUSE4 owners for older callers and direct service tests
+- preserved the new Slice 4 public dependency seams on the concrete cUSE4 owners so route tests still have stable patch points
+- updated the active ownership docs so they no longer describe these surfaces as alias-first
+
+Validation:
+- `git diff --check -- backend/services/cuse4_dashboard_payload_service.py backend/services/dashboard_payload_service.py backend/services/cuse4_factor_history_service.py backend/services/factor_history_service.py backend/services/cuse4_health_diagnostics_service.py backend/services/health_diagnostics_service.py docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md docs/architecture/maintainer-guide.md`
+- `python3 -m py_compile backend/services/cuse4_dashboard_payload_service.py backend/services/dashboard_payload_service.py backend/services/cuse4_factor_history_service.py backend/services/factor_history_service.py backend/services/cuse4_health_diagnostics_service.py backend/services/health_diagnostics_service.py backend/tests/test_dashboard_payload_service.py backend/tests/test_architecture_boundaries.py backend/tests/test_model_family_ownership_boundaries.py`
+
+Validation blockers:
+- `python3 -m pytest -q backend/tests/test_dashboard_payload_service.py backend/tests/test_architecture_boundaries.py backend/tests/test_model_family_ownership_boundaries.py` could not run because `pytest` is not installed in the global interpreter in this shell
+- the planned `./.venv_local/bin/pytest ...` bundle remains unavailable because `.venv_local` does not exist in this workspace
