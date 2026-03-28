@@ -2,112 +2,13 @@
 // New cUSE4-owned frontend code should import from `@/lib/cuse4Api`.
 // New cPAR-owned frontend code should import from `@/lib/cparApi`.
 
-const BASE = "";
-const REQUEST_TIMEOUT_MS = 30000;
+import { ApiError, apiFetch } from "@/lib/apiTransport";
+import { cparApiPath } from "@/lib/cparApi";
+import { cuse4ApiPath } from "@/lib/cuse4Api";
 
-export class ApiError extends Error {
-  status: number;
-  url: string;
-  detail: unknown;
-
-  constructor(status: number, url: string, detail: unknown) {
-    const message =
-      typeof detail === "string"
-        ? detail
-        : (detail as { message?: string } | null)?.message || `Request failed (${status}) for ${url}`;
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.url = url;
-    this.detail = detail;
-  }
-}
+export { ApiError, apiFetch };
 
 export const apiPath = {
-  cparMeta: () => "/api/cpar/meta",
-  cparSearch: (query: string, limit: number) =>
-    `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-  cparTicker: (ticker: string, ric?: string | null) =>
-    ric && ric.trim().length > 0
-      ? `/api/cpar/ticker/${encodeURIComponent(ticker)}?ric=${encodeURIComponent(ric.trim())}`
-      : `/api/cpar/ticker/${encodeURIComponent(ticker)}`,
-  cparTickerHistory: (ticker: string, years: number, ric?: string | null) => {
-    const params = new URLSearchParams();
-    params.set("years", String(years));
-    if (ric && ric.trim().length > 0) params.set("ric", ric.trim());
-    return `/api/cpar/ticker/${encodeURIComponent(ticker)}/history?${params.toString()}`;
-  },
-  cparRisk: () => "/api/cpar/risk",
-  cparFactorHistory: (factorId: string, years: number, mode: string) =>
-    `/api/cpar/factors/history?factor_id=${encodeURIComponent(factorId)}&years=${years}&mode=${encodeURIComponent(mode)}`,
-  cparPortfolioHedge: (accountId: string, mode: string) => {
-    const params = new URLSearchParams();
-    params.set("account_id", accountId.trim());
-    params.set("mode", mode);
-    return `/api/cpar/portfolio/hedge?${params.toString()}`;
-  },
-  cparPortfolioWhatIf: () => "/api/cpar/portfolio/whatif",
-  cparExploreWhatIf: () => "/api/cpar/explore/whatif",
-  portfolio: () => "/api/portfolio",
-  portfolioWhatIf: () => "/api/portfolio/whatif",
-  portfolioWhatIfApply: () => "/api/portfolio/whatif/apply",
-  holdingsModes: () => "/api/holdings/modes",
-  holdingsAccounts: () => "/api/holdings/accounts",
-  holdingsPositions: (accountId?: string | null) =>
-    accountId === undefined
-      ? null
-      : accountId && accountId.trim().length > 0
-      ? `/api/holdings/positions?account_id=${encodeURIComponent(accountId.trim())}`
-      : "/api/holdings/positions",
-  holdingsImport: () => "/api/holdings/import",
-  holdingsPosition: () => "/api/holdings/position",
-  holdingsPositionRemove: () => "/api/holdings/position/remove",
-  exposures: (mode: string) => `/api/exposures?mode=${encodeURIComponent(mode)}`,
-  exposureHistory: (factorId: string, years: number) =>
-    `/api/exposures/history?factor_id=${encodeURIComponent(factorId)}&years=${years}`,
-  risk: () => "/api/risk",
-  universeTicker: (ticker: string) => `/api/universe/ticker/${encodeURIComponent(ticker)}`,
-  universeTickerHistory: (ticker: string, years: number) =>
-    `/api/universe/ticker/${encodeURIComponent(ticker)}/history?years=${years}`,
-  universeSearch: (query: string, limit: number) =>
-    `/api/universe/search?q=${encodeURIComponent(query)}&limit=${limit}`,
-  universeFactors: () => "/api/universe/factors",
-  healthDiagnostics: () => "/api/health/diagnostics",
-  dataDiagnostics: (opts?: { includeExactRowCounts?: boolean; includeExpensiveChecks?: boolean }) => {
-    const params = new URLSearchParams();
-    if (opts?.includeExactRowCounts) params.set("include_exact_row_counts", "true");
-    if (opts?.includeExpensiveChecks) params.set("include_expensive_checks", "true");
-    const qs = params.toString();
-    return qs ? `/api/data/diagnostics?${qs}` : "/api/data/diagnostics";
-  },
-  operatorStatus: () => "/api/operator/status",
-  refreshProfile: (profile: string) => `/api/refresh?profile=${encodeURIComponent(profile)}`,
-  refreshStatus: () => "/api/refresh/status",
-};
-
-async function parseErrorDetail(res: Response): Promise<unknown> {
-  const text = await res.text();
-  if (!text) return null;
-  try {
-    const payload = JSON.parse(text) as { detail?: unknown };
-    return payload?.detail ?? payload;
-  } catch {
-    return text;
-  }
-}
-
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const url = `${BASE}${path}`;
-  try {
-    const res = await fetch(url, { ...init, signal: controller.signal });
-    if (!res.ok) {
-      const detail = await parseErrorDetail(res);
-      throw new ApiError(res.status, url, detail);
-    }
-    return res.json();
-  } finally {
-    clearTimeout(timer);
-  }
-}
+  ...cuse4ApiPath,
+  ...cparApiPath,
+} as const;

@@ -18,7 +18,7 @@ It does not add:
 - cUSE4 vs cPAR comparison views
 - route-triggered build behavior
 - any shared cUSE4/cPAR truth layer
-- any cPAR apply or mutation flow
+- any cPAR-native apply or mutation flow; `/cpar/explore` may still invoke shared holdings updates explicitly through the shared holdings owner
 
 ## Page Structure
 
@@ -51,6 +51,7 @@ It does not add:
   - persisted fit detail plus source-context augmentation
   - one explanatory factor-exposure chart built from `display_loadings`
   - one preview-only scenario builder and before/after exposure comparison
+  - explicit shared holdings apply reuse through `frontend/src/hooks/useHoldingsApi.ts`, rather than a cPAR-owned backend mutation surface
   - explanatory single-name display must use residualized cPAR factor-space fields:
   - compatibility field `beta_market_step1` for the one-shot market coefficient
   - `display_loadings`
@@ -157,12 +158,14 @@ Preferred cPAR frontend import surfaces now include:
 - `frontend/src/hooks/useCparApi.ts` as the current cPAR-owned facade for route hooks
 - `frontend/src/lib/cparApi.ts` as the current cPAR-owned facade for route-path helpers over the shared fetch transport
 - `frontend/src/lib/types/cpar.ts` for cPAR route contracts
+- `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts` only where cPAR intentionally reuses shared holdings/account plumbing
 - `frontend/src/lib/types/holdings.ts` when cPAR intentionally reuses shared holdings/account types
 - `frontend/src/lib/cparTruth.ts` for cPAR-specific warning/status/package-truth helpers
 
 Allowed reuse direction:
 - neutral visual primitives from `frontend/src/components/*`
 - shared holdings/account widgets such as `InlineShareDraftEditor`
+- shared holdings/account API owners `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts`
 - shared layout rhythm, spacing, and interaction grammar already proven on cUSE pages
 
 Disallowed direct reuse direction for this overhaul stage:
@@ -172,8 +175,9 @@ Disallowed direct reuse direction for this overhaul stage:
 - cUSE hooks or payload semantics through `@/hooks/useCuse4Api`, `@/lib/cuse4Api`, or `@/lib/types/cuse4`
 - transitional mixed-family barrels through `@/hooks/useApi`, `@/lib/api`, or `@/lib/types` from cPAR feature owners or page components
 
-Current limitation:
-- the thin cPAR facades still forward into shared transport barrels under the hood; that is an implementation compromise, not the intended long-term ownership boundary
+Current boundary note:
+- cPAR wrappers now own only cPAR route helpers and hooks over the neutral low-level transport in `frontend/src/lib/apiTransport.ts`
+- when cPAR intentionally reuses shared holdings/account behavior, that reuse should stay explicit through `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts`, not through the mixed-family compatibility barrels
 
 If a richer cPAR page still needs multiple backend requests, it must preserve the same package-identity checks described above.
 If that becomes too brittle for one page, the next slice should move that page to a composite cPAR payload rather than mixing partially coherent reads in the browser.
@@ -244,7 +248,7 @@ Current cPAR frontend smokes cover:
 - rebuilt `/cpar/hedge` surface
 - rebuilt `/cpar/health` surface
 - any shared cUSE4/cPAR comparison UI
-- cPAR apply/mutation flows
+- cPAR-native apply/mutation flows beyond the explicit shared holdings apply reuse on `/cpar/explore`
 - broader portfolio-analytics cPAR views beyond the current aggregate risk surface
 - broader cPAR what-if expansion beyond the current narrow account-scoped preview route
 
