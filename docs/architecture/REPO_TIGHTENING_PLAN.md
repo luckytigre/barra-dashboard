@@ -501,6 +501,31 @@ Validation:
 Commit boundary:
 - holdings seam hardening only
 
+#### Slice 7A: cUSE4 Holdings Owner Move
+
+Goal:
+- make `backend/services/cuse4_holdings_service.py` the concrete holdings owner
+- reduce `backend/services/holdings_service.py` to a full compatibility shim without dropping any public holdings symbols
+
+Study first:
+- verify the full public holdings contract that older callers and tests still depend on
+- confirm holdings consumers only rely on the public service surface, not legacy private globals
+
+Primary surfaces:
+- `backend/services/cuse4_holdings_service.py`
+- `backend/services/holdings_service.py`
+- `docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md`
+- `docs/architecture/maintainer-guide.md`
+- this plan file
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Validation:
+- `git diff --check -- backend/services/cuse4_holdings_service.py backend/services/holdings_service.py docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md docs/architecture/maintainer-guide.md docs/architecture/REPO_TIGHTENING_PLAN.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_holdings_service.py backend/tests/test_holdings_route_dirty_state.py backend/tests/test_portfolio_whatif_route.py::test_portfolio_whatif_apply_route_returns_service_payload backend/tests/test_model_family_ownership_boundaries.py`
+
+Commit boundary:
+- holdings owner move only
+
 #### Slice 7: cUSE4 Service Surface De-Dup Part B
 
 Goal:
