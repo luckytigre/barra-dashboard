@@ -17,6 +17,9 @@ def _registry_first_table_stats(
     fundamentals_max: str = "2026-03-14",
     classification_max: str = "2026-03-14",
     source_observation_max: str | None = None,
+    status_price_latest: str | None = None,
+    status_fundamentals_latest: str | None = None,
+    status_classification_latest: str | None = None,
 ) -> dict[str, dict[str, object]]:
     observation_max = source_observation_max if source_observation_max is not None else prices_max
     return {
@@ -35,6 +38,13 @@ def _registry_first_table_stats(
             "row_count": 10,
             "min_date": "2020-01-01" if observation_max else None,
             "max_date": observation_max,
+            "latest_price_date": status_price_latest if status_price_latest is not None else prices_max,
+            "latest_fundamentals_as_of_date": (
+                status_fundamentals_latest if status_fundamentals_latest is not None else fundamentals_max
+            ),
+            "latest_classification_as_of_date": (
+                status_classification_latest if status_classification_latest is not None else classification_max
+            ),
         },
         "source_sync_runs": {
             "exists": True,
@@ -229,6 +239,62 @@ def test_assess_neon_rebuild_readiness_still_fails_when_raw_history_is_beyond_sl
 
     assert out["status"] == "error"
     assert any(item.startswith("insufficient_history:barra_raw_cross_section_history:") for item in out["issues"])
+
+
+def test_assess_neon_rebuild_readiness_uses_source_status_pit_anchor_over_raw_pit_max(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(neon_authority.config, "SOURCE_DAILY_PIT_FREQUENCY", "monthly")
+    table_stats = _registry_first_table_stats(
+        prices_max="2026-03-26",
+        fundamentals_max="2026-03-25",
+        classification_max="2026-03-25",
+        source_observation_max="2026-03-26",
+        status_price_latest="2026-03-26",
+        status_fundamentals_latest="2026-02-27",
+        status_classification_latest="2026-02-27",
+        raw_history_min="2021-03-01",
+        raw_history_max="2026-03-26",
+    )
+
+    out = neon_authority._assess_neon_rebuild_readiness(
+        profile="cold-core",
+        table_stats=table_stats,
+        analytics_years=5,
+    )
+
+    assert out["status"] == "ok"
+    assert out["issues"] == []
+    assert out["source_anchor_date"] == "2026-02-27"
+    assert "latest_date_mismatch:source_tables_expected_pit_lag:2026-02-27" in out["warnings"]
+
+
+def test_assess_neon_rebuild_readiness_caps_open_period_pit_dates_to_closed_anchor(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(neon_authority.config, "SOURCE_DAILY_PIT_FREQUENCY", "monthly")
+    table_stats = _registry_first_table_stats(
+        prices_max="2026-03-26",
+        fundamentals_max="2026-03-25",
+        classification_max="2026-03-25",
+        source_observation_max="2026-03-26",
+        status_price_latest="2026-03-26",
+        status_fundamentals_latest="2026-03-25",
+        status_classification_latest="2026-03-25",
+        raw_history_min="2021-03-01",
+        raw_history_max="2026-03-26",
+    )
+
+    out = neon_authority._assess_neon_rebuild_readiness(
+        profile="cold-core",
+        table_stats=table_stats,
+        analytics_years=5,
+    )
+
+    assert out["status"] == "ok"
+    assert out["issues"] == []
+    assert out["source_anchor_date"] == "2026-02-27"
+    assert "latest_date_mismatch:source_tables_expected_pit_lag:2026-02-27" in out["warnings"]
 
 
 def test_sync_workspace_derivatives_to_local_mirror_copies_core_outputs(tmp_path: Path) -> None:

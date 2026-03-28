@@ -544,6 +544,25 @@ def _historical_cpar_package_dates(sqlite_path: Path, latest_package_date: str, 
     return dates
 
 
+def _cpar_runner_kwargs(*, package_date: str, data_db: Path) -> dict[str, Any]:
+    return {
+        "profile": "cpar-package-date",
+        "as_of_date": package_date,
+        "data_db": data_db,
+    }
+
+
+def _cuse_runner_kwargs(*, as_of_date: str, data_db: Path) -> dict[str, Any]:
+    return {
+        "profile": "cold-core",
+        "as_of_date": as_of_date,
+        "from_stage": "neon_readiness",
+        "to_stage": "serving_refresh",
+        "force_core": True,
+        "data_db": data_db,
+    }
+
+
 def _apply_schema_stack(
     *,
     dsn: str | None,
@@ -649,13 +668,7 @@ def main() -> int:
         run_key=f"cuse_latest_{latest_date}",
         artifact_dir=artifact_dir,
         runner=run_model_pipeline,
-        runner_kwargs={
-            "profile": "cold-core",
-            "as_of_date": latest_date,
-            "from_stage": "neon_readiness",
-            "to_stage": "serving_refresh",
-            "force_core": True,
-        },
+        runner_kwargs=_cuse_runner_kwargs(as_of_date=latest_date, data_db=snapshot_path),
     )
 
     sample_dates = _historical_cuse_sample_dates(
@@ -670,13 +683,7 @@ def main() -> int:
                 run_key=f"cuse_historical_{sample_date}",
                 artifact_dir=artifact_dir,
                 runner=run_model_pipeline,
-                runner_kwargs={
-                    "profile": "cold-core",
-                    "as_of_date": sample_date,
-                    "from_stage": "neon_readiness",
-                    "to_stage": "serving_refresh",
-                    "force_core": True,
-                },
+                runner_kwargs=_cuse_runner_kwargs(as_of_date=sample_date, data_db=snapshot_path),
             )
         )
 
@@ -686,10 +693,7 @@ def main() -> int:
         run_key=f"cpar_latest_{latest_package_date}",
         artifact_dir=artifact_dir,
         runner=run_cpar_pipeline,
-        runner_kwargs={
-            "profile": "cpar-package-date",
-            "as_of_date": latest_package_date,
-        },
+        runner_kwargs=_cpar_runner_kwargs(package_date=latest_package_date, data_db=snapshot_path),
     )
 
     package_dates = _historical_cpar_package_dates(
@@ -706,10 +710,7 @@ def main() -> int:
                 run_key=f"cpar_historical_{package_date}",
                 artifact_dir=artifact_dir,
                 runner=run_cpar_pipeline,
-                runner_kwargs={
-                    "profile": "cpar-package-date",
-                    "as_of_date": package_date,
-                },
+                runner_kwargs=_cpar_runner_kwargs(package_date=package_date, data_db=snapshot_path),
             )
         )
 

@@ -47,6 +47,7 @@ def run_core_stage(
         frequency = "daily" if str(raw_history_policy) == "full-daily" else "weekly"
         out = rebuild_raw_cross_section_history_fn(
             data_db,
+            end_date=as_of_date,
             frequency=frequency,
             progress_callback=progress_callback,
         )
