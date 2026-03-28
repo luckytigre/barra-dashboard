@@ -399,3 +399,20 @@ Outcome:
 Validation:
 - `git diff --check -- backend/services/cuse4_universe_service.py backend/services/universe_service.py backend/tests/test_universe_service_contract.py docs/architecture/MODEL_FAMILIES_AND_OWNERSHIP.md docs/architecture/maintainer-guide.md docs/architecture/REPO_TIGHTENING_PLAN.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
 - `./.venv_local/bin/python -m pytest -q backend/tests/test_universe_service_contract.py backend/tests/test_universe_search_route.py backend/tests/test_universe_history_route.py backend/tests/test_serving_output_route_fallbacks.py::test_universe_routes_use_persisted_payload_when_cache_missing backend/tests/test_serving_output_route_preference.py::test_universe_search_prefers_serving_payload_over_cache backend/tests/test_api_golden_snapshots.py::test_api_universe_factors_matches_golden_snapshot backend/tests/test_model_family_ownership_boundaries.py`
+
+## Slice 9 Prep Docs
+
+Scope:
+- `docs/architecture/CPAR_BACKEND_READ_SURFACES.md`
+- `docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/operations/CPAR_OPERATIONS_PLAYBOOK.md`
+- `docs/architecture/REPO_TIGHTENING_PLAN.md`
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Outcome:
+- clarified that the current package-pinned cPAR risk core is already reused by aggregate `/api/cpar/risk` and aggregate current/hypothetical explore what-if states
+- removed stale wording that implied the shared cPAR portfolio snapshots did not carry specific-risk-aware `risk_shares`, variance proxies, or row `risk_mix`
+- tightened Slice 9 prep so any aggregate-risk extraction keeps `load_cpar_portfolio_support_rows()` shared and validates `test_cpar_explore_whatif_service.py`
+
+Validation:
+- `git diff --check -- docs/architecture/CPAR_BACKEND_READ_SURFACES.md docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md docs/operations/CPAR_OPERATIONS_PLAYBOOK.md docs/architecture/REPO_TIGHTENING_PLAN.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`

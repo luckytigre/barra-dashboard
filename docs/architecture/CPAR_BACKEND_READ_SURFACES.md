@@ -128,7 +128,7 @@ Aggregate risk owner:
 - `GET /api/cpar/risk` is now owned by `backend/services/cpar_risk_service.py`
 - this is the justified exception to the earlier account-scoped `/cpar/risk` freeze:
   - the user-facing page is now the aggregate all-accounts cPAR risk surface
-  - the route still reuses `backend/services/cpar_portfolio_snapshot_service.py` as shared lower assembly instead of inventing a second truth source
+  - the route still reuses the shared package-pinned snapshot/risk core instead of inventing a second truth source
   - it does not collapse account-scoped hedge or what-if flows into the same payload
 
 Account-scoped owners:
@@ -138,6 +138,7 @@ Account-scoped owners:
 - the shared snapshot owner now supports both:
   - account-scoped hedge/what-if assembly
   - aggregate risk assembly for `/api/cpar/risk`
+  - aggregate current/hypothetical snapshot assembly for `POST /api/cpar/explore/whatif`
 - shared contract fields include:
   - `coverage_breakdown` remains the explicit bucketed exclusion summary
   - `factor_variance_contributions` remains a factor-only decomposition of the aggregate thresholded hedge vector
@@ -200,7 +201,8 @@ Portfolio-route limitations:
 - `coverage_breakdown.gross_market_value` is based only on positions that can be valued on or before the active package date, so `missing_price` rows correctly contribute `0.0`
 - `factor_variance_contributions` remain factor-only proxy math from the persisted aggregate thresholded hedge vector plus active-package covariance
 - `display_factor_variance_contributions` repeat the same factor-only proxy math on the explanatory display-loadings basis
-- this slice still does not introduce specific-risk or cUSE-style risk-share payloads
+- these baseline portfolio snapshots now also expose shared package-scoped `risk_shares`, variance proxies, and row `risk_mix`
+- those fields remain derived read surfaces from the same package-pinned snapshot core, not a second risk engine or a cUSE-style risk truth source
 
 Aggregate-risk limitations:
 - `/api/cpar/risk` is all-accounts and read-only

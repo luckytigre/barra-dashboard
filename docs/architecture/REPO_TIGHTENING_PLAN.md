@@ -650,6 +650,8 @@ Goal:
 Study first:
 - map aggregate risk helper reuse between snapshot and risk routes
 - identify the smallest helper set that can move without dragging hedge/what-if logic with it
+- keep `load_cpar_portfolio_support_rows()` shared unless a later slice moves the whole package-pinned snapshot core together
+- preserve compatibility for `build_cpar_risk_snapshot()` consumers outside `/api/cpar/risk`, especially `cpar_explore_whatif_service.py`
 
 Primary surfaces:
 - `backend/services/cpar_portfolio_snapshot_service.py`
@@ -665,7 +667,7 @@ Required doc updates:
 
 Validation:
 - `git diff --check -- <touched paths>`
-- `./.venv_local/bin/pytest -q backend/tests/test_cpar_portfolio_snapshot_service.py backend/tests/test_cpar_risk_service.py backend/tests/test_cpar_runtime_coverage_contract.py backend/tests/test_cpar_architecture_boundaries.py backend/tests/test_cpar_service_route_boundaries.py backend/tests/test_cpar_routes.py::test_cpar_risk_route_returns_payload backend/tests/test_cpar_routes.py::test_cpar_risk_route_maps_not_ready_to_503`
+- `./.venv_local/bin/pytest -q backend/tests/test_cpar_portfolio_snapshot_service.py backend/tests/test_cpar_risk_service.py backend/tests/test_cpar_runtime_coverage_contract.py backend/tests/test_cpar_explore_whatif_service.py backend/tests/test_cpar_architecture_boundaries.py backend/tests/test_cpar_service_route_boundaries.py backend/tests/test_cpar_routes.py::test_cpar_risk_route_returns_payload backend/tests/test_cpar_routes.py::test_cpar_risk_route_maps_not_ready_to_503`
 - `make doctor`
 
 Commit boundary:
