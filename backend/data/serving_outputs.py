@@ -6,13 +6,14 @@ from collections.abc import Callable, Iterable
 import hashlib
 import json
 import sqlite3
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from backend import config
+from backend.data import serving_output_manifest
 from backend.data import serving_output_read_authority
+from backend.data import serving_output_write_authority
 from backend.data.neon import connect, resolve_dsn
 from backend.data.neon_primary_write import execute_neon_primary_write
 
@@ -290,52 +291,7 @@ def compare_current_payload_manifests(
     left: dict[str, Any],
     right: dict[str, Any],
 ) -> dict[str, Any]:
-    left_payloads = dict(left.get("payloads") or {})
-    right_payloads = dict(right.get("payloads") or {})
-    left_names = sorted(left_payloads.keys())
-    right_names = sorted(right_payloads.keys())
-    common_names = sorted(set(left_names).intersection(right_names))
-    issues: list[str] = []
-
-    missing_left = sorted(set(right_names) - set(left_names))
-    missing_right = sorted(set(left_names) - set(right_names))
-    issues.extend(f"missing_left:{name}" for name in missing_left)
-    issues.extend(f"missing_right:{name}" for name in missing_right)
-
-    for field in ("snapshot_id", "run_id", "refresh_mode", "payload_sha256"):
-        for payload_name in common_names:
-            left_value = str(left_payloads.get(payload_name, {}).get(field) or "")
-            right_value = str(right_payloads.get(payload_name, {}).get(field) or "")
-            if left_value != right_value:
-                issues.append(
-                    f"mismatch:{payload_name}:{field}:{left_value}!={right_value}"
-                )
-
-    if sorted(left.get("distinct_snapshot_ids") or []) != sorted(right.get("distinct_snapshot_ids") or []):
-        issues.append(
-            "manifest_mismatch:distinct_snapshot_ids:"
-            f"{sorted(left.get('distinct_snapshot_ids') or [])}!={sorted(right.get('distinct_snapshot_ids') or [])}"
-        )
-    if sorted(left.get("distinct_run_ids") or []) != sorted(right.get("distinct_run_ids") or []):
-        issues.append(
-            "manifest_mismatch:distinct_run_ids:"
-            f"{sorted(left.get('distinct_run_ids') or [])}!={sorted(right.get('distinct_run_ids') or [])}"
-        )
-    if sorted(left.get("distinct_refresh_modes") or []) != sorted(right.get("distinct_refresh_modes") or []):
-        issues.append(
-            "manifest_mismatch:distinct_refresh_modes:"
-            f"{sorted(left.get('distinct_refresh_modes') or [])}!={sorted(right.get('distinct_refresh_modes') or [])}"
-        )
-
-    return {
-        "status": "ok" if not issues else "error",
-        "left_store": str(left.get("store") or ""),
-        "right_store": str(right.get("store") or ""),
-        "issues": issues,
-        "left_row_count": int(left.get("row_count") or 0),
-        "right_row_count": int(right.get("row_count") or 0),
-        "shared_payload_count": len(common_names),
-    }
+    return serving_output_manifest.compare_current_payload_manifests(left, right)
 
 
 def _manifest_from_rows(
@@ -344,52 +300,13 @@ def _manifest_from_rows(
     store: str,
     requested_payload_names: list[str],
 ) -> dict[str, Any]:
-    payloads: dict[str, dict[str, Any]] = {}
-    snapshot_ids: set[str] = set()
-    run_ids: set[str] = set()
-    refresh_modes: set[str] = set()
-    observed_names: list[str] = []
-    for payload_name, snapshot_id, run_id, refresh_mode, payload_json, updated_at in rows:
-        clean_name = str(payload_name or "").strip()
-        if not clean_name:
-            continue
-        snapshot = str(snapshot_id or "").strip()
-        run = str(run_id or "").strip()
-        mode = str(refresh_mode or "").strip()
-        payload_text = str(payload_json or "")
-        payloads[clean_name] = {
-            "snapshot_id": snapshot,
-            "run_id": run,
-            "refresh_mode": mode,
-            "updated_at": str(updated_at or ""),
-            "payload_sha256": _payload_semantic_hash(payload_text),
-            "payload_bytes": len(payload_text.encode("utf-8")),
-        }
-        observed_names.append(clean_name)
-        if snapshot:
-            snapshot_ids.add(snapshot)
-        if run:
-            run_ids.add(run)
-        if mode:
-            refresh_modes.add(mode)
-
-    observed_name_set = set(observed_names)
-    missing_requested = sorted(set(requested_payload_names) - observed_name_set)
-    missing_canonical = sorted(_CANONICAL_SERVING_PAYLOAD_NAME_SET - observed_name_set)
-    return {
-        "status": "ok",
-        "store": str(store),
-        "row_count": len(observed_names),
-        "payload_names": sorted(observed_names),
-        "requested_payload_names": list(requested_payload_names),
-        "missing_requested_payloads": missing_requested,
-        "payloads": payloads,
-        "distinct_snapshot_ids": sorted(snapshot_ids),
-        "distinct_run_ids": sorted(run_ids),
-        "distinct_refresh_modes": sorted(refresh_modes),
-        "canonical_payload_set_complete": not missing_canonical,
-        "missing_canonical_payloads": missing_canonical,
-    }
+    return serving_output_manifest.manifest_from_rows(
+        rows,
+        store=store,
+        requested_payload_names=requested_payload_names,
+        payload_semantic_hash=_payload_semantic_hash,
+        canonical_serving_payload_name_set=_CANONICAL_SERVING_PAYLOAD_NAME_SET,
+    )
 
 
 def _load_current_payload_rows_sqlite(
@@ -499,86 +416,15 @@ def _persist_current_payloads_neon(
     replace_all: bool,
     write_mode: str,
 ) -> dict[str, Any]:
-    started_at = time.perf_counter()
-    try:
-        conn = connect(dsn=resolve_dsn(None), autocommit=False)
-    except Exception as exc:
-        return {
-            "status": "error",
-            "error": {"type": type(exc).__name__, "message": str(exc)},
-        }
-    try:
-        _ensure_postgres_schema(conn)
-        upsert_sql = """
-            INSERT INTO serving_payload_current (
-                payload_name,
-                snapshot_id,
-                run_id,
-                refresh_mode,
-                payload_json,
-                updated_at
-            ) VALUES (%s, %s, %s, %s, %s::jsonb, %s::timestamptz)
-            ON CONFLICT (payload_name) DO UPDATE SET
-                snapshot_id = EXCLUDED.snapshot_id,
-                run_id = EXCLUDED.run_id,
-                refresh_mode = EXCLUDED.refresh_mode,
-                payload_json = EXCLUDED.payload_json,
-                updated_at = EXCLUDED.updated_at
-            """
-        with conn.cursor() as cur:
-            if replace_all:
-                if rows:
-                    cur.execute(
-                        """
-                        DELETE FROM serving_payload_current
-                        WHERE payload_name <> ALL(%s)
-                        """,
-                        ([row[0] for row in rows],),
-                    )
-                else:
-                    cur.execute("DELETE FROM serving_payload_current")
-            if write_mode == "row_by_row":
-                for row in rows:
-                    cur.execute(upsert_sql, row)
-            else:
-                cur.executemany(upsert_sql, rows)
-        verification = _verify_current_payloads_neon(
-            conn,
-            rows=rows,
-            replace_all=replace_all,
-        )
-        if str(verification.get("status") or "") != "ok":
-            conn.rollback()
-            return {
-                "status": "error",
-                "row_count": len(rows),
-                "replace_all": bool(replace_all),
-                "verification": verification,
-                "error": {
-                    "type": "RuntimeError",
-                    "message": "Neon serving payload verification failed: "
-                    + ", ".join(str(issue) for issue in verification.get("issues") or []),
-                },
-            }
-        conn.commit()
-        return {
-            "status": "ok",
-            "row_count": len(rows),
-            "replace_all": bool(replace_all),
-            "write_mode": write_mode,
-            "duration_seconds": round(float(time.perf_counter() - started_at), 3),
-            "verification": verification,
-        }
-    except Exception as exc:
-        conn.rollback()
-        return {
-            "status": "error",
-            "error": {"type": type(exc).__name__, "message": str(exc)},
-            "write_mode": write_mode,
-            "duration_seconds": round(float(time.perf_counter() - started_at), 3),
-        }
-    finally:
-        conn.close()
+    return serving_output_write_authority.persist_current_payloads_neon(
+        rows,
+        replace_all=replace_all,
+        write_mode=write_mode,
+        connect_fn=connect,
+        resolve_dsn_fn=resolve_dsn,
+        ensure_postgres_schema=_ensure_postgres_schema,
+        verify_current_payloads_neon=_verify_current_payloads_neon,
+    )
 
 
 def _persist_current_payloads_sqlite(
@@ -587,51 +433,12 @@ def _persist_current_payloads_sqlite(
     data_db: Path,
     replace_all: bool,
 ) -> dict[str, Any]:
-    started_at = time.perf_counter()
-    conn = sqlite3.connect(str(data_db), timeout=120)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=120000")
-    try:
-        _ensure_sqlite_schema(conn)
-        if replace_all:
-            if rows:
-                placeholders = ",".join("?" for _ in rows)
-                conn.execute(
-                    f"DELETE FROM serving_payload_current WHERE payload_name NOT IN ({placeholders})",
-                    [row[0] for row in rows],
-                )
-            else:
-                conn.execute("DELETE FROM serving_payload_current")
-        conn.executemany(
-            """
-            INSERT OR REPLACE INTO serving_payload_current (
-                payload_name,
-                snapshot_id,
-                run_id,
-                refresh_mode,
-                payload_json,
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
-        conn.commit()
-        return {
-            "status": "ok",
-            "row_count": len(rows),
-            "replace_all": bool(replace_all),
-            "duration_seconds": round(float(time.perf_counter() - started_at), 3),
-        }
-    except Exception as exc:
-        conn.rollback()
-        return {
-            "status": "error",
-            "error": {"type": type(exc).__name__, "message": str(exc)},
-            "duration_seconds": round(float(time.perf_counter() - started_at), 3),
-        }
-    finally:
-        conn.close()
+    return serving_output_write_authority.persist_current_payloads_sqlite(
+        rows,
+        data_db=data_db,
+        replace_all=replace_all,
+        ensure_sqlite_schema=_ensure_sqlite_schema,
+    )
 
 
 def _verify_current_payloads_neon(
@@ -640,101 +447,10 @@ def _verify_current_payloads_neon(
     rows: list[tuple[str, str, str, str, str, str]],
     replace_all: bool,
 ) -> dict[str, Any]:
-    expected_by_name = {
-        str(row[0]): {
-            "snapshot_id": str(row[1]),
-            "run_id": str(row[2]),
-            "refresh_mode": str(row[3]),
-            "payload_value": _normalize_payload_value(row[4]),
-            "payload_json_sha256": _payload_semantic_hash(row[4]),
-        }
-        for row in rows
-    }
-    payload_names = sorted(expected_by_name.keys())
-    out: dict[str, Any] = {
-        "status": "ok",
-        "expected_row_count": len(expected_by_name),
-        "replace_all": bool(replace_all),
-        "verified_row_count": 0,
-        "verified_payload_names": [],
-        "issues": [],
-    }
-
-    with pg_conn.cursor() as cur:
-        if replace_all:
-            cur.execute(
-                """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
-                FROM serving_payload_current
-                ORDER BY payload_name
-                """
-            )
-        elif payload_names:
-            cur.execute(
-                """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
-                FROM serving_payload_current
-                WHERE payload_name = ANY(%s)
-                ORDER BY payload_name
-                """,
-                (payload_names,),
-            )
-        else:
-            cur.execute(
-                """
-                SELECT payload_name, snapshot_id, run_id, refresh_mode, payload_json::text
-                FROM serving_payload_current
-                WHERE FALSE
-                """
-            )
-        fetched = cur.fetchall()
-
-    observed_by_name = {
-        str(row[0]): {
-            "snapshot_id": str(row[1]),
-            "run_id": str(row[2]),
-            "refresh_mode": str(row[3]),
-            "payload_value": _normalize_payload_value(row[4]),
-            "payload_json_sha256": _payload_semantic_hash(row[4]),
-        }
-        for row in fetched
-    }
-    observed_names = sorted(observed_by_name.keys())
-    out["verified_row_count"] = len(observed_names)
-    out["verified_payload_names"] = observed_names
-
-    if replace_all:
-        unexpected = sorted(set(observed_names) - set(payload_names))
-        missing = sorted(set(payload_names) - set(observed_names))
-        if unexpected:
-            out["issues"].extend(f"unexpected_payload:{name}" for name in unexpected)
-        if missing:
-            out["issues"].extend(f"missing_payload:{name}" for name in missing)
-        if len(observed_names) != len(payload_names):
-            out["issues"].append(
-                f"row_count_mismatch:{len(observed_names)}!={len(payload_names)}"
-            )
-    else:
-        missing = sorted(set(payload_names) - set(observed_names))
-        if missing:
-            out["issues"].extend(f"missing_payload:{name}" for name in missing)
-
-    for payload_name in payload_names:
-        expected = expected_by_name.get(payload_name) or {}
-        observed = observed_by_name.get(payload_name)
-        if observed is None:
-            continue
-        for field in ("snapshot_id", "run_id", "refresh_mode"):
-            if str(observed.get(field) or "") != str(expected.get(field) or ""):
-                out["issues"].append(
-                    f"metadata_mismatch:{payload_name}:{field}:{observed.get(field)}!={expected.get(field)}"
-                )
-        if observed.get("payload_value") != expected.get("payload_value"):
-            out["issues"].append(
-                "metadata_mismatch:"
-                f"{payload_name}:payload_json_sha256:{observed.get('payload_json_sha256')}!={expected.get('payload_json_sha256')}"
-            )
-
-    if out["issues"]:
-        out["status"] = "error"
-    return out
+    return serving_output_write_authority.verify_current_payloads_neon(
+        pg_conn,
+        rows=rows,
+        replace_all=replace_all,
+        normalize_payload_value=_normalize_payload_value,
+        payload_semantic_hash=_payload_semantic_hash,
+    )
