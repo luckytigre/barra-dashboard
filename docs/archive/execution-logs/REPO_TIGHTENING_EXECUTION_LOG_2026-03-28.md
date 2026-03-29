@@ -797,3 +797,41 @@ Isolation rules before the next structural Neon commit:
 
 Next slice:
 - proceed with `17A` only if the pre-edit study confirms that source-sync metadata/status lifecycle can be extracted without changing the public `sync_from_sqlite_to_neon()` or `run_neon_mirror_cycle()` contracts
+
+## Slice 17A
+
+Scope:
+- `backend/services/neon_stage2.py`
+- `backend/services/neon_source_sync_metadata.py`
+- `backend/tests/test_neon_source_sync_metadata_boundaries.py`
+- `docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/architecture/dependency-rules.md`
+- `docs/architecture/maintainer-guide.md`
+- `docs/operations/OPERATIONS_PLAYBOOK.md`
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Outcome:
+- extracted the lower source-sync metadata/status lifecycle helpers out of `backend/services/neon_stage2.py` into `backend/services/neon_source_sync_metadata.py`
+- kept `backend/services/neon_stage2.py` as the public source-sync/parity facade by importing the moved helpers back under the same names, so existing monkeypatch seams and the public `sync_from_sqlite_to_neon()` contract stayed intact
+- moved `source_sync_runs` lifecycle, metadata-table requirement checks, `security_source_status_current` materialization, and `source_sync_watermarks` publication into the new lower owner
+- kept schema alignment, table strategy, overlap/backfill logic, and parity ownership in `backend/services/neon_stage2.py`
+- updated the active architecture/ops docs to describe `backend/services/neon_source_sync_metadata.py` as the lower metadata/status owner below `backend/services/neon_stage2.py`
+
+Validation:
+- `git diff --check -- backend/services/neon_stage2.py backend/services/neon_source_sync_metadata.py backend/tests/test_neon_source_sync_metadata_boundaries.py docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md docs/architecture/dependency-rules.md docs/architecture/maintainer-guide.md docs/operations/OPERATIONS_PLAYBOOK.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+- `./.venv_local/bin/python -m py_compile backend/services/neon_stage2.py backend/services/neon_source_sync_metadata.py backend/tests/test_neon_source_sync_metadata_boundaries.py`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_neon_source_sync_metadata_boundaries.py backend/tests/test_neon_stage2_model_tables.py`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_neon_authority.py`
+- direct inline source-sync stage assertions with `bootstrap_cuse4_source_tables` stubbed to a no-op, validating:
+  - the `source_sync` stage still pushes the same source-table set through the mirror boundary
+  - the `source_sync` stage still fails closed when local source dates cannot be loaded
+
+Validation blockers:
+- `make doctor` remains blocked by the pre-existing syntax error in `scripts/doctor.sh`'s inline Python (`SyntaxError: invalid syntax` at `finally:`), so Slice 17A keeps the blocker recorded instead of widening scope into a repair
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_refresh_profiles.py::test_source_sync_stage_pushes_source_tables_only` still stalls in the unrelated bootstrap path before the stage reaches source-sync proper:
+  - `backend/universe/security_master_sync.py`
+  - `backend/universe/registry_sync.py`
+  - the slice therefore used direct inline assertions with the bootstrap seam stubbed out to isolate the `source_sync` contract actually affected by this change
+
+Notes:
+- the post-edit review kept this slice inside the metadata/status lifecycle only; it did not widen into table-copy/backfill extraction, mirror cleanup, or source-sync contract rewiring

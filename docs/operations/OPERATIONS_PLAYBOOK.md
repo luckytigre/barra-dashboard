@@ -131,6 +131,7 @@ Rebuild-authority rule:
 - If Neon ever gets ahead of the intended `source-daily` target date because of a premature or invalid session stamp, `source_sync` now fails closed rather than trying to heal across the newer-than-target boundary. Investigate the bad stamp or advance the intended target first.
 - In the default Neon-authoritative path, those rebuild lanes execute in this order:
   - `source_sync`: publish source tables from local SQLite into Neon only when Neon is not already newer than the allowed target boundary
+    - `backend/services/neon_stage2.py` remains the public source-sync owner; lower metadata/status lifecycle helpers now sit behind `backend/services/neon_source_sync_metadata.py`
   - `neon_readiness`: validate Neon table coverage/retention and materialize a scratch SQLite rebuild workspace from Neon
   - core stages run from that Neon-backed scratch workspace
   - final mirror publishes rebuilt analytics back into Neon
