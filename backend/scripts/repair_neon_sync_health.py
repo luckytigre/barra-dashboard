@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from backend import config
-from backend.orchestration import post_run_publish
+from backend.services import neon_mirror_reporting
 
 
 def _parse_args() -> argparse.Namespace:
@@ -44,7 +44,7 @@ def main() -> int:
         if args.workspace_dir is not None
         else Path(config.APP_DATA_DIR) / "neon_rebuild_workspace" / str(args.run_id)
     )
-    out = post_run_publish.repair_neon_sync_health_from_existing_workspace(
+    out = neon_mirror_reporting.repair_neon_sync_health_from_existing_workspace(
         run_id=str(args.run_id),
         profile=str(args.profile),
         as_of_date=str(args.as_of_date),
