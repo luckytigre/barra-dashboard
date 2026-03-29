@@ -8,8 +8,8 @@ export default function LandingSummary() {
         <p className="landing-summary-card-subtitle">Cross-Sectional Equity Risk Model</p>
         <p className="landing-summary-card-body">
           Descriptor-based factor model inspired by USE4 methodology.
-          Estimates exposures from fundamental characteristics — size, value,
-          momentum, volatility, industry membership — via constrained
+          Estimates exposures from fundamental characteristics, industry
+          structure, and orthogonalized style descriptors via constrained
           weighted least-squares regression across the investable universe.
         </p>
         <dl className="landing-summary-traits">
@@ -19,11 +19,11 @@ export default function LandingSummary() {
           </div>
           <div className="landing-summary-trait">
             <dt>Factors</dt>
-            <dd>Market + 11 TRBC industries + 12 style factors (Size, B/P, E/Y, Momentum, Beta, Leverage, Growth, Profitability, Liquidity, Residual Vol, Reversal, Nonlinear Size)</dd>
+            <dd>Market + industry factors + 14 style factors. The live style set includes Size, Nonlinear Size, Beta, Momentum, Short-Term Reversal, Residual Volatility, Liquidity, Book-to-Price, Earnings Yield, Leverage, Growth, Profitability, Investment, and Dividend Yield.</dd>
           </div>
           <div className="landing-summary-trait">
             <dt>Factor hierarchy</dt>
-            <dd>Style descriptors are orthogonalized in dependency order via WLS — Momentum is residualized to industry and Size, Residual Vol to Size and Beta, Reversal to Momentum, Liquidity and Nonlinear Size to Size. Fundamental value factors are neutralized to industry only. This keeps factor returns interpretable and prevents correlated descriptors from inflating exposures.</dd>
+            <dd>Style descriptors are orthogonalized in dependency order via WLS. Momentum is residualized to industry and Size, Residual Volatility to Size and Beta, Short-Term Reversal to Momentum, and Liquidity and Nonlinear Size to Size. Fundamental value and balance-sheet descriptors are neutralized to industry only.</dd>
           </div>
           <div className="landing-summary-trait">
             <dt>Exposures</dt>
