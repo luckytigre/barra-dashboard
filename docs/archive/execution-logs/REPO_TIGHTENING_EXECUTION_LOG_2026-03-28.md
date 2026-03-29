@@ -968,3 +968,36 @@ Validation blockers:
 
 Notes:
 - `backend/scripts/repair_neon_sync_health.py` and the offline parity-repair owner stay on the `18B2` side of the boundary
+
+## Slice 18B2
+
+Scope:
+- `backend/services/neon_mirror_reporting.py`
+- `backend/orchestration/post_run_publish.py`
+- `backend/scripts/repair_neon_sync_health.py`
+- `backend/tests/test_neon_mirror_reporting.py`
+- `backend/tests/test_post_run_publish.py`
+- `docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/architecture/dependency-rules.md`
+- `docs/architecture/maintainer-guide.md`
+- `docs/operations/CLOUD_NATIVE_RUNBOOK.md`
+- `docs/operations/OPERATIONS_PLAYBOOK.md`
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Outcome:
+- moved the offline parity-repair/report owner into `backend/services/neon_mirror_reporting.py`
+- rewired `backend/scripts/repair_neon_sync_health.py` onto the reporting service owner while keeping `backend/orchestration/post_run_publish.py` as a compatibility wrapper
+- kept the wrapper patchable by injecting its own `latest_neon_mirror_artifact_for_run`, `neon_mirror_service.run_bounded_parity_audit`, `write_neon_mirror_artifact`, and `publish_neon_sync_health` seams into the reporting-owner repair function
+- added direct reporting-owner coverage for newest-artifact selection and offline parity repair so the extracted owner is not validated only through the wrapper contract
+- updated the active docs so the reporting owner now explicitly includes offline parity repair in addition to live artifact/health publication
+
+Validation:
+- `git diff --check -- backend/services/neon_mirror_reporting.py backend/orchestration/post_run_publish.py backend/scripts/repair_neon_sync_health.py backend/tests/test_neon_mirror_reporting.py backend/tests/test_post_run_publish.py docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md docs/architecture/dependency-rules.md docs/architecture/maintainer-guide.md docs/operations/CLOUD_NATIVE_RUNBOOK.md docs/operations/OPERATIONS_PLAYBOOK.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+- `./.venv_local/bin/python -m py_compile backend/services/neon_mirror_reporting.py backend/orchestration/post_run_publish.py backend/scripts/repair_neon_sync_health.py backend/tests/test_neon_mirror_reporting.py backend/tests/test_post_run_publish.py backend/tests/test_neon_mirror_integration.py`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_neon_mirror_reporting.py backend/tests/test_post_run_publish.py backend/tests/test_neon_mirror_integration.py`
+
+Validation blockers:
+- `make doctor` remains blocked by the pre-existing syntax error in `scripts/doctor.sh`'s inline Python (`SyntaxError: invalid syntax` at `finally:`), so Slice 18B2 keeps the blocker recorded instead of widening scope into a repair
+
+Notes:
+- the compatibility wrapper in `backend/orchestration/post_run_publish.py` intentionally remains patchable so existing tests and any transitional callers still intercept the real repair path while ownership now lives in `backend/services/neon_mirror_reporting.py`
