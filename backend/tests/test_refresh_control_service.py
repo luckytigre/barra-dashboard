@@ -58,6 +58,23 @@ def test_start_refresh_fails_closed_when_cloud_jobs_disabled_in_cloud_mode(
     assert state["error"]["type"] == "cloud_run_job_unconfigured"
 
 
+def test_start_refresh_rejects_disallowed_profile_before_cloud_unconfigured_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(refresh_control_service.config, "CLOUD_RUN_JOBS_ENABLED", False)
+    monkeypatch.setattr(refresh_control_service.config, "APP_RUNTIME_ROLE", "cloud-serve")
+    monkeypatch.setattr(
+        "backend.services.refresh_manager.start_refresh",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("local refresh manager should not be used")),
+    )
+
+    with pytest.raises(ValueError, match="Allowed profiles: serve-refresh"):
+        refresh_control_service.start_refresh(
+            force_risk_recompute=False,
+            profile="core-weekly",
+        )
+
+
 def test_start_refresh_dispatches_cloud_run_job_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     state_store: dict[str, object] = {}
     started_calls: list[dict[str, object]] = []

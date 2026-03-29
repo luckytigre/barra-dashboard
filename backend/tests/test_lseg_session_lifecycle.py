@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import lseg.data as rd
 import pytest
+
+pytest.importorskip("lseg.data")
 
 from backend.vendor.lseg_toolkit.client import session
 

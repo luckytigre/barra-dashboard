@@ -4192,7 +4192,7 @@ Implemented in this loop:
   - fixed `beta_raw` assignment for single-name/small-group rebuilds so pandas no longer returns a multi-column frame on assignment
 - `backend/risk_model/cuse_membership.py`
   - switched multi-date membership payload construction onto the bounded compatibility runtime path
-- `backend/tests/test_lseg_session_manager.py`
+- `backend/tests/test_lseg_session_lifecycle.py`
   - added rollback coverage for failed open
   - added legacy `rd.open_session(...)` fallback coverage
   - added cleanup coverage for close failures
@@ -4204,7 +4204,7 @@ Implemented in this loop:
 Validation executed after implementation:
 
 - focused failure-to-green slice:
-  - `backend/tests/test_lseg_session_manager.py`
+  - `backend/tests/test_lseg_session_lifecycle.py`
   - `backend/tests/test_security_master_lineage.py::test_raw_cross_section_history_uses_date_specific_runtime_eligibility`
   - `backend/tests/test_security_master_lineage.py::test_backfill_prices_allows_explicit_pending_ric`
   - `backend/tests/test_security_master_lineage.py::test_download_from_lseg_skips_price_rows_with_missing_close`
@@ -4213,7 +4213,7 @@ Validation executed after implementation:
   - `backend/tests/test_cuse_membership_contract.py::test_persist_model_outputs_writes_cuse_membership_and_stage_rows`
   - `backend/tests/test_universe_selector_parity.py`
 - broader targeted validation:
-  - `backend/tests/test_lseg_session_manager.py backend/tests/test_security_master_lineage.py backend/tests/test_universe_selector_parity.py backend/tests/test_cuse_membership_contract.py backend/tests/test_core_reads.py backend/tests/test_holdings_reads.py backend/tests/test_cpar_source_reads.py backend/tests/test_security_registry_sync.py`
+  - `backend/tests/test_lseg_session_lifecycle.py backend/tests/test_security_master_lineage.py backend/tests/test_universe_selector_parity.py backend/tests/test_cuse_membership_contract.py backend/tests/test_core_reads.py backend/tests/test_holdings_reads.py backend/tests/test_cpar_source_reads.py backend/tests/test_security_registry_sync.py`
     - `84 passed`
   - `backend/tests/test_neon_authority.py`
     - `12 passed`
@@ -4234,7 +4234,7 @@ Commit packaging for this slice:
   - LSEG session lifecycle and backfill/test harness hardening
   - files:
     - `backend/vendor/lseg_toolkit/client/session.py`
-    - `backend/tests/test_lseg_session_manager.py`
+    - `backend/tests/test_lseg_session_lifecycle.py`
     - `backend/tests/test_security_master_lineage.py`
 - commit boundary 2:
   - selector/runtime/raw-history/cUSE compatibility fixes
