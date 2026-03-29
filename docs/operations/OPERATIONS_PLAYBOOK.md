@@ -92,6 +92,8 @@
   - if that stable core package is missing, stale, or due for rebuild, `serve-refresh` now fails closed and requires a core lane instead of recomputing factor returns / covariance / specific risk on the serving path
   - serving payload publish is the freshness boundary: after durable payload persistence plus active snapshot publish, the run emits an explicit `serving_publish_complete` milestone and app-facing surfaces may revalidate immediately even if deep diagnostics are still running
   - that publish-only republish path, the durable publish step, and the post-publish health patch now share one sequencing owner in `backend/analytics/refresh_publication.py`; do not split those state transitions back across ad hoc branches in `pipeline.py`
+  - workspace scratch `data_db` / `cache_db` inputs do not force `core_reads` local on an ordinary serving-only lane; workspace paths alone should not override the backend-selection choice already in effect for that run
+  - projection-only registry rows plus persisted projected-loadings fallback may still read explicit workspace/canonical SQLite paths inside the refresh context; that exception should stay narrow and should not silently retarget the rest of the serving lane
   - operator progress during `serving_refresh` is expected to show granular substages such as `universe_inputs`, `universe_loadings`, `persist_outputs`, and `health.sectionN`; a long-running refresh without substage heartbeats should be treated as suspect
   - holdings-triggered light refreshes now pass an explicit `holdings_only` scope and may reuse the current published `universe_loadings` payload when both of these still match:
     - `source_dates`

@@ -33,8 +33,6 @@ def run_serving_stage(
     force_local_core_reads = bool(
         prefer_local_source_archive
         or should_run_core
-        or Path(data_db).resolve() != canonical_data_db.resolve()
-        or Path(cache_db).resolve() != canonical_cache_db.resolve()
     )
 
     def _run_refresh_inner() -> dict[str, Any]:

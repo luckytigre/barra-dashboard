@@ -704,6 +704,9 @@ def run_refresh(
             risk_engine_meta=risk_engine_meta,
         )
 
+    projection_universe_rows: list[dict[str, str]] = []
+    projected_loadings_map: dict | None = None
+
     if universe_loadings_reused:
         _emit_refresh_progress(
             progress_callback,
@@ -751,7 +754,6 @@ def run_refresh(
             int(len(fundamentals_universe_df)),
             int(len(exposures_universe_df)),
         )
-        projection_universe_rows: list[dict[str, str]] = []
         _record_substage_timing(
             "universe_inputs",
             universe_inputs_t0,
@@ -759,7 +761,6 @@ def run_refresh(
             fundamentals_row_count=int(len(fundamentals_universe_df)),
             exposures_row_count=int(len(exposures_universe_df)),
         )
-        projected_loadings_map: dict | None = None
         try:
             import sqlite3 as _sqlite3
             effective_projection_rows: list[dict[str, str]] = []
