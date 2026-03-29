@@ -835,3 +835,43 @@ Validation blockers:
 
 Notes:
 - the post-edit review kept this slice inside the metadata/status lifecycle only; it did not widen into table-copy/backfill extraction, mirror cleanup, or source-sync contract rewiring
+
+## Slice 17B
+
+Scope:
+- `backend/services/neon_stage2.py`
+- `backend/services/neon_source_sync_transfer.py`
+- `backend/tests/test_neon_source_sync_transfer_boundaries.py`
+- `backend/tests/test_neon_source_sync_transfer_contract.py`
+- `docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/architecture/dependency-rules.md`
+- `docs/architecture/maintainer-guide.md`
+- `docs/operations/OPERATIONS_PLAYBOOK.md`
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Outcome:
+- extracted the per-table overlap-reload, copy, and identifier-backfill execution path out of `backend/services/neon_stage2.py` into `backend/services/neon_source_sync_transfer.py`
+- kept `backend/services/neon_stage2.py` as the public source-sync/parity facade by routing the moved logic back through `_sync_table_from_sqlite_to_neon()` and the existing lower helper names
+- preserved the current two-pass incremental-plus-backfill execution order:
+  - overlap delete/copy first
+  - retained-history identifier backfill delete/copy second
+- kept outward per-table payload assembly in `sync_from_sqlite_to_neon()` so action strings, `where_sql`, `where_params`, `identifier_backfill`, `target_row_validation`, and `schema_update` remain owned by the public facade
+- added a dedicated boundary test for the new lower owner and a clean contract test file that pins the previously missing branches:
+  - plain incremental overlap reload
+  - target-empty truncate/reload
+  - source-row mismatch failure
+  - full-vs-incremental copy-owner selection
+- updated the active architecture and operations docs so `neon_source_sync_transfer.py` is documented as the lower per-table transfer owner below `neon_stage2.py`
+
+Validation:
+- `./.venv_local/bin/python -m py_compile backend/services/neon_stage2.py backend/services/neon_source_sync_transfer.py backend/tests/test_neon_source_sync_transfer_boundaries.py backend/tests/test_neon_source_sync_transfer_contract.py`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_neon_source_sync_transfer_boundaries.py backend/tests/test_neon_source_sync_transfer_contract.py backend/tests/test_neon_source_sync_metadata_boundaries.py backend/tests/test_neon_stage2_model_tables.py backend/tests/test_neon_authority.py`
+- result: `39 passed`
+- post-edit adversarial review found no rollback-boundary, behavior, or doc/code issues in the final `17B` diff
+
+Validation blockers:
+- `make doctor` remains blocked by the pre-existing syntax error in `scripts/doctor.sh`'s inline Python (`SyntaxError: invalid syntax` at `finally:`), so Slice 17B keeps the blocker recorded instead of widening scope into a repair
+
+Notes:
+- `17B` stayed inside the per-table transfer boundary; it did not change the public `sync_from_sqlite_to_neon()` or `run_neon_mirror_cycle()` contracts and did not rewire `stage_source.py`
+- the wrapper/dependency-injection pattern in `backend/services/neon_stage2.py` is intentional so existing monkeypatch tests against `_upsert_table_on_pk`, `_pg_entity_min_dates`, `_delete_pg_rows_for_entities`, `_copy_into_postgres_idempotent`, and `_assert_post_load_row_counts` still intercept the live path

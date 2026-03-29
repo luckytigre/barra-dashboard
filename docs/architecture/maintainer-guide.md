@@ -97,8 +97,9 @@ Practical rule:
   - `backend/data/source_reads.py` stays the public source-read facade and keeps SQLite cache/compat logic plus raw cross-section exposure helpers
 - when touching Neon source-sync internals, keep the split explicit:
   - `backend/services/neon_source_sync_metadata.py` owns the lower source-sync metadata/status lifecycle helpers
-  - `backend/services/neon_stage2.py` stays the public source-sync/parity facade and keeps schema alignment, table-strategy, identifier-backfill, and the public `sync_from_sqlite_to_neon()` entrypoint
-  - do not route higher layers around `backend/services/neon_stage2.py` just to reach the metadata helper module directly
+  - `backend/services/neon_source_sync_transfer.py` owns the lower per-table overlap-reload, copy, and identifier-backfill helpers
+  - `backend/services/neon_stage2.py` stays the public source-sync/parity facade and keeps schema alignment, outward per-table payload assembly, and the public `sync_from_sqlite_to_neon()` entrypoint
+  - do not route higher layers around `backend/services/neon_stage2.py` just to reach the metadata or transfer helper modules directly
 - when touching legacy-named universe sync code, keep the containment explicit:
   - `backend/universe/security_master_sync.py` is compatibility-named only
   - runtime/bootstrap/seed/LSEG update flows through that seam should update registry-first current-state surfaces plus `security_master_compat_current`
