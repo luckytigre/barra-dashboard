@@ -200,6 +200,7 @@ Rule:
 - canonical historical price writes belong only to approved ingest/history paths, not serving-time logic.
 - projection-only ETF outputs are derived from the stable core package, but they are not native core artifacts. Refresh them on core lanes, persist them, and let serving read them as a durable surface.
 - `projection_asof` should track the active `core_state_through_date`, not an incidental overlap date.
+- publish-only republish, durable serving publish, and post-publish health patch sequencing under `run_refresh` belong in `backend/analytics/refresh_publication.py`; keep `backend/analytics/pipeline.py` focused on refresh context, model assembly, and high-level orchestration.
 - `serving_refresh` progress should be observable at the substage level. Keep publish/persist milestones, diagnostics-section heartbeats, and finished-stage timing summaries intact rather than collapsing them into one terminal message.
 - Universe-loadings reuse keys must be based on the current serving snapshot's source dates. Do not let stale eligibility metadata advance `exposures_latest_available_asof` and accidentally force rebuilds.
 - Current v1 projection-only estimation is intentionally plain OLS with residual-variance-based projected specific risk. Do not introduce intercept/EWLS/outlier changes unless there is concrete evidence the current method is materially wrong.
