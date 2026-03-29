@@ -625,3 +625,36 @@ Validation blockers:
 
 Notes:
 - two adversarial reviewers disagreed about whether a sqlite single-payload seam should exist; the landed slice followed the stricter reading and kept store-specific reads batched under the public `serving_outputs.py` facade while updating the stale bootstrap tests to target the real seams
+
+## Slice 13B
+
+Scope:
+- `backend/data/serving_output_write_authority.py`
+- `backend/data/serving_output_manifest.py`
+- `backend/data/serving_outputs.py`
+- `backend/tests/test_serving_output_write_manifest_boundaries.py`
+- `docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md`
+- `docs/architecture/architecture-invariants.md`
+- `docs/architecture/dependency-rules.md`
+- `docs/operations/OPERATIONS_PLAYBOOK.md`
+- `docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+
+Outcome:
+- extracted the lower durable serving-payload write helpers into `backend/data/serving_output_write_authority.py`
+- moved the pure manifest drift helpers into `backend/data/serving_output_manifest.py`
+- kept `backend/data/serving_outputs.py` as the only public serving-payload facade for reads, writes, and manifest/repair entrypoints
+- preserved the patchable shim names on `serving_outputs.py` so existing tests and repair flows still intercept the same facade-level seams
+- added a dedicated write/manifest boundary test so higher layers and repair tooling stay pinned to `serving_outputs.py`
+- updated the active architecture, invariants, dependency, and operations docs to reflect the new lower write/manifest owners without changing the public contract
+
+Validation:
+- `git diff --check -- backend/data/serving_outputs.py backend/data/serving_output_write_authority.py backend/data/serving_output_manifest.py backend/tests/test_serving_output_write_manifest_boundaries.py docs/architecture/ARCHITECTURE_AND_OPERATING_MODEL.md docs/architecture/architecture-invariants.md docs/architecture/dependency-rules.md docs/operations/OPERATIONS_PLAYBOOK.md docs/archive/execution-logs/REPO_TIGHTENING_EXECUTION_LOG_2026-03-28.md`
+- `./.venv_local/bin/python -m py_compile backend/data/serving_outputs.py backend/data/serving_output_write_authority.py backend/data/serving_output_manifest.py backend/tests/test_serving_output_write_manifest_boundaries.py`
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_serving_outputs.py backend/tests/test_serving_output_route_preference.py backend/tests/test_serving_output_write_manifest_boundaries.py`
+
+Validation blockers:
+- `./.venv_local/bin/python -m pytest -q backend/tests/test_operating_model_contract.py -k "persist_current_payloads or repair_serving_payloads"` selected no matching tests for this slice, so Slice 13B keeps the narrower serving-output validation fence recorded instead of widening scope into unrelated operating-model checks
+- `make doctor` remains blocked by the pre-existing syntax error in `scripts/doctor.sh`'s inline Python (`SyntaxError: invalid syntax` at `finally:`), so Slice 13B keeps the blocker recorded instead of widening scope into a repair
+
+Notes:
+- adversarial review converged on one key boundary rule: the Neon/sqlite write helpers and Neon verification must move together, while the public `persist_current_payloads()` facade and manifest/repair entrypoints stay on `serving_outputs.py`

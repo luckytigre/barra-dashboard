@@ -76,7 +76,9 @@ Current source-read owner exception:
 
 Current serving-output owner exception:
 - `backend/data/serving_output_read_authority.py` owns the lower Neon/SQLite serving-payload read helpers
-- `backend/data/serving_outputs.py` remains the public serving-payload facade and keeps route-facing read semantics plus write/verify ownership
+- `backend/data/serving_output_write_authority.py` owns the lower durable write and Neon verification helpers
+- `backend/data/serving_output_manifest.py` owns the lower pure manifest drift helpers
+- `backend/data/serving_outputs.py` remains the public serving-payload facade and keeps route-facing read semantics plus the public write/manifest entrypoints
 
 ## Entrypoint Rules
 
