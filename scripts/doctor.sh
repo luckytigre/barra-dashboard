@@ -152,8 +152,7 @@ if DATA_DB.exists():
             failed = True
         else:
             print(f"ok: {runtime_label} clean alias audit")
-    finally:
-        conn.close()
+    conn.close()
 
 if failed:
     sys.exit(1)

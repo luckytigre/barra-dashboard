@@ -138,6 +138,14 @@ def start_refresh(
     to_stage: str | None = None,
     force_core: bool = False,
 ) -> tuple[bool, dict[str, Any]]:
+    request = resolve_refresh_request(
+        profile=profile,
+        from_stage=from_stage,
+        to_stage=to_stage,
+        force_core=force_core,
+        force_risk_recompute=force_risk_recompute,
+    )
+
     if config.cloud_mode() and not config.serve_refresh_cloud_job_configured():
         return False, _cloud_dispatch_unconfigured_state()
 
@@ -154,14 +162,6 @@ def start_refresh(
             to_stage=to_stage,
             force_core=force_core,
         )
-
-    request = resolve_refresh_request(
-        profile=profile,
-        from_stage=from_stage,
-        to_stage=to_stage,
-        force_core=force_core,
-        force_risk_recompute=force_risk_recompute,
-    )
     current = _load_reconciled_refresh_status()
     if str(current.get("status") or "").strip() == "running":
         return False, current
