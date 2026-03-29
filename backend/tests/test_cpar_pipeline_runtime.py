@@ -17,16 +17,42 @@ from backend.orchestration import run_cpar_pipeline
 def _create_source_tables(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
-        CREATE TABLE security_master (
+        CREATE TABLE security_registry (
             ric TEXT PRIMARY KEY,
             ticker TEXT,
             isin TEXT,
             exchange_name TEXT,
-            classification_ok INTEGER,
-            is_equity_eligible INTEGER,
+            tracking_status TEXT,
             source TEXT,
             job_run_id TEXT,
             updated_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE security_policy_current (
+            ric TEXT PRIMARY KEY,
+            allow_cpar_core_target INTEGER,
+            allow_cpar_extended_target INTEGER,
+            updated_at TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE security_taxonomy_current (
+            ric TEXT PRIMARY KEY,
+            instrument_kind TEXT,
+            vehicle_structure TEXT,
+            issuer_country_code TEXT,
+            listing_country_code TEXT,
+            model_home_market_scope TEXT,
+            is_single_name_equity INTEGER NOT NULL DEFAULT 0,
+            classification_ready INTEGER NOT NULL DEFAULT 0,
+            source TEXT,
+            job_run_id TEXT,
+            updated_at TEXT NOT NULL
         )
         """
     )
@@ -96,33 +122,55 @@ def _seed_source_db(path: Path) -> None:
     factor_specs = build_cpar1_factor_registry()
     factor_rics = {spec.factor_id: f"{spec.ticker}.P" for spec in factor_specs}
     universe = [
-        {"ric": "AAPL.OQ", "ticker": "AAPL", "common_name": "Apple Inc.", "hq_country_code": "US"},
-        {"ric": "SAPG.DE", "ticker": "SAPG", "common_name": "SAP SE", "hq_country_code": "DE"},
+        {
+            "ric": "AAPL.OQ",
+            "ticker": "AAPL",
+            "common_name": "Apple Inc.",
+            "hq_country_code": "US",
+            "allow_cpar_core_target": 1,
+            "allow_cpar_extended_target": 1,
+            "instrument_kind": "single_name_equity",
+            "vehicle_structure": "equity_security",
+            "model_home_market_scope": "us",
+            "is_single_name_equity": 1,
+            "classification_ready": 1,
+        },
+        {
+            "ric": "SAPG.DE",
+            "ticker": "SAPG",
+            "common_name": "SAP SE",
+            "hq_country_code": "DE",
+            "allow_cpar_core_target": 0,
+            "allow_cpar_extended_target": 1,
+            "instrument_kind": "single_name_equity",
+            "vehicle_structure": "equity_security",
+            "model_home_market_scope": "ex_us",
+            "is_single_name_equity": 1,
+            "classification_ready": 1,
+        },
     ]
 
-    security_master_rows = [
+    security_registry_rows = [
         (
             ric,
             spec.ticker,
             f"ISIN{spec.factor_id}",
             "NYSE Arca",
-            1,
-            1,
+            "active",
             "seed",
             "job_seed",
             "2026-03-18T00:00:00Z",
         )
         for spec, ric in ((spec, factor_rics[spec.factor_id]) for spec in factor_specs)
     ]
-    security_master_rows.extend(
+    security_registry_rows.extend(
         [
             (
                 row["ric"],
                 row["ticker"],
                 f"ISIN{row['ticker']}",
                 "Primary",
-                1,
-                1,
+                "active",
                 "seed",
                 "job_seed",
                 "2026-03-18T00:00:00Z",
@@ -132,11 +180,73 @@ def _seed_source_db(path: Path) -> None:
     )
     conn.executemany(
         """
-        INSERT INTO security_master (
-            ric, ticker, isin, exchange_name, classification_ok, is_equity_eligible, source, job_run_id, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO security_registry (
+            ric, ticker, isin, exchange_name, tracking_status, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        security_master_rows,
+        security_registry_rows,
+    )
+
+    conn.executemany(
+        """
+        INSERT INTO security_policy_current (
+            ric, allow_cpar_core_target, allow_cpar_extended_target, updated_at
+        ) VALUES (?, ?, ?, ?)
+        """,
+        [
+            (ric, 0, 1, "2026-03-18T00:00:00Z")
+            for ric in factor_rics.values()
+        ]
+        + [
+            (
+                row["ric"],
+                row["allow_cpar_core_target"],
+                row["allow_cpar_extended_target"],
+                "2026-03-18T00:00:00Z",
+            )
+            for row in universe
+        ],
+    )
+
+    conn.executemany(
+        """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                ric,
+                "fund_vehicle",
+                "projection_only_vehicle",
+                "US",
+                None,
+                "us",
+                0,
+                1,
+                "seed",
+                "job_seed",
+                "2026-03-18T00:00:00Z",
+            )
+            for ric in factor_rics.values()
+        ]
+        + [
+            (
+                row["ric"],
+                row["instrument_kind"],
+                row["vehicle_structure"],
+                row["hq_country_code"],
+                None,
+                row["model_home_market_scope"],
+                row["is_single_name_equity"],
+                row["classification_ready"],
+                "seed",
+                "job_seed",
+                "2026-03-18T00:00:00Z",
+            )
+            for row in universe
+        ],
     )
 
     package_dates = ("2026-03-06", "2026-03-13")

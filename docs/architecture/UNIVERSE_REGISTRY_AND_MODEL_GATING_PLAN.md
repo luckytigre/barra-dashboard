@@ -1576,11 +1576,11 @@ Execution status for this follow-up:
 - legacy compatibility exporter converted to the shared mapper in `backend/scripts/export_security_master_seed.py`
 - holdings identifier fallback refactor completed in `backend/services/neon_holdings_identifiers.py`
 - holdings identifier resolution is now targeted registry-first whenever `security_registry` exists; compat fallback is retained only for registry-table-missing mode
-- the `backend/data/cpar_source_reads.py` work was re-cut after adversarial review and is not landed in this follow-up status block
-- the `backend/universe/runtime_rows.py` / `backend/universe/source_observation.py` default-consolidation work was also re-cut after adversarial review and is not landed in this follow-up status block
+- cPAR shared-source reads now consume optional taxonomy metadata on the registry path instead of compatibility-projection metadata in `backend/data/cpar_source_reads.py`
+- `backend/universe/runtime_rows.py` helper delegation to `runtime_authority` is landed; the broader `runtime_rows.py` / `source_observation.py` behavior follow-up remains re-cut and not landed in this status block
 - dead cUSE membership ballast removed from `backend/risk_model/cuse_membership.py`
 - cUSE membership routing no longer depends on raw compat `legacy_coverage_role`; it now routes through runtime policy flags only
-- regression coverage added in `backend/tests/test_security_registry_sync.py` and `backend/tests/test_neon_holdings_identifiers.py`; broader cPAR/runtime follow-up coverage remains part of the re-cut work above
+- regression coverage added in `backend/tests/test_security_registry_sync.py`, `backend/tests/test_neon_holdings_identifiers.py`, `backend/tests/test_cpar_source_reads.py`, `backend/tests/test_cpar_pipeline_runtime.py`, and `backend/tests/test_universe_runtime_authority_boundaries.py`
 
 Deferred larger follow-up remains unchanged:
 
@@ -1661,16 +1661,15 @@ Re-evaluated outstanding work after this hardening pass:
 
 - the repo-side mixed-state contract was materially tightened, but it was not the final repo-side word on fallback behavior
 - a later fallback-scope review reopened three narrower repo-side follow-ups:
-  - cPAR shared-source reads still need a clean fallback-scope slice that does not bundle taxonomy-driven cPAR bucketing semantics
+  - cPAR shared-source reads were later landed as a taxonomy-owner follow-on without reopening the broader cPAR bucketing path
   - holdings identifier fallback needed a narrower table-missing compatibility carveout and is now landed separately
-  - runtime/source-observation default-owner work still needs a clean slice that does not bundle historical precedence or legacy-master candidate-anchor changes
+  - runtime/source-observation behavior work still needs a clean slice that does not bundle historical precedence or legacy-master candidate-anchor changes
 - the remaining repo questions are therefore split between those re-cut behavior seams and the longer-term disposition questions below
   - whether `security_master_seed.csv` remains versioned as a compatibility artifact
   - whether compatibility-only authoring tools like `export_security_master_seed.py` or `augment_security_master_from_ric_xlsx.py` remain operator-supported after rollout
   - when the destructive Phase 9 demotion removes physical `security_master` from supported write/read paths
 - the remaining blockers are therefore no longer rollout-only
-  - the re-cut repo-side cPAR shared-read slice
-  - the re-cut repo-side runtime/source-observation default-owner slice
+  - the re-cut repo-side source-observation behavior slice
   - real Neon migration execution
   - retained-window parity/backfill evidence
   - stabilization-window evidence
@@ -1696,7 +1695,7 @@ Operational and rollout follow-ups:
 Current interpretation:
 
 - the remaining repository-code work is now narrow and well-bounded, but it is not fully closed
-- the remaining work is the re-cut fallback-scope cleanup, the final compatibility retirement decision, the destructive rollout sequence, and the operational evidence required to close the plan fully
+- the remaining work is the re-cut source-observation behavior cleanup, the final compatibility retirement decision, the destructive rollout sequence, and the operational evidence required to close the plan fully
 
 ### 2026-03-27 Detailed Remaining Execution Plan
 
@@ -2366,17 +2365,20 @@ Implemented:
   - preserved legacy fallback only when `security_registry` is absent
 - `backend/universe/registry_sync.py`
   - preserved legacy-role defaults for explicitly normalized `other` / `unknown` / non-equity structural rows instead of falling through to the zeroed non-equity branch
+- `backend/data/cpar_source_reads.py`
+  - kept the registry identity and policy contract intact while switching optional registry-path metadata from `security_master_compat_current` to `security_taxonomy_current`
+  - kept factor-proxy and build-universe entrypoints unchanged
+- `backend/universe/runtime_rows.py`
+  - delegated sqlite table existence / column introspection to `runtime_authority` and removed the local duplicate helper definitions
 - `backend/universe/security_master_sync.py`
   - changed unknown custom seed paths to stamp `security_registry_seed` provenance instead of the legacy label
 
 Not yet landed in this execution block:
 
-- `backend/data/cpar_source_reads.py`
-  - the current worktree diff widens into taxonomy-driven cPAR classification semantics and remains outside the safe fallback-scope slice boundary
-- `backend/universe/runtime_rows.py`
-  - the current worktree diff widens into historical policy precedence and legacy-master candidate anchoring
 - `backend/universe/source_observation.py`
   - the current worktree diff changes registry-vs-compat observation precedence and remains coupled to the blocked runtime slice
+- broader `backend/universe/runtime_rows.py` behavior follow-up
+  - historical policy precedence and legacy-master candidate anchoring remain outside the landed helper-delegation micro-slice
 
 Tests updated:
 
@@ -2385,13 +2387,27 @@ Tests updated:
   - kept the incomplete-companion-surface case registry-first
 - `backend/tests/test_security_registry_sync.py`
   - added a regression proving normalized `other` / `unknown` / non-equity structure preserves the owned legacy-role defaults
+- `backend/tests/test_cpar_source_reads.py`
+  - updated the shared-source expectations so the registry path consumes optional taxonomy metadata rather than compatibility-projection metadata
+- `backend/tests/test_cpar_pipeline_runtime.py`
+  - moved the cPAR pipeline fixture to registry/policy/taxonomy source tables so it exercises the current shared-read contract
+- `backend/tests/test_universe_runtime_authority_boundaries.py`
+  - added a regression proving `runtime_rows.py` no longer owns local sqlite table introspection helpers
 
 Validation executed:
 
 - `8 passed` on:
   - `backend/tests/test_neon_holdings_identifiers.py`
+- `24 passed` on:
+  - `backend/tests/test_cpar_source_reads.py`
+  - `backend/tests/test_cpar_pipeline_runtime.py`
 - `1 passed` on:
   - `backend/tests/test_security_registry_sync.py -k derive_policy_flags`
+- `4 passed` on:
+  - `backend/tests/test_universe_runtime_authority_boundaries.py`
+  - `backend/tests/test_universe_selector_parity.py -k runtime_rows or runtime_authority`
+- `1 passed` on:
+  - `backend/tests/test_universe_migration_scaffolding.py -k runtime_rows_use_shared_legacy_policy_defaults_when_only_compat_rows_exist`
 - touched-module `py_compile` passed
 - path-scoped `git diff --check` passed
 
@@ -2401,8 +2417,7 @@ Doc outcome:
 
 Remaining work:
 
-- re-cut and land the cPAR shared-read fallback slice without bundling taxonomy-driven cPAR bucketing semantics
-- re-cut and land the runtime/source-observation default-owner work without bundling historical precedence or legacy-master candidate-anchor changes
+- re-cut and land the source-observation behavior slice without bundling broader runtime precedence or candidate-anchor changes
 - operational rollout items remain unchanged from the larger migration plan:
   - real Neon rollout execution
   - retained-window parity/backfill acceptance
