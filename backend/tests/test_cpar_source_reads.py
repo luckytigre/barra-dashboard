@@ -37,6 +37,23 @@ def _seed_source_db(path: Path) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE security_taxonomy_current (
+            ric TEXT PRIMARY KEY,
+            instrument_kind TEXT,
+            vehicle_structure TEXT,
+            issuer_country_code TEXT,
+            listing_country_code TEXT,
+            model_home_market_scope TEXT,
+            is_single_name_equity INTEGER NOT NULL DEFAULT 0,
+            classification_ready INTEGER NOT NULL DEFAULT 0,
+            source TEXT,
+            job_run_id TEXT,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE security_master_compat_current (
             ric TEXT PRIMARY KEY,
             ticker TEXT,
@@ -140,6 +157,68 @@ def _seed_source_db(path: Path) -> None:
     )
     conn.executemany(
         """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "SPY.P",
+                "fund_vehicle",
+                "projection_only_vehicle",
+                "US",
+                None,
+                "us",
+                0,
+                1,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+            (
+                "XLF.P",
+                "fund_vehicle",
+                "projection_only_vehicle",
+                "US",
+                None,
+                "us",
+                0,
+                0,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+            (
+                "AAPL.OQ",
+                "single_name_equity",
+                "equity_security",
+                "US",
+                None,
+                "us",
+                1,
+                1,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+            (
+                "BLANK.X",
+                "other",
+                "other",
+                None,
+                None,
+                "unknown",
+                0,
+                0,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+        ],
+    )
+    conn.executemany(
+        """
         INSERT INTO security_master_compat_current (
             ric, ticker, isin, exchange_name, classification_ok, is_equity_eligible,
             coverage_role, source, job_run_id, updated_at
@@ -230,6 +309,7 @@ def test_cpar_shared_reads_do_not_fall_back_to_legacy_when_registry_policy_rows_
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     conn.executemany(
         """
@@ -255,6 +335,7 @@ def test_cpar_registry_reads_ignore_historical_only_rows_for_current_package_sel
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     registry_rows = [
         ("SPY.P", "SPY", "USSPY", "NYSE Arca", "active", "seed", "job_1", "2026-03-18T00:00:00Z"),
@@ -282,6 +363,69 @@ def test_cpar_registry_reads_ignore_historical_only_rows_for_current_package_sel
             ("XLF.P", 0, 1, "2026-03-18T00:00:00Z"),
             ("AAPL.OQ", 1, 1, "2026-03-18T00:00:00Z"),
         ],
+    )
+    taxonomy_rows = [
+        (
+            "SPY.P",
+            "fund_vehicle",
+            "projection_only_vehicle",
+            "US",
+            None,
+            "us",
+            0,
+            1,
+            "seed",
+            "job_1",
+            "2026-03-18T00:00:00Z",
+        ),
+        (
+            "SPY_OLD.P",
+            "fund_vehicle",
+            "projection_only_vehicle",
+            "US",
+            None,
+            "us",
+            0,
+            1,
+            "seed",
+            "job_1",
+            "2026-03-18T00:00:00Z",
+        ),
+        (
+            "XLF.P",
+            "fund_vehicle",
+            "projection_only_vehicle",
+            "US",
+            None,
+            "us",
+            0,
+            0,
+            "seed",
+            "job_1",
+            "2026-03-18T00:00:00Z",
+        ),
+        (
+            "AAPL.OQ",
+            "single_name_equity",
+            "equity_security",
+            "US",
+            None,
+            "us",
+            1,
+            1,
+            "seed",
+            "job_1",
+            "2026-03-18T00:00:00Z",
+        ),
+    ]
+    conn.executemany(
+        """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        taxonomy_rows,
     )
     compat_rows = [
         ("SPY.P", "SPY", "USSPY", "NYSE Arca", 1, 1, "projection_only", "seed", "job_1", "2026-03-18T00:00:00Z"),
@@ -311,7 +455,7 @@ def test_cpar_registry_reads_ignore_historical_only_rows_for_current_package_sel
             "isin": "USSPY",
             "exchange_name": "NYSE Arca",
             "classification_ok": 1,
-            "is_equity_eligible": 1,
+            "is_equity_eligible": 0,
             "source": "seed",
             "job_run_id": "job_1",
             "updated_at": "2026-03-18T00:00:00Z",
@@ -342,6 +486,15 @@ def test_resolve_factor_proxy_rows_prefers_core_target_primary_listing_over_cons
     )
     conn.execute(
         """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("SPY.K", "fund_vehicle", "projection_only_vehicle", "US", None, "us", 0, 0, "seed", "job_2", "2026-03-19T00:00:00Z"),
+    )
+    conn.execute(
+        """
         INSERT INTO security_master_compat_current (
             ric, ticker, isin, exchange_name, classification_ok, is_equity_eligible,
             coverage_role, source, job_run_id, updated_at
@@ -361,7 +514,7 @@ def test_resolve_factor_proxy_rows_prefers_core_target_primary_listing_over_cons
             "isin": "USSPY",
             "exchange_name": "NYSE Arca",
             "classification_ok": 1,
-            "is_equity_eligible": 1,
+            "is_equity_eligible": 0,
             "source": "seed",
             "job_run_id": "job_1",
             "updated_at": "2026-03-18T00:00:00Z",
@@ -394,12 +547,41 @@ def test_resolve_factor_proxy_rows_escapes_literal_percent_for_neon_fetch(
     assert rows == []
     assert captured["neon_enabled"] is True
     assert "LIKE '%%CONSOLIDATED%%'" in str(captured["sql"])
+    assert "LEFT JOIN security_taxonomy_current tax" in str(captured["sql"])
+    assert "security_master_compat_current" not in str(captured["sql"])
+
+
+def test_load_build_universe_rows_neon_query_uses_taxonomy_not_compat(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(core_backend, "use_neon_core_reads", lambda: True)
+
+    def _fake_fetch_rows(sql: str, params=None, *, data_db, neon_enabled):
+        captured["sql"] = sql
+        captured["params"] = params
+        captured["neon_enabled"] = neon_enabled
+        return []
+
+    monkeypatch.setattr(core_backend, "fetch_rows", _fake_fetch_rows)
+    monkeypatch.setattr(
+        cpar_source_reads,
+        "_pg_tables_exist",
+        lambda *, data_db=None, tables=(): True,
+    )
+
+    rows = cpar_source_reads.load_build_universe_rows()
+
+    assert rows == []
+    assert captured["neon_enabled"] is True
+    assert "LEFT JOIN security_taxonomy_current tax" in str(captured["sql"])
+    assert "security_master_compat_current" not in str(captured["sql"])
 
 
 def test_cpar_registry_build_universe_rows_require_policy_flags_not_compat_role_fallback(source_db: Path) -> None:
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     conn.executemany(
         """
@@ -447,6 +629,7 @@ def test_cpar_shared_reads_remain_registry_first_when_active_registry_policy_cov
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     conn.executemany(
         """
@@ -469,6 +652,42 @@ def test_cpar_shared_reads_remain_registry_first_when_active_registry_policy_cov
     )
     conn.executemany(
         """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "AAPL.OQ",
+                "single_name_equity",
+                "equity_security",
+                "US",
+                None,
+                "us",
+                1,
+                1,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+            (
+                "SPY.P",
+                "fund_vehicle",
+                "projection_only_vehicle",
+                "US",
+                None,
+                "us",
+                0,
+                1,
+                "seed",
+                "job_1",
+                "2026-03-18T00:00:00Z",
+            ),
+        ],
+    )
+    conn.executemany(
+        """
         INSERT INTO security_master_compat_current (
             ric, ticker, isin, exchange_name, classification_ok, is_equity_eligible,
             coverage_role, source, job_run_id, updated_at
@@ -487,10 +706,11 @@ def test_cpar_shared_reads_remain_registry_first_when_active_registry_policy_cov
     assert [row["ric"] for row in rows] == ["AAPL.OQ"]
 
 
-def test_cpar_factor_proxy_rows_do_not_fall_back_to_legacy_when_compat_surface_is_missing(source_db: Path) -> None:
+def test_cpar_factor_proxy_rows_do_not_fall_back_to_legacy_when_taxonomy_surface_is_missing(source_db: Path) -> None:
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     conn.executemany(
         """
@@ -523,10 +743,11 @@ def test_cpar_factor_proxy_rows_do_not_fall_back_to_legacy_when_compat_surface_i
     ]
 
 
-def test_cpar_build_universe_rows_do_not_require_compat_surface_when_policy_flags_exist(source_db: Path) -> None:
+def test_cpar_build_universe_rows_do_not_require_taxonomy_surface_when_policy_flags_exist(source_db: Path) -> None:
     conn = sqlite3.connect(str(source_db))
     conn.execute("DELETE FROM security_registry")
     conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
     conn.execute("DELETE FROM security_master_compat_current")
     conn.executemany(
         """
@@ -579,6 +800,119 @@ def test_cpar_build_universe_rows_do_not_require_compat_surface_when_policy_flag
             "allow_cpar_extended_target": 1,
             "is_single_name_equity": 0,
             "classification_ok": 0,
+            "is_equity_eligible": 0,
+            "source": "registry",
+            "job_run_id": "job_1",
+            "updated_at": "2026-03-18T00:00:00Z",
+        },
+    ]
+
+
+def test_cpar_build_universe_rows_derive_single_name_flags_from_taxonomy_not_compat(source_db: Path) -> None:
+    conn = sqlite3.connect(str(source_db))
+    conn.execute("DELETE FROM security_registry")
+    conn.execute("DELETE FROM security_policy_current")
+    conn.execute("DELETE FROM security_taxonomy_current")
+    conn.execute("DELETE FROM security_master_compat_current")
+    conn.executemany(
+        """
+        INSERT INTO security_registry (
+            ric, ticker, isin, exchange_name, tracking_status, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("AAPL.OQ", "AAPL", "USAAPL", "NASDAQ", "active", "registry", "job_1", "2026-03-18T00:00:00Z"),
+            ("SPY.P", "SPY", "USSPY", "NYSE Arca", "active", "registry", "job_1", "2026-03-18T00:00:00Z"),
+        ],
+    )
+    conn.executemany(
+        """
+        INSERT INTO security_policy_current (
+            ric, allow_cpar_core_target, allow_cpar_extended_target, updated_at
+        ) VALUES (?, ?, ?, ?)
+        """,
+        [
+            ("AAPL.OQ", 1, 1, "2026-03-18T00:00:00Z"),
+            ("SPY.P", 0, 1, "2026-03-18T00:00:00Z"),
+        ],
+    )
+    conn.executemany(
+        """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, listing_country_code,
+            model_home_market_scope, is_single_name_equity, classification_ready, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "AAPL.OQ",
+                "single_name_equity",
+                "equity_security",
+                "US",
+                None,
+                "us",
+                1,
+                1,
+                "taxonomy",
+                "job_tax",
+                "2026-03-18T01:00:00Z",
+            ),
+            (
+                "SPY.P",
+                "fund_vehicle",
+                "projection_only_vehicle",
+                "US",
+                None,
+                "us",
+                0,
+                1,
+                "taxonomy",
+                "job_tax",
+                "2026-03-18T01:00:00Z",
+            ),
+        ],
+    )
+    conn.executemany(
+        """
+        INSERT INTO security_master_compat_current (
+            ric, ticker, isin, exchange_name, classification_ok, is_equity_eligible,
+            coverage_role, source, job_run_id, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("AAPL.OQ", "AAPL", "USAAPL", "NASDAQ", 0, 0, "native_equity", "compat", "job_compat", "2026-03-18T02:00:00Z"),
+            ("SPY.P", "SPY", "USSPY", "NYSE Arca", 1, 1, "projection_only", "compat", "job_compat", "2026-03-18T02:00:00Z"),
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    rows = cpar_source_reads.load_build_universe_rows(data_db=source_db)
+
+    assert rows == [
+        {
+            "ric": "AAPL.OQ",
+            "ticker": "AAPL",
+            "isin": "USAAPL",
+            "exchange_name": "NASDAQ",
+            "allow_cpar_core_target": 1,
+            "allow_cpar_extended_target": 1,
+            "is_single_name_equity": 1,
+            "classification_ok": 1,
+            "is_equity_eligible": 1,
+            "source": "registry",
+            "job_run_id": "job_1",
+            "updated_at": "2026-03-18T00:00:00Z",
+        },
+        {
+            "ric": "SPY.P",
+            "ticker": "SPY",
+            "isin": "USSPY",
+            "exchange_name": "NYSE Arca",
+            "allow_cpar_core_target": 0,
+            "allow_cpar_extended_target": 1,
+            "is_single_name_equity": 0,
+            "classification_ok": 1,
             "is_equity_eligible": 0,
             "source": "registry",
             "job_run_id": "job_1",

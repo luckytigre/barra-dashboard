@@ -111,10 +111,10 @@ def _registry_query_tables_available(
     return True
 
 
-def _compat_metadata_available(*, data_db: Path | None = None) -> bool:
+def _taxonomy_metadata_available(*, data_db: Path | None = None) -> bool:
     return _registry_query_tables_available(
         data_db=data_db,
-        required_tables=("security_master_compat_current",),
+        required_tables=("security_taxonomy_current",),
     )
 
 
@@ -124,25 +124,34 @@ def _load_registry_factor_proxy_rows(
     params: list[Any],
     data_db: Path | None = None,
 ) -> list[dict[str, Any]]:
-    compat_join = ""
+    taxonomy_join = ""
     equity_priority_expr = "0"
-    compat_select = (
+    taxonomy_select = (
         "0 AS classification_ok,\n            0 AS is_equity_eligible,\n"
         "            reg.source AS source,\n            reg.job_run_id AS job_run_id,\n            reg.updated_at AS updated_at"
     )
-    if _compat_metadata_available(data_db=data_db):
-        compat_join = """
-        LEFT JOIN security_master_compat_current compat
-          ON UPPER(COALESCE(compat.ric, '')) = UPPER(COALESCE(reg.ric, ''))
+    if _taxonomy_metadata_available(data_db=data_db):
+        taxonomy_join = """
+        LEFT JOIN security_taxonomy_current tax
+          ON UPPER(COALESCE(tax.ric, '')) = UPPER(COALESCE(reg.ric, ''))
         """
-        compat_select = """
-            COALESCE(compat.classification_ok, 0) AS classification_ok,
-            COALESCE(compat.is_equity_eligible, 0) AS is_equity_eligible,
-            COALESCE(reg.source, compat.source) AS source,
-            COALESCE(reg.job_run_id, compat.job_run_id) AS job_run_id,
-            COALESCE(reg.updated_at, compat.updated_at) AS updated_at
+        taxonomy_select = """
+            COALESCE(tax.classification_ready, 0) AS classification_ok,
+            CASE
+                WHEN COALESCE(tax.classification_ready, 0) = 1
+                 AND COALESCE(tax.is_single_name_equity, 0) = 1 THEN 1
+                ELSE 0
+            END AS is_equity_eligible,
+            COALESCE(reg.source, tax.source) AS source,
+            COALESCE(reg.job_run_id, tax.job_run_id) AS job_run_id,
+            COALESCE(reg.updated_at, tax.updated_at) AS updated_at
         """.strip()
-        equity_priority_expr = "COALESCE(compat.is_equity_eligible, 0)"
+        equity_priority_expr = (
+            "CASE "
+            "WHEN COALESCE(tax.classification_ready, 0) = 1 "
+            "AND COALESCE(tax.is_single_name_equity, 0) = 1 THEN 1 "
+            "ELSE 0 END"
+        )
     return _fetch_rows(
         f"""
         WITH ranked_candidates AS (
@@ -151,7 +160,7 @@ def _load_registry_factor_proxy_rows(
                 reg.ticker,
                 reg.isin,
                 reg.exchange_name,
-                {compat_select},
+                {taxonomy_select},
                 COALESCE(pol.allow_cpar_core_target, 0) AS allow_cpar_core_target,
                 COALESCE(pol.allow_cpar_extended_target, 0) AS allow_cpar_extended_target,
                 ROW_NUMBER() OVER (
@@ -170,7 +179,7 @@ def _load_registry_factor_proxy_rows(
             FROM security_registry reg
             LEFT JOIN security_policy_current pol
               ON UPPER(COALESCE(pol.ric, '')) = UPPER(COALESCE(reg.ric, ''))
-            {compat_join}
+            {taxonomy_join}
             WHERE UPPER(COALESCE(reg.ticker, '')) IN ({placeholders})
               AND COALESCE(NULLIF(TRIM(reg.tracking_status), ''), 'active') = 'active'
         )
@@ -194,27 +203,36 @@ def _load_registry_factor_proxy_rows(
 
 
 def _load_registry_build_universe_rows(*, data_db: Path | None = None) -> list[dict[str, Any]]:
-    compat_join = ""
-    compat_select = (
+    taxonomy_join = ""
+    taxonomy_select = (
         "0 AS classification_ok,\n            0 AS is_equity_eligible,\n"
         "            reg.source AS source,\n            reg.job_run_id AS job_run_id,\n            reg.updated_at AS updated_at"
     )
     core_target_expr = "COALESCE(pol.allow_cpar_core_target, 0)"
     extended_target_expr = "COALESCE(pol.allow_cpar_extended_target, 0)"
     single_name_expr = "0"
-    if _compat_metadata_available(data_db=data_db):
-        compat_join = """
-        LEFT JOIN security_master_compat_current compat
-          ON UPPER(COALESCE(compat.ric, '')) = UPPER(COALESCE(reg.ric, ''))
+    if _taxonomy_metadata_available(data_db=data_db):
+        taxonomy_join = """
+        LEFT JOIN security_taxonomy_current tax
+          ON UPPER(COALESCE(tax.ric, '')) = UPPER(COALESCE(reg.ric, ''))
         """
-        compat_select = """
-            COALESCE(compat.classification_ok, 0) AS classification_ok,
-            COALESCE(compat.is_equity_eligible, 0) AS is_equity_eligible,
-            COALESCE(reg.source, compat.source) AS source,
-            COALESCE(reg.job_run_id, compat.job_run_id) AS job_run_id,
-            COALESCE(reg.updated_at, compat.updated_at) AS updated_at
+        taxonomy_select = """
+            COALESCE(tax.classification_ready, 0) AS classification_ok,
+            CASE
+                WHEN COALESCE(tax.classification_ready, 0) = 1
+                 AND COALESCE(tax.is_single_name_equity, 0) = 1 THEN 1
+                ELSE 0
+            END AS is_equity_eligible,
+            COALESCE(reg.source, tax.source) AS source,
+            COALESCE(reg.job_run_id, tax.job_run_id) AS job_run_id,
+            COALESCE(reg.updated_at, tax.updated_at) AS updated_at
         """.strip()
-        single_name_expr = "CASE WHEN COALESCE(compat.is_equity_eligible, 0) = 1 THEN 1 ELSE 0 END"
+        single_name_expr = (
+            "CASE "
+            "WHEN COALESCE(tax.classification_ready, 0) = 1 "
+            "AND COALESCE(tax.is_single_name_equity, 0) = 1 THEN 1 "
+            "ELSE 0 END"
+        )
     return _fetch_rows(
         """
         SELECT
@@ -232,13 +250,13 @@ def _load_registry_build_universe_rows(*, data_db: Path | None = None) -> list[d
         + single_name_expr
         + """ AS is_single_name_equity,
             """
-        + compat_select
+        + taxonomy_select
         + """
         FROM security_registry reg
         LEFT JOIN security_policy_current pol
           ON UPPER(COALESCE(pol.ric, '')) = UPPER(COALESCE(reg.ric, ''))
         """
-        + compat_join
+        + taxonomy_join
         + """
         WHERE TRIM(COALESCE(reg.ticker, '')) <> ''
           AND COALESCE(NULLIF(TRIM(reg.tracking_status), ''), 'active') = 'active'
