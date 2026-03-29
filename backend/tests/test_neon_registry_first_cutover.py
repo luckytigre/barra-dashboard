@@ -87,6 +87,7 @@ def test_cpar_runner_kwargs_use_snapshot_archive() -> None:
 
 def test_cuse_runner_kwargs_use_snapshot_archive() -> None:
     snapshot_path = Path("/tmp/snapshot.db")
+    resolved_snapshot_path = snapshot_path.resolve()
 
     out = cutover._cuse_runner_kwargs(as_of_date="2026-03-26", data_db=snapshot_path)
 
@@ -97,6 +98,9 @@ def test_cuse_runner_kwargs_use_snapshot_archive() -> None:
         "to_stage": "serving_refresh",
         "force_core": True,
         "data_db": snapshot_path,
+        "cache_db": resolved_snapshot_path.with_name(
+            f"{resolved_snapshot_path.stem}.2026-03-26.cache{resolved_snapshot_path.suffix}"
+        ),
     }
 
 
@@ -273,7 +277,7 @@ def test_main_routes_cpar_validation_runs_to_snapshot_archive(monkeypatch, tmp_p
     monkeypatch.setattr(cutover, "sync_from_sqlite_to_neon", lambda **kwargs: {"status": "ok"})
     monkeypatch.setattr(cutover, "_latest_source_date", lambda _sqlite_path: "2026-03-26")
     monkeypatch.setattr(cutover, "validate_neon_rebuild_readiness", lambda **kwargs: {"status": "ok"})
-    monkeypatch.setattr(cutover, "_historical_cuse_sample_dates", lambda *args, **kwargs: [])
+    monkeypatch.setattr(cutover, "_historical_cuse_sample_dates", lambda *args, **kwargs: ["2025-12-03"])
     monkeypatch.setattr(cutover, "resolve_package_date", lambda **kwargs: "2026-03-20")
     monkeypatch.setattr(cutover, "_historical_cpar_package_dates", lambda *args, **kwargs: ["2026-03-20", "2026-03-13"])
 
@@ -290,5 +294,12 @@ def test_main_routes_cpar_validation_runs_to_snapshot_archive(monkeypatch, tmp_p
     assert out["status"] == "ok"
     snapshot_path = Path(out["snapshot_path"])
     assert captured["cuse_latest_2026-03-26"]["data_db"] == snapshot_path
+    assert captured["cuse_latest_2026-03-26"]["cache_db"] == snapshot_path.with_name(
+        f"{snapshot_path.stem}.2026-03-26.cache{snapshot_path.suffix}"
+    )
+    assert captured["cuse_historical_2025-12-03"]["data_db"] == snapshot_path
+    assert captured["cuse_historical_2025-12-03"]["cache_db"] == snapshot_path.with_name(
+        f"{snapshot_path.stem}.2025-12-03.cache{snapshot_path.suffix}"
+    )
     assert captured["cpar_latest_2026-03-20"]["data_db"] == snapshot_path
     assert captured["cpar_historical_2026-03-13"]["data_db"] == snapshot_path

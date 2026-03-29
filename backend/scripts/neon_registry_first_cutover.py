@@ -552,6 +552,19 @@ def _cpar_runner_kwargs(*, package_date: str, data_db: Path) -> dict[str, Any]:
     }
 
 
+def _snapshot_cache_db_path(data_db: Path, *, run_tag: str | None = None) -> Path:
+    db_path = Path(data_db).expanduser().resolve()
+    stem = db_path.stem
+    if run_tag:
+        safe_tag = "".join(ch if ch.isalnum() or ch in {"-", "_", "."} else "_" for ch in str(run_tag).strip())
+        safe_tag = safe_tag.strip("._-")
+        if safe_tag:
+            stem = f"{stem}.{safe_tag}"
+    if db_path.suffix:
+        return db_path.with_name(f"{stem}.cache{db_path.suffix}")
+    return db_path.with_name(f"{stem}.cache.db")
+
+
 def _cuse_runner_kwargs(*, as_of_date: str, data_db: Path) -> dict[str, Any]:
     return {
         "profile": "cold-core",
@@ -560,6 +573,7 @@ def _cuse_runner_kwargs(*, as_of_date: str, data_db: Path) -> dict[str, Any]:
         "to_stage": "serving_refresh",
         "force_core": True,
         "data_db": data_db,
+        "cache_db": _snapshot_cache_db_path(data_db, run_tag=as_of_date),
     }
 
 
