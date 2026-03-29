@@ -14,14 +14,9 @@ logger = logging.getLogger(__name__)
 
 from psycopg import sql
 
+import backend.services.neon_source_sync_metadata as neon_source_sync_metadata
+
 from backend.data.neon import connect, resolve_dsn
-from backend.services.neon_source_sync_metadata import (
-    finalize_source_sync_run as _finalize_source_sync_run,
-    materialize_security_source_status_current_pg as _materialize_security_source_status_current_pg,
-    record_source_sync_run_start as _record_source_sync_run_start,
-    require_source_sync_metadata_tables as _require_source_sync_metadata_tables,
-    upsert_source_sync_watermarks as _upsert_source_sync_watermarks,
-)
 
 
 @dataclass(frozen=True)
@@ -354,6 +349,94 @@ def _table_exists_pg(pg_conn, table: str) -> bool:
             (table,),
         )
         return _cursor_fetchone(cur) is not None
+
+
+def _record_source_sync_run_start(
+    pg_conn,
+    *,
+    sync_run_id: str,
+    mode: str,
+    sqlite_path: Path,
+    selected_tables: list[str],
+    started_at: str,
+) -> None:
+    neon_source_sync_metadata.record_source_sync_run_start(
+        pg_conn,
+        table_exists_pg=_table_exists_pg,
+        sync_run_id=sync_run_id,
+        mode=mode,
+        sqlite_path=sqlite_path,
+        selected_tables=selected_tables,
+        started_at=started_at,
+    )
+
+
+def _require_source_sync_metadata_tables(pg_conn) -> None:
+    neon_source_sync_metadata.require_source_sync_metadata_tables(
+        pg_conn,
+        table_exists_pg=_table_exists_pg,
+    )
+
+
+def _finalize_source_sync_run(
+    pg_conn,
+    *,
+    sync_run_id: str,
+    status: str,
+    table_results: dict[str, Any],
+    updated_at: str,
+    error_type: str | None = None,
+    error_message: str | None = None,
+) -> None:
+    neon_source_sync_metadata.finalize_source_sync_run(
+        pg_conn,
+        table_exists_pg=_table_exists_pg,
+        sync_run_id=sync_run_id,
+        status=status,
+        table_results=table_results,
+        updated_at=updated_at,
+        error_type=error_type,
+        error_message=error_message,
+    )
+
+
+def _materialize_security_source_status_current_pg(
+    pg_conn,
+    *,
+    sync_run_id: str,
+    updated_at: str,
+) -> int:
+    return neon_source_sync_metadata.materialize_security_source_status_current_pg(
+        pg_conn,
+        table_exists_pg=_table_exists_pg,
+        sync_run_id=sync_run_id,
+        updated_at=updated_at,
+    )
+
+
+def _upsert_source_sync_watermarks(
+    sqlite_conn: sqlite3.Connection,
+    pg_conn,
+    *,
+    selected_cfgs: list[TableConfig],
+    table_results: dict[str, Any],
+    sync_run_id: str,
+    updated_at: str,
+    profile_sqlite_table,
+    profile_pg_table,
+) -> int:
+    return neon_source_sync_metadata.upsert_source_sync_watermarks(
+        sqlite_conn,
+        pg_conn,
+        selected_cfgs=selected_cfgs,
+        table_results=table_results,
+        sync_run_id=sync_run_id,
+        updated_at=updated_at,
+        sqlite_table_exists=_sqlite_table_exists,
+        table_exists_pg=_table_exists_pg,
+        profile_sqlite_table=profile_sqlite_table,
+        profile_pg_table=profile_pg_table,
+    )
 
 
 def _parse_iso_date(value: str | None) -> date | None:
