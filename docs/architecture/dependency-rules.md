@@ -84,6 +84,10 @@ Current runtime-state owner exception:
 - `backend/data/runtime_state_authority.py` owns the lower Neon and fallback runtime-state authority helpers
 - `backend/data/runtime_state.py` remains the public runtime-state facade and keeps the allowed-key policy, schema helper, public read/write entrypoints, and active-snapshot publish contract
 
+Current Neon source-sync owner exception:
+- `backend/services/neon_source_sync_metadata.py` owns the lower source-sync metadata/status lifecycle helpers
+- `backend/services/neon_stage2.py` remains the public source-sync/parity facade and keeps schema alignment, table-strategy, identifier-backfill, and the public `sync_from_sqlite_to_neon()` / parity entrypoints
+
 ## Entrypoint Rules
 
 Routes, CLI wrappers, and local scripts must stay thin.
