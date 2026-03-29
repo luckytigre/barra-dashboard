@@ -666,6 +666,7 @@ def test_pipeline_rebuilds_universe_loadings_when_local_source_archive_requested
     monkeypatch.setattr(pipeline.sqlite, "cache_get", lambda key, **kwargs: _cache_get(key))
     monkeypatch.setattr(pipeline.sqlite, "cache_get_live_first", lambda key, **kwargs: _cache_get(key))
     monkeypatch.setattr(pipeline.runtime_state, "load_runtime_state", lambda key, fallback_loader=None: _cache_get(key))
+    monkeypatch.setattr(pipeline, "load_projection_only_universe_rows", lambda _conn: [])
     monkeypatch.setattr(
         pipeline,
         "_build_universe_ticker_loadings",
@@ -1861,6 +1862,7 @@ def test_run_refresh_uses_persisted_risk_artifacts_when_runtime_cache_is_degrade
         }.get(key),
     )
     monkeypatch.setattr(pipeline.sqlite, "cache_get", lambda key, **kwargs: None)
+    monkeypatch.setattr(pipeline, "load_projection_only_universe_rows", lambda _conn: [])
     monkeypatch.setattr(
         pipeline,
         "stage_refresh_cache_snapshot",
@@ -2233,6 +2235,7 @@ def test_resolved_as_of_date_uses_local_source_archive_when_requested(monkeypatc
         "neon_surface_enabled",
         lambda surface: surface == "core_reads",
     )
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "neon_core_read_session", lambda: nullcontext())
 
     out = run_model_pipeline_module.stage_planning.resolved_as_of_date(
         None,
@@ -2313,6 +2316,7 @@ def test_run_stage_serving_refresh_uses_local_source_archive_for_local_publish_p
         "neon_surface_enabled",
         lambda surface: surface == "core_reads",
     )
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "neon_core_read_session", lambda: nullcontext())
 
     def _run_refresh(**kwargs):
         captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
@@ -2355,6 +2359,7 @@ def test_run_stage_serving_refresh_keeps_neon_backend_for_canonical_serve_refres
         "neon_surface_enabled",
         lambda surface: surface == "core_reads",
     )
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "neon_core_read_session", lambda: nullcontext())
 
     def _run_refresh(**kwargs):
         captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
@@ -2439,6 +2444,7 @@ def test_run_stage_serving_refresh_passes_workspace_paths_without_mutating_core_
         lambda **kwargs: (True, "risk_cache_current"),
     )
     monkeypatch.setattr(run_model_pipeline_module.core_reads, "core_read_backend", lambda backend: nullcontext())
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "neon_core_read_session", lambda: nullcontext())
 
     def _run_refresh(**kwargs):
         captured.update(kwargs)
@@ -2466,6 +2472,58 @@ def test_run_stage_serving_refresh_passes_workspace_paths_without_mutating_core_
     assert captured["cache_db"] == new_cache_db
     assert captured["core_reads_data_db"] == original
     assert run_model_pipeline_module.core_reads.DATA_DB == original
+
+
+def test_run_stage_serving_refresh_keeps_neon_backend_when_workspace_paths_are_present_but_core_is_not_running(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    workspace_data_db = tmp_path / "workspace.db"
+    workspace_cache_db = tmp_path / "workspace_cache.db"
+    workspace_data_db.touch()
+    workspace_cache_db.touch()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        run_model_pipeline_module.runtime_support,
+        "serving_refresh_skip_risk_engine",
+        lambda **kwargs: (True, "risk_cache_current"),
+    )
+    monkeypatch.setattr(
+        run_model_pipeline_module.core_reads.config,
+        "neon_surface_enabled",
+        lambda surface: surface == "core_reads",
+    )
+    monkeypatch.setattr(run_model_pipeline_module.core_reads, "neon_core_read_session", lambda: nullcontext())
+
+    def _run_refresh(**kwargs):
+        captured["backend"] = run_model_pipeline_module.core_reads.core_read_backend_name()
+        captured["uses_workspace_paths"] = kwargs.get("uses_workspace_paths")
+        captured["data_db"] = kwargs.get("data_db")
+        captured["cache_db"] = kwargs.get("cache_db")
+        return {"status": "ok"}
+
+    monkeypatch.setattr(run_model_pipeline_module, "run_refresh", _run_refresh)
+
+    out = run_model_pipeline_module._run_stage(
+        profile="serve-refresh",
+        stage="serving_refresh",
+        as_of_date="2026-03-14",
+        should_run_core=False,
+        serving_mode="light",
+        force_core=False,
+        core_reason="risk_cache_current",
+        data_db=workspace_data_db,
+        cache_db=workspace_cache_db,
+        prefer_local_source_archive=False,
+        refresh_scope=None,
+    )
+
+    assert out["status"] == "ok"
+    assert captured["backend"] == "neon"
+    assert captured["uses_workspace_paths"] is True
+    assert captured["data_db"] == workspace_data_db
+    assert captured["cache_db"] == workspace_cache_db
 
 
 def test_run_model_pipeline_reports_stage_runtime_details(monkeypatch: pytest.MonkeyPatch) -> None:
