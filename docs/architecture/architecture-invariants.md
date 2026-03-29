@@ -34,6 +34,9 @@ These are the non-negotiable structural rules for this repository.
 8. Serving paths must not advance the stable core package.
    `serve-refresh` and other serving-only paths may project against the current core package, but they must not compute or persist factor returns, covariance, specific risk, or advance `core_state_through_date`.
 
+8a. Workspace paths do not retarget authority by themselves.
+   Passing workspace `data_db` / `cache_db` paths into a serving lane does not automatically make `core_reads` local; workspace paths alone must not override the serving lane's existing backend-selection decision.
+
 9. Serving-time prices are read-only.
    Serving/orchestration/API layers must not write serving-time or ad hoc prices into canonical model-estimation history tables such as `security_prices_eod`.
 

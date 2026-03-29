@@ -197,9 +197,11 @@ Treat these as different timelines:
 
 Rule:
 - `serve-refresh` may read and project against the stable core package, but it may not compute, persist, or advance that package.
+- workspace `data_db` / `cache_db` paths passed into `serve-refresh` are explicit file targets, not an automatic local-core-read override; workspace paths alone should not flip the lane away from whatever core-read authority the active backend selection already established.
 - canonical historical price writes belong only to approved ingest/history paths, not serving-time logic.
 - projection-only ETF outputs are derived from the stable core package, but they are not native core artifacts. Refresh them on core lanes, persist them, and let serving read them as a durable surface.
 - `projection_asof` should track the active `core_state_through_date`, not an incidental overlap date.
+- projection-only registry rows and persisted projected-loadings fallback may still consult explicit workspace/canonical SQLite paths inside the refresh context; keep that local read scope narrow instead of broadening it into the whole core-read facade.
 - publish-only republish, durable serving publish, and post-publish health patch sequencing under `run_refresh` belong in `backend/analytics/refresh_publication.py`; keep `backend/analytics/pipeline.py` focused on refresh context, model assembly, and high-level orchestration.
 - `serving_refresh` progress should be observable at the substage level. Keep publish/persist milestones, diagnostics-section heartbeats, and finished-stage timing summaries intact rather than collapsing them into one terminal message.
 - Universe-loadings reuse keys must be based on the current serving snapshot's source dates. Do not let stale eligibility metadata advance `exposures_latest_available_asof` and accidentally force rebuilds.
