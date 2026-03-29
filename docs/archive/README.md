@@ -18,6 +18,7 @@ Archive buckets:
   - one-time execution logs retained for historical context
 - `legacy-plans/`
   - older archived planning material retained from previous cleanup phases
+  - execution logs should live under `execution-logs/`, not here
 - `migrations/`
   - historical migration execution notes and retired operator runbooks
 

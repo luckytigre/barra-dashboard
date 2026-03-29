@@ -48,7 +48,7 @@ Paths below are the original pre-cleanup locations used for classification.
 | `docs/archive_notes/CLOUD_READINESS_EXECUTION_PLAN_2026-03-09.md` | ARCHIVE | Historical plan; archive should stay historical but consolidated. |
 | `docs/archive_notes/CUSE4_EFFICIENCY_IMPLEMENTATION_PLAN_2026-03-09.md` | ARCHIVE | Historical plan; consolidate into archive tree. |
 | `docs/archive_notes/README.md` | ARCHIVE | Historical archive index; replaced by unified archive README. |
-| `docs/archive_notes/US_CORE_ONE_STAGE_EXECUTION_LOG_2026-03-15.md` | ARCHIVE | Historical execution log. |
+| `docs/archive/execution-logs/US_CORE_ONE_STAGE_EXECUTION_LOG_2026-03-15.md` | ARCHIVE | Historical execution log. |
 | `docs/archive_notes/US_CORE_ONE_STAGE_MIGRATION_PLAN_2026-03-15.md` | ARCHIVE | Historical migration plan. |
 | `docs/archive_notes/cUSE4_Backend_Execution_Plan_2026-03-04.md` | ARCHIVE | Historical execution plan. |
 | `docs/architecture/audit-architecture.md` | ARCHIVE | Historical audit record, not active guidance. |
