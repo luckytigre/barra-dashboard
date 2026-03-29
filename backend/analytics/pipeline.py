@@ -414,6 +414,7 @@ def run_refresh(
     refresh_projected_loadings: bool = False,
     refresh_deep_health_diagnostics: bool = False,
     prefer_local_source_archive: bool = False,
+    uses_workspace_paths: bool = False,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     """Pipeline refresh with serving-oriented modes:
@@ -432,6 +433,7 @@ def run_refresh(
     effective_cache_db = _resolve_cache_db(cache_db)
     refresh_mode = str(mode or "full").strip().lower()
     refresh_scope_key = str(refresh_scope or "").strip().lower() or None
+    uses_workspace_paths = bool(uses_workspace_paths)
     if refresh_mode not in {"full", "light", "publish"}:
         refresh_mode = "full"
     light_mode = refresh_mode == "light"

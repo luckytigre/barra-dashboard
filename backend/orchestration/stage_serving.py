@@ -34,6 +34,10 @@ def run_serving_stage(
         prefer_local_source_archive
         or should_run_core
     )
+    uses_workspace_paths = bool(
+        Path(data_db).resolve() != canonical_data_db.resolve()
+        or Path(cache_db).resolve() != canonical_cache_db.resolve()
+    )
 
     def _run_refresh_inner() -> dict[str, Any]:
         today_utc = datetime.fromisoformat(
@@ -52,37 +56,40 @@ def run_serving_stage(
             )
         if force_local_core_reads:
             with core_reads_module.core_read_backend("local"):
-                out = run_refresh_fn(
-                    data_db=data_db,
-                    cache_db=cache_db,
-                    mode=serving_mode,
-                    force_risk_recompute=False,
-                    refresh_scope=refresh_scope,
-                    skip_snapshot_rebuild=True,
-                    skip_cuse4_foundation=True,
-                    skip_risk_engine=bool(skip_risk_engine),
-                    enforce_stable_core_package=enforce_stable_core_package,
-                    refresh_projected_loadings=bool(should_run_core),
-                    refresh_deep_health_diagnostics=bool(should_run_core),
-                    prefer_local_source_archive=bool(prefer_local_source_archive),
-                )
+                with core_reads_module.neon_core_read_session():
+                    out = run_refresh_fn(
+                        data_db=data_db,
+                        cache_db=cache_db,
+                        mode=serving_mode,
+                        force_risk_recompute=False,
+                        refresh_scope=refresh_scope,
+                        skip_snapshot_rebuild=True,
+                        skip_cuse4_foundation=True,
+                        skip_risk_engine=bool(skip_risk_engine),
+                        enforce_stable_core_package=enforce_stable_core_package,
+                        refresh_projected_loadings=bool(should_run_core),
+                        refresh_deep_health_diagnostics=bool(should_run_core),
+                        prefer_local_source_archive=bool(prefer_local_source_archive),
+                    )
                 out["_skip_risk_engine_reason"] = str(skip_reason)
                 out["_skip_risk_engine"] = bool(skip_risk_engine)
                 return out
-        out = run_refresh_fn(
-            data_db=data_db,
-            cache_db=cache_db,
-            mode=serving_mode,
-            force_risk_recompute=False,
-            refresh_scope=refresh_scope,
-            skip_snapshot_rebuild=True,
-            skip_cuse4_foundation=True,
-            skip_risk_engine=bool(skip_risk_engine),
-            enforce_stable_core_package=enforce_stable_core_package,
-            refresh_projected_loadings=bool(should_run_core),
-            refresh_deep_health_diagnostics=bool(should_run_core),
-            prefer_local_source_archive=bool(prefer_local_source_archive),
-        )
+        with core_reads_module.neon_core_read_session():
+            out = run_refresh_fn(
+                data_db=data_db,
+                cache_db=cache_db,
+                mode=serving_mode,
+                force_risk_recompute=False,
+                refresh_scope=refresh_scope,
+                skip_snapshot_rebuild=True,
+                skip_cuse4_foundation=True,
+                skip_risk_engine=bool(skip_risk_engine),
+                enforce_stable_core_package=enforce_stable_core_package,
+                refresh_projected_loadings=bool(should_run_core),
+                refresh_deep_health_diagnostics=bool(should_run_core),
+                prefer_local_source_archive=bool(prefer_local_source_archive),
+                uses_workspace_paths=bool(uses_workspace_paths),
+            )
         out["_skip_risk_engine_reason"] = str(skip_reason)
         out["_skip_risk_engine"] = bool(skip_risk_engine)
         return out

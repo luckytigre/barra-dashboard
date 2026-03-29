@@ -19,6 +19,10 @@ _CORE_READ_BACKEND_OVERRIDE: ContextVar[str | None] = ContextVar(
     "core_read_backend_override",
     default=None,
 )
+_CORE_READ_NEON_CONNECTION: ContextVar[Any | None] = ContextVar(
+    "core_read_neon_connection",
+    default=None,
+)
 
 
 def use_neon_core_reads() -> bool:
@@ -46,6 +50,29 @@ def core_read_backend(backend: str):
         _CORE_READ_BACKEND_OVERRIDE.reset(token)
 
 
+@contextmanager
+def neon_core_read_session():
+    if not use_neon_core_reads():
+        yield
+        return
+    existing = _CORE_READ_NEON_CONNECTION.get()
+    if existing is not None and not getattr(existing, "closed", False):
+        yield
+        return
+    try:
+        dsn = resolve_dsn(None)
+    except ValueError:
+        yield
+        return
+    pg_conn = connect(dsn=dsn, autocommit=True)
+    token = _CORE_READ_NEON_CONNECTION.set(pg_conn)
+    try:
+        yield
+    finally:
+        _CORE_READ_NEON_CONNECTION.reset(token)
+        pg_conn.close()
+
+
 def to_pg_sql(query: str) -> str:
     return str(query).replace("?", "%s")
 
@@ -58,13 +85,18 @@ def fetch_rows(
     neon_enabled: bool,
 ) -> list[dict[str, Any]]:
     if neon_enabled:
-        pg_conn = connect(dsn=resolve_dsn(None), autocommit=True)
+        pg_conn = _CORE_READ_NEON_CONNECTION.get()
+        owns_connection = False
+        if pg_conn is None or getattr(pg_conn, "closed", False):
+            pg_conn = connect(dsn=resolve_dsn(None), autocommit=True)
+            owns_connection = True
         try:
             with pg_conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(to_pg_sql(sql), params or [])
                 return [dict(row) for row in cur.fetchall()]
         finally:
-            pg_conn.close()
+            if owns_connection:
+                pg_conn.close()
 
     conn = sqlite3.connect(str(data_db))
     conn.row_factory = sqlite3.Row
