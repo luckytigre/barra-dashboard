@@ -10,6 +10,16 @@ REPOSITORY="${REPOSITORY:-ceiora-images}"
 IMAGE_TAG="${IMAGE_TAG:-$(git rev-parse --short HEAD)}"
 SERVICE_NAME="${SERVICE_NAME:-ceiora-prod-serve}"
 CLOUD_RUN_PLATFORM="${CLOUD_RUN_PLATFORM:-linux/amd64}"
+ALLOW_DIRECT_SERVE_DEPLOY="${ALLOW_DIRECT_SERVE_DEPLOY:-0}"
+
+if [[ "${ALLOW_DIRECT_SERVE_DEPLOY}" != "1" ]]; then
+  cat >&2 <<'EOF'
+scripts/cloud/deploy_serve.sh is a direct Cloud Run drift path for serve-only image rollouts.
+It must not be used for topology contract changes or endpoint_mode/run_app cutovers.
+Re-run with ALLOW_DIRECT_SERVE_DEPLOY=1 only when you intend to bypass Terraform for a serve-only deploy.
+EOF
+  exit 1
+fi
 
 REGISTRY_BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
 SERVE_IMAGE="${SERVE_IMAGE:-${REGISTRY_BASE}/serve:${IMAGE_TAG}}"

@@ -256,21 +256,27 @@ Operator build entrypoints:
 - `scripts/cloud/deploy_serve.sh`
 - the repo-owned Cloud Run image path now explicitly builds `linux/amd64` images via `docker buildx`; do not use the plain host-architecture Docker default for rollout images.
 - the same scripts also support `BUILD_TARGETS=frontend` when you need a frontend-only rebuild for an explicit `run_app` contract while keeping serve/control pinned to existing image refs.
+- the build scripts now read `ENDPOINT_MODE`:
+  - `custom_domains` is the default and preserves the `https://api.ceiora.com` frontend build target when `BACKEND_API_ORIGIN` is omitted
+  - `custom_domains` rejects `BACKEND_API_ORIGIN=https://<service>.run.app`; use `ENDPOINT_MODE=run_app` for that contract
+  - `run_app` is fail-closed for frontend builds and requires an explicit `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
 - the image-build scripts now stage per-target minimal Docker contexts:
   - `frontend` builds from a temp context containing only `frontend/`
   - `serve` / `control` build from a temp context containing only `backend/`
   - this avoids operator-machine runtime archives, virtualenvs, and other repo-local mass contaminating Cloud Run image builds.
 
-Preferred serve rollout path:
-- `make cloud-serve-deploy`
+Serve-only drift path:
+- `ALLOW_DIRECT_SERVE_DEPLOY=1 make cloud-serve-deploy`
   - builds and pushes the `serve` image with the minimal backend-only context
-  - deploys that image directly to the Cloud Run serve service
+  - deploys that image directly to the Cloud Run serve service as an explicit serve-only drift path
+  - must not be used for topology contract changes, `endpoint_mode` flips, or `run_app` cutovers; use Terraform for those changes
   - preserves request-based billing with `--cpu-throttling`
 
 Build-time contract:
 - the frontend image reads `BACKEND_API_ORIGIN` at build time so the Next rewrite proxy is baked for the target serve API host
-- `endpoint_mode=custom_domains` default frontend build target is `https://api.ceiora.com`
-- `endpoint_mode=run_app` requires `BACKEND_API_ORIGIN` to match the explicit `frontend_build_contract.build_api_origin` / `frontend_backend_api_origin` input
+- `ENDPOINT_MODE=custom_domains` default frontend build target is `https://api.ceiora.com`
+- `ENDPOINT_MODE=run_app` requires `BACKEND_API_ORIGIN` to be an explicit `https://<serve-service>.run.app` origin that matches the Terraform `frontend_build_contract.build_api_origin` / `frontend_backend_api_origin` input
+- `scripts/cloud/build_and_push_images.sh` passes the same `ENDPOINT_MODE` / `BACKEND_API_ORIGIN` contract through to `scripts/cloud/build_images.sh`; do not rely on one script defaulting differently from the other
 - backend images do not copy repo-local `backend/.env` or the broad local backend tree into the image
 
 Runtime contract:

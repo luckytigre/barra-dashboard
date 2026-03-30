@@ -77,6 +77,13 @@ Important ingress rule:
 - it only prepares the later custom-domain cutover path
 - final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
 
+Build/deploy operator rule:
+- `scripts/cloud/build_images.sh` and `scripts/cloud/build_and_push_images.sh` read `ENDPOINT_MODE`
+- the default is `ENDPOINT_MODE=custom_domains`, which preserves the existing `BACKEND_API_ORIGIN=https://api.ceiora.com` frontend build target when no explicit override is provided
+- `ENDPOINT_MODE=run_app` is fail-closed for frontend builds and requires an explicit `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
+- `scripts/cloud/deploy_serve.sh` is intentionally guarded behind `ALLOW_DIRECT_SERVE_DEPLOY=1`
+- that script is a serve-only Cloud Run drift path; do not use it for topology changes, `endpoint_mode` changes, or `run_app` cutovers
+
 Observability prep owned here:
 - `_Default` Cloud Logging retention
 - no public uptime checks by default, to preserve scale-to-zero behavior
@@ -100,6 +107,11 @@ Important frontend rule:
 - the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - secret access bindings in the prod root should therefore exist only for secret-consuming backend services and jobs, not for the frontend service account
 - for final-domain rollout, the default stays `https://api.ceiora.com`
+- the repo-owned Cloud Run image scripts mirror that contract:
+  - `scripts/cloud/build_images.sh` / `scripts/cloud/build_and_push_images.sh` default `ENDPOINT_MODE=custom_domains`
+  - `ENDPOINT_MODE=custom_domains` rejects a `run.app` `BACKEND_API_ORIGIN`; use `ENDPOINT_MODE=run_app` for explicit `run.app` frontend builds
+  - `ENDPOINT_MODE=run_app` is fail-closed for frontend builds and requires explicit `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
+- `scripts/cloud/deploy_serve.sh` is an intentional serve-only drift path and requires `ALLOW_DIRECT_SERVE_DEPLOY=1`; do not use it for topology contract changes or `endpoint_mode` cutovers
 - for `endpoint_mode=run_app`, provide the full explicit contract together:
   - `frontend_public_origin`
   - `frontend_backend_api_origin`
@@ -107,6 +119,8 @@ Important frontend rule:
   - `frontend_image_ref`
   - `serve_image_ref`
   - `control_image_ref`
+- when building a frontend image for `endpoint_mode=run_app`, pass the same origin explicitly to the image script:
+  - `ENDPOINT_MODE=run_app BACKEND_API_ORIGIN=https://<serve-service>.run.app BUILD_TARGETS=frontend make cloud-images-build`
 - the `run_app` contract rejects partial overrides and rejects `:latest` image refs
 
 Secret values are intentionally out of band. After the secret containers exist, add versions manually:
