@@ -210,6 +210,9 @@ Parallel cPAR note:
   - `python3 -m backend.scripts.run_model_pipeline --profile serve-refresh`
 - Orchestrated refresh via script wrapper:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily-plus-core-if-due`
+- Neon-authoritative core rebuild from a Neon-only operator host with no local source archive:
+  - `.venv_local/bin/python -m backend.scripts.run_model_pipeline --profile core-weekly --force-core --skip-source-sync`
+  - use this only when Neon already has the intended current source state and you are intentionally rebuilding from `neon_readiness` onward instead of publishing source from local SQLite first
 - Source-only refresh via script wrapper:
   - `python3 -m backend.scripts.run_model_pipeline --profile source-daily`
 - Repair Neon sync health from an already-successful workspace without rerunning the full core lane:

@@ -19,5 +19,6 @@ if __name__ == "__main__":
             from_stage=args.from_stage,
             to_stage=args.to_stage,
             force_core=bool(args.force_core),
+            skip_source_sync=bool(args.skip_source_sync),
         )
     )
