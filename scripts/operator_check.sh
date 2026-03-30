@@ -380,7 +380,11 @@ for label, refresh_path, operator_path in checks:
             errors.append(f"{label}: refusal message did not match current-stable-core contract: {message!r}")
         if not bool(core_due.get("due")):
             errors.append(f"{label}: operator status did not report core_due=true")
-        if not core_due_reason.startswith("interval_elapsed") and not core_due_reason.startswith("method_changed"):
+        if (
+            not core_due_reason.startswith("interval_elapsed")
+            and not core_due_reason.startswith("method_version_change")
+            and not core_due_reason.startswith("method_changed")
+        ):
             errors.append(f"{label}: operator status core_due reason was not explicit: {core_due_reason!r}")
 
 if errors:
