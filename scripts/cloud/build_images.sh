@@ -91,8 +91,8 @@ require_origin_for_frontend_build() {
   case "${ENDPOINT_MODE}" in
     custom_domains)
       BACKEND_API_ORIGIN="${BACKEND_API_ORIGIN:-https://api.ceiora.com}"
-      if [[ "${BACKEND_API_ORIGIN}" =~ ^https://[^/]+\.run\.app$ ]]; then
-        echo "ENDPOINT_MODE=custom_domains does not allow a run.app BACKEND_API_ORIGIN. Use ENDPOINT_MODE=run_app for explicit run.app frontend builds." >&2
+      if [[ "${BACKEND_API_ORIGIN}" != "https://api.ceiora.com" ]]; then
+        echo "ENDPOINT_MODE=custom_domains requires BACKEND_API_ORIGIN=https://api.ceiora.com. Use ENDPOINT_MODE=run_app for explicit run.app frontend builds." >&2
         exit 1
       fi
       ;;

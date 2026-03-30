@@ -79,10 +79,10 @@ Important ingress rule:
 
 Build/deploy operator rule:
 - `scripts/cloud/build_images.sh` and `scripts/cloud/build_and_push_images.sh` read `ENDPOINT_MODE`
-- the default is `ENDPOINT_MODE=custom_domains`, which preserves the existing `BACKEND_API_ORIGIN=https://api.ceiora.com` frontend build target when no explicit override is provided
+- the default is `ENDPOINT_MODE=custom_domains`, which requires `BACKEND_API_ORIGIN=https://api.ceiora.com` for frontend builds and falls back to that value when the env var is omitted
 - `ENDPOINT_MODE=run_app` is fail-closed for frontend builds and requires an explicit `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
 - `scripts/cloud/deploy_serve.sh` is intentionally guarded behind `ALLOW_DIRECT_SERVE_DEPLOY=1`
-- that script is a serve-only Cloud Run drift path; do not use it for topology changes, `endpoint_mode` changes, or `run_app` cutovers
+- that script is a serve-only Cloud Run drift path, validates `SERVICE_NAME` by requiring a `-serve` suffix, and must not be used for topology changes, `endpoint_mode` changes, or `run_app` cutovers
 
 Observability prep owned here:
 - `_Default` Cloud Logging retention
@@ -109,7 +109,7 @@ Important frontend rule:
 - for final-domain rollout, the default stays `https://api.ceiora.com`
 - the repo-owned Cloud Run image scripts mirror that contract:
   - `scripts/cloud/build_images.sh` / `scripts/cloud/build_and_push_images.sh` default `ENDPOINT_MODE=custom_domains`
-  - `ENDPOINT_MODE=custom_domains` rejects a `run.app` `BACKEND_API_ORIGIN`; use `ENDPOINT_MODE=run_app` for explicit `run.app` frontend builds
+  - `ENDPOINT_MODE=custom_domains` requires `BACKEND_API_ORIGIN=https://api.ceiora.com`; use `ENDPOINT_MODE=run_app` for explicit `run.app` frontend builds
   - `ENDPOINT_MODE=run_app` is fail-closed for frontend builds and requires explicit `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
 - `scripts/cloud/deploy_serve.sh` is an intentional serve-only drift path and requires `ALLOW_DIRECT_SERVE_DEPLOY=1`; do not use it for topology contract changes or `endpoint_mode` cutovers
 - for `endpoint_mode=run_app`, provide the full explicit contract together:
@@ -119,6 +119,7 @@ Important frontend rule:
   - `frontend_image_ref`
   - `serve_image_ref`
   - `control_image_ref`
+- the image-build scripts validate only the frontend build-side origin piece of that `run_app` contract; Terraform still validates the full topology contract and pinned image refs
 - when building a frontend image for `endpoint_mode=run_app`, pass the same origin explicitly to the image script:
   - `ENDPOINT_MODE=run_app BACKEND_API_ORIGIN=https://<serve-service>.run.app BUILD_TARGETS=frontend make cloud-images-build`
 - the `run_app` contract rejects partial overrides and rejects `:latest` image refs

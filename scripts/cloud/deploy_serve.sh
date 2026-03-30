@@ -21,6 +21,11 @@ EOF
   exit 1
 fi
 
+if [[ "${SERVICE_NAME}" != *-serve ]]; then
+  echo "scripts/cloud/deploy_serve.sh only targets serve services. SERVICE_NAME must end with '-serve'." >&2
+  exit 1
+fi
+
 REGISTRY_BASE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}"
 SERVE_IMAGE="${SERVE_IMAGE:-${REGISTRY_BASE}/serve:${IMAGE_TAG}}"
 
