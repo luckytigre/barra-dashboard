@@ -52,11 +52,28 @@ output "public_origins" {
 }
 
 output "service_image_refs" {
-  description = "Image refs pinned into the Cloud Run service definitions. endpoint_mode=run_app requires these to be explicit inputs."
+  description = "Image refs pinned into the Terraform Cloud Run service definitions. endpoint_mode=run_app requires these to be explicit inputs."
   value = {
     frontend = local.frontend_image_ref
     serve    = local.serve_image_ref
     control  = local.control_image_ref
+  }
+}
+
+output "service_image_refs_applied" {
+  description = "Image refs currently recorded in Terraform state for the live Cloud Run service resources. Prefer these for post-targeted-apply operator capture and verification."
+  value = {
+    frontend = google_cloud_run_v2_service.frontend.template[0].containers[0].image
+    serve    = google_cloud_run_v2_service.serve.template[0].containers[0].image
+    control  = google_cloud_run_v2_service.control.template[0].containers[0].image
+  }
+}
+
+output "control_surface_image_refs_applied" {
+  description = "Applied image refs for the control service and the serve-refresh job. These should normally match because they are driven by the same control image input."
+  value = {
+    service           = google_cloud_run_v2_service.control.template[0].containers[0].image
+    serve_refresh_job = google_cloud_run_v2_job.serve_refresh.template[0].template[0].containers[0].image
   }
 }
 

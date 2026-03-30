@@ -1,4 +1,4 @@
-.PHONY: dev backend backend-prod backend-serve backend-control backend-serve-prod backend-control-prod frontend frontend-safe refresh refresh-serve refresh-cold-core setup doctor cuse4-bootstrap cuse4-estu prune-history prune-history-dry smoke-check operator-check clean-local app-up app-down app-restart app-check app-status cloud-images-build cloud-images-push cloud-serve-deploy cloud-request-billing-check cloud-run-app-contract cloud-topology-check cloud-run-app-bundle cloud-run-app-cutover
+.PHONY: dev backend backend-prod backend-serve backend-control backend-serve-prod backend-control-prod frontend frontend-safe refresh refresh-serve refresh-cold-core setup doctor cuse4-bootstrap cuse4-estu prune-history prune-history-dry smoke-check operator-check clean-local app-up app-down app-restart app-check app-status cloud-images-build cloud-images-push cloud-serve-deploy cloud-request-billing-check cloud-run-app-contract cloud-topology-check cloud-run-app-bundle cloud-run-app-steady-state-bundle cloud-run-app-cutover
 
 setup:
 	./scripts/setup_local_env.sh
@@ -113,6 +113,9 @@ cloud-topology-check:
 
 cloud-run-app-bundle:
 	./scripts/cloud/capture_run_app_rollout_bundle.sh
+
+cloud-run-app-steady-state-bundle:
+	ROLLOUT_CAPTURE_MODE=steady-state ./scripts/cloud/capture_run_app_rollout_bundle.sh
 
 cloud-run-app-cutover:
 	./scripts/cloud/run_app_cutover.sh

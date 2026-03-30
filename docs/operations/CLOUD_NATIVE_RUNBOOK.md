@@ -376,6 +376,8 @@ Operator rollout entrypoints:
 
 Bundle contract:
 - `cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/` by default
+- `cloud-run-app-steady-state-bundle` captures the current `run_app` topology as a post-cutover pin bundle for config-only changes and helper refresh after targeted image applies
+  - that steady-state bundle also emits current-image `run_app_no_edge.base.tfvars` and `rollback_custom_domains.tfvars` so a verified soak can still proceed to no-edge or rollback without replaying stale image refs
 - that bundle is not the same thing as the generic `PROD_TERRAFORM_OUTPUT_JSON=...` input used by the read-only helper scripts
 - the bundle includes:
   - `terraform-output.json`
@@ -384,13 +386,17 @@ Bundle contract:
   - `run_app_soak.base.tfvars`
   - `run_app_no_edge.base.tfvars`
 - by default the bundle capture expects the live source topology to still be `custom_domains + edge_enabled=true`
-- `ROLLOUT_SOURCE_OUTPUT_JSON=...` is the rehearsal/debug seam for capture; do not confuse it with the saved bundle itself
+- use `ROLLOUT_CAPTURE_MODE=steady-state` once the app is already on `endpoint_mode=run_app`
+- `ROLLOUT_SOURCE_OUTPUT_JSON=...` remains a saved-output seam; do not confuse it with the saved bundle itself
 
 Execution contract:
 - `CUTOVER_ACTION=build-frontend` builds and pushes a `run_app` frontend image against the bundle's `service_urls.serve` origin and records that image ref into `run_app_frontend_image_ref.txt`
 - `CUTOVER_ACTION=plan` and `CUTOVER_ACTION=apply` are fail-closed for `run_app` phases:
   - they require a run.app-built frontend image ref
   - set `RUN_APP_FRONTEND_IMAGE_REF=...` explicitly or run `CUTOVER_ACTION=build-frontend` first
+- `CUTOVER_ACTION=plan` and `CUTOVER_ACTION=apply` also verify that the bundle still matches the current live topology and applied image refs for `soak` / `no-edge`:
+  - if you hotfix a service/job image with a targeted apply, recapture a fresh bundle before reusing the cutover helpers
+  - bypass only with `ALLOW_STALE_ROLLOUT_BUNDLE=1` for an intentional replay
 - `CUTOVER_ACTION=apply` requires `ALLOW_TERRAFORM_APPLY=1`
 - `CUTOVER_PHASE=no-edge` apply also requires `ALLOW_EDGE_DISABLE=1`
 - `cloud-run-app-cutover` does not replace repo-side smoke:
@@ -445,6 +451,8 @@ For the request-based billing rollout specifically:
 Topology guardrails:
 - always confirm `terraform output endpoint_mode`, `terraform output edge_enabled`, and `terraform output public_origins` match the intended rollout path
 - `service_urls` remain the topology-neutral Cloud Run reference surface
+- `service_image_refs` are the configured Terraform pins; `service_image_refs_applied` are the live refs recorded in Terraform state for the Cloud Run services
+- `control_surface_image_refs_applied` should show matching control-service and serve-refresh-job images before you emit or capture a shared control-image contract
 - `hostnames` remain the reserved custom-domain names even when the edge is disabled
 - `load_balancer_*` outputs are edge-only and may be `null` when `edge_enabled=false`
 - `cloud-topology-check` shells into `terraform output -json` by default; use `PROD_TERRAFORM_OUTPUT_JSON=...` when you want it to operate from a saved rollout bundle instead

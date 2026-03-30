@@ -354,6 +354,7 @@ Parallel cPAR note:
   - or `./scripts/operator_check.sh`
   - staged `run_app` cutover entrypoints live in the cloud-native runbook:
     - `make cloud-run-app-bundle`
+    - `make cloud-run-app-steady-state-bundle`
     - `CUTOVER_ACTION=plan|apply|verify ... make cloud-run-app-cutover`
   - topology-aware live wrapper:
     - `OPERATOR_API_TOKEN=... make cloud-topology-check`
@@ -371,6 +372,9 @@ Parallel cPAR note:
   - expected-refusal dispatch variant for cloud-serve when `.core_due.due=true`:
     - `APP_BASE_URL=https://<frontend-url> CONTROL_BASE_URL=https://<control-url> OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 RUN_REFRESH_EXPECTED_OUTCOME=core_due_refusal make operator-check`
   - choose the URLs that match `terraform output endpoint_mode` / `terraform output edge_enabled` / `terraform output public_origins`
+  - after any targeted image apply, do not trust older cutover bundles for later `soak` / `no-edge` plan or apply:
+    - recapture from the current topology first
+    - `cloud-run-app-cutover` now rejects stale bundles unless `ALLOW_STALE_ROLLOUT_BUNDLE=1` is set explicitly
   - if `endpoint_mode=run_app` and `edge_enabled=true`, validate both:
     - the `run.app` URLs from `public_origins`
     - the still-live custom-domain rollback path on `app.ceiora.com` / `control.ceiora.com`

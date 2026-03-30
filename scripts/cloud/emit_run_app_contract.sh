@@ -63,16 +63,58 @@ print(value)
 PY
 }
 
+applied_service_image_ref() {
+  local input_path="$1"
+  local service_key="$2"
+  python3 - "${input_path}" "${service_key}" <<'PY'
+import json
+import sys
+
+outputs = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+service_key = sys.argv[2]
+
+applied = outputs.get("service_image_refs_applied", {}).get("value")
+configured = outputs["service_image_refs"]["value"]
+if applied and applied.get(service_key):
+    print(applied[service_key])
+else:
+    print(configured[service_key])
+PY
+}
+
+assert_control_surfaces_match() {
+  local input_path="$1"
+  python3 - "${input_path}" <<'PY'
+import json
+import sys
+
+outputs = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+control_surfaces = outputs.get("control_surface_image_refs_applied", {}).get("value")
+if not control_surfaces:
+    raise SystemExit(0)
+service_image = control_surfaces["service"]
+job_image = control_surfaces["serve_refresh_job"]
+if service_image != job_image:
+    raise SystemExit(
+        "Live control service image and serve-refresh job image differ. "
+        "Reconcile them before emitting a shared control_image_ref contract.\n"
+        f"control service: {service_image}\n"
+        f"serve-refresh job: {job_image}"
+    )
+PY
+}
+
 tmp_output="$(mktemp)"
 trap 'rm -f "${tmp_output}" "${tmp_output}.err"' EXIT
 load_terraform_outputs "${tmp_output}"
+assert_control_surfaces_match "${tmp_output}"
 
 frontend_public_origin="$(json_value "${tmp_output}" "service_urls.value.frontend")"
 frontend_backend_api_origin="$(json_value "${tmp_output}" "service_urls.value.serve")"
 frontend_backend_control_origin="$(json_value "${tmp_output}" "service_urls.value.control")"
-frontend_image_ref="$(json_value "${tmp_output}" "service_image_refs.value.frontend")"
-serve_image_ref="$(json_value "${tmp_output}" "service_image_refs.value.serve")"
-control_image_ref="$(json_value "${tmp_output}" "service_image_refs.value.control")"
+frontend_image_ref="$(applied_service_image_ref "${tmp_output}" "frontend")"
+serve_image_ref="$(applied_service_image_ref "${tmp_output}" "serve")"
+control_image_ref="$(applied_service_image_ref "${tmp_output}" "control")"
 current_endpoint_mode="$(json_value "${tmp_output}" "endpoint_mode.value")"
 current_edge_enabled="$(python3 - "${tmp_output}" <<'PY'
 import json

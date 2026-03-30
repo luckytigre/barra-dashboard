@@ -98,10 +98,14 @@ Build/deploy operator rule:
 - both helper scripts can read a saved `terraform output -json` bundle through `PROD_TERRAFORM_OUTPUT_JSON=...` when the local prod root is not backend-initialized
 - `make cloud-topology-check` reuses `scripts/operator_check.sh`; during `run_app` soak it runs the local pytest gate once, then reuses the live-only path for the custom-domain rollback check
 - `make cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/`
+- `make cloud-run-app-steady-state-bundle` captures the current `run_app` topology as a post-cutover pin bundle and emits current-image `no-edge` / rollback tfvars
 - `CUTOVER_ACTION=bundle|build-frontend|plan|apply|verify make cloud-run-app-cutover` drives the staged `run_app` rollout from that bundle
 - the bundle is a different operator artifact from `PROD_TERRAFORM_OUTPUT_JSON=...`:
   - `PROD_TERRAFORM_OUTPUT_JSON` is a read-only helper input
   - the rollout bundle is the staged cutover source that holds rollback and run_app base tfvars files
+- targeted image applies invalidate older rollout bundles for later soak/no-edge plan/apply:
+  - recapture a fresh bundle from the current live topology before reusing the helpers
+  - `CUTOVER_ACTION=plan|apply` now fail closed if the bundle topology/image pins do not match the live Terraform outputs, unless `ALLOW_STALE_ROLLOUT_BUNDLE=1` is set explicitly
 - `run_app` plan/apply phases fail closed until a run.app-built frontend image ref is available:
   - set `RUN_APP_FRONTEND_IMAGE_REF=...`
   - or run `CUTOVER_ACTION=build-frontend ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
@@ -128,9 +132,13 @@ Important frontend rule:
   - `public_origins`
   - `frontend_build_contract`
   - `service_image_refs`
+  - `service_image_refs_applied`
+  - `control_surface_image_refs_applied`
   - `load_balancer_ip`
   - `load_balancer_dns_records`
   - `load_balancer_host_routing`
+- `service_image_refs` are the configured Terraform pins; `service_image_refs_applied` are the live refs recorded in Terraform state for the Cloud Run services
+- post-cutover operator capture/contract helpers now prefer the applied refs so a targeted control/job image hotfix does not silently get overwritten by a stale bundle
 - the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - secret access bindings in the prod root should therefore exist only for secret-consuming backend services and jobs, not for the frontend service account
 - for final-domain rollout, the default stays `https://api.ceiora.com`

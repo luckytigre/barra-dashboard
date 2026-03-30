@@ -16,6 +16,8 @@ ALLOW_EDGE_DISABLE="${ALLOW_EDGE_DISABLE:-0}"
 AUTO_APPROVE="${AUTO_APPROVE:-0}"
 VERIFY_REQUEST_BILLING="${VERIFY_REQUEST_BILLING:-0}"
 RUN_APP_FRONTEND_IMAGE_REF="${RUN_APP_FRONTEND_IMAGE_REF:-}"
+ALLOW_STALE_ROLLOUT_BUNDLE="${ALLOW_STALE_ROLLOUT_BUNDLE:-0}"
+LIVE_TERRAFORM_OUTPUT_JSON="${LIVE_TERRAFORM_OUTPUT_JSON:-}"
 
 CAPTURE_ROLLOUT_BUNDLE_SCRIPT="${CAPTURE_ROLLOUT_BUNDLE_SCRIPT:-./scripts/cloud/capture_run_app_rollout_bundle.sh}"
 CLOUD_IMAGES_PUSH_SCRIPT="${CLOUD_IMAGES_PUSH_SCRIPT:-./scripts/cloud/build_and_push_images.sh}"
@@ -40,8 +42,10 @@ Environment:
   RUN_APP_FRONTEND_IMAGE_REF Required for run_app plan/apply unless the bundle already contains run_app_frontend_image_ref.txt
   ALLOW_TERRAFORM_APPLY      Set to 1 for CUTOVER_ACTION=apply
   ALLOW_EDGE_DISABLE         Set to 1 for CUTOVER_ACTION=apply with CUTOVER_PHASE=no-edge
+  ALLOW_STALE_ROLLOUT_BUNDLE Set to 1 to bypass the live-vs-bundle freshness guard for soak/no-edge plan/apply
   AUTO_APPROVE               Set to 1 to append -auto-approve on terraform apply
   VERIFY_REQUEST_BILLING     Set to 1 to run the request-billing check after verify
+  LIVE_TERRAFORM_OUTPUT_JSON Optional saved terraform output -json used only for the bundle freshness guard instead of live terraform output
 
 Actions:
   bundle         Capture a new rollout bundle from the current prod Terraform outputs
@@ -72,6 +76,10 @@ ensure_bundle_dir() {
     printf 'ROLLOUT_BUNDLE_DIR is missing terraform-output.json: %s\n' "${ROLLOUT_BUNDLE_DIR}" >&2
     exit 1
   fi
+  if [[ ! -f "${ROLLOUT_BUNDLE_DIR}/manifest.json" ]]; then
+    printf 'ROLLOUT_BUNDLE_DIR is missing manifest.json: %s\n' "${ROLLOUT_BUNDLE_DIR}" >&2
+    exit 1
+  fi
 }
 
 ensure_terraform_init() {
@@ -89,6 +97,26 @@ ensure_terraform_init() {
     init_cmd+=("-backend-config=${BACKEND_HCL_PATH}")
   fi
   "${init_cmd[@]}"
+}
+
+load_live_terraform_outputs() {
+  local destination="$1"
+
+  if [[ -n "${LIVE_TERRAFORM_OUTPUT_JSON}" ]]; then
+    if [[ ! -f "${LIVE_TERRAFORM_OUTPUT_JSON}" ]]; then
+      printf 'LIVE_TERRAFORM_OUTPUT_JSON does not exist: %s\n' "${LIVE_TERRAFORM_OUTPUT_JSON}" >&2
+      exit 1
+    fi
+    cp "${LIVE_TERRAFORM_OUTPUT_JSON}" "${destination}"
+    return 0
+  fi
+
+  ensure_terraform_init
+  if ! "${TERRAFORM_BIN}" -chdir="${TF_PROD_DIR}" output -json >"${destination}" 2>"${destination}.err"; then
+    cat "${destination}.err" >&2
+    printf '\nUnable to read live terraform outputs for bundle freshness verification.\n' >&2
+    exit 1
+  fi
 }
 
 json_value() {
@@ -169,6 +197,73 @@ render_effective_var_file() {
   printf '%s\n' "${effective_var_file}"
 }
 
+verify_bundle_freshness() {
+  if [[ "${CUTOVER_PHASE}" == "rollback" || "${ALLOW_STALE_ROLLOUT_BUNDLE}" == "1" ]]; then
+    return 0
+  fi
+
+  local live_output_file
+  live_output_file="$(mktemp)"
+  load_live_terraform_outputs "${live_output_file}"
+
+  python3 - "${ROLLOUT_BUNDLE_DIR}/manifest.json" "${live_output_file}" "${CUTOVER_PHASE}" <<'PY'
+import json
+import sys
+
+manifest = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+live_outputs = json.load(open(sys.argv[2], "r", encoding="utf-8"))
+phase = sys.argv[3]
+
+live_control_surfaces = live_outputs.get("control_surface_image_refs_applied", {}).get("value")
+if live_control_surfaces and live_control_surfaces["service"] != live_control_surfaces["serve_refresh_job"]:
+    raise SystemExit(
+        "Live control service image and serve-refresh job image differ. "
+        "Reconcile them before using a shared control-image rollout bundle.\n"
+        f"control service: {live_control_surfaces['service']}\n"
+        f"serve-refresh job: {live_control_surfaces['serve_refresh_job']}"
+    )
+
+live_images = live_outputs.get("service_image_refs_applied", {}).get("value") or live_outputs["service_image_refs"]["value"]
+live_topology = {
+    "endpoint_mode": live_outputs["endpoint_mode"]["value"],
+    "edge_enabled": bool(live_outputs["edge_enabled"]["value"]),
+    "public_origins": live_outputs["public_origins"]["value"],
+}
+bundle_topology = manifest["source_topology"]
+bundle_images = manifest["service_image_refs"]
+
+mismatches = []
+if phase in {"soak", "no-edge"}:
+    if bundle_topology["endpoint_mode"] != live_topology["endpoint_mode"]:
+        mismatches.append(
+            f"endpoint_mode bundle={bundle_topology['endpoint_mode']} live={live_topology['endpoint_mode']}"
+        )
+    if bool(bundle_topology["edge_enabled"]) != live_topology["edge_enabled"]:
+        mismatches.append(
+            f"edge_enabled bundle={str(bundle_topology['edge_enabled']).lower()} live={str(live_topology['edge_enabled']).lower()}"
+        )
+    if bundle_topology["public_origins"] != live_topology["public_origins"]:
+        mismatches.append(
+            "public_origins bundle="
+            + json.dumps(bundle_topology["public_origins"], sort_keys=True)
+            + " live="
+            + json.dumps(live_topology["public_origins"], sort_keys=True)
+        )
+for key in ("frontend", "serve", "control"):
+    if bundle_images[key] != live_images[key]:
+        mismatches.append(f"{key}_image bundle={bundle_images[key]} live={live_images[key]}")
+
+if mismatches:
+    raise SystemExit(
+        f"Refusing {phase}: the rollout bundle is stale for the current live topology.\n"
+        + "\n".join(f"- {entry}" for entry in mismatches)
+        + "\nRecapture a fresh bundle from the current topology before continuing, "
+          "or set ALLOW_STALE_ROLLOUT_BUNDLE=1 only for an intentional replay."
+    )
+PY
+  rm -f "${live_output_file}" "${live_output_file}.err"
+}
+
 run_terraform_phase() {
   local action="$1"
   local base_var_file
@@ -181,6 +276,7 @@ run_terraform_phase() {
     printf 'Missing bundle phase contract: %s\n' "${base_var_file}" >&2
     exit 1
   fi
+  verify_bundle_freshness
   effective_var_file="$(render_effective_var_file "${base_var_file}")"
 
   if [[ "${action}" == "apply" ]]; then
