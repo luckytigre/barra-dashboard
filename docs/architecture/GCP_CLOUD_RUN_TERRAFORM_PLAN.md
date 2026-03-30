@@ -258,8 +258,9 @@ Required:
 - `CLOUD_RUN_REGION=us-east4`
 - `SERVE_REFRESH_CLOUD_RUN_JOB_NAME=ceiora-prod-serve-refresh`
 
-Optional compatibility only:
+Local single-backend compatibility only:
 - `REFRESH_API_TOKEN`
+  - not a public cloud control-plane credential
 
 ### Terraform operator credentials
 
@@ -276,8 +277,10 @@ Rule:
 Required:
 - `BACKEND_API_ORIGIN=https://api.ceiora.com`
 - `BACKEND_CONTROL_ORIGIN=https://control.ceiora.com`
-- `OPERATOR_API_TOKEN`
-- `EDITOR_API_TOKEN`
+
+Rule:
+- the frontend service must not mount `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`
+- privileged frontend `/api/*` routes forward caller-supplied auth headers instead
 
 ### Local app
 

@@ -8,7 +8,6 @@ BACKEND_PYTHON="${BACKEND_PYTHON:-${ROOT_DIR}/backend/.venv/bin/python}"
 CONTROL_BASE_URL="${CONTROL_BASE_URL:-}"
 OPERATOR_CHECK_REQUIRE_LIVE="${OPERATOR_CHECK_REQUIRE_LIVE:-0}"
 INVALID_OPERATOR_TOKEN="${INVALID_OPERATOR_TOKEN:-not-the-real-token}"
-INVALID_REFRESH_TOKEN="${INVALID_REFRESH_TOKEN:-legacy-refresh-token}"
 RUN_REFRESH_DISPATCH="${RUN_REFRESH_DISPATCH:-0}"
 RUN_REFRESH_DISPATCH_TARGET="${RUN_REFRESH_DISPATCH_TARGET:-proxy}"
 REFRESH_POLL_SECONDS="${REFRESH_POLL_SECONDS:-5}"
@@ -138,22 +137,22 @@ expect_status "401" "$(
 )" "direct refresh status with invalid token" /tmp/ceiora_control_refresh_status_bad_token.json
 expect_status "401" "$(
   curl_status /tmp/ceiora_operator_status_refresh_token.json \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${APP_BASE_URL%/}/api/operator/status"
 )" "proxied operator status with legacy refresh token" /tmp/ceiora_operator_status_refresh_token.json
 expect_status "401" "$(
   curl_status /tmp/ceiora_refresh_status_refresh_token.json \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${APP_BASE_URL%/}/api/refresh/status"
 )" "proxied refresh status with legacy refresh token" /tmp/ceiora_refresh_status_refresh_token.json
 expect_status "401" "$(
   curl_status /tmp/ceiora_control_operator_status_refresh_token.json \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${CONTROL_BASE_URL%/}/api/operator/status"
 )" "direct operator status with legacy refresh token" /tmp/ceiora_control_operator_status_refresh_token.json
 expect_status "401" "$(
   curl_status /tmp/ceiora_control_refresh_status_refresh_token.json \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${CONTROL_BASE_URL%/}/api/refresh/status"
 )" "direct refresh status with legacy refresh token" /tmp/ceiora_control_refresh_status_refresh_token.json
 expect_status "401" "$(
@@ -181,13 +180,13 @@ expect_status "401" "$(
 expect_status "401" "$(
   curl_status /tmp/ceiora_refresh_dispatch_refresh_token.json \
     -X POST \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${APP_BASE_URL%/}/api/refresh?profile=serve-refresh"
 )" "proxied refresh dispatch with legacy refresh token" /tmp/ceiora_refresh_dispatch_refresh_token.json
 expect_status "401" "$(
   curl_status /tmp/ceiora_control_refresh_dispatch_refresh_token.json \
     -X POST \
-    -H "X-Refresh-Token: ${INVALID_REFRESH_TOKEN}" \
+    -H "X-Refresh-Token: ${OPERATOR_API_TOKEN}" \
     "${CONTROL_BASE_URL%/}/api/refresh?profile=serve-refresh"
 )" "direct refresh dispatch with legacy refresh token" /tmp/ceiora_control_refresh_dispatch_refresh_token.json
 

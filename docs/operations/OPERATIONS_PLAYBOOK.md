@@ -46,7 +46,7 @@
 - In `cloud-serve` mode, set non-empty auth tokens before exposing the app online:
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
-  - `REFRESH_API_TOKEN` remains a local-only compatibility token for the single-backend refresh route; do not rely on it for public cloud control-plane access
+- `REFRESH_API_TOKEN` remains a local-only compatibility token for the single-backend refresh route; do not rely on it for public cloud control-plane access
 - Prefer manual or low-frequency refreshes (`serve-refresh` most days).
 - Keep daily file backups of `data.db` and `cache.db`.
 - Production backend command:
