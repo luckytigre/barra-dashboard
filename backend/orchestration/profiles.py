@@ -210,12 +210,17 @@ def _apply_neon_authority_stage_selection(
     selected: list[str],
     from_stage: str | None,
     to_stage: str | None,
+    skip_source_sync: bool,
 ) -> list[str]:
     if from_stage or to_stage:
         return selected
     wanted = set(selected)
     rebuild_stages = {"raw_history", "feature_build", "estu_audit", "factor_returns", "risk_model"}
-    if profile_source_sync_required(profile, cfg=cfg) and wanted.intersection(rebuild_stages | {"serving_refresh"}):
+    if (
+        not skip_source_sync
+        and profile_source_sync_required(profile, cfg=cfg)
+        and wanted.intersection(rebuild_stages | {"serving_refresh"})
+    ):
         wanted.add("source_sync")
     if profile_neon_readiness_required(profile, cfg=cfg) and wanted.intersection(rebuild_stages):
         wanted.add("neon_readiness")
@@ -249,6 +254,7 @@ def planned_stages_for_profile(
     from_stage: str | None = None,
     to_stage: str | None = None,
     force_core: bool = False,
+    skip_source_sync: bool = False,
 ) -> tuple[str, dict[str, Any], list[str]]:
     profile_key = resolve_profile_name(profile)
     if profile_key not in PROFILE_CONFIG:
@@ -256,6 +262,15 @@ def planned_stages_for_profile(
             f"Unsupported profile '{profile}'. Expected one of: {', '.join(sorted(PROFILE_CONFIG))}"
         )
     cfg = PROFILE_CONFIG[profile_key]
+    if skip_source_sync:
+        if from_stage or to_stage:
+            raise ValueError("--skip-source-sync cannot be combined with explicit --from-stage/--to-stage.")
+        if not profile_source_sync_required(profile_key, cfg=cfg):
+            raise ValueError("--skip-source-sync is only valid for Neon-authoritative profiles that require source_sync.")
+        if bool(cfg.get("enable_ingest")):
+            raise ValueError("--skip-source-sync is not valid for ingest-capable profiles.")
+        if not profile_neon_readiness_required(profile_key, cfg=cfg):
+            raise ValueError("--skip-source-sync requires a Neon-authoritative core rebuild profile.")
     selected = _default_stage_selection(cfg, from_stage, to_stage)
     selected = _apply_neon_authority_stage_selection(
         profile=profile_key,
@@ -263,6 +278,7 @@ def planned_stages_for_profile(
         selected=selected,
         from_stage=from_stage,
         to_stage=to_stage,
+        skip_source_sync=bool(skip_source_sync),
     )
     selected = _apply_force_core_stage_selection(
         selected=selected,

@@ -396,6 +396,7 @@ def run_model_pipeline(
     from_stage: str | None = None,
     to_stage: str | None = None,
     force_core: bool = False,
+    skip_source_sync: bool = False,
     refresh_scope: str | None = None,
     data_db: Path | None = None,
     cache_db: Path | None = None,
@@ -408,6 +409,7 @@ def run_model_pipeline(
         from_stage=from_stage,
         to_stage=to_stage,
         force_core=bool(force_core),
+        skip_source_sync=bool(skip_source_sync),
     )
     prefer_local_source_archive = runtime_support.profile_prefers_local_source_archive(profile_key)
     effective_run_id = (
@@ -582,6 +584,14 @@ def _parse_args() -> argparse.Namespace:
         help="Force core factor-return/covariance/specific-risk recompute regardless of profile policy.",
     )
     parser.add_argument(
+        "--skip-source-sync",
+        action="store_true",
+        help=(
+            "Skip the auto-inserted source_sync stage for Neon-authoritative core rebuild profiles. "
+            "Use only when Neon source state is already current and the operator host has no local source archive."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"],
@@ -605,5 +615,6 @@ if __name__ == "__main__":
             from_stage=args.from_stage,
             to_stage=args.to_stage,
             force_core=bool(args.force_core),
+            skip_source_sync=bool(args.skip_source_sync),
         )
     )

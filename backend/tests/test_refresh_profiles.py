@@ -532,6 +532,31 @@ def test_planned_stages_insert_source_sync_and_neon_readiness_for_neon_core_prof
     assert selected == ["source_sync", "neon_readiness", "factor_returns", "risk_model", "serving_refresh"]
 
 
+def test_planned_stages_allow_explicit_skip_source_sync_for_neon_core_profiles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTHORITATIVE_REBUILDS", True)
+    monkeypatch.setattr(run_model_pipeline.config, "DATA_BACKEND", "neon")
+
+    _, _, selected = run_model_pipeline.planned_stages_for_profile(
+        profile="core-weekly",
+        skip_source_sync=True,
+    )
+
+    assert selected == ["neon_readiness", "factor_returns", "risk_model", "serving_refresh"]
+
+
+def test_skip_source_sync_rejects_ingest_capable_profiles(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTHORITATIVE_REBUILDS", True)
+    monkeypatch.setattr(run_model_pipeline.config, "DATA_BACKEND", "neon")
+
+    with pytest.raises(ValueError, match="ingest-capable profiles"):
+        run_model_pipeline.planned_stages_for_profile(
+            profile="source-daily-plus-core-if-due",
+            skip_source_sync=True,
+        )
+
+
 def test_planned_stages_insert_source_sync_for_source_daily_when_neon_is_primary(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(run_model_pipeline.config, "NEON_AUTHORITATIVE_REBUILDS", False)
     monkeypatch.setattr(run_model_pipeline.config, "DATA_BACKEND", "neon")
