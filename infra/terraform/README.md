@@ -99,6 +99,7 @@ Build/deploy operator rule:
 - `make cloud-topology-check` reuses `scripts/operator_check.sh`; during `run_app` soak it runs the local pytest gate once, then reuses the live-only path for the custom-domain rollback check
 - `make cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/`
 - `make cloud-run-app-steady-state-bundle` captures the current `run_app` topology as a post-cutover pin bundle and emits current-image `no-edge` / rollback tfvars
+  - use `run_app_current_topology.tfvars` from that bundle as the pinned contract for future config-only Terraform changes in no-edge steady state
 - `CUTOVER_ACTION=bundle|build-frontend|plan|apply|verify make cloud-run-app-cutover` drives the staged `run_app` rollout from that bundle
 - the bundle is a different operator artifact from `PROD_TERRAFORM_OUTPUT_JSON=...`:
   - `PROD_TERRAFORM_OUTPUT_JSON` is a read-only helper input

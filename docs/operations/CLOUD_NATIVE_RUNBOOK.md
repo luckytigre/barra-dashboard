@@ -378,6 +378,7 @@ Bundle contract:
 - `cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/` by default
 - `cloud-run-app-steady-state-bundle` captures the current `run_app` topology as a post-cutover pin bundle for config-only changes and helper refresh after targeted image applies
   - that steady-state bundle also emits current-image `run_app_no_edge.base.tfvars` and `rollback_custom_domains.tfvars` so a verified soak can still proceed to no-edge or rollback without replaying stale image refs
+  - for future config-only Terraform work in no-edge steady state, start by recapturing this bundle and use `run_app_current_topology.tfvars` as the pinned image/origin contract
 - that bundle is not the same thing as the generic `PROD_TERRAFORM_OUTPUT_JSON=...` input used by the read-only helper scripts
 - the bundle includes:
   - `terraform-output.json`
