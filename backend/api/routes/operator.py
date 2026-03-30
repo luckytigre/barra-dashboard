@@ -15,14 +15,12 @@ build_operator_status_payload = operator_status_service.build_operator_status_pa
 @router.get("/operator/status")
 def get_operator_status(
     x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
-    x_refresh_token: str | None = Header(default=None, alias="X-Refresh-Token"),
     authorization: str | None = Header(default=None),
 ):
     if config.cloud_mode():
         require_role(
             "operator",
             x_operator_token=x_operator_token,
-            x_refresh_token=x_refresh_token,
             authorization=authorization,
         )
     return build_operator_status_payload()

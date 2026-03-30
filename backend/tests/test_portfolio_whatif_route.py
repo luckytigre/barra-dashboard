@@ -139,6 +139,7 @@ def test_portfolio_whatif_preview_requires_operator_token_in_cloud(monkeypatch) 
     payload = {"scenario_rows": [{"account_id": "acct_a", "ticker": "AAA", "quantity": 20}]}
 
     assert client.post("/api/portfolio/whatif", json=payload).status_code == 401
+    assert client.post("/api/portfolio/whatif", json=payload, headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     assert client.post("/api/portfolio/whatif", json=payload, headers={"X-Operator-Token": "op-secret"}).status_code == 200
 
 
@@ -170,5 +171,6 @@ def test_portfolio_whatif_apply_requires_editor_or_operator_token_in_cloud(monke
     payload = {"scenario_rows": [{"account_id": "acct_a", "ticker": "AAA", "quantity": 20}]}
 
     assert client.post("/api/portfolio/whatif/apply", json=payload).status_code == 401
+    assert client.post("/api/portfolio/whatif/apply", json=payload, headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     assert client.post("/api/portfolio/whatif/apply", json=payload, headers={"X-Editor-Token": "edit-secret"}).status_code == 200
     assert client.post("/api/portfolio/whatif/apply", json=payload, headers={"X-Operator-Token": "op-secret"}).status_code == 200

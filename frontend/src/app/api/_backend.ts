@@ -11,7 +11,7 @@ export function controlBackendOrigin(): string {
   );
 }
 
-const AUTH_HEADER_NAMES = ["authorization", "x-operator-token", "x-editor-token", "x-refresh-token"] as const;
+const AUTH_HEADER_NAMES = ["authorization", "x-operator-token", "x-editor-token"] as const;
 
 export function forwardedAuthHeaders(req: NextRequest, extra: HeadersInit = {}): Headers {
   const headers = new Headers(extra);

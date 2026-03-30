@@ -62,14 +62,6 @@ locals {
   }
 
   secret_accessors = {
-    frontend_operator = {
-      secret_key          = "operator_api_token"
-      service_account_key = "frontend"
-    }
-    frontend_editor = {
-      secret_key          = "editor_api_token"
-      service_account_key = "frontend"
-    }
     serve_neon = {
       secret_key          = "neon_database_url"
       service_account_key = "serve"

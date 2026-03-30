@@ -52,8 +52,8 @@ def test_cloud_refresh_requires_operator_token(monkeypatch) -> None:
     )
     client = TestClient(app)
     assert client.post("/api/refresh").status_code == 401
+    assert client.post("/api/refresh", headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     assert client.post("/api/refresh", headers={"X-Operator-Token": "op-secret"}).status_code == 202
-    assert client.post("/api/refresh", headers={"X-Refresh-Token": "op-secret"}).status_code == 202
 
 
 def test_cloud_refresh_status_accepts_operator_header(monkeypatch) -> None:
@@ -62,9 +62,13 @@ def test_cloud_refresh_status_accepts_operator_header(monkeypatch) -> None:
     monkeypatch.setattr(refresh_routes, "get_refresh_status", lambda: {"status": "idle"})
 
     client = TestClient(app)
+    assert client.get("/api/refresh/status", headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     res = client.get("/api/refresh/status", headers={"X-Operator-Token": "op-secret"})
     assert res.status_code == 200
     assert res.json()["refresh"]["status"] == "idle"
+    bearer_res = client.get("/api/refresh/status", headers={"Authorization": "Bearer op-secret"})
+    assert bearer_res.status_code == 200
+    assert bearer_res.json()["refresh"]["status"] == "idle"
 
 
 def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> None:
@@ -88,6 +92,7 @@ def test_cloud_holdings_write_requires_editor_or_operator_token(monkeypatch) -> 
     client = TestClient(app)
     payload = {"account_id": "main", "ric": "AAPL.OQ", "quantity": 10, "trigger_refresh": False}
     assert client.post("/api/holdings/position", json=payload).status_code == 401
+    assert client.post("/api/holdings/position", json=payload, headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     assert client.post("/api/holdings/position", json=payload, headers={"X-Editor-Token": "edit-secret"}).status_code == 200
     assert client.post("/api/holdings/position", json=payload, headers={"X-Operator-Token": "op-secret"}).status_code == 200
 
@@ -122,7 +127,9 @@ def test_cloud_operator_status_requires_operator_token(monkeypatch) -> None:
 
     client = TestClient(app)
     assert client.get("/api/operator/status").status_code == 401
+    assert client.get("/api/operator/status", headers={"X-Refresh-Token": "op-secret"}).status_code == 401
     assert client.get("/api/operator/status", headers={"X-Operator-Token": "op-secret"}).status_code == 200
+    assert client.get("/api/operator/status", headers={"Authorization": "Bearer op-secret"}).status_code == 200
 
 
 def test_cloud_runtime_role_blocks_ingest_stage(monkeypatch) -> None:
@@ -165,7 +172,7 @@ def test_cloud_runtime_role_allows_only_serve_refresh(monkeypatch) -> None:
     monkeypatch.setattr(refresh_manager.config, "OPERATOR_API_TOKEN", "op-secret")
 
     with TestClient(app) as client:
-        res = client.post("/api/refresh?profile=core-weekly", headers={"X-Refresh-Token": "op-secret"})
+        res = client.post("/api/refresh?profile=core-weekly", headers={"X-Operator-Token": "op-secret"})
 
     assert res.status_code == 400
     assert "Allowed profiles: serve-refresh" in res.json()["message"]
@@ -189,7 +196,7 @@ def test_cloud_refresh_defaults_to_serve_refresh_when_profile_omitted(monkeypatc
     )
 
     with TestClient(app) as client:
-        res = client.post("/api/refresh", headers={"X-Refresh-Token": "op-secret"})
+        res = client.post("/api/refresh", headers={"X-Operator-Token": "op-secret"})
 
     assert res.status_code == 202
     body = res.json()

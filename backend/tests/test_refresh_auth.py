@@ -41,9 +41,26 @@ def test_refresh_status_requires_operator_token_in_cloud_mode(monkeypatch) -> No
 
     client = TestClient(app)
     assert client.get("/api/refresh/status").status_code == 401
-    res = client.get("/api/refresh/status", headers={"X-Refresh-Token": "secret-token"})
+    assert client.get("/api/refresh/status", headers={"X-Refresh-Token": "secret-token"}).status_code == 401
+    res = client.get("/api/refresh/status", headers={"X-Operator-Token": "secret-token"})
     assert res.status_code == 200
     assert res.json()["refresh"]["status"] == "idle"
+
+
+def test_refresh_post_rejects_refresh_token_in_cloud_mode(monkeypatch) -> None:
+    monkeypatch.setattr(refresh_routes.config, "APP_RUNTIME_ROLE", "cloud-serve")
+    monkeypatch.setattr(refresh_routes.config, "OPERATOR_API_TOKEN", "secret-token")
+    monkeypatch.setattr(
+        refresh_routes,
+        "start_refresh",
+        lambda **_kwargs: (True, {"status": "running"}),
+    )
+
+    client = TestClient(app)
+    assert client.post("/api/refresh", headers={"X-Refresh-Token": "secret-token"}).status_code == 401
+    res = client.post("/api/refresh", headers={"X-Operator-Token": "secret-token"})
+    assert res.status_code == 202
+    assert res.json()["status"] == "accepted"
 
 
 def test_refresh_rejects_invalid_force_core_stage_window(monkeypatch) -> None:

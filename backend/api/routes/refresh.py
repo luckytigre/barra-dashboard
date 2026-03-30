@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from fastapi import Header
 from fastapi import HTTPException
 from fastapi import Query
+from fastapi import Request
 from fastapi import status
 from fastapi.responses import JSONResponse
 
@@ -43,6 +44,7 @@ def _refresh_authorized(x_refresh_token: str | None, authorization: str | None) 
 
 @router.post("/refresh", status_code=202)
 async def refresh(
+    request: Request,
     force_risk_recompute: bool = Query(False),
     force_core: bool = Query(False),
     profile: str | None = Query(None),
@@ -51,17 +53,15 @@ async def refresh(
     from_stage: str | None = Query(None),
     to_stage: str | None = Query(None),
     x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
-    x_refresh_token: str | None = Header(default=None, alias="X-Refresh-Token"),
     authorization: str | None = Header(default=None),
 ):
     if config.cloud_mode():
         require_role(
             "operator",
             x_operator_token=x_operator_token,
-            x_refresh_token=x_refresh_token,
             authorization=authorization,
         )
-    elif not _refresh_authorized(x_refresh_token, authorization):
+    elif not _refresh_authorized(request.headers.get("X-Refresh-Token"), authorization):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     try:
         started, state = start_refresh(
@@ -108,18 +108,17 @@ async def refresh(
 
 @router.get("/refresh/status")
 async def refresh_status(
+    request: Request,
     x_operator_token: str | None = Header(default=None, alias="X-Operator-Token"),
-    x_refresh_token: str | None = Header(default=None, alias="X-Refresh-Token"),
     authorization: str | None = Header(default=None),
 ):
     if config.cloud_mode():
         require_role(
             "operator",
             x_operator_token=x_operator_token,
-            x_refresh_token=x_refresh_token,
             authorization=authorization,
         )
-    elif not _refresh_authorized(x_refresh_token, authorization):
+    elif not _refresh_authorized(request.headers.get("X-Refresh-Token"), authorization):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     return {
         "status": "ok",

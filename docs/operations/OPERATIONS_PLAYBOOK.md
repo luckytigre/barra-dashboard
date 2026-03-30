@@ -46,7 +46,7 @@
 - In `cloud-serve` mode, set non-empty auth tokens before exposing the app online:
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
-  - `REFRESH_API_TOKEN` only as a legacy fallback if you intentionally want the refresh proxy to reuse it
+  - `REFRESH_API_TOKEN` remains a local-only compatibility token for the single-backend refresh route; do not rely on it for public cloud control-plane access
 - Prefer manual or low-frequency refreshes (`serve-refresh` most days).
 - Keep daily file backups of `data.db` and `cache.db`.
 - Production backend command:
@@ -349,9 +349,19 @@ Parallel cPAR note:
   - `make operator-check`
   - or `./scripts/operator_check.sh`
   - live cloud check:
-    - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... make operator-check`
+    - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 make operator-check`
   - live cloud dispatch + reconciliation:
-    - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... RUN_REFRESH_DISPATCH=1 make operator-check`
+    - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 make operator-check`
+  - direct-control dispatch variant:
+    - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 RUN_REFRESH_DISPATCH_TARGET=direct make operator-check`
+  - live cloud validation now checks both frontend-proxied and direct control routes:
+    - anonymous `/api/operator/status` and `/api/refresh/status` must return `401`
+    - legacy `X-Refresh-Token` and invalid-token `/api/operator/status`, `/api/refresh/status`, and `POST /api/refresh` must return `401`
+    - tokened `/api/operator/status`, `/api/refresh/status`, `/api/health/diagnostics`, and gated `/api/data/diagnostics?include_paths=true` must return `200`
+    - `Authorization: Bearer <OPERATOR_API_TOKEN>` is also validated on the status routes
+    - real `POST /api/refresh` dispatch is exercised for the selected target only:
+      - default `RUN_REFRESH_DISPATCH_TARGET=proxy`
+      - set `RUN_REFRESH_DISPATCH_TARGET=direct` to positively exercise the direct control dispatch path
   - If Neon auto-sync is disabled, this check degrades gracefully instead of failing on missing parity artifacts.
 - Verify latest refresh metadata:
   - `curl -s "http://localhost:8000/api/data/diagnostics" | jq '.cache_outputs[] | select(.key==\"refresh_meta\")'`

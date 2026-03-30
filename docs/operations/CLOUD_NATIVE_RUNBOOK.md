@@ -127,8 +127,14 @@ Required for split deployment:
   - control app origin
   - if omitted, frontend operator/control proxies fall back to `BACKEND_API_ORIGIN`
   - that fallback is local/single-origin compatibility behavior, not the intended cloud steady state
-- `OPERATOR_API_TOKEN`
-- `EDITOR_API_TOKEN`
+
+Auth contract:
+- the frontend service must not mount `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`
+- privileged frontend `/api/*` routes forward caller-supplied auth headers instead:
+  - `X-Operator-Token`
+  - `X-Editor-Token`
+  - `Authorization: Bearer <token>`
+- in cloud mode, `X-Refresh-Token` is not a public control-plane credential
 
 Cloud steady-state values:
 - `BACKEND_API_ORIGIN=https://api.ceiora.com`
@@ -244,7 +250,8 @@ Build-time contract:
 
 Runtime contract:
 - all three images honor Cloud Run's injected `PORT`
-- `BACKEND_CONTROL_ORIGIN`, `OPERATOR_API_TOKEN`, and `EDITOR_API_TOKEN` stay runtime env/secret inputs
+- `BACKEND_CONTROL_ORIGIN` stays a frontend runtime env input
+- `OPERATOR_API_TOKEN` and `EDITOR_API_TOKEN` stay runtime secret inputs for the backend services and jobs that actually consume them
 - runtime secrets are not baked into the images
 
 Current Cloud Run Job prep:
@@ -316,7 +323,16 @@ For the request-based billing rollout specifically:
 - require a clean `terraform plan` after the rollout so live state and Terraform state agree
 - use `make smoke-check` for repo-side contract checks
 - use `make operator-check` with `APP_BASE_URL`, `CONTROL_BASE_URL`, and `OPERATOR_API_TOKEN` set for live control-plane validation
+- that check now validates both the frontend-proxied and direct control paths:
+  - anonymous `/api/operator/status` and `/api/refresh/status` must return `401`
+  - legacy `X-Refresh-Token` and invalid-token `/api/operator/status`, `/api/refresh/status`, and `POST /api/refresh` must return `401`
+  - tokened `/api/operator/status`, `/api/refresh/status`, `/api/health/diagnostics`, and gated `/api/data/diagnostics?include_paths=true` must return `200`
+  - `Authorization: Bearer <OPERATOR_API_TOKEN>` is also validated on the status routes
+- set `OPERATOR_CHECK_REQUIRE_LIVE=1` during rollout guardrails so missing live URLs fail closed instead of silently skipping the cloud smoke
 - set `RUN_REFRESH_DISPATCH=1` on `make operator-check` to run a real `POST /api/refresh?profile=serve-refresh` and watch `/api/refresh/status` to terminal state
+- the real `POST /api/refresh` dispatch is exercised for the selected target only:
+  - default `RUN_REFRESH_DISPATCH_TARGET=proxy`
+  - set `RUN_REFRESH_DISPATCH_TARGET=direct` when you want that real dispatch to hit `control` directly instead of the frontend proxy
 
 ## First Rollout Order
 
@@ -334,6 +350,7 @@ For the request-based billing rollout specifically:
   - `NEON_DATABASE_URL`
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
+- do not wire operator/editor secrets into the frontend service; the browser/operator supplies those credentials at request time
 
 3. Build and push images
 - final-domain default:

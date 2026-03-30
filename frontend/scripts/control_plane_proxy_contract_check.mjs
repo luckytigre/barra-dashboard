@@ -32,7 +32,8 @@ assert(
   backendHelper.includes("forwardedAuthHeaders") &&
     backendHelper.includes("x-operator-token") &&
     backendHelper.includes("x-editor-token") &&
-    backendHelper.includes("authorization"),
+    backendHelper.includes("authorization") &&
+    !backendHelper.includes("x-refresh-token"),
   `${backendHelperPath} must forward caller auth headers to upstream services`,
 );
 assert(
@@ -41,18 +42,19 @@ assert(
 );
 
 const controlRoutes = [
-  "src/app/api/refresh/route.ts",
-  "src/app/api/refresh/status/route.ts",
-  "src/app/api/operator/status/route.ts",
-  "src/app/api/health/diagnostics/route.ts",
-  "src/app/api/data/diagnostics/route.ts",
+  { routePath: "src/app/api/refresh/route.ts", authMarker: "forwardedAuthHeaders(req)" },
+  { routePath: "src/app/api/refresh/status/route.ts", authMarker: "forwardedAuthHeaders(req)" },
+  { routePath: "src/app/api/operator/status/route.ts", authMarker: "proxyJson(" },
+  { routePath: "src/app/api/health/diagnostics/route.ts", authMarker: "proxyJson(" },
+  { routePath: "src/app/api/data/diagnostics/route.ts", authMarker: "proxyJson(" },
 ];
 
-for (const routePath of controlRoutes) {
+for (const { routePath, authMarker } of controlRoutes) {
   const source = read(routePath);
   assert(source.includes("controlBackendOrigin"), `${routePath} must import/use controlBackendOrigin`);
   assert(!source.includes("backendOrigin()"), `${routePath} must not route operator/control traffic through backendOrigin()`);
   assert(!source.includes("operatorHeaders("), `${routePath} must not inject operator headers from frontend runtime env`);
+  assert(source.includes(authMarker), `${routePath} must forward caller auth headers to the control backend`);
 }
 
 const privilegedWriteRoutes = [
@@ -67,6 +69,7 @@ for (const routePath of privilegedWriteRoutes) {
   const source = read(routePath);
   assert(!source.includes("editorHeaders("), `${routePath} must not inject editor headers from frontend runtime env`);
   assert(!source.includes("operatorHeaders("), `${routePath} must not inject operator headers from frontend runtime env`);
+  assert(source.includes("proxyJson("), `${routePath} must route privileged writes through proxyJson`);
 }
 
 console.log("control plane proxy contract ok");

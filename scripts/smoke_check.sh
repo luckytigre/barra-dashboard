@@ -13,7 +13,9 @@ fi
 
 "${BACKEND_PYTHON}" -m pytest \
   backend/tests/test_app_surfaces.py \
+  backend/tests/test_cloud_auth_and_runtime_roles.py \
   backend/tests/test_cloud_run_jobs.py \
+  backend/tests/test_portfolio_whatif_route.py \
   backend/tests/test_refresh_control_service.py \
   backend/tests/test_refresh_auth.py \
   -q

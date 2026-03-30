@@ -58,8 +58,6 @@ resource "google_cloud_run_v2_service" "frontend" {
   depends_on = [
     module.project_services,
     module.service_accounts,
-    module.secret_manager,
-    google_secret_manager_secret_iam_member.secret_accessor,
     google_artifact_registry_repository_iam_member.runtime_image_readers,
   ]
 }
