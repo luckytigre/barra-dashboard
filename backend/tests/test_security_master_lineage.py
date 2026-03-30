@@ -13,6 +13,7 @@ from backend.scripts import augment_security_master_from_ric_xlsx
 from backend.scripts import download_data_lseg
 from backend.scripts.export_security_master_seed import export_seed
 from backend.risk_model import raw_cross_section_history
+from backend.risk_model.eligibility import build_eligibility_context, structural_eligibility_for_date
 from backend.risk_model.raw_cross_section_history import rebuild_raw_cross_section_history
 from backend.universe.bootstrap import bootstrap_cuse4_source_tables
 from backend.universe.schema import ensure_cuse4_schema
@@ -692,7 +693,112 @@ def test_raw_cross_section_history_uses_date_specific_runtime_eligibility(tmp_pa
     finally:
         conn.close()
 
-    assert rows == [("2026-03-06", "TEST.OQ")]
+    assert rows == [("2026-03-06", "TEST.OQ"), ("2026-03-13", "TEST.OQ")]
+
+
+def test_raw_cross_section_history_retains_non_us_rows_for_fundamental_projection(tmp_path: Path) -> None:
+    data_db = tmp_path / "data.db"
+    conn = sqlite3.connect(str(data_db))
+    ensure_cuse4_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO security_registry (
+            ric, ticker, tracking_status, source, updated_at
+        ) VALUES ('ASML.AS', 'ASML', 'active', 'security_registry_seed', '2026-03-01T00:00:00+00:00')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_policy_current (
+            ric, price_ingest_enabled, pit_fundamentals_enabled, pit_classification_enabled,
+            allow_cuse_native_core, allow_cuse_fundamental_projection, allow_cuse_returns_projection,
+            allow_cpar_core_target, allow_cpar_extended_target, policy_source, updated_at
+        ) VALUES (
+            'ASML.AS', 1, 1, 1,
+            0, 1, 0,
+            0, 1, 'registry_seed_defaults', '2026-03-01T00:00:00+00:00'
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, model_home_market_scope,
+            is_single_name_equity, classification_ready, source, updated_at
+        ) VALUES (
+            'ASML.AS', 'single_name_equity', 'equity_security', 'NL', 'ex_us',
+            1, 1, 'security_registry_seed', '2026-03-01T00:00:00+00:00'
+        )
+        """
+    )
+    price_rows = []
+    for idx, date_txt in enumerate(pd.bdate_range("2025-01-01", "2026-02-27").strftime("%Y-%m-%d")):
+        price_rows.append(
+            ("ASML.AS", date_txt, 100.0 + idx, 1000.0 + idx, "EUR", "lseg_toolkit", f"{date_txt}T00:00:00+00:00")
+        )
+    conn.executemany(
+        """
+        INSERT INTO security_prices_eod (
+            ric, date, close, volume, currency, source, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        price_rows,
+    )
+    conn.execute(
+        """
+        INSERT INTO security_fundamentals_pit (
+            ric, as_of_date, stat_date, period_end_date, market_cap, shares_outstanding,
+            book_value_per_share, forward_eps, trailing_eps, total_debt, operating_cashflow,
+            revenue, total_assets, roe_pct, operating_margin_pct, common_name, source, job_run_id, updated_at
+        ) VALUES (
+            'ASML.AS', '2026-02-27', '2026-02-27', '2025-12-31', 3000000.0, 100000.0,
+            6.0, 1.4, 1.3, 12000.0, 7000.0,
+            35000.0, 120000.0, 14.0, 12.0, 'ASML Holding NV', 'lseg_toolkit', 'job_1', '2026-03-01T00:00:00+00:00'
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_classification_pit (
+            ric, as_of_date, trbc_economic_sector, trbc_business_sector, trbc_industry_group, trbc_industry,
+            trbc_activity, hq_country_code, source, job_run_id, updated_at
+        ) VALUES (
+            'ASML.AS', '2026-02-27', 'Technology', 'Technology Equipment',
+            'Semiconductors & Semiconductor Equipment', 'Semiconductors',
+            'Semiconductor Equipment', 'NL', 'lseg_toolkit', 'job_1', '2026-03-01T00:00:00+00:00'
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    out = rebuild_raw_cross_section_history(
+        data_db,
+        start_date="2026-02-27",
+        end_date="2026-02-27",
+        frequency="latest",
+    )
+    assert out["status"] == "ok"
+
+    conn = sqlite3.connect(str(data_db))
+    try:
+        raw_rows = conn.execute(
+            """
+            SELECT ric
+            FROM barra_raw_cross_section_history
+            WHERE ric = 'ASML.AS'
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    assert raw_rows == [("ASML.AS",)]
+
+    context = build_eligibility_context(data_db, dates=["2026-02-27"], force_local=True)
+    _exp_date, eligibility = structural_eligibility_for_date(context, "2026-02-27")
+    assert "ASML.AS" in eligibility.index
+    assert str(eligibility.loc["ASML.AS", "exclusion_reason"]) == "missing_style"
+    assert str(eligibility.loc["ASML.AS", "hq_country_code"]) == "NL"
 
 
 def test_raw_cross_section_history_does_not_fallback_to_compat_when_registry_empty(
@@ -794,7 +900,8 @@ def test_raw_cross_section_history_loads_runtime_identity_once(
         frequency="latest",
     )
 
-    assert out["status"] == "no-structural-eligible-rows"
+    assert out["status"] == "ok"
+    assert int(out["rows_upserted"]) == 1
     assert calls == [
         {
             "include_disabled": False,

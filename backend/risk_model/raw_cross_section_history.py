@@ -833,7 +833,6 @@ def rebuild_raw_cross_section_history(
                         }
                     )
 
-        keep_mask = pd.Series(False, index=out.index, dtype=bool)
         eligibility_groups = list(out.groupby("as_of_date", sort=False).groups.items())
         total_eligibility_groups = len(eligibility_groups)
         for group_i, (as_of, idx) in enumerate(eligibility_groups, start=1):
@@ -872,14 +871,6 @@ def rebuild_raw_cross_section_history(
                         }
                     )
                 continue
-            keep_rics = {
-                str(ric).upper()
-                for ric in eligibility_df.index[
-                    eligibility_df["is_structural_eligible"].astype(bool)
-                ]
-            }
-            if keep_rics:
-                keep_mask.loc[idx] = grp["ric"].astype(str).str.upper().isin(keep_rics).to_numpy()
             if progress_callback is not None and (group_i % 250 == 0 or group_i == total_eligibility_groups):
                 progress_callback(
                     {
@@ -890,14 +881,8 @@ def rebuild_raw_cross_section_history(
                         "progress_pct": round((float(group_i) / max(1.0, float(total_eligibility_groups))) * 100.0, 1),
                         "current_as_of": str(as_of),
                         "progress_kind": "eligibility",
-                    }
-                )
-        out = out.loc[keep_mask.to_numpy()].copy()
-        if out.empty:
-            for d in sorted(set(dates)):
-                conn.execute(f"DELETE FROM {TABLE} WHERE as_of_date = ?", (d,))
-            conn.commit()
-            return {"status": "no-structural-eligible-rows", "rows_upserted": 0, "table": TABLE}
+                        }
+                    )
 
         # Quality metadata
         present = out[required_desc].notna().sum(axis=1).astype(float)

@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from backend.analytics import refresh_persistence
 
 
@@ -254,3 +256,68 @@ def test_persist_refresh_outputs_overlays_current_membership_truth_before_servin
     assert drilldown_by_ticker["SPY"]["exposure_origin"] == "projected_returns"
     assert drilldown_by_ticker["QQQ"]["exposure_origin"] == "projected_returns"
     assert drilldown_by_ticker["ASML"]["exposure_origin"] == "projected_fundamental"
+
+
+def test_persist_refresh_outputs_fails_closed_when_membership_truth_is_missing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    data_db = tmp_path / "data.db"
+    cache_db = tmp_path / "cache.db"
+
+    monkeypatch.setattr(
+        refresh_persistence.model_outputs,
+        "persist_model_outputs",
+        lambda **kwargs: {"status": "ok", "run_id": kwargs["run_id"]},
+    )
+    monkeypatch.setattr(
+        refresh_persistence.serving_outputs,
+        "persist_current_payloads",
+        lambda **kwargs: {"status": "ok"},
+    )
+    monkeypatch.setattr(refresh_persistence.runtime_state, "persist_runtime_state", lambda *args, **kwargs: {"status": "ok"})
+    monkeypatch.setattr(refresh_persistence.runtime_state, "publish_active_snapshot", lambda *args, **kwargs: {"status": "ok"})
+
+    persisted_payloads = {
+        "universe_loadings": {
+            "as_of_date": "2026-03-26",
+            "by_ticker": {
+                "SPY": {
+                    "ticker": "SPY",
+                    "ric": "SPY.P",
+                    "as_of_date": "2026-03-26",
+                    "model_status": "projected_only",
+                    "model_status_reason": "returns_projection",
+                    "eligibility_reason": "returns_projection",
+                    "exposure_origin": "native",
+                    "model_warning": "",
+                    "exposures": {"market": 1.0},
+                },
+            },
+        },
+        "portfolio": {
+            "positions": [
+                {"ticker": "SPY", "model_status": "projected_only", "exposure_origin": "native", "market_value": 100.0},
+            ],
+            "position_count": 1,
+            "total_value": 100.0,
+        },
+        "exposures": {"raw": [], "sensitivity": [], "risk_contribution": []},
+    }
+
+    with pytest.raises(RuntimeError, match="Current cUSE membership truth is incomplete"):
+        refresh_persistence.persist_refresh_outputs(
+            data_db=data_db,
+            cache_db=cache_db,
+            run_id="run_1",
+            snapshot_id="run_1",
+            refresh_mode="light",
+            refresh_started_at="2026-03-26T00:00:00Z",
+            recomputed_this_refresh=True,
+            params={},
+            source_dates={"exposures_asof": "2026-03-26"},
+            risk_engine_state={"core_state_through_date": "2026-03-26"},
+            cov=None,
+            specific_risk_by_security={},
+            persisted_payloads=persisted_payloads,
+        )

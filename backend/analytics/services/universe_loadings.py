@@ -35,6 +35,7 @@ from backend.risk_model.factor_catalog import (
     serialize_factor_catalog,
 )
 from backend.risk_model.model_status import derive_model_status
+from backend.universe.runtime_rows import load_security_runtime_rows
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,41 @@ def _overlay_persisted_cuse_membership(
         if membership_row is None:
             continue
         row.update(membership_row_to_overlay(membership_row))
+
+
+def _load_admitted_runtime_tickers(data_db: Path) -> set[str] | None:
+    db_path = Path(data_db)
+    if not db_path.exists():
+        return None
+    conn = sqlite3.connect(str(db_path))
+    try:
+        registry_exists = conn.execute(
+            """
+            SELECT 1
+            FROM sqlite_master
+            WHERE type IN ('table', 'view') AND name='security_registry'
+            LIMIT 1
+            """
+        ).fetchone()
+        if registry_exists is None:
+            return None
+        registry_count = conn.execute("SELECT COUNT(*) FROM security_registry").fetchone()
+        if not registry_count or int(registry_count[0] or 0) <= 0:
+            return set()
+        runtime_rows = load_security_runtime_rows(
+            conn,
+            include_disabled=False,
+            allow_empty_registry_fallback=False,
+        )
+    except sqlite3.DatabaseError:
+        return None
+    finally:
+        conn.close()
+    return {
+        str(row.get("ticker") or "").strip().upper()
+        for row in runtime_rows
+        if str(row.get("ticker") or "").strip()
+    }
 
 
 def build_universe_ticker_loadings(
@@ -372,13 +408,25 @@ def build_universe_ticker_loadings(
                 continue
             factor_vol_map[factor_id] = float(np.sqrt(max(0.0, _finite_float(cov.loc[factor, factor], 0.0))))
 
-    all_tickers = sorted(
+    source_tickers = sorted(
         {
             *exposures_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
             *fundamentals_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
             *prices_df.get("ticker", pd.Series(dtype=str)).astype(str).str.upper().tolist(),
         }
     )
+    admitted_runtime_tickers = _load_admitted_runtime_tickers(data_db)
+    if admitted_runtime_tickers is None:
+        all_tickers = source_tickers
+    else:
+        all_tickers = sorted(set(source_tickers).intersection(admitted_runtime_tickers))
+        dropped_tickers = sorted(set(source_tickers).difference(admitted_runtime_tickers))
+        if dropped_tickers:
+            logger.info(
+                "Excluded %d non-runtime tickers from universe loadings search surface: %s",
+                len(dropped_tickers),
+                ", ".join(dropped_tickers[:20]),
+            )
     universe_by_ticker: dict[str, UniverseTickerPayload] = {}
     downgraded_missing_exposures: list[str] = []
     for ticker in all_tickers:

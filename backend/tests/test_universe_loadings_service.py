@@ -11,6 +11,7 @@ from backend.analytics.services.universe_loadings import (
     load_latest_factor_coverage,
 )
 from backend.risk_model.factor_catalog import build_factor_catalog_for_factors, factor_id_for_name
+from backend.universe.schema import ensure_cuse4_schema
 
 
 def test_load_latest_factor_coverage_reads_latest_day(tmp_path: Path) -> None:
@@ -140,6 +141,78 @@ def test_build_universe_ticker_loadings_surfaces_projection_only_instrument_as_u
     assert spy["model_status_reason"] == "projection_unavailable"
     assert spy["projection_asof"] == "2026-03-13"
     assert spy["exposures"] == {}
+
+
+def test_build_universe_ticker_loadings_excludes_non_runtime_source_ghosts(tmp_path: Path) -> None:
+    data_db = tmp_path / "data.db"
+    conn = sqlite3.connect(str(data_db))
+    ensure_cuse4_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO security_registry (
+            ric, ticker, tracking_status, source, updated_at
+        ) VALUES ('AAPL.OQ', 'AAPL', 'active', 'security_registry_seed', '2026-03-20T00:00:00Z')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_policy_current (
+            ric, price_ingest_enabled, pit_fundamentals_enabled, pit_classification_enabled,
+            allow_cuse_native_core, allow_cuse_fundamental_projection, allow_cuse_returns_projection,
+            allow_cpar_core_target, allow_cpar_extended_target, policy_source, updated_at
+        ) VALUES (
+            'AAPL.OQ', 1, 1, 1,
+            1, 0, 0,
+            1, 1, 'registry_seed_defaults', '2026-03-20T00:00:00Z'
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_taxonomy_current (
+            ric, instrument_kind, vehicle_structure, issuer_country_code, model_home_market_scope,
+            is_single_name_equity, classification_ready, source, updated_at
+        ) VALUES (
+            'AAPL.OQ', 'single_name_equity', 'equity_security', 'US', 'us',
+            1, 1, 'security_registry_seed', '2026-03-20T00:00:00Z'
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO security_source_observation_daily (
+            as_of_date, ric, classification_ready, is_equity_eligible,
+            price_ingest_enabled, pit_fundamentals_enabled, pit_classification_enabled,
+            has_price_history_as_of_date, has_fundamentals_history_as_of_date, has_classification_history_as_of_date,
+            latest_price_date, latest_fundamentals_as_of_date, latest_classification_as_of_date,
+            source, updated_at
+        ) VALUES (
+            '2026-03-20', 'AAPL.OQ', 1, 1,
+            1, 1, 1,
+            1, 1, 1,
+            '2026-03-20', '2026-03-20', '2026-03-20',
+            'security_registry_seed', '2026-03-20T00:00:00Z'
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    out = build_universe_ticker_loadings(
+        exposures_df=pd.DataFrame(),
+        fundamentals_df=pd.DataFrame(),
+        prices_df=pd.DataFrame(
+            [
+                {"ric": "AAPL.OQ", "ticker": "AAPL", "close": 190.0},
+                {"ric": "URA.P", "ticker": "URA", "close": 45.0},
+            ]
+        ),
+        cov=pd.DataFrame(),
+        data_db=data_db,
+    )
+
+    assert "AAPL" in out["by_ticker"]
+    assert "URA" not in out["by_ticker"]
 
 
 def test_build_universe_ticker_loadings_prefers_primary_ric_for_duplicate_ticker_rows(

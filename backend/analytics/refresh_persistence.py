@@ -77,6 +77,33 @@ def _load_current_membership_lookup(
     return lookup
 
 
+def _assert_current_membership_coverage(
+    *,
+    universe_payload: dict[str, Any],
+    membership_lookup: dict[tuple[str, str], dict[str, Any]],
+) -> None:
+    by_ticker = dict(universe_payload.get("by_ticker") or {})
+    missing: list[str] = []
+    for ticker, raw_row in by_ticker.items():
+        row = dict(raw_row or {})
+        as_of_date = str(row.get("as_of_date") or universe_payload.get("as_of_date") or "").strip()
+        clean_ticker = str(row.get("ticker") or ticker).strip().upper()
+        clean_ric = str(row.get("ric") or "").strip().upper()
+        if not as_of_date or not (clean_ticker or clean_ric):
+            continue
+        if (as_of_date, clean_ticker) in membership_lookup:
+            continue
+        if clean_ric and (as_of_date, clean_ric) in membership_lookup:
+            continue
+        missing.append(f"{clean_ticker or clean_ric}@{as_of_date}")
+    if missing:
+        sample = ", ".join(sorted(missing)[:20])
+        raise RuntimeError(
+            "Current cUSE membership truth is incomplete for serving publish: "
+            f"{sample}"
+        )
+
+
 def _apply_current_membership_to_universe_payload(
     *,
     data_db: Path,
@@ -88,6 +115,10 @@ def _apply_current_membership_to_universe_payload(
     membership_lookup = _load_current_membership_lookup(
         data_db=data_db,
         universe_payload=universe_payload,
+    )
+    _assert_current_membership_coverage(
+        universe_payload=universe_payload,
+        membership_lookup=membership_lookup,
     )
     if not membership_lookup:
         return universe_payload, False

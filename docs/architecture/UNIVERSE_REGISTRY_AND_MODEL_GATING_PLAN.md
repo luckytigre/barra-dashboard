@@ -619,7 +619,7 @@ Current behavior:
 - structural eligibility is computed in `eligibility.py`
 - regression membership and projectability are computed in `regression_frame.py`
 - ESTU is computed separately in `estu.py`
-- raw-history construction excludes `projection_only` before cUSE math starts
+- raw-history construction now retains registry-admitted projection candidates so structural eligibility and downstream cUSE membership are computed from the persisted raw-history surface instead of being circularly gated out before math starts
 - returns projection is persisted separately in `projected_instrument_*`
 - serving re-derives final cUSE truth and compresses it into `model_status`
 
