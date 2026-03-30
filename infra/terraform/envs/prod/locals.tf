@@ -4,6 +4,7 @@ locals {
   frontend_image_ref = var.frontend_image_ref != "" ? var.frontend_image_ref : "${local.registry_base}/frontend:${var.image_tag}"
   serve_image_ref    = var.serve_image_ref != "" ? var.serve_image_ref : "${local.registry_base}/serve:${var.image_tag}"
   control_image_ref  = var.control_image_ref != "" ? var.control_image_ref : "${local.registry_base}/control:${var.image_tag}"
+  endpoint_mode      = trimspace(var.endpoint_mode)
 
   hostnames = {
     frontend = "app.${var.cloudflare_zone_name}"
@@ -11,25 +12,42 @@ locals {
     control  = "control.${var.cloudflare_zone_name}"
   }
 
-  frontend_backend_api_origin = (
-    var.frontend_backend_api_origin != ""
-    ? var.frontend_backend_api_origin
-    : "https://${local.hostnames.serve}"
-  )
+  custom_domain_origins = {
+    frontend = "https://${local.hostnames.frontend}"
+    serve    = "https://${local.hostnames.serve}"
+    control  = "https://${local.hostnames.control}"
+  }
 
-  frontend_backend_control_origin = (
-    var.frontend_backend_control_origin != ""
-    ? var.frontend_backend_control_origin
-    : "https://${local.hostnames.control}"
-  )
+  normalized_frontend_public_origin          = trimsuffix(trimspace(var.frontend_public_origin), "/")
+  normalized_frontend_backend_api_origin     = trimsuffix(trimspace(var.frontend_backend_api_origin), "/")
+  normalized_frontend_backend_control_origin = trimsuffix(trimspace(var.frontend_backend_control_origin), "/")
+
+  public_origins = {
+    frontend = local.endpoint_mode == "run_app" ? local.normalized_frontend_public_origin : local.custom_domain_origins.frontend
+    serve    = local.endpoint_mode == "run_app" ? local.normalized_frontend_backend_api_origin : local.custom_domain_origins.serve
+    control  = local.endpoint_mode == "run_app" ? local.normalized_frontend_backend_control_origin : local.custom_domain_origins.control
+  }
+
+  frontend_backend_api_origin     = local.public_origins.serve
+  frontend_backend_control_origin = local.public_origins.control
+  frontend_public_origin          = local.public_origins.frontend
 
   public_cors_allow_origins = join(
     ",",
-    [
-      "https://${local.hostnames.frontend}",
-      "https://${local.hostnames.serve}",
-      "https://${local.hostnames.control}",
-    ],
+    distinct(
+      compact(
+        local.endpoint_mode == "run_app"
+        ? [
+          local.custom_domain_origins.frontend,
+          local.public_origins.frontend,
+        ]
+        : [
+          local.public_origins.frontend,
+          local.public_origins.serve,
+          local.public_origins.control,
+        ]
+      )
+    ),
   )
 
   secret_ids = {

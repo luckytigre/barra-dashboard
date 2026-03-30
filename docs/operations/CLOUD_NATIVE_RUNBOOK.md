@@ -11,11 +11,29 @@ Define the process split and environment contract needed to run the app in a clo
 This runbook now covers the live Cloud Run rollout path as well as the rollback/reference path.
 The `run.app` rollout remains a valid reference path, but the production cutover is now live on the final custom domains.
 
+## Topology Modes
+
+- `endpoint_mode=custom_domains`
+  - current default
+  - canonical public origins are the frozen `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` hostnames
+  - no explicit origin/image overrides are required beyond the normal custom-domain rollout inputs
+- `endpoint_mode=run_app`
+  - contract-prep mode in this slice
+  - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned frontend/serve/control image refs
+  - does not yet disable the custom-domain edge resources; that is a later slice
+
+The Terraform contract now exposes:
+- `endpoint_mode`
+- `public_origins`
+- `frontend_build_contract`
+- `service_image_refs`
+
 ## Frozen Production Hostnames
 
-- frontend: `https://app.ceiora.com`
-- serve API: `https://api.ceiora.com`
-- control API: `https://control.ceiora.com`
+- when `endpoint_mode=custom_domains`:
+  - frontend: `https://app.ceiora.com`
+  - serve API: `https://api.ceiora.com`
+  - control API: `https://control.ceiora.com`
 
 Temporary smoke validation should use Cloud Run `run.app` hostnames first.
 Do not treat the final custom-domain cutover as complete until the `run.app` smoke path is clean.
@@ -140,6 +158,12 @@ Cloud steady-state values:
 - `BACKEND_API_ORIGIN=https://api.ceiora.com`
 - `BACKEND_CONTROL_ORIGIN=https://control.ceiora.com`
 
+run_app contract values:
+- `frontend_public_origin=https://<frontend-service>.run.app`
+- `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
+- `BACKEND_CONTROL_ORIGIN=https://<control-service>.run.app`
+- all three `*_image_ref` inputs must be explicit rather than inheriting `:latest`
+
 Local compatibility values:
 - `BACKEND_API_ORIGIN=http://127.0.0.1:8000`
 - omit `BACKEND_CONTROL_ORIGIN` to reuse the same local backend
@@ -231,7 +255,7 @@ Operator build entrypoints:
 - `scripts/cloud/build_and_push_images.sh`
 - `scripts/cloud/deploy_serve.sh`
 - the repo-owned Cloud Run image path now explicitly builds `linux/amd64` images via `docker buildx`; do not use the plain host-architecture Docker default for rollout images.
-- the same scripts also support `BUILD_TARGETS=frontend` for the temporary `run.app` smoke rebuild, so the smoke exception can retarget only the frontend image without rebuilding serve/control.
+- the same scripts also support `BUILD_TARGETS=frontend` when you need a frontend-only rebuild for an explicit `run_app` contract while keeping serve/control pinned to existing image refs.
 - the image-build scripts now stage per-target minimal Docker contexts:
   - `frontend` builds from a temp context containing only `frontend/`
   - `serve` / `control` build from a temp context containing only `backend/`
@@ -245,7 +269,8 @@ Preferred serve rollout path:
 
 Build-time contract:
 - the frontend image reads `BACKEND_API_ORIGIN` at build time so the Next rewrite proxy is baked for the target serve API host
-- default frontend build target is `https://api.ceiora.com`
+- `endpoint_mode=custom_domains` default frontend build target is `https://api.ceiora.com`
+- `endpoint_mode=run_app` requires `BACKEND_API_ORIGIN` to match the explicit `frontend_build_contract.build_api_origin` / `frontend_backend_api_origin` input
 - backend images do not copy repo-local `backend/.env` or the broad local backend tree into the image
 
 Runtime contract:
@@ -276,10 +301,14 @@ Current Cloud Run service prep:
   - serve: `1 vCPU`, `1Gi`, `maxScale=4`
   - control: `1 vCPU`, `1Gi`, `maxScale=3`
 - the frontend image build must follow this rule:
-  - final-domain default: `BACKEND_API_ORIGIN=https://api.ceiora.com`
-  - `run.app` smoke: rebuild the frontend image against the serve service's `run.app` URL, then set:
-    - `frontend_image_ref`
+  - `endpoint_mode=custom_domains`: `BACKEND_API_ORIGIN=https://api.ceiora.com`
+  - `endpoint_mode=run_app`: supply the full explicit Terraform contract together:
+    - `frontend_public_origin`
     - `frontend_backend_api_origin`
+    - `frontend_backend_control_origin`
+    - `frontend_image_ref`
+    - `serve_image_ref`
+    - `control_image_ref`
 - the frontend service mirrors `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but that runtime env does not override the rewrite compiled into the image
 
 Current ingress prep:
@@ -293,6 +322,7 @@ Current ingress prep:
 - Cloudflare DNS stays DNS-only for the first cutover:
   - `cloudflare_proxied=false`
 - this ingress prep does not change the current public `run.app` smoke posture
+- this slice does not yet disable or conditionalize the custom-domain edge; `endpoint_mode=run_app` is a contract surface first, not the edge-removal step
 - final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
 
 Current observability prep:
@@ -334,6 +364,11 @@ For the request-based billing rollout specifically:
   - default `RUN_REFRESH_DISPATCH_TARGET=proxy`
   - set `RUN_REFRESH_DISPATCH_TARGET=direct` when you want that real dispatch to hit `control` directly instead of the frontend proxy
 
+Topology guardrails:
+- always confirm `terraform output endpoint_mode` and `terraform output public_origins` match the intended rollout path
+- `service_urls` remain the topology-neutral Cloud Run reference surface
+- `hostnames` and `load_balancer_*` outputs still describe the custom-domain edge and therefore remain meaningful even during run.app contract prep in this slice
+
 ## First Rollout Order
 
 1. Bootstrap and Terraform state
@@ -357,11 +392,12 @@ For the request-based billing rollout specifically:
   - build/push frontend against `https://api.ceiora.com`
   - build/push serve and control normally
   - use the repo-owned scripts so the published images stay `linux/amd64` for Cloud Run
-- `run.app` smoke exception:
-  - apply the Cloud Run services first,
-  - capture the serve `run.app` URL from Terraform outputs,
-  - rebuild/push the frontend image against that serve `run.app` URL,
-  - override `frontend_image_ref` and `frontend_backend_api_origin`
+- `endpoint_mode=run_app` contract:
+  - apply or capture the current Cloud Run service URLs first,
+  - set `endpoint_mode=run_app`,
+  - set `frontend_public_origin`, `frontend_backend_api_origin`, and `frontend_backend_control_origin` from the intended `run.app` URLs,
+  - pin all three image refs explicitly,
+  - rebuild/push the frontend image against `frontend_backend_api_origin`
 
 4. Smoke the `run.app` surfaces before domain cutover
 - frontend root

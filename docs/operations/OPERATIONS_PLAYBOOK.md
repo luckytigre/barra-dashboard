@@ -56,6 +56,7 @@
   - serve app: `make backend-serve-prod`
   - control app: `make backend-control-prod`
   - process split details live in [CLOUD_NATIVE_RUNBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/operations/CLOUD_NATIVE_RUNBOOK.md)
+  - topology selection (`endpoint_mode`) also lives in the cloud-native runbook and Terraform outputs, not in ad hoc smoke overrides
 
 ## Fresh Machine Cloud-Serve Bootstrap
 - A fresh `cloud-serve` machine should not require a preexisting large local `backend/runtime/data.db` to serve the app.
@@ -350,10 +351,13 @@ Parallel cPAR note:
   - or `./scripts/operator_check.sh`
   - live cloud check:
     - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 make operator-check`
+  - live run.app check:
+    - `APP_BASE_URL=https://<frontend-service>.run.app CONTROL_BASE_URL=https://<control-service>.run.app OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 make operator-check`
   - live cloud dispatch + reconciliation:
     - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 make operator-check`
   - direct-control dispatch variant:
     - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 RUN_REFRESH_DISPATCH_TARGET=direct make operator-check`
+  - choose the URLs that match `terraform output endpoint_mode` / `terraform output public_origins`
   - live cloud validation now checks both frontend-proxied and direct control routes:
     - anonymous `/api/operator/status` and `/api/refresh/status` must return `401`
     - legacy `X-Refresh-Token` and invalid-token `/api/operator/status`, `/api/refresh/status`, and `POST /api/refresh` must return `401`

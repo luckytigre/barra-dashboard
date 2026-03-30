@@ -63,6 +63,15 @@ The `prod` root currently owns:
   - managed certificate
   - Cloudflare DNS records for `app`, `api`, and `control`
 
+Topology contract:
+- `endpoint_mode=custom_domains`
+  - current default
+  - canonical public origins resolve to `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
+- `endpoint_mode=run_app`
+  - prep-only contract in this slice
+  - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned `*_image_ref` inputs
+  - does not yet remove or disable the custom-domain edge resources; that is a later slice
+
 Important ingress rule:
 - this slice does not change the public `run.app` smoke posture of the Cloud Run services
 - it only prepares the later custom-domain cutover path
@@ -83,12 +92,22 @@ Important frontend rule:
 - the frontend image bakes `BACKEND_API_ORIGIN` at build time
 - the Terraform `prod` root therefore treats `frontend_backend_api_origin` and `frontend_image_ref` as explicit rollout inputs
 - the frontend Cloud Run service mirrors the same `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but changing the service env alone does not retarget the compiled rewrite
+- the canonical topology-facing outputs are:
+  - `endpoint_mode`
+  - `public_origins`
+  - `frontend_build_contract`
+  - `service_image_refs`
 - the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - secret access bindings in the prod root should therefore exist only for secret-consuming backend services and jobs, not for the frontend service account
 - for final-domain rollout, the default stays `https://api.ceiora.com`
-- for `run.app` smoke, rebuild and push a frontend image against the serve service's `run.app` URL, then override:
-  - `frontend_image_ref`
+- for `endpoint_mode=run_app`, provide the full explicit contract together:
+  - `frontend_public_origin`
   - `frontend_backend_api_origin`
+  - `frontend_backend_control_origin`
+  - `frontend_image_ref`
+  - `serve_image_ref`
+  - `control_image_ref`
+- the `run_app` contract rejects partial overrides and rejects `:latest` image refs
 
 Secret values are intentionally out of band. After the secret containers exist, add versions manually:
 

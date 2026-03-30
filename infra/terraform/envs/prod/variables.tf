@@ -67,14 +67,31 @@ variable "control_image_ref" {
   default     = ""
 }
 
+variable "endpoint_mode" {
+  description = "Public topology contract for the cloud app. custom_domains preserves the current app/api/control hostnames; run_app expects explicit run.app origins."
+  type        = string
+  default     = "custom_domains"
+
+  validation {
+    condition     = contains(["custom_domains", "run_app"], var.endpoint_mode)
+    error_message = "endpoint_mode must be one of: custom_domains, run_app."
+  }
+}
+
+variable "frontend_public_origin" {
+  description = "Canonical browser-facing frontend origin. Required when endpoint_mode=run_app; defaults to the custom-domain frontend hostname otherwise."
+  type        = string
+  default     = ""
+}
+
 variable "frontend_backend_api_origin" {
-  description = "Origin baked into and exposed by the frontend service for API proxying. Override with the serve run.app URL for smoke images."
+  description = "Origin baked into and exposed by the frontend service for API proxying. Required when endpoint_mode=run_app."
   type        = string
   default     = ""
 }
 
 variable "frontend_backend_control_origin" {
-  description = "Origin exposed by the frontend service for control-plane proxying."
+  description = "Origin exposed by the frontend service for control-plane proxying. Required when endpoint_mode=run_app."
   type        = string
   default     = ""
 }
