@@ -357,7 +357,11 @@ Parallel cPAR note:
     - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 make operator-check`
   - direct-control dispatch variant:
     - `APP_BASE_URL=https://app.ceiora.com CONTROL_BASE_URL=https://control.ceiora.com OPERATOR_API_TOKEN=... OPERATOR_CHECK_REQUIRE_LIVE=1 RUN_REFRESH_DISPATCH=1 RUN_REFRESH_DISPATCH_TARGET=direct make operator-check`
-  - choose the URLs that match `terraform output endpoint_mode` / `terraform output public_origins`
+  - choose the URLs that match `terraform output endpoint_mode` / `terraform output edge_enabled` / `terraform output public_origins`
+  - if `endpoint_mode=run_app` and `edge_enabled=true`, validate both:
+    - the `run.app` URLs from `public_origins`
+    - the still-live custom-domain rollback path on `app.ceiora.com` / `control.ceiora.com`
+  - if `endpoint_mode=run_app` and `edge_enabled=false`, treat the `run.app` URLs from `public_origins` as the only live operator-check targets
   - live cloud validation now checks both frontend-proxied and direct control routes:
     - anonymous `/api/operator/status` and `/api/refresh/status` must return `401`
     - legacy `X-Refresh-Token` and invalid-token `/api/operator/status`, `/api/refresh/status`, and `POST /api/refresh` must return `401`

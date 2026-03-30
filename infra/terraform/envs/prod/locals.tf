@@ -5,6 +5,7 @@ locals {
   serve_image_ref    = var.serve_image_ref != "" ? var.serve_image_ref : "${local.registry_base}/serve:${var.image_tag}"
   control_image_ref  = var.control_image_ref != "" ? var.control_image_ref : "${local.registry_base}/control:${var.image_tag}"
   endpoint_mode      = trimspace(var.endpoint_mode)
+  edge_enabled       = var.edge_enabled
 
   hostnames = {
     frontend = "app.${var.cloudflare_zone_name}"
@@ -38,8 +39,8 @@ locals {
       compact(
         local.endpoint_mode == "run_app"
         ? [
-          local.custom_domain_origins.frontend,
           local.public_origins.frontend,
+          local.edge_enabled ? local.custom_domain_origins.frontend : null,
         ]
         : [
           local.public_origins.frontend,

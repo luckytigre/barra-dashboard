@@ -15,18 +15,24 @@ The `run.app` rollout remains a valid reference path, but the production cutover
 
 - `endpoint_mode=custom_domains`
   - current default
+  - requires `edge_enabled=true`
   - canonical public origins are the frozen `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` hostnames
   - no explicit origin/image overrides are required beyond the normal custom-domain rollout inputs
 - `endpoint_mode=run_app`
-  - contract-prep mode in this slice
+  - explicit run.app public contract
   - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned frontend/serve/control image refs
-  - does not yet disable the custom-domain edge resources; that is a later slice
+  - `edge_enabled=true` is the soak state that keeps rollback paths and custom-domain validation alive
+  - `edge_enabled=false` is the no-edge steady state
 
 The Terraform contract now exposes:
 - `endpoint_mode`
+- `edge_enabled`
 - `public_origins`
 - `frontend_build_contract`
 - `service_image_refs`
+- `load_balancer_ip`
+- `load_balancer_dns_records`
+- `load_balancer_host_routing`
 
 ## Frozen Production Hostnames
 
@@ -36,7 +42,8 @@ The Terraform contract now exposes:
   - control API: `https://control.ceiora.com`
 
 Temporary smoke validation should use Cloud Run `run.app` hostnames first.
-Do not treat the final custom-domain cutover as complete until the `run.app` smoke path is clean.
+During a `run_app + edge_enabled=true` soak, validate both the `run.app` path and the still-live custom-domain rollback path.
+Do not destroy the custom-domain edge until the `run.app` path is clean.
 
 ## Process Split
 
@@ -301,6 +308,10 @@ Current Cloud Run service prep:
 - the Terraform `prod` root now defines frontend, serve, and control service resources
 - all three services are intentionally public at the Cloud Run layer for the first `run.app` smoke phase
 - the control service stays operator-token-protected in-app
+- the Terraform root now separates public topology from edge presence:
+  - `endpoint_mode=custom_domains` + `edge_enabled=true` is the current production shape
+  - `endpoint_mode=run_app` + `edge_enabled=true` is the soak/rollback shape
+  - `endpoint_mode=run_app` + `edge_enabled=false` is the no-edge steady state
 - all three services pin request-based billing by explicitly setting `cpu_idle=true` in Terraform
 - any direct `gcloud run deploy` rollout must preserve request-based billing with `--cpu-throttling`
 - the live service headroom is now:
@@ -317,20 +328,23 @@ Current Cloud Run service prep:
     - `serve_image_ref`
     - `control_image_ref`
 - the frontend service mirrors `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but that runtime env does not override the rewrite compiled into the image
+- `frontend_build_contract.edge_enabled` shows whether the load balancer / DNS edge is still provisioned for rollback
+- when `edge_enabled=false`, `load_balancer_ip`, `load_balancer_dns_records`, and `load_balancer_host_routing` return `null`
 
 Current ingress prep:
-- the Terraform `prod` root now defines:
+- the Terraform `prod` root now owns the custom-domain edge through `module.edge`
+- when `edge_enabled=true`, that module provisions:
   - a single global HTTPS load balancer
   - host-based routing for `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
   - one serverless NEG and backend service per Cloud Run surface
   - a managed certificate covering all three hostnames
   - HTTP-to-HTTPS redirect
   - Cloudflare DNS A records for `app`, `api`, and `control`
+- the root now carries explicit `moved` blocks from the earlier root-level ingress resources into `module.edge`
 - Cloudflare DNS stays DNS-only for the first cutover:
   - `cloudflare_proxied=false`
-- this ingress prep does not change the current public `run.app` smoke posture
-- this slice does not yet disable or conditionalize the custom-domain edge; `endpoint_mode=run_app` is a contract surface first, not the edge-removal step
-- final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
+- the public `run.app` smoke posture remains valid in every topology mode
+- `hostnames` are the reserved custom-domain names; `load_balancer_*` outputs are live only when `edge_enabled=true`
 
 Current observability prep:
 - Terraform now manages `_Default` Cloud Logging retention for the rollout project
@@ -372,11 +386,12 @@ For the request-based billing rollout specifically:
   - set `RUN_REFRESH_DISPATCH_TARGET=direct` when you want that real dispatch to hit `control` directly instead of the frontend proxy
 
 Topology guardrails:
-- always confirm `terraform output endpoint_mode` and `terraform output public_origins` match the intended rollout path
+- always confirm `terraform output endpoint_mode`, `terraform output edge_enabled`, and `terraform output public_origins` match the intended rollout path
 - `service_urls` remain the topology-neutral Cloud Run reference surface
-- `hostnames` and `load_balancer_*` outputs still describe the custom-domain edge and therefore remain meaningful even during run.app contract prep in this slice
+- `hostnames` remain the reserved custom-domain names even when the edge is disabled
+- `load_balancer_*` outputs are edge-only and may be `null` when `edge_enabled=false`
 
-## First Rollout Order
+## Rollout Order
 
 1. Bootstrap and Terraform state
 - `cd infra/terraform/bootstrap`
@@ -399,31 +414,31 @@ Topology guardrails:
   - build/push frontend against `https://api.ceiora.com`
   - build/push serve and control normally
   - use the repo-owned scripts so the published images stay `linux/amd64` for Cloud Run
-- `endpoint_mode=run_app` contract:
-  - apply or capture the current Cloud Run service URLs first,
-  - set `endpoint_mode=run_app`,
-  - set `frontend_public_origin`, `frontend_backend_api_origin`, and `frontend_backend_control_origin` from the intended `run.app` URLs,
-  - pin all three image refs explicitly,
+- `endpoint_mode=run_app` soak or no-edge contract:
+  - capture the current Cloud Run service URLs first
+  - set `endpoint_mode=run_app`
+  - set `edge_enabled=true` for soak, or `false` only after soak is clean
+  - set `frontend_public_origin`, `frontend_backend_api_origin`, and `frontend_backend_control_origin` from the intended `run.app` URLs
+  - pin all three image refs explicitly
   - rebuild/push the frontend image against `frontend_backend_api_origin`
 
-4. Smoke the `run.app` surfaces before domain cutover
+4. Smoke the `run.app` surfaces
 - frontend root
 - serve `/api/cpar/meta`
 - control `/api/refresh/status` with `X-Operator-Token`
 - verify the control service can dispatch the `serve-refresh` Cloud Run Job
   - the control service's job IAM must allow execution overrides because the dispatch path sets env overrides on the Cloud Run Job request
 
-5. Cut over custom domains
-- apply the ingress and DNS resources
-- wait for the managed certificate to become active
-- switch to the final-domain frontend image built against `https://api.ceiora.com`
-- re-run app/api/control smoke against:
-  - `https://app.ceiora.com`
-  - `https://api.ceiora.com`
-  - `https://control.ceiora.com`
-  - `https://app.ceiora.com/api/refresh/status` with the operator token
-  - `POST https://control.ceiora.com/api/refresh?profile=serve-refresh` with the operator token
-  - terminal refresh-status reconciliation after that dispatch
+5. Soak with the edge still enabled
+- apply `endpoint_mode=run_app` with `edge_enabled=true`
+- re-run smoke against both:
+  - the `run.app` URLs from `public_origins`
+  - the still-live custom-domain rollback path on `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
+
+6. Disable the edge only after soak
+- apply `endpoint_mode=run_app` with `edge_enabled=false`
+- confirm `load_balancer_ip`, `load_balancer_dns_records`, and `load_balancer_host_routing` now return `null`
+- re-run the live smoke against the `run.app` URLs only
 
 ## Current Rollout Notes
 

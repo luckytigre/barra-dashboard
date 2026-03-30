@@ -14,7 +14,7 @@ output "secret_ids" {
 }
 
 output "hostnames" {
-  description = "Custom-domain hostnames for the cloud stack when endpoint_mode=custom_domains."
+  description = "Reserved custom-domain hostnames for the cloud stack. These are live only when edge_enabled=true."
   value       = local.hostnames
 }
 
@@ -41,6 +41,11 @@ output "endpoint_mode" {
   value       = local.endpoint_mode
 }
 
+output "edge_enabled" {
+  description = "Whether the custom-domain edge resources are currently provisioned."
+  value       = local.edge_enabled
+}
+
 output "public_origins" {
   description = "Canonical public origins for the current topology contract. In run_app mode these must be explicit inputs."
   value       = local.public_origins
@@ -59,6 +64,7 @@ output "frontend_build_contract" {
   description = "Frontend build/runtime proxy inputs. BACKEND_API_ORIGIN must match the image build input; changing the service env alone will not retarget the compiled rewrite."
   value = {
     endpoint_mode          = local.endpoint_mode
+    edge_enabled           = local.edge_enabled
     public_frontend_origin = local.frontend_public_origin
     build_api_origin       = local.frontend_backend_api_origin
     runtime_control_origin = local.frontend_backend_control_origin
@@ -71,35 +77,18 @@ output "serve_refresh_job_name" {
 }
 
 output "load_balancer_ip" {
-  description = "Global load balancer IPv4 address for app/api/control when the custom-domain edge is in use."
-  value       = google_compute_global_address.cloud_app.address
+  description = "Global load balancer IPv4 address for app/api/control when the custom-domain edge is in use; null when edge_enabled=false."
+  value       = module.edge.load_balancer_ip
 }
 
 output "load_balancer_dns_records" {
-  description = "Cloudflare-managed DNS records for the custom-domain edge."
-  value = {
-    frontend = {
-      hostname  = local.hostnames.frontend
-      record_id = cloudflare_dns_record.frontend.id
-    }
-    serve = {
-      hostname  = local.hostnames.serve
-      record_id = cloudflare_dns_record.serve.id
-    }
-    control = {
-      hostname  = local.hostnames.control
-      record_id = cloudflare_dns_record.control.id
-    }
-  }
+  description = "Cloudflare-managed DNS records for the custom-domain edge; null when edge_enabled=false."
+  value       = module.edge.load_balancer_dns_records
 }
 
 output "load_balancer_host_routing" {
-  description = "Host-based routing contract for the shared HTTPS load balancer when endpoint_mode=custom_domains."
-  value = {
-    frontend = local.hostnames.frontend
-    serve    = local.hostnames.serve
-    control  = local.hostnames.control
-  }
+  description = "Host-based routing contract for the shared HTTPS load balancer when the edge is enabled; null when edge_enabled=false."
+  value       = module.edge.load_balancer_host_routing
 }
 
 output "control_service_job_env" {

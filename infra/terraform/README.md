@@ -66,16 +66,19 @@ The `prod` root currently owns:
 Topology contract:
 - `endpoint_mode=custom_domains`
   - current default
+  - requires `edge_enabled=true`
   - canonical public origins resolve to `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com`
 - `endpoint_mode=run_app`
-  - prep-only contract in this slice
+  - explicit alternate public contract
   - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned `*_image_ref` inputs
-  - does not yet remove or disable the custom-domain edge resources; that is a later slice
+  - `edge_enabled=true` is the soak/rollback state
+  - `edge_enabled=false` is the no-edge steady state
 
 Important ingress rule:
-- this slice does not change the public `run.app` smoke posture of the Cloud Run services
-- it only prepares the later custom-domain cutover path
-- final-domain cutover must use a frontend image built against `https://api.ceiora.com`, not the earlier `run.app` smoke image
+- the root now owns the edge through `module.edge`, with `moved` blocks preserving state addresses from the earlier root-level ingress resources
+- `edge_enabled=true` keeps the shared HTTPS load balancer, NEGs, cert, and Cloudflare records provisioned
+- `edge_enabled=false` tears down those edge resources but leaves the Cloud Run services and `run.app` origins intact
+- `endpoint_mode=custom_domains` cannot be combined with `edge_enabled=false`
 
 Build/deploy operator rule:
 - `scripts/cloud/build_images.sh` and `scripts/cloud/build_and_push_images.sh` read `ENDPOINT_MODE`
@@ -101,9 +104,13 @@ Important frontend rule:
 - the frontend Cloud Run service mirrors the same `BACKEND_API_ORIGIN` at runtime for Next server-side proxy helpers, but changing the service env alone does not retarget the compiled rewrite
 - the canonical topology-facing outputs are:
   - `endpoint_mode`
+  - `edge_enabled`
   - `public_origins`
   - `frontend_build_contract`
   - `service_image_refs`
+  - `load_balancer_ip`
+  - `load_balancer_dns_records`
+  - `load_balancer_host_routing`
 - the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - secret access bindings in the prod root should therefore exist only for secret-consuming backend services and jobs, not for the frontend service account
 - for final-domain rollout, the default stays `https://api.ceiora.com`
@@ -123,6 +130,8 @@ Important frontend rule:
 - when building a frontend image for `endpoint_mode=run_app`, pass the same origin explicitly to the image script:
   - `ENDPOINT_MODE=run_app BACKEND_API_ORIGIN=https://<serve-service>.run.app BUILD_TARGETS=frontend make cloud-images-build`
 - the `run_app` contract rejects partial overrides and rejects `:latest` image refs
+- `frontend_build_contract.edge_enabled` shows whether the custom-domain edge is still present for rollback during a `run_app` soak
+- when `edge_enabled=false`, `load_balancer_ip`, `load_balancer_dns_records`, and `load_balancer_host_routing` return `null`
 
 Secret values are intentionally out of band. After the secret containers exist, add versions manually:
 

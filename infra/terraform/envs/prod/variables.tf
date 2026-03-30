@@ -78,6 +78,12 @@ variable "endpoint_mode" {
   }
 }
 
+variable "edge_enabled" {
+  description = "Whether the custom-domain edge resources should remain provisioned. custom_domains requires true; run_app may use true for soak or false for no-edge steady state."
+  type        = bool
+  default     = true
+}
+
 variable "frontend_public_origin" {
   description = "Canonical browser-facing frontend origin. Required when endpoint_mode=run_app; defaults to the custom-domain frontend hostname otherwise."
   type        = string
