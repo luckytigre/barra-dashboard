@@ -33,6 +33,7 @@ AAPL.OQ,AAPL,US0378331005,Nasdaq Stock Exchange Global Select Market,active,1,1,
 AARD.OQ,AARD,US0029421007,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 AAT.N,AAT,US0240131047,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AATI.II,AATI,,,active,1,1,1,1,0,0,1,1
+AAXJ.O,AAXJ,US4642881829,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 AA_W.II,AA_W,,,active,1,1,1,1,0,0,1,1
 ABAT.OQ,ABAT,US02451V3096,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 ABBCD.OQ,ABBCD,,,active,1,1,1,1,0,0,1,1
@@ -102,6 +103,8 @@ ACVA.N,ACVA,US00091G1040,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ACV^E11,ACV,US0130781000,New York Consolidated,active,1,1,1,1,0,0,1,1
 ACW.N,ACW,,,active,1,1,1,1,0,0,1,1
 ACW.PH,ACW,,,active,1,1,1,1,0,0,1,1
+ACWI.O,ACWI,US4642882579,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+ACWX.O,ACWX,US4642882405,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 AD,AD,US9116841084,New York Consolidated,active,1,1,1,1,0,0,1,1
 ADAM.OQ,ADAM,US6496048405,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ADBE.OQ,ADBE,US00724F1012,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -168,6 +171,7 @@ AG.TO,AG,CA32076V1031,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 AGAF.TPRM,AGAF,US0171751003,TPICAP,active,1,1,1,1,0,0,1,1
 AGCO.N,AGCO,US0010841023,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AGEN.OQ,AGEN,US00847G8042,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+AGG,AGG,US4642872265,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 AGIL.IX,AGIL,,,active,1,1,1,1,0,0,1,1
 AGIO.OQ,AGIO,US00847X1046,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 AGL.N,AGL,US00857U1079,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -195,6 +199,7 @@ AIN.N,AIN,US0123481089,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AINV.OQ,AINV,,,active,1,1,1,1,0,0,1,1
 AIOT.OQ,AIOT,US73931J1097,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 AIP.OQ,AIP,US04302A1043,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+AIQ.OQ,AIQ,US37954Y6326,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 AIR.N,AIR,US0003611052,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AIRG.OQ,AIRG,US00938A1043,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 AIRJ.OQ,AIRJ,US6121601016,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -324,6 +329,7 @@ ANEN.OQ,ANEN,,,active,1,1,1,1,0,0,1,1
 ANET.N,ANET,US0404132054,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ANF.N,ANF,US0028962076,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ANGI.OQ,ANGI,US00183L2016,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+ANGL.O,ANGL,US92189F4375,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 ANGO.OQ,ANGO,US03475V1017,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ANIK.OQ,ANIK,US0352551081,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ANIP.OQ,ANIP,US00182C1036,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -391,7 +397,14 @@ ARHS.OQ,ARHS,US04035M1027,Nasdaq Stock Exchange Global Select Market,active,1,1,
 ARI.N,ARI,US03762U1051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ARIA.OQ,ARIA,,,active,1,1,1,1,0,0,1,1
 ARJ.N,ARJ,,,active,1,1,1,1,0,0,1,1
+ARKB.K,ARKB,US0409191022,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+ARKF.N,ARKF,US00214Q7088,New York Stock Exchange,active,1,0,0,0,0,1,0,1
+ARKG.P,ARKG,US00214Q3020,NYSE Arca,active,1,0,0,0,0,1,0,1
+ARKK.N,ARKK,US00214Q1040,New York Stock Exchange,active,1,0,0,0,0,1,0,1
 ARKO.OQ,ARKO,US0412421085,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+ARKQ.K,ARKQ,US00214Q2030,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+ARKW.K,ARKW,US00214Q4010,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+ARKX.P,ARKX,US00214Q8078,NYSE Arca,active,1,0,0,0,0,1,0,1
 ARL.N,ARL,US0291741090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ARLO.N,ARLO,US04206A1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ARM.OQ,ARM,US0420682058,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -410,6 +423,7 @@ ARRS.O^D19,ARRS,GB00BZ04Y379,Consolidated Issue Listed on Nasdaq Global Select M
 ARRY.IX,ARRY,,,active,1,1,1,1,0,0,1,1
 ARRY.OQ,ARRY,US04271T1007,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 ARTNA.OQ,ARTNA,US0431132085,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+ARTY.SN,IRBO,US46435U5561,Bolsa de Comercio de Santiago,active,1,0,0,0,0,1,0,1
 ARUN.OQ,ARUN,,,active,1,1,1,1,0,0,1,1
 ARVN.OQ,ARVN,US04335A1051,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ARW.N,ARW,US0427351004,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -425,6 +439,7 @@ ASCADE.INS,ASCADE,,,active,1,1,1,1,0,0,1,1
 ASD.N,ASD,,,active,1,1,1,1,0,0,1,1
 ASEI.MW,ASEI,,,active,1,1,1,1,0,0,1,1
 ASEI.OQ,ASEI,,,active,1,1,1,1,0,0,1,1
+ASGM.K,ASGM,US92790A8430,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 ASGN.CJ,ASGN,US81181C1045,Costa Rica Exchange,active,1,1,1,1,0,0,1,1
 ASGN.N,ASGN,US00191U1025,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ASH.II,ASH,US04454CCZ77,,active,1,1,1,1,0,0,1,1
@@ -435,6 +450,7 @@ ASIC.N,ASIC,US04681Y1038,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ASIX.N,ASIX,US00773T1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ASLE.OQ,ASLE,US00810F1066,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 ASMB.OQ,ASMB,US0453962070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+ASMF.K,ASMF,US92790A8760,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 ASML.OQ,ASML,USN070592100,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ASO.OQ,ASO,US00402L1070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ASPI.OQ,ASPI,US00218A1051,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -513,6 +529,7 @@ AVR.OQ,AVR,US03675P1021,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1
 AVT.OQ,AVT,US0538071038,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 AVTR.N,AVTR,US05352A1007,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AVTX.OQ,AVTX,US05338F3064,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+AVUV.P,AVUV,US0250728773,NYSE Arca,active,1,0,0,0,0,1,0,1
 AVX.N,AVX,CA05353F1080,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 AVXL.OQ,AVXL,US0327973006,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 AVY.II,AVY,,,active,1,1,1,1,0,0,1,1
@@ -562,6 +579,7 @@ BAS.N,BAS,,,active,1,1,1,1,0,0,1,1
 BAS.PH,BAS,,,active,1,1,1,1,0,0,1,1
 BATRA.OQ,BATRA,US0477261046,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BATRK.OQ,BATRK,US0477263026,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+BATT.K,BATT,US0321088058,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BAX.N,BAX,US0718131099,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BBAI.N,BBAI,US08975B1098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BBBB.OQ,BBBB,,,active,1,1,1,1,0,0,1,1
@@ -653,11 +671,14 @@ BID^J19,BID^J19,US8358981079,New York Consolidated,active,1,1,1,1,0,0,1,1
 BIG.II,BIG,,,active,1,1,1,1,0,0,1,1
 BIGGQ.PK,BIGGQ,US0893021032,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 BIIB.OQ,BIIB,US09062X1037,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+BIL,BIL,US78468R6633,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BILL.N,BILL,US0900431000,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+BILZ.K,BILZ,US72201R5770,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BIO.N,BIO,US0905722072,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BIOA.OQ,BIOA,US09077V1008,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BIPC.N,BIPC,CA11276H1064,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BIRT.OQ,BIRT,,,active,1,1,1,1,0,0,1,1
+BITQ.K,BITQ,US09175C1036,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BIVN.PH,BIVN,,,active,1,1,1,1,0,0,1,1
 BJ.N,BJ,US05550J1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BJGP.OQ,BJGP,,,active,1,1,1,1,0,0,1,1
@@ -669,6 +690,7 @@ BKE.N,BKE,US1184401065,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BKH.N,BKH,US0921131092,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BKI.N,BKI,,,active,1,1,1,1,0,0,1,1
 BKKT.N,BKKT,US05759B3050,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+BKLN.K,BKLN,US46138G5080,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BKNG.OQ,BKNG,US09857L1089,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BKR.OQ,BKR,US05722G1004,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BKS.N,BKS,,,active,1,1,1,1,0,0,1,1
@@ -694,9 +716,11 @@ BLMN.OQ,BLMN,US0942351083,Nasdaq Stock Exchange Global Select Market,active,1,1,
 BLMT.OQ,BLMT,,,active,1,1,1,1,0,0,1,1
 BLND.N,BLND,US09352U1088,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BLNK.OQ,BLNK,US09354A1007,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+BLOK.P,BLOK,US0321086078,NYSE Arca,active,1,0,0,0,0,1,0,1
 BLOX.N,BLOX,US88636V7284,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BLT.B,BLT,,,active,1,1,1,1,0,0,1,1
 BLT.N,BLT,,,active,1,1,1,1,0,0,1,1
+BLV,BLV,US9219377937,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BLX.N,BLX,PAP169941328,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BLZE.OQ,BLZE,US05637B1052,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 BMBL.OQ,BMBL,US12047B1052,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -716,6 +740,9 @@ BMS.N,BMS,,,active,1,1,1,1,0,0,1,1
 BMTC.OQ,BMTC,,,active,1,1,1,1,0,0,1,1
 BMY.N,BMY,US1101221083,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BNCN.OQ,BNCN,,,active,1,1,1,1,0,0,1,1
+BND.O,BND,US9219378356,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+BNDW.O,BNDW,US92206C5655,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+BNDX.O,BNDX,US92203J4076,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 BNE.B,BNE,US26922B3033,Boston Stock Exchange Inc,active,1,1,1,1,0,0,1,1
 BNED.N,BNED,US06777U2006,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BNGO.OQ,BNGO,US09075F4046,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -731,11 +758,13 @@ BODY.OQ,BODY,,,active,1,1,1,1,0,0,1,1
 BOH.N,BOH,US0625401098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BOJAN.BCU,BOJAN,US0974881007,BATS Europe,active,1,1,1,1,0,0,1,1
 BOLT.OQ,BOLT,US0977022039,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+BOND.K,BOND,US72201R7750,NYSE Consolidated,active,1,0,0,0,0,1,0,1
 BONTQ.PK,BONTQ,US09776J1016,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 BOOM.OQ,BOOM,US23291C1036,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BOOT.N,BOOT,US0994061002,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BORL.IX,BORL,,,active,1,1,1,1,0,0,1,1
 BORR.N,BORR,BMG1466R1732,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+BOTZ.OQ,BOTZ,US37954Y7159,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 BOW.N,BOW,US10240L1026,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BOWDE.INS,BOWDE,,,active,1,1,1,1,0,0,1,1
 BOX.N,BOX,US10316T1043,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -765,6 +794,11 @@ BRT.N,BRT,US0556453035,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BRW.C,BRW,US78518H2022,The National Stock Exchange (formerly Cincinnati SE),active,1,1,1,1,0,0,1,1
 BRX.N,BRX,US11120U1051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BRZE.OQ,BRZE,US10576N1028,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+BSCP.PK^L09,BSCP,US0863391084,US 'Other OTC' and Grey Market,active,1,0,0,0,0,1,0,1
+BSCQ.O,BSCQ,US46138J7919,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+BSCR.O,BSCR,US46138J7836,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+BSCS.O,BSCS,US46138J6432,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+BSCT.O,BSCT,US46138J5772,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 BSC^F08,BSC,US0739021089,New York Consolidated,active,1,1,1,1,0,0,1,1
 BSET.OQ,BSET,US0702031040,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BSF.OQ,BSF,,,active,1,1,1,1,0,0,1,1
@@ -776,6 +810,7 @@ BSVN.OQ,BSVN,US06652N1072,Nasdaq Stock Exchange Global Select Market,active,1,1,
 BSX.N,BSX,US1011371077,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BSY.OQ,BSY,US08265T2087,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 BTAI.OQ,BTAI,US09075P2048,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+BTAL.K,BTAL,US00110G4082,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 BTBT.OQ,BTBT,KYG1144A1058,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 BTDR.OQ,BTDR,KYG114481008,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 BTH.B,BTH,,,active,1,1,1,1,0,0,1,1
@@ -787,6 +822,7 @@ BTU.II,BTU,,,active,1,1,1,1,0,0,1,1
 BTU.N,BTU,US7045511000,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 BUCY.O^G11,BUCY,US1187591094,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 BUF.PH,BUF,,,active,1,1,1,1,0,0,1,1
+BUG.L,BUG,IE00BMH5Y871,London Stock Exchange,active,1,0,0,0,0,1,0,1
 BULL.OQ,BULL,KYG9572D1034,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 BURF.L,BUR,GG00BMGYLN96,London Stock Exchange,active,1,1,1,1,0,0,1,1
 BURL.N,BURL,US1220171060,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -975,6 +1011,7 @@ CGON.OQ,CGON,US1569441009,Nasdaq Stock Exchange Global Select Market,active,1,1,
 CGX.B,CGX,,,active,1,1,1,1,0,0,1,1
 CGX.N,CGX,,,active,1,1,1,1,0,0,1,1
 CHAP.N,CHAP,,,active,1,1,1,1,0,0,1,1
+CHAT.K,CHAT,US88636J6001,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CHB.B,CHB,,,active,1,1,1,1,0,0,1,1
 CHC.B,CHC,,,active,1,1,1,1,0,0,1,1
 CHCO.OQ,CHCO,US1778351056,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1006,6 +1043,7 @@ CHWY.N,CHWY,US16679L1098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CHZ.B,CHZ,,,active,1,1,1,1,0,0,1,1
 CI.N,CI,US1255231003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CIA.N,CIA,US1747401008,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+CIBR.OQ,CIBR,US33734X8469,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 CIEN.II,CIEN,,,active,1,1,1,1,0,0,1,1
 CIEN.N,CIEN,US1717793095,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CIFR.OQ,CIFR,US17253J1060,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1040,6 +1078,8 @@ CLMT.OQ,CLMT,US1314281049,Nasdaq Stock Exchange Global Select Market,active,1,1,
 CLNE.OQ,CLNE,US1844991018,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CLNN.OQ,CLNN,US1856342019,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 CLNY.N,CLNY,,,active,1,1,1,1,0,0,1,1
+CLOA.O,CLOA,US0925285043,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+CLOU.OQ,CLOU,US37954Y4420,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 CLOV.OQ,CLOV,US18914F1030,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CLP.N,CLP,,,active,1,1,1,1,0,0,1,1
 CLPR.N,CLPR,US18885T3068,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -1071,6 +1111,7 @@ CMI.N,CMI,US2310211063,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CMLS.PK,CMLSQ,US2310828015,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 CMOS.II,CMOS,,,active,1,1,1,1,0,0,1,1
 CMP.N,CMP,US20451N1019,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+CMPB3,PBD,GB00KNQP9V41,The London Metal Exchange,active,1,0,0,0,0,1,0,1
 CMPR.OQ,CMPR,IE00BKYC3F77,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CMPX.OQ,CMPX,US20454B1044,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 CMRC.OQ,CMRC,US08975P1084,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -1098,6 +1139,7 @@ CNP.N,CNP,US15189T1079,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CNQR.O,CNQR,,,active,1,1,1,1,0,0,1,1
 CNQR.OQ,CNQR,,,active,1,1,1,1,0,0,1,1
 CNR.N,CNR,US2189371006,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+CNRG.K,CNRG,US78468R6559,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CNS.N,CNS,US19247A1007,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CNTY.OQ,CNTY,US1564921005,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 CNW.N,CNW,,,active,1,1,1,1,0,0,1,1
@@ -1138,6 +1180,7 @@ COP.II,COP,,,active,1,1,1,1,0,0,1,1
 COP.N,COP,US20825C1045,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 COR.N,COR,US03073E1055,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CORI.OQ,CORI,,,active,1,1,1,1,0,0,1,1
+CORP.K,CORP,US72201R8170,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CORS.OQ,CORS,,,active,1,1,1,1,0,0,1,1
 CORT.OQ,CORT,US2183521028,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 CORZ.OQ,CORZ,US21874A1060,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1168,6 +1211,7 @@ CPX.PH,CPX,,,active,1,1,1,1,0,0,1,1
 CPY.PH,CPY,,,active,1,1,1,1,0,0,1,1
 CQB.B,CQB,,,active,1,1,1,1,0,0,1,1
 CQB.N,CQB,,,active,1,1,1,1,0,0,1,1
+CQQQ.K,CQQQ,US46138E8003,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CR.N,CR,US2244081046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CRAI.OQ,CRAI,US12618T1051,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CRAY.O,CRAY,,,active,1,1,1,1,0,0,1,1
@@ -1233,6 +1277,8 @@ CSW.N,CSW,US1264021064,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CSWC.OQ,CSWC,US1405011073,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CSX.II,CSX,US126410ER69,,active,1,1,1,1,0,0,1,1
 CSX.OQ,CSX,US1264081035,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+CTA.L,CTA,GB00BMHYGR77,London Stock Exchange,active,1,0,0,0,0,1,0,1
+CTAP.K,CTAP,US82889N2282,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CTAS.OQ,CTAS,US1729081059,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CTB.II,CTB,,,active,1,1,1,1,0,0,1,1
 CTBI.OQ,CTBI,US2041491083,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1300,6 +1346,7 @@ CVX.II,CVX,,,active,1,1,1,1,0,0,1,1
 CVX.N,CVX,US1667641005,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CW.N,CW,US2315611010,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 CWAN.N,CWAN,US1851231068,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+CWB,CWB,US78464A3591,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 CWBC.OQ,CWBC,US2039371073,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 CWCO.OQ,CWCO,KYG237731073,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 CWEI.N,CWEI,,,active,1,1,1,1,0,0,1,1
@@ -1347,9 +1394,12 @@ DAR.N,DAR,US2372661015,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DASH.OQ,DASH,US25809K1051,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 DAVE.OQ,DAVE,US23834J2015,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 DAWN.OQ,DAWN,US23954D1090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+DBC,DBC,US46138B1035,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 DBD.N,DBD,US2536512021,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DBD.N^F23,DBD,US2536511031,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+DBEH.MP^I24,DBEH,US53700T8356,MIAX Pearl for NYSE/Cboe BZX (MPE),active,1,0,0,0,0,1,0,1
 DBI.N,DBI,US2505651081,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+DBMF.K,DBMF,US53700T8273,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 DBRG.N,DBRG,US25401T6038,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DBTK.O,DBTK,,,active,1,1,1,1,0,0,1,1
 DBX.OQ,DBX,US26210C1045,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1382,6 +1432,7 @@ DELL.O^J13,DELL,US24702R1014,Consolidated Issue Listed on Nasdaq Global Select M
 DERM.OQ,DERM,US48115J1097,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 DF.II,DF,,,active,1,1,1,1,0,0,1,1
 DF.N,DF,,,active,1,1,1,1,0,0,1,1
+DFAT.K,DFAT,US25434V6092,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 DFC.OQ,DFC,,,active,1,1,1,1,0,0,1,1
 DFH.N,DFH,US26154D1000,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DFIN.N,DFIN,US25787G1004,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -1397,6 +1448,7 @@ DGICA.OQ,DGICA,US2577012014,Nasdaq Stock Exchange Global Select Market,active,1,
 DGII.OQ,DGII,US2537981027,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 DGIT.O,DGIT,,,active,1,1,1,1,0,0,1,1
 DGIT.OQ,DGIT,,,active,1,1,1,1,0,0,1,1
+DGRO.P,DGRO,US46434V6213,NYSE Arca,active,1,0,0,0,0,1,0,1
 DGX.II,DGX,,,active,1,1,1,1,0,0,1,1
 DGX.N,DGX,US74834L1008,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DH.OQ,DH,US24477E1038,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1486,11 +1538,13 @@ DTV.OQ,DTV,,,active,1,1,1,1,0,0,1,1
 DUK.N,DUK,US26441C2044,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DUOL.OQ,DUOL,US26603R1068,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 DURF.TPRM,DURF,US2644115055,TPICAP,active,1,1,1,1,0,0,1,1
+DUST.K,DUST,US25461A1896,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 DVA.N,DVA,US23918K1088,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DVN.II,DVN,,,active,1,1,1,1,0,0,1,1
 DVN.N,DVN,US25179M1036,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 DVR.N,DVR,,,active,1,1,1,1,0,0,1,1
 DVR.TH,DVR,,,active,1,1,1,1,0,0,1,1
+DVY.O,DVY,US4642871689,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 DWA.N,DWA,,,active,1,1,1,1,0,0,1,1
 DWA.OQ,DWA,,,active,1,1,1,1,0,0,1,1
 DWRE.N,DWRE,,,active,1,1,1,1,0,0,1,1
@@ -1536,17 +1590,23 @@ EDIT.OQ,EDIT,US28106W1036,Nasdaq Stock Exchange Global Select Market,active,1,1,
 EDMC.OQ,EDMC,,,active,1,1,1,1,0,0,1,1
 EDO.B,EDO,,,active,1,1,1,1,0,0,1,1
 EDS.N,EDS,,,active,1,1,1,1,0,0,1,1
+EDV,EDV,US9219107094,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EE.N,EE,US30069T1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 EEE.MW,EEE,US68190A2033,Midwest SE when trading NASDAQ Global Market,active,1,1,1,1,0,0,1,1
 EEFT.OQ,EEFT,US2987361092,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+EEM,EEM,US4642872349,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EEMV.K,EEMV,US4642865335,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 EEX.N,EEX,US29103W1045,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+EFA,EFA,US4642874659,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EFC.N,EFC,US28852N1090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 EFD.C,EFD,,,active,1,1,1,1,0,0,1,1
+EFG,EFG,US4642888857,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 EFIIDE.INS,EFIIDE,,,active,1,1,1,1,0,0,1,1
 EFIIN.BCU,EFIIN,US2860821022,BATS Europe,active,1,1,1,1,0,0,1,1
 EFR.TO,EFR,CA2926717083,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 EFSC.OQ,EFSC,US2937121059,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 EFSI.OQ,EFSI,US26951R1041,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+EFV,EFV,US4642888774,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 EFX.II,EFX,,,active,1,1,1,1,0,0,1,1
 EFX.N,EFX,US2944291051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 EG,EG,BMG3223R1088,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -1592,6 +1652,7 @@ EML.OQ,EML,US2763171046,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1
 EMLXDE.INS,EMLXDE,,,active,1,1,1,1,0,0,1,1
 EMN.II,EMN,,,active,1,1,1,1,0,0,1,1
 EMN.N,EMN,US2774321002,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+EMNT.V,EMNT,CA2913411054,TSX Venture Exchange (former Canadian Ventures Exchange),active,1,0,0,0,0,1,0,1
 EMR.II,EMR,,,active,1,1,1,1,0,0,1,1
 EMR.N,EMR,US2910111044,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 EMS.PH,EMS,,,active,1,1,1,1,0,0,1,1
@@ -1658,6 +1719,7 @@ ESC.N,ESC,,,active,1,1,1,1,0,0,1,1
 ESCA.OQ,ESCA,US2960561049,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 ESCH.O,ESCH,,,active,1,1,1,1,0,0,1,1
 ESE.N,ESE,US2963151046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+ESGV.K,ESGV,US9219107334,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 ESI.N,ESI,US28618M1062,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ESLRDE.INS,ESLRDE,,,active,1,1,1,1,0,0,1,1
 ESL^C19,ESL^C19,US2974251009,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -1695,9 +1757,27 @@ EVTC.N,EVTC,PR30040P1032,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 EVVV.P,EVVV,,,active,1,1,1,1,0,0,1,1
 EV^C21,EV^C21,US2782651036,New York Consolidated,active,1,1,1,1,0,0,1,1
 EW.N,EW,US28176E1082,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+EWA,EWA,US4642861037,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EWBC.OQ,EWBC,US27579R1041,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+EWC,EWC,US4642865095,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EWCZ.OQ,EWCZ,US29882P1066,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+EWD,EWD,US4642867562,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWG,EWG,US4642868065,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWH,EWH,US4642868719,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWI.L,EWI,GB00BHSRZC82,London Stock Exchange,active,1,0,0,0,0,1,0,1
+EWJ,EWJ,US46434G8226,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWL,EWL,US4642867497,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWN,EWN,US4642868149,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWO,EWO,US4642862027,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWP,EWP,US4642867646,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWQ,EWQ,US4642867075,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWS,EWS,US46434G7806,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWT,EWT,US46434G7723,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EWTX.OQ,EWTX,US28036F1057,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+EWU,EWU,US46435G3341,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWW,EWW,US4642868222,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWY,EWY,US4642867729,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+EWZ,EWZ,US4642864007,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EXA.OQ,EXA,,,active,1,1,1,1,0,0,1,1
 EXAC.OQ,EXAC,,,active,1,1,1,1,0,0,1,1
 EXAM.N,EXAM,,,active,1,1,1,1,0,0,1,1
@@ -1722,6 +1802,7 @@ EXTRDE.INS,EXTRDE,,,active,1,1,1,1,0,0,1,1
 EXXI.OQ,EXXI,,,active,1,1,1,1,0,0,1,1
 EYE.OQ,EYE,US63845R1077,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 EYPT.OQ,EYPT,US30233G2093,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+EZA,EZA,US4642867802,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 EZPW.OQ,EZPW,US3023011063,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 F.N,F,US3453708600,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FA.OQ,FA,US31846B1089,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1731,8 +1812,10 @@ FAF.N,FAF,US31847R1023,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FALC.OQ,FALC,,,active,1,1,1,1,0,0,1,1
 FANG.OQ,FANG,US25278X1090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FARM.OQ,FARM,US3076751086,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FAS,FAS,US25459Y6941,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FAST.OQ,FAST,US3119001044,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FATE.OQ,FATE,US31189P1021,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+FAZ,FAZ,US25460E2164,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FBIN.N,FBIN,US34964C1062,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FBIO.OQ,FBIO,US34960Q3074,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FBIZ.OQ,FBIZ,US3193901002,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1741,6 +1824,7 @@ FBLA.OQ,FBLA,US31425A1097,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,
 FBN.N,FBN,,,active,1,1,1,1,0,0,1,1
 FBN.TH,FBN,,,active,1,1,1,1,0,0,1,1
 FBNC.OQ,FBNC,US3189101062,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FBOT.O,FBOT,US3160921702,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 FBP.N,FBP,PR3186727065,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FBR.C,FBR,,,active,1,1,1,1,0,0,1,1
 FBRC.OQ,FBRC,,,active,1,1,1,1,0,0,1,1
@@ -1759,8 +1843,11 @@ FCFP.OQ,FCFP,,,active,1,1,1,1,0,0,1,1
 FCFS.OQ,FCFS,US33768G1076,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FCH.B,FCH,,,active,1,1,1,1,0,0,1,1
 FCH.N,FCH,,,active,1,1,1,1,0,0,1,1
+FCLD.K,FCLD,US3160922460,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 FCN.N,FCN,US3029411093,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FCNCA.OQ,FCNCA,US31946M1036,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FCOM.K,FCOM,US3160928731,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+FCPI.K,FCPI,US3160923864,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 FCPT.N,FCPT,US35086T1097,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FCS.OQ,FCS,,,active,1,1,1,1,0,0,1,1
 FCS.O^I16,FCS,US3037261035,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
@@ -1769,14 +1856,24 @@ FCTR.OQ,FCTR,,,active,1,1,1,1,0,0,1,1
 FCX.II,FCX,,,active,1,1,1,1,0,0,1,1
 FCX.N,FCX,US35671D8570,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FDBC.OQ,FDBC,US31609R1005,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+FDCF.O,FDCF,US3160921629,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+FDEM.K,FDEM,US3160925430,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+FDEV.L,FDEV,GB00BBT32N39,London Stock Exchange,active,1,0,0,0,0,1,0,1
+FDFF.O,FDFF,US3160921546,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+FDIS.K,FDIS,US3160922049,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+FDLO.K,FDLO,US3160928244,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FDML.OQ,FDML,,,active,1,1,1,1,0,0,1,1
+FDMO.K,FDMO,US3160928160,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FDMT.OQ,FDMT,US35104E1001,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FDO.II,FDO,,,active,1,1,1,1,0,0,1,1
 FDO.N,FDO,,,active,1,1,1,1,0,0,1,1
 FDP.N,FDP,KYG367381053,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+FDRR.K,FDRR,US3160928327,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FDRYDE.INS,FDRYDE,,,active,1,1,1,1,0,0,1,1
 FDS.N,FDS,US3030751057,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+FDTX.O,FDTX,US3160921397,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 FDUS.OQ,FDUS,US3165001070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FDVV.K,FDVV,US3160928400,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FDX.N,FDX,US31428X1063,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FE.II,FE,,,active,1,1,1,1,0,0,1,1
 FE.N,FE,US3379321074,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -1787,6 +1884,7 @@ FEIM.OQ,FEIM,US3580101067,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0
 FELE.OQ,FELE,US3535141028,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FENC.OQ,FENC,CA31447P1009,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FENX.OQ,FENX,,,active,1,1,1,1,0,0,1,1
+FENY.K,FENY,US3160924029,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FER.MC,FER,NL0015001FS8,BME - BOLSAS Y MERCADOS ESPANOLES,active,1,1,1,1,0,0,1,1
 FERG.N,FERG,US31488V1070,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FES.OQ,FES,,,active,1,1,1,1,0,0,1,1
@@ -1803,12 +1901,15 @@ FG.N,FG,US30190A1043,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FGAF.TPRM,FGAF,US0248351001,TPICAP,active,1,1,1,1,0,0,1,1
 FGBI.OQ,FGBI,US32043P1066,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 FHI.N,FHI,US3142111034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+FHLC.K,FHLC,US3160926008,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FHN.II,FHN,,,active,1,1,1,1,0,0,1,1
 FHN.N,FHN,US3205171057,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FHTX.OQ,FHTX,US3441741077,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 FIBK.OQ,FIBK,US32055Y2019,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FIC.N,FIC,,,active,1,1,1,1,0,0,1,1
 FICO.N,FICO,US3032501047,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+FIDI.K,FIDI,US3160927253,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+FIDU.K,FIDU,US3160927097,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FIGS.N,FIGS,US30260D1037,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FIHL.N,FIHL,BMG3398L1182,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FII.II,FII,,,active,1,1,1,1,0,0,1,1
@@ -1824,6 +1925,7 @@ FISI.OQ,FISI,US3175854047,Nasdaq Stock Exchange Global Select Market,active,1,1,
 FISV.O,FISV,US3377381088,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 FITB.II,FITB,,,active,1,1,1,1,0,0,1,1
 FITB.OQ,FITB,US3167731005,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FIVA.K,FIVA,US3160927170,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FIVE.OQ,FIVE,US33829M1018,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FIVN.OQ,FIVN,US3383071012,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 FIX.N,FIX,US1999081045,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -1851,17 +1953,21 @@ FLXS.OQ,FLXS,US3393821034,Nasdaq Stock Exchange Global Select Market,active,1,1,
 FLY.OQ,FLY,US31816X1063,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 FLYW.OQ,FLYW,US3024921039,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FMAO.OQ,FMAO,US30779N1054,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+FMAT.K,FMAT,US3160928814,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FMBH.OQ,FMBH,US3208661062,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 FMC.N,FMC,US3024913036,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FMCN.OQ,FMCN,,,active,1,1,1,1,0,0,1,1
 FMD.N,FMD,,,active,1,1,1,1,0,0,1,1
+FMEDC1,FMED,,Eurex,active,1,0,0,0,0,1,0,1
 FMER.OQ,FMER,,,active,1,1,1,1,0,0,1,1
+FMETF.L,FMET,GB00BPCPPZ79,London Stock Exchange,active,1,0,0,0,0,1,0,1
 FMNB.OQ,FMNB,US3096271073,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FMR.PH,FMR,,,active,1,1,1,1,0,0,1,1
 FMT.B,FMT,,,active,1,1,1,1,0,0,1,1
 FN.N,FN,KYG3323L1005,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FNB.N,FNB,US3025201019,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FNBC.OQ,FNBC,,,active,1,1,1,1,0,0,1,1
+FNCL.K,FNCL,US3160925018,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FND.N,FND,US3397501012,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FNF.N,FNF,US31620R3030,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FNFG.OQ,FNFG,,,active,1,1,1,1,0,0,1,1
@@ -1869,6 +1975,7 @@ FNFV.N,FNFV,,,active,1,1,1,1,0,0,1,1
 FNKO.OQ,FNKO,US3610081057,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FNLC.OQ,FNLC,US31866P1021,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FNM.N,FNM,,,active,1,1,1,1,0,0,1,1
+FNOXC3:ST,FFNOX,,OMX Nordic Exchange Stockholm AB - cash,active,1,0,0,0,0,1,0,1
 FNSR.OQ,FNSR,,,active,1,1,1,1,0,0,1,1
 FNSRDE.INS,FNSRDE,,,active,1,1,1,1,0,0,1,1
 FNWB.OQ,FNWB,US3358341077,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -1891,6 +1998,7 @@ FPI.N,FPI,US31154R1095,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FPL.II,FPL,,,active,1,1,1,1,0,0,1,1
 FPO.C,FPO,,,active,1,1,1,1,0,0,1,1
 FPO.N,FPO,,,active,1,1,1,1,0,0,1,1
+FQAL.K,FQAL,US3160927907,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FR.N,FR,US32054K1034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FRAF.OQ,FRAF,US3535251082,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FRBA.OQ,FRBA,US31931U1025,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -1899,6 +2007,7 @@ FRC.C,FRC,,,active,1,1,1,1,0,0,1,1
 FRCB.PK,FRCB,US33616C1009,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 FRD.OQ,FRD,US3584351056,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FRE.N,FRE,,,active,1,1,1,1,0,0,1,1
+FREL.K,FREL,US3160928574,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FRF.N,FRF,,,active,1,1,1,1,0,0,1,1
 FRGB.O,FRGB,,,active,1,1,1,1,0,0,1,1
 FRGE.N,FRGE,US34629L2025,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -1907,6 +2016,7 @@ FRM.N,FRM,,,active,1,1,1,1,0,0,1,1
 FRME.OQ,FRME,US3208171096,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FRNK.OQ,FRNK,,,active,1,1,1,1,0,0,1,1
 FRNT.OQ,FRNT,,,active,1,1,1,1,0,0,1,1
+FRNW.K,FRNW,US3160922536,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 FRO.OL,FRO,CY0200352116,Oslo Stock Exchange,active,1,1,1,1,0,0,1,1
 FROG.OQ,FROG,IL0011684185,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FRP.C,FRP,,,active,1,1,1,1,0,0,1,1
@@ -1930,11 +2040,13 @@ FSCT.OQ,FSCT,,,active,1,1,1,1,0,0,1,1
 FSII.OQ,FSII,,,active,1,1,1,1,0,0,1,1
 FSLR.OQ,FSLR,US3364331070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FSLY.OQ,FSLY,US31188V1008,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FSMD.K,FSMD,US3160925273,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FSNM.OQ,FSNM,,,active,1,1,1,1,0,0,1,1
 FSP.A,FSP,US35471R1068,American Stock Exchange,active,1,1,1,1,0,0,1,1
 FSR.N,FSR,US33813J1060,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FSS.N,FSS,US3138551086,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FST.N,FST,,,active,1,1,1,1,0,0,1,1
+FSTA.L,FSTA,GB00B1YPC344,London Stock Exchange,active,1,0,0,0,0,1,0,1
 FSTR.OQ,FSTR,US3500601097,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FSUN.OQ,FSUN,US33767U1079,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FSYS.OQ,FSYS,,,active,1,1,1,1,0,0,1,1
@@ -1943,11 +2055,13 @@ FTCI.OQ,FTCI,US30320C3016,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,
 FTD.C,FTD,,,active,1,1,1,1,0,0,1,1
 FTD.OQ,FTD,,,active,1,1,1,1,0,0,1,1
 FTDR.OQ,FTDR,US35905A1097,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+FTEC.K,FTEC,US3160928087,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FTEK.O,FTEK,US3595231073,Consolidated Issue listed on NASDAQ Capital Market,active,1,1,1,1,0,0,1,1
 FTHM.OQ,FTHM,US31189V1098,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FTI.N,FTI,GB00BDSFG982,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FTK.N,FTK,US3433894090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FTLF.OQ,FTLF,US33817P4054,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+FTLS.K,FTLS,US33739P1030,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FTNT.OQ,FTNT,US34959E1091,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 FTO^G11,FTO,US35914P1057,New York Consolidated,active,1,1,1,1,0,0,1,1
 FTR.OQ,FTR,,,active,1,1,1,1,0,0,1,1
@@ -1963,6 +2077,7 @@ FUNC.OQ,FUNC,US33741H1077,Nasdaq Stock Exchange Global Select Market,active,1,1,
 FUR.B,FUR,,,active,1,1,1,1,0,0,1,1
 FUR.N,FUR,,,active,1,1,1,1,0,0,1,1
 FURX.OQ,FURX,,,active,1,1,1,1,0,0,1,1
+FUTY.K,FUTY,US3160928657,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 FVCB.OQ,FVCB,US36120Q1013,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 FVR.N,FVR,US35922N1000,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 FWLT.OQ,FWLT,,,active,1,1,1,1,0,0,1,1
@@ -2051,6 +2166,7 @@ GKOS.N,GKOS,US3773221029,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 GLAD.OQ,GLAD,US3765358789,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GLBC.O,GLBC,,,active,1,1,1,1,0,0,1,1
 GLBL.OQ,GLBL,,,active,1,1,1,1,0,0,1,1
+GLD,GLD,US78463V1070,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 GLDD.OQ,GLDD,US3906071093,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GLDNDE.INS,GLDNDE,,,active,1,1,1,1,0,0,1,1
 GLF.N,GLF,,,active,1,1,1,1,0,0,1,1
@@ -2096,6 +2212,7 @@ GOOG.OQ,GOOG,US02079K1079,Nasdaq Stock Exchange Global Select Market,active,1,1,
 GOOGL.OQ,GOOGL,US02079K3059,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GORO.A,GORO,US38068T1051,American Stock Exchange,active,1,1,1,1,0,0,1,1
 GOSS.OQ,GOSS,US38341P1021,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+GOVT.K,GOVT,US46429B2676,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 GPC.II,GPC,,,active,1,1,1,1,0,0,1,1
 GPC.N,GPC,US3724601055,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 GPGI.N,GPGI,US20459V1052,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2126,6 +2243,7 @@ GS.N,GS,US38141G1040,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 GSAT.OQ,GSAT,US3789735079,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GSBC.OQ,GSBC,US3909051076,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GSE.N,GSE,,,active,1,1,1,1,0,0,1,1
+GSG,GSG,US46428R1077,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 GSHD.OQ,GSHD,US38267D1090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GSIT.OQ,GSIT,US36241U1060,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 GSM.OQ,GSM,GB00BYW6GV68,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -2158,6 +2276,7 @@ GYRE.OQ,GYRE,US4037831033,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,
 GYRO.OQ,GYRO,US4038291047,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 H.N,H,US4485791028,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HABT.OQ,HABT,,,active,1,1,1,1,0,0,1,1
+HACK.P,HACK,US0321086649,NYSE Arca,active,1,0,0,0,0,1,0,1
 HAE.N,HAE,US4050241003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HAFC.OQ,HAFC,US4104952043,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 HAIN.OQ,HAIN,US4052171000,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -2186,7 +2305,9 @@ HCI.N,HCI,US40416E1038,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HCKT.OQ,HCKT,US4046091090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 HCSG.OQ,HCSG,US4219061086,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 HD.N,HD,US4370761029,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+HDRO.V,HDRO,CA74167W2022,TSX Venture Exchange (former Canadian Ventures Exchange),active,1,0,0,0,0,1,0,1
 HDSN.OQ,HDSN,US4441441098,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+HDV,HDV,US46429B6636,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 HDWRDE.INS,HDWRDE,,,active,1,1,1,1,0,0,1,1
 HE.N,HE,US4198701009,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HEI.N,HEI,US4228061093,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2199,6 +2320,7 @@ HES.MX,HES*,US42809H1077,Bolsa Mexicana de Valores S.A. de C.V.,active,1,1,1,1,0
 HFFG.OQ,HFFG,US40417F1093,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 HFWA.OQ,HFWA,US42722X1063,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 HG.N,HG,BMG427061046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+HGAAC1,GAA,,Hong Kong Futures Exchange Ltd,active,1,0,0,0,0,1,0,1
 HGG.N,HGG,,,active,1,1,1,1,0,0,1,1
 HGR.N,HGR,,,active,1,1,1,1,0,0,1,1
 HGSIDE.INS,HGSIDE,,,active,1,1,1,1,0,0,1,1
@@ -2333,8 +2455,10 @@ HWM.N,HWM,US4432011082,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HXL.N,HXL,US4282911084,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HY.N,HY,US4491721050,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 HYFM.OQ,HYFM,US44888K4076,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+HYG,HYG,US4642885135,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 HYLN.A,HYLN,US4491091074,American Stock Exchange,active,1,1,1,1,0,0,1,1
 HYREQ.PK,HYREQ,US44916T1079,USA Pink Sheets,active,1,1,1,1,0,0,1,1
+HYS,HYS,US72201R7834,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 HYTM.O,HYTM,,,active,1,1,1,1,0,0,1,1
 HZO.N,HZO,US5679081084,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 I.N,I,,,active,1,1,1,1,0,0,1,1
@@ -2343,11 +2467,13 @@ I8RD.BCU,I8RD,US4627261005,BATS Europe,active,1,1,1,1,0,0,1,1
 IAC.OQ,IAC,US44891N2080,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IART.OQ,IART,US4579852082,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IARTDE.INS,IARTDE,,,active,1,1,1,1,0,0,1,1
+IAU,IAU,US4642852044,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IBAS.O,IBAS,,,active,1,1,1,1,0,0,1,1
 IBCP.OQ,IBCP,US4538386099,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IBEX.O,IBEX,BMG4690M1010,NASDAQ National Market System,active,1,1,1,1,0,0,1,1
 IBI.C,IBI,,,active,1,1,1,1,0,0,1,1
 IBI.N,IBI,,,active,1,1,1,1,0,0,1,1
+IBIT.O,IBIT,US46438F1012,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 IBKC.OQ,IBKC,,,active,1,1,1,1,0,0,1,1
 IBKR.OQ,IBKR,US45841N1072,NASDAQ Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IBM.N,IBM,US4592001014,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2358,7 +2484,9 @@ IBTA.N,IBTA,US4510511060,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ICE.N,ICE,US45866F1049,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ICFI.OQ,ICFI,US44925C1036,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ICHR.OQ,ICHR,KYG4740B1059,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+ICLN.OQ,ICLN,US4642882249,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 ICO.II,ICO,,,active,1,1,1,1,0,0,1,1
+ICSH.K,ICSH,US46434V8789,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 ICTG.O,ICTG,,,active,1,1,1,1,0,0,1,1
 ICUI.OQ,ICUI,US44930G1076,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IDA.N,IDA,US4511071064,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2368,12 +2496,19 @@ IDEVDE.INS,IDEVDE,,,active,1,1,1,1,0,0,1,1
 IDIX.O,IDIX,,,active,1,1,1,1,0,0,1,1
 IDIX.OQ,IDIX,,,active,1,1,1,1,0,0,1,1
 IDR.A,IDR,US6458272050,American Stock Exchange,active,1,1,1,1,0,0,1,1
+IDRV.K,IDRV,US46435U3665,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IDT.N,IDT,US4489475073,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IDTI.O,IDTI,,,active,1,1,1,1,0,0,1,1
 IDTI.O^D19,IDTI,US4581181066,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
+IDU,IDU,US4642876977,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IDV,IDV,US4642884484,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 IDXX.OQ,IDXX,US45168D1046,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IDYA.OQ,IDYA,US45166A1025,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IE.A,IE,US46578C1080,American Stock Exchange,active,1,1,1,1,0,0,1,1
+IEF.O,IEF,US4642874402,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+IEFA.P,IEFA,US46432F8427,NYSE Arca,active,1,0,0,0,0,1,0,1
+IEI.O,IEI,US4642886612,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+IEMG.K,IEMG,US46434G1031,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IESC.OQ,IESC,US44951W1062,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 IEX.N,IEX,US45167R1041,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IFC.C,IFC,,,active,1,1,1,1,0,0,1,1
@@ -2384,6 +2519,8 @@ IFOX.O,IFOX,,,active,1,1,1,1,0,0,1,1
 IGT.II,IGT,,,active,1,1,1,1,0,0,1,1
 IGTE.O,IGTE,,,active,1,1,1,1,0,0,1,1
 IGTE.OQ,IGTE,,,active,1,1,1,1,0,0,1,1
+IGV,IGV,US4642875151,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+IHAK.K,IHAK,US46435U1354,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IHRT.OQ,IHRT,US45174J5092,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IHS.PH,IHS,KYG4701H1092,NASDAQ OMX PSX  SE,active,1,1,1,1,0,0,1,1
 IIG.PH,IIG,,,active,1,1,1,1,0,0,1,1
@@ -2391,6 +2528,8 @@ III.OQ,III,US45675Y1047,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1
 IIIN.N,IIIN,US45774W1080,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IIIV.OQ,IIIV,US46571Y1073,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 IIPR.N,IIPR,US45781V1017,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+IJH,IJH,US4642875078,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IJR.P,IJR,US4642878049,NYSE Arca,active,1,0,0,0,0,1,0,1
 IKN.B,IKN,,,active,1,1,1,1,0,0,1,1
 IKT.OQ,IKT,US45719W2052,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 IL.N,IL,,,active,1,1,1,1,0,0,1,1
@@ -2420,6 +2559,7 @@ INBK.OQ,INBK,US3205571017,Nasdaq Stock Exchange Global Select Market,active,1,1,
 INBX.OQ,INBX,US45720N1037,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 INCY.OQ,INCY,US45337C1027,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 INCYDE.INS,INCYDE,,,active,1,1,1,1,0,0,1,1
+INDA.K,INDA,US46429B5984,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 INDB.OQ,INDB,US4538361084,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 INDI.OQ,INDI,US45569U1016,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 INDM.O,INDM,,,active,1,1,1,1,0,0,1,1
@@ -2510,20 +2650,35 @@ ITGR.N,ITGR,US45826H1095,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ITIC.OQ,ITIC,US4618041069,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ITMN.O,ITMN,,,active,1,1,1,1,0,0,1,1
 ITMN.OQ,ITMN,,,active,1,1,1,1,0,0,1,1
+ITOT.K,ITOT,US4642871507,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 ITRI.OQ,ITRI,US4657411066,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ITT.II,ITT,,,active,1,1,1,1,0,0,1,1
 ITT.N,ITT,US45073V1089,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ITW.II,ITW,,,active,1,1,1,1,0,0,1,1
 ITW.N,ITW,US4523081093,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IUSA.OQ,IUSA,,,active,1,1,1,1,0,0,1,1
+IUSB.O,IUSB,US46434V6130,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 IVR.N,IVR,US46131B7047,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IVT.N,IVT,US46124J2015,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IVV.P,IVV,US4642872000,NYSE Arca,active,1,0,0,0,0,1,0,1
 IVVD.O,IVVD,US00534A1025,NASDAQ National Market System,active,1,1,1,1,0,0,1,1
 IVZ.N,IVZ,BMG491BT1088,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 IWA.C,IWA,,,active,1,1,1,1,0,0,1,1
+IWD.P,IWD,US4642875987,NYSE Arca,active,1,0,0,0,0,1,0,1
+IWF,IWF,US4642876142,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IWM.P,IWM,US4642876555,NYSE Arca,active,1,0,0,0,0,1,0,1
+IWN,IWN,US4642876308,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IWO,IWO,US4642876480,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 IWOV.O,IWOV,,,active,1,1,1,1,0,0,1,1
+IWP,IWP,US4642874816,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IWS,IWS,US4642874733,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IXUS.O,IXUS,US46432F8344,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+IYF,IYF,US4642877884,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IYH,IYH,US4642877629,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IYR,IYR,US4642877397,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IYW,IYW,US4642877215,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+IZRL.K,IZRL,US00214Q6098,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+JAAA.K,JAAA,US47103U8457,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 JACK.OQ,JACK,US4663671091,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 JAH.N,JAH,,,active,1,1,1,1,0,0,1,1
 JAKK.OQ,JAKK,US47012E4035,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -2532,6 +2687,7 @@ JAS.B,JAS,,,active,1,1,1,1,0,0,1,1
 JAV.PH,JAV,,,active,1,1,1,1,0,0,1,1
 JAVA.MW,JAVA,US46641Q1673,Chicago Stock Exchange,active,1,1,1,1,0,0,1,1
 JAZZ.OQ,JAZZ,IE00B4Q5ZN47,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+JBBB.K,JBBB,US47103U7533,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 JBGS.N,JBGS,US46590V1008,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 JBHT.OQ,JBHT,US4456581077,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 JBI.N,JBI,US47103N1063,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2561,6 +2717,7 @@ JLL.N,JLL,US48020Q1076,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 JMG.N,JMG,VGG5146R1073,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 JMSB.OQ,JMSB,US47805L1017,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 JNJ.N,JNJ,US4781601046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+JNK,JNK,US78468R6229,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 JNPR.MX,JNPR*,US48203R1041,Bolsa Mexicana de Valores S.A. de C.V.,active,1,1,1,1,0,0,1,1
 JNPR.OQ,JNPR,,,active,1,1,1,1,0,0,1,1
 JNS.II,JNS,,,active,1,1,1,1,0,0,1,1
@@ -2576,6 +2733,7 @@ JOUT.OQ,JOUT,US4791671088,Nasdaq Stock Exchange Global Select Market,active,1,1,
 JOY.N,JOY,,,active,1,1,1,1,0,0,1,1
 JOY^D17,JOY^D17,US4811651086,New York Consolidated,active,1,1,1,1,0,0,1,1
 JPM.N,JPM,US46625H1005,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+JPST.K,JPST,US46641Q8371,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 JRN.B,JRN,,,active,1,1,1,1,0,0,1,1
 JRN.N,JRN,,,active,1,1,1,1,0,0,1,1
 JRT.N,JRT,,,active,1,1,1,1,0,0,1,1
@@ -2645,6 +2803,7 @@ KLXE.OQ,KLXE,US48253L2051,Nasdaq Stock Exchange Global Select Market,active,1,1,
 KLXIN.BCU,KLXIN,US4825391034,BATS Europe,active,1,1,1,1,0,0,1,1
 KMB.O,KMB,US4943681035,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 KMI.N,KMI,US49456B1017,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+KMLM.K,KMLM,US5007676522,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 KMPR.N,KMPR,US4884011002,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 KMRT.F^C05,KMRT,US8123501061,Frankfurt Stock Exchange,active,1,1,1,1,0,0,1,1
 KMT.N,KMT,US4891701009,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2697,6 +2856,7 @@ KURA.OQ,KURA,US50127T1097,Nasdaq Stock Exchange Global Select Market,active,1,1,
 KVHI.OQ,KVHI,US4827381017,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 KW.N,KW,US4893981070,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 KWD.B,KWD,,,active,1,1,1,1,0,0,1,1
+KWEB.K,KWEB,US5007673065,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 KWK.N,KWK,,,active,1,1,1,1,0,0,1,1
 KWR.N,KWR,US7473161070,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 KYG7T16G1039.TRE,KYG7T16G1039,KYG7T16G1039,London Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2705,6 +2865,8 @@ KYPH.OQ,KYPH,,,active,1,1,1,1,0,0,1,1
 KZR.OQ,KZR,US49372L2097,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 L.N,L,US5404241086,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LAB.OQ,LAB,US34385P1084,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+LABD.K,LABD,US25461H8530,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+LABU.K,LABU,US25460G1206,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 LAD.N,LAD,US5367971034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LADR.N,LADR,US5057431042,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LAKE.OQ,LAKE,US5117951062,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -2736,6 +2898,7 @@ LDOS.N,LDOS,US5253271028,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LDR.B,LDR,,,active,1,1,1,1,0,0,1,1
 LDR.N,LDR,,,active,1,1,1,1,0,0,1,1
 LDRH.OQ,LDRH,,,active,1,1,1,1,0,0,1,1
+LDUR.K,LDUR,US72201R7180,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 LE.OQ,LE,US51509F1057,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 LEA.N,LEA,US5218652049,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LEAP.OQ,LEAP,,,active,1,1,1,1,0,0,1,1
@@ -2780,6 +2943,7 @@ LIND.OQ,LIND,US5352191093,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,
 LION.N,LION,CA53626N1024,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LIOX.O,LIOX,,,active,1,1,1,1,0,0,1,1
 LIOX.OQ,LIOX,,,active,1,1,1,1,0,0,1,1
+LIT.P,LIT,US37954Y8553,NYSE Arca,active,1,0,0,0,0,1,0,1
 LITE.OQ,LITE,US55024U1097,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 LIVN.L,LIVN,,,active,1,1,1,1,0,0,1,1
 LIVN.OQ,LIVN,GB00BYMT0J19,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -2823,13 +2987,194 @@ LOCO.OQ,LOCO,US2686031079,Nasdaq Stock Exchange Global Select Market,active,1,1,
 LOGM.OQ,LOGM,,,active,1,1,1,1,0,0,1,1
 LOGN.S,LOGN,CH0025751329,SWX Europe PLC,active,1,1,1,1,0,0,1,1
 LOJN.OQ,LOJN,,,active,1,1,1,1,0,0,1,1
+LONZ.K,LONZ,US72201R6273,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 LOPE.OQ,LOPE,US38526M1062,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 LOV.A,LOV,,,active,1,1,1,1,0,0,1,1
 LOVE.OQ,LOVE,US54738L1098,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 LOW.N,LOW,US5486611073,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+LP40000039,AMCPX,US0233751082,Lipper,active,1,0,0,0,0,1,0,1
+LP40000049,AMRMX,US0276811058,Lipper,active,1,0,0,0,0,1,0,1
+LP40000064,EVIFX,US2779058658,Lipper,active,1,0,0,0,0,1,0,1
+LP40000098,ABALX,US0240711020,Lipper,active,1,0,0,0,0,1,0,1
+LP40000136,EHSTX,US2779058088,Lipper,active,1,0,0,0,0,1,0,1
+LP40000156,FFIDX,US3161531054,Lipper,active,1,0,0,0,0,1,0,1
+LP40000176,ANCFX,US3608021024,Lipper,active,1,0,0,0,0,1,0,1
+LP40000190,AGTHX,US3998741066,Lipper,active,1,0,0,0,0,1,0,1
+LP40000215,AIVSX,US4613081086,Lipper,active,1,0,0,0,0,1,0,1
+LP40000303,OTCFX,US7795721064,Lipper,active,1,0,0,0,0,1,0,1
+LP40000316,PRGFX,US7414791092,Lipper,active,1,0,0,0,0,1,0,1
+LP40000317,PRNHX,US7795621074,Lipper,active,1,0,0,0,0,1,0,1
+LP40000321,FPURX,US3163451079,Lipper,active,1,0,0,0,0,1,0,1
+LP40000391,AWSHX,US9393301067,Lipper,active,1,0,0,0,0,1,0,1
+LP40000392,VWELX,US9219351023,Lipper,active,1,0,0,0,0,1,0,1
+LP40000414,FCNTX,US3160711095,Lipper,active,1,0,0,0,0,1,0,1
+LP40000426,FAGIX,US3160621088,Lipper,active,1,0,0,0,0,1,0,1
+LP40000541,SGENX,US32008F5070,Lipper,active,1,0,0,0,0,1,0,1
+LP40000546,VWINX,US9219381061,Lipper,active,1,0,0,0,0,1,0,1
+LP40000594,AMECX,US4533201038,Lipper,active,1,0,0,0,0,1,0,1
+LP40000669,ANWPX,US6480181097,Lipper,active,1,0,0,0,0,1,0,1
+LP40000700,ABNDX,US0978731034,Lipper,active,1,0,0,0,0,1,0,1
+LP40000779,VFINX,US9229081081,Lipper,active,1,0,0,0,0,1,0,1
+LP40000819,FDGRX,US3162001040,Lipper,active,1,0,0,0,0,1,0,1
+LP40000846,FSPHX,US3163903012,Lipper,active,1,0,0,0,0,1,0,1
+LP40000847,FSPTX,US3163902022,Lipper,active,1,0,0,0,0,1,0,1
+LP40000902,EVTMX,US2779058328,Lipper,active,1,0,0,0,0,1,0,1
+LP40001258,AEPGX,US2987061023,Lipper,active,1,0,0,0,0,1,0,1
+LP40001409,FOCPX,US3163891050,Lipper,active,1,0,0,0,0,1,0,1
+LP40001560,ETHSX,US2779028131,Lipper,active,1,0,0,0,0,1,0,1
+LP40001634,FSELX,US3163908631,Lipper,active,1,0,0,0,0,1,0,1
+LP40001636,FSCSX,US3163908227,Lipper,active,1,0,0,0,0,1,0,1
+LP40001652,PRFDX,US7795471082,Lipper,active,1,0,0,0,0,1,0,1
+LP40001834,PRWCX,US77954M1053,Lipper,active,1,0,0,0,0,1,0,1
+LP40001966,FBALX,US3163452069,Lipper,active,1,0,0,0,0,1,0,1
+LP40003381,VDIGX,US9219086041,Lipper,active,1,0,0,0,0,1,0,1
+LP40003652,PRDGX,US7795461000,Lipper,active,1,0,0,0,0,1,0,1
+LP40004068,VBMFX,US9219371088,Lipper,active,1,0,0,0,0,1,0,1
+LP40004357,CAIBX,US1401931035,Lipper,active,1,0,0,0,0,1,0,1
+LP40004532,FBGRX,US3163893031,Lipper,active,1,0,0,0,0,1,0,1
+LP40004632,VEIPX,US9219211029,Lipper,active,1,0,0,0,0,1,0,1
+LP40004727,SGOVX,US32008F1012,Lipper,active,1,0,0,0,0,1,0,1
+LP40004728,TRBCX,US77954Q1067,Lipper,active,1,0,0,0,0,1,0,1
+LP40004897,PRSVX,US77957Q1031,Lipper,active,1,0,0,0,0,1,0,1
+LP40005275,GASFX,US42588P8335,Lipper,active,1,0,0,0,0,1,0,1
+LP40005285,PRIDX,US77956H3021,Lipper,active,1,0,0,0,0,1,0,1
+LP40005445,FLPSX,US3163453059,Lipper,active,1,0,0,0,0,1,0,1
+LP40005620,PREIX,US7795521084,Lipper,active,1,0,0,0,0,1,0,1
+LP40005654,VINIX,US9220401007,Lipper,active,1,0,0,0,0,1,0,1
+LP40006090,RPBAX,US77954G1085,Lipper,active,1,0,0,0,0,1,0,1
+LP40007162,VTSMX,US9229083061,Lipper,active,1,0,0,0,0,1,0,1
+LP40007264,PRBLX,US7017691012,Lipper,active,1,0,0,0,0,1,0,1
+LP40007473,RPMGX,US7795561098,Lipper,active,1,0,0,0,0,1,0,1
+LP40007544,GATRX,US1288193071,Lipper,active,1,0,0,0,0,1,0,1
+LP40008018,SGGDX,US32008F4081,Lipper,active,1,0,0,0,0,1,0,1
+LP40009892,CWGIX,US1405431099,Lipper,active,1,0,0,0,0,1,0,1
+LP40016507,EANAX,US27826L3309,Lipper,active,1,0,0,0,0,1,0,1
+LP40016622,PRCOX,US77954P1084,Lipper,active,1,0,0,0,0,1,0,1
+LP40018810,ETHYX,US27826M8828,Lipper,active,1,0,0,0,0,1,0,1
+LP40020403,PRHSX,US7414801073,Lipper,active,1,0,0,0,0,1,0,1
+LP40021239,VIIIX,US9220402096,Lipper,active,1,0,0,0,0,1,0,1
+LP40023830,HBFBX,US4258871064,Lipper,active,1,0,0,0,0,1,0,1
+LP40025209,HFCGX,US4258881048,Lipper,active,1,0,0,0,0,1,0,1
+LP40025210,HFCVX,US4258882038,Lipper,active,1,0,0,0,0,1,0,1
+LP40026897,HFCSX,US42588P7006,Lipper,active,1,0,0,0,0,1,0,1
+LP40036999,HDOGX,US4258872054,Lipper,active,1,0,0,0,0,1,0,1
+LP40042284,NEWFX,US6492801047,Lipper,active,1,0,0,0,0,1,0,1
+LP40043881,VTMGX,US9219438093,Lipper,active,1,0,0,0,0,1,0,1
+LP40056761,HTECX,US42588P8582,Lipper,active,1,0,0,0,0,1,0,1
+LP40060564,VBIAX,US9219312009,Lipper,active,1,0,0,0,0,1,0,1
+LP40060565,VEXAX,US9229086940,Lipper,active,1,0,0,0,0,1,0,1
+LP40060566,VFIAX,US9229087104,Lipper,active,1,0,0,0,0,1,0,1
+LP40060567,VIGAX,US9229086601,Lipper,active,1,0,0,0,0,1,0,1
+LP40060568,VSMAX,US9229086866,Lipper,active,1,0,0,0,0,1,0,1
+LP40060569,VTSAX,US9229087286,Lipper,active,1,0,0,0,0,1,0,1
+LP40063437,EXTGX,US2779114832,Lipper,active,1,0,0,0,0,1,0,1
+LP40065293,VWIAX,US9219382051,Lipper,active,1,0,0,0,0,1,0,1
+LP40070579,HEIFX,US42588P8251,Lipper,active,1,0,0,0,0,1,0,1
+LP40072195,FEVIX,US32008F8611,Lipper,active,1,0,0,0,0,1,0,1
+LP40073401,VBTLX,US9219376038,Lipper,active,1,0,0,0,0,1,0,1
+LP40073411,VGSLX,US9219088773,Lipper,active,1,0,0,0,0,1,0,1
+LP40073413,VIMAX,US9229086452,Lipper,active,1,0,0,0,0,1,0,1
+LP40088811,HFMDX,US4258883028,Lipper,active,1,0,0,0,0,1,0,1
+LP40091630,EVBLX,US2779111291,Lipper,active,1,0,0,0,0,1,0,1
+LP40091631,EVFHX,US2779111374,Lipper,active,1,0,0,0,0,1,0,1
+LP40093771,EAALX,US2779026648,Lipper,active,1,0,0,0,0,1,0,1
+LP40093772,EAASX,US2779026564,Lipper,active,1,0,0,0,0,1,0,1
+LP40094896,HFLGX,US42588P2056,Lipper,active,1,0,0,0,0,1,0,1
+LP40109382,VEMAX,US9220428414,Lipper,active,1,0,0,0,0,1,0,1
+LP40118432,FEHIX,US32008F7134,Lipper,active,1,0,0,0,0,1,0,1
+LP40120323,EAFAX,US2779236601,Lipper,active,1,0,0,0,0,1,0,1
+LP40125285,GAFYX,US92835M4630,Lipper,active,1,0,0,0,0,1,0,1
+LP40126299,EAGIX,US2779054368,Lipper,active,1,0,0,0,0,1,0,1
+LP40126436,ADAIX,US00203H6027,Lipper,active,1,0,0,0,0,1,0,1
+LP40173342,AIMOX,US00203H8833,Lipper,active,1,0,0,0,0,1,0,1
+LP40173343,AMOMX,US00203H7017,Lipper,active,1,0,0,0,0,1,0,1
+LP40173344,ASMOX,US00203H8007,Lipper,active,1,0,0,0,0,1,0,1
+LP40180939,AQGIX,US00203H8759,Lipper,active,1,0,0,0,0,1,0,1
+LP40180941,AQMIX,US00203H8593,Lipper,active,1,0,0,0,0,1,0,1
+LP40183817,ASFYX,US92835M4226,Lipper,active,1,0,0,0,0,1,0,1
+LP40186955,VTIAX,US9219098186,Lipper,active,1,0,0,0,0,1,0,1
+LP40186956,AQRIX,US00203H8262,Lipper,active,1,0,0,0,0,1,0,1
 LP40189075,LP40189075,US0669224778,Lipper,active,1,1,1,1,0,0,1,1
 LP40189077,LP40189077,US0669225197,Lipper,active,1,1,1,1,0,0,1,1
+LP40189338,FXNAX,US3161463563,Lipper,active,1,0,0,0,0,1,0,1
+LP40189339,FXAIX,US3159117502,Lipper,active,1,0,0,0,0,1,0,1
 LP40190665,XSVCX,US33766Y1001,Lipper,active,1,1,1,1,0,0,1,1
+LP40190945,EMOAX,US27826Y5713,Lipper,active,1,0,0,0,0,1,0,1
+LP40191142,FTHNX,US14064D8810,Lipper,active,1,0,0,0,0,1,0,1
+LP40191436,FTHFX,US14064D8737,Lipper,active,1,0,0,0,0,1,0,1
+LP40191437,FTHSX,US14064D8653,Lipper,active,1,0,0,0,0,1,0,1
+LP40192407,FSSNX,US3161461823,Lipper,active,1,0,0,0,0,1,0,1
+LP40192421,FSRNX,US3161462326,Lipper,active,1,0,0,0,0,1,0,1
+LP40192450,FSKAX,US3159116934,Lipper,active,1,0,0,0,0,1,0,1
+LP40192452,FSMAX,US3159117437,Lipper,active,1,0,0,0,0,1,0,1
+LP40192453,FSPSX,US3159117270,Lipper,active,1,0,0,0,0,1,0,1
+LP40193046,VMVAX,US9219376947,Lipper,active,1,0,0,0,0,1,0,1
+LP40193047,VMGMX,US9219377283,Lipper,active,1,0,0,0,0,1,0,1
+LP40197312,FEBIX,US32008F6714,Lipper,active,1,0,0,0,0,1,0,1
+LP40198339,FIPDX,US31635T1043,Lipper,active,1,0,0,0,0,1,0,1
+LP40199310,AUENX,US00203H7504,Lipper,active,1,0,0,0,0,1,0,1
+LP40199311,AUEIX,US00203H7199,Lipper,active,1,0,0,0,0,1,0,1
+LP40199314,ANDNX,US00203H7439,Lipper,active,1,0,0,0,0,1,0,1
+LP40199315,ANDIX,US00203H6936,Lipper,active,1,0,0,0,0,1,0,1
+LP40199317,ARCIX,US00203H6779,Lipper,active,1,0,0,0,0,1,0,1
+LP40201551,AMONX,US00203H5946,Lipper,active,1,0,0,0,0,1,0,1
+LP40202497,FEAIX,US32008F6631,Lipper,active,1,0,0,0,0,1,0,1
+LP40202754,QCELX,US00203H5110,Lipper,active,1,0,0,0,0,1,0,1
+LP40202755,QSMLX,US00203H4873,Lipper,active,1,0,0,0,0,1,0,1
+LP40202756,QICLX,US00203H5375,Lipper,active,1,0,0,0,0,1,0,1
+LP40202787,QCENX,US00203H4956,Lipper,active,1,0,0,0,0,1,0,1
+LP40202788,QSMNX,US00203H4790,Lipper,active,1,0,0,0,0,1,0,1
+LP40202789,QICNX,US00203H5292,Lipper,active,1,0,0,0,0,1,0,1
+LP40204177,QLENX,US00203H4386,Lipper,active,1,0,0,0,0,1,0,1
+LP40204178,QLEIX,US00203H4469,Lipper,active,1,0,0,0,0,1,0,1
+LP40204179,QMHIX,US00203H4618,Lipper,active,1,0,0,0,0,1,0,1
+LP40204180,QMHNX,US00203H4535,Lipper,active,1,0,0,0,0,1,0,1
+LP40205086,QSPIX,US00203H4204,Lipper,active,1,0,0,0,0,1,0,1
+LP40205090,QSPNX,US00203H4121,Lipper,active,1,0,0,0,0,1,0,1
+LP40206313,HNRIX,US42588P7345,Lipper,active,1,0,0,0,0,1,0,1
+LP40206314,HMSFX,US42588P7261,Lipper,active,1,0,0,0,0,1,0,1
+LP40207174,QGMIX,US00203H3701,Lipper,active,1,0,0,0,0,1,0,1
+LP40208779,QMHRX,US00191K7081,Lipper,active,1,0,0,0,0,1,0,1
+LP40208790,QSPRX,US00191K8493,Lipper,active,1,0,0,0,0,1,0,1
+LP40208878,QMNRX,US00191K7651,Lipper,active,1,0,0,0,0,1,0,1
+LP40208880,QMNNX,US00191K7818,Lipper,active,1,0,0,0,0,1,0,1
+LP40208881,QMNIX,US00191K7990,Lipper,active,1,0,0,0,0,1,0,1
+LP40210752,QTENX,US00191K6414,Lipper,active,1,0,0,0,0,1,0,1
+LP40210753,QTELX,US00191K6588,Lipper,active,1,0,0,0,0,1,0,1
+LP40215968,FSPGX,US31635V7293,Lipper,active,1,0,0,0,0,1,0,1
+LP40215980,FTIHX,US31635V6386,Lipper,active,1,0,0,0,0,1,0,1
+LP40221610,QRPNX,US00203H1721,Lipper,active,1,0,0,0,0,1,0,1
+LP40221611,QRPIX,US00203H1804,Lipper,active,1,0,0,0,0,1,0,1
+LP40222140,FUAMX,US31635V2575,Lipper,active,1,0,0,0,0,1,0,1
+LP40222756,FTXSX,US14064D7820,Lipper,active,1,0,0,0,0,1,0,1
+LP40222757,FTXNX,US14064D7903,Lipper,active,1,0,0,0,0,1,0,1
+LP40222758,FTXFX,US14064D7747,Lipper,active,1,0,0,0,0,1,0,1
+LP40222760,FTVSX,US14064D7580,Lipper,active,1,0,0,0,0,1,0,1
+LP40222761,FTVNX,US14064D7663,Lipper,active,1,0,0,0,0,1,0,1
+LP40222762,FTVZX,US14064D7416,Lipper,active,1,0,0,0,0,1,0,1
+LP40224697,FZROX,US31635T7081,Lipper,active,1,0,0,0,0,1,0,1
+LP40224698,FZILX,US31635T6091,Lipper,active,1,0,0,0,0,1,0,1
+LP40224992,FZIPX,US3159116363,Lipper,active,1,0,0,0,0,1,0,1
+LP40225602,FTHAX,US14064D7176,Lipper,active,1,0,0,0,0,1,0,1
+LP40225603,FTYCX,US14064D6913,Lipper,active,1,0,0,0,0,1,0,1
+LP40225604,FTXAX,US14064D6830,Lipper,active,1,0,0,0,0,1,0,1
+LP40225605,FTXCX,US14064D6756,Lipper,active,1,0,0,0,0,1,0,1
+LP40225843,VHYAX,US9219467860,Lipper,active,1,0,0,0,0,1,0,1
+LP40225845,VTWAX,US9220426194,Lipper,active,1,0,0,0,0,1,0,1
+LP40228523,BLNDX,US90470L5848,Lipper,active,1,0,0,0,0,1,0,1
+LP40229813,QDSIX,US00191K3510,Lipper,active,1,0,0,0,0,1,0,1
+LP40229814,QDSNX,US00191K3445,Lipper,active,1,0,0,0,0,1,0,1
+LP40232408,FESCX,US32008F2341,Lipper,active,1,0,0,0,0,1,0,1
+LP40233555,QNZIX,US00191K3106,Lipper,active,1,0,0,0,0,1,0,1
+LP40234162,FTVAX,US14064D5436,Lipper,active,1,0,0,0,0,1,0,1
+LP40234163,FTVCX,US14064D5352,Lipper,active,1,0,0,0,0,1,0,1
+LP40235232,FESMX,US32008F1509,Lipper,active,1,0,0,0,0,1,0,1
+LP40300700,FDUIX,US32008F1277,Lipper,active,1,0,0,0,0,1,0,1
+LP40303887,QHFIX,US00191K2298,Lipper,active,1,0,0,0,0,1,0,1
+LP40303890,QLFIX,US00191K1878,Lipper,active,1,0,0,0,0,1,0,1
+LP40303893,QMFIX,US00191K2520,Lipper,active,1,0,0,0,0,1,0,1
+LP40303894,QMFNX,US00191K2454,Lipper,active,1,0,0,0,0,1,0,1
+LP40303896,QCFIX,US00191K2868,Lipper,active,1,0,0,0,0,1,0,1
 LPCN.OQ,LPCN,US53630X2036,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 LPG.N,LPG,MHY2106R1100,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LPLA.OQ,LPLA,US50212V1008,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -2840,8 +3185,12 @@ LPS^A14,LPS,US52602E1029,New York Consolidated,active,1,1,1,1,0,0,1,1
 LPT.N,LPT,,,active,1,1,1,1,0,0,1,1
 LPT.N^B20,LPT,US5311721048,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 LPX.N,LPX,US5463471053,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+LQD,LQD,US4642872422,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 LQDA.OQ,LQDA,US53635D2027,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+LQDB.K,LQDB,US46436E4944,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+LQDIDC1,LQDI,,Johannesburg Stock Exchange,active,1,0,0,0,0,1,0,1
 LQDT.OQ,LQDT,US53635B1070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+LQDW.K,LQDW,US46436E2880,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 LRCX.OQ,LRCX,US5128073062,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 LRMR.OQ,LRMR,US5171251003,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 LRN.N,LRN,US86333M1080,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -2949,6 +3298,7 @@ MCD.N,MCD,US5801351017,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MCFT.OQ,MCFT,US57637H1032,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 MCGC.OQ,MCGC,,,active,1,1,1,1,0,0,1,1
 MCHB.OQ,MCHB,US43785V1026,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+MCHI.O,MCHI,US46429B6719,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 MCHP.OQ,MCHP,US5950171042,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MCHX.OQ,MCHX,US56624R1086,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MCK.II,MCK,,,active,1,1,1,1,0,0,1,1
@@ -2980,6 +3330,7 @@ MDV.N,MDV,US60784B1017,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MDVN.P,MDVN,,,active,1,1,1,1,0,0,1,1
 MDWD.OQ,MDWD,IL0011316309,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 MDXG.OQ,MDXG,US6024961012,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+MDY,MDY,US78467Y1073,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 MDZA.TO,MDZA,,,active,1,1,1,1,0,0,1,1
 ME.N,ME,US90138Q3065,,active,1,1,1,1,0,0,1,1
 MEA.A,MEA,,,active,1,1,1,1,0,0,1,1
@@ -3017,15 +3368,19 @@ MFIN.OQ,MFIN,US5839281061,Nasdaq Stock Exchange Global Select Market,active,1,1,
 MFLX.OQ,MFLX,US33740F5089,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 MFRM.OQ,MFRM,,,active,1,1,1,1,0,0,1,1
 MFSF.OQ,MFSF,,,active,1,1,1,1,0,0,1,1
+MFUT.K,MFUT,US88636J3370,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 MG.N,MG,US60649T1079,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MGAM.OQ,MGAM,US6073711011,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+MGC,MGC,US9219108738,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 MGEE.OQ,MGEE,US55277P1049,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+MGK.P,MGK,US9219108167,NYSE Arca,active,1,0,0,0,0,1,0,1
 MGM.N,MGM,US5529531015,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MGNI.OQ,MGNI,US55955D1000,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MGNX.OQ,MGNX,US5560991094,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MGPI.OQ,MGPI,US55303J1060,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MGRC.OQ,MGRC,US5805891091,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MGTX.OQ,MGTX,KYG596651029,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+MGV,MGV,US9219108407,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 MGY.N,MGY,US5596631094,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MH.N,MH,US5809071039,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MHGC.O,MHGC,,,active,1,1,1,1,0,0,1,1
@@ -3044,6 +3399,8 @@ MIL.II,MIL,,,active,1,1,1,1,0,0,1,1
 MILL.N,MILL,,,active,1,1,1,1,0,0,1,1
 MIND.OQ,MIND,US6025663096,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 MINI.OQ,MINI,,,active,1,1,1,1,0,0,1,1
+MINO.K,MINO,US72201R6356,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+MINT.K,MINT,US72201R8337,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 MIPS.O,MIPS,,,active,1,1,1,1,0,0,1,1
 MIPS.OQ,MIPS,,,active,1,1,1,1,0,0,1,1
 MIR.N,MIR,US60471A1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3171,11 +3528,14 @@ MTRX.OQ,MTRX,US5768531056,Nasdaq Stock Exchange Global Select Market,active,1,1,
 MTSI.OQ,MTSI,US55405Y1001,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 MTSN.O,MTSN,,,active,1,1,1,1,0,0,1,1
 MTSN.OQ,MTSN,,,active,1,1,1,1,0,0,1,1
+MTUM.P,MTUM,US46432F3964,NYSE Arca,active,1,0,0,0,0,1,0,1
 MTUS.N,MTUS,US8873991033,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MTW.N,MTW,US5635714059,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MTX.N,MTX,US6031581068,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MTZ.N,MTZ,US5763231090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MU.OQ,MU,US5951121038,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+MUB,MUB,US4642884146,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+MUNI.K,MUNI,US72201R8667,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 MUR.II,MUR,,,active,1,1,1,1,0,0,1,1
 MUR.N,MUR,US6267171022,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 MUSA.N,MUSA,US6267551025,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3258,6 +3618,7 @@ NEO.OQ,NEO,US64049M2098,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,
 NEOG.OQ,NEOG,US6404911066,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 NEON.OQ,NEON,US64051M7092,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 NEOS.OQ,NEOS,,,active,1,1,1,1,0,0,1,1
+NERD.CD,NERD,CA64082A1049,Canadian Securities Exchange - CSE Listed,active,1,0,0,0,0,1,0,1
 NERV.OQ,NERV,US6033802058,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 NET.N,NET,US18915M1071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 NEU.N,NEU,US6515871076,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3376,6 +3737,7 @@ NTY.N,NTY,,,active,1,1,1,1,0,0,1,1
 NUANF.INS,NUANF,,,active,1,1,1,1,0,0,1,1
 NUCO.OQ,NUCO,,,active,1,1,1,1,0,0,1,1
 NUE.N,NUE,US6703461052,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+NUGT.K,NUGT,US25460G7815,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 NUS.N,NUS,US67018T1051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 NUSDE.INS,NUSDE,,,active,1,1,1,1,0,0,1,1
 NUTR.OQ,NUTR,US67119K1025,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -3487,6 +3849,7 @@ ONB.OQ,ONB,US6800331075,Nasdaq Stock Exchange Global Select Market,active,1,1,1,
 ONCEN.BCU,ONCEN,US84652J1034,BATS Europe,active,1,1,1,1,0,0,1,1
 ONDK.N,ONDK,,,active,1,1,1,1,0,0,1,1
 ONE.N,ONE,,,active,1,1,1,1,0,0,1,1
+ONEQ.O,ONEQ,US3159128087,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 ONEW.OQ,ONEW,US68280L1017,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 ONIT.N,ONIT,US6757466064,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ONNNF.INS,ONNNF,,,active,1,1,1,1,0,0,1,1
@@ -3595,6 +3958,7 @@ PBH.N,PBH,US74112D1019,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PBI.II,PBI,,,active,1,1,1,1,0,0,1,1
 PBI.N,PBI,US7244791007,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PBNC.OQ,PBNC,,,active,1,1,1,1,0,0,1,1
+PBW,PBW,US46137V1347,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 PBYI.OQ,PBYI,US74587V1070,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PCAP.OQ,PCAP,KYG7257A1058,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 PCAR.OQ,PCAR,US6937181088,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -3615,6 +3979,7 @@ PCYC.OQ,PCYC,,,active,1,1,1,1,0,0,1,1
 PCYO.OQ,PCYO,US7462283034,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 PD.N,PD,US69553P1003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PD2F.TPRM,PD2F,US7033951036,TPICAP,active,1,1,1,1,0,0,1,1
+PDBC.O,PDBC,US46090F1003,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 PDC.C,PDC,US27030F2020,National SE when trading NASDAQ Global Market,active,1,1,1,1,0,0,1,1
 PDD.OQ,PDD,US7223041028,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PDEX.OQ,PDEX,US74265M2052,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -3648,6 +4013,7 @@ PFB.C,PFB,,,active,1,1,1,1,0,0,1,1
 PFBC.OQ,PFBC,US7403674044,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PFCB.OQ,PFCB,,,active,1,1,1,1,0,0,1,1
 PFE.N,PFE,US7170811035,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+PFF.O,PFF,US4642886877,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 PFG.II,PFG,US74254PCM23,,active,1,1,1,1,0,0,1,1
 PFG.O,PFG,US74251V1026,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 PFGC.N,PFGC,US71377A1034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3671,6 +4037,7 @@ PGNY.OQ,PGNY,US74340E1038,Nasdaq Stock Exchange Global Select Market,active,1,1,
 PGR.II,PGR,,,active,1,1,1,1,0,0,1,1
 PGR.N,PGR,US7433151039,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PGTIN.BCU,PGTIN,US69336V1017,BATS Europe,active,1,1,1,1,0,0,1,1
+PGX,PGX,US46138E5116,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 PGY.OQ,PGY,IL0011858912,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 PH.II,PH,,,active,1,1,1,1,0,0,1,1
 PH.N,PH,US7010941042,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3735,6 +4102,7 @@ PLXT.OQ,PLXT,,,active,1,1,1,1,0,0,1,1
 PL^B15,PL,US7436741034,New York Consolidated,active,1,1,1,1,0,0,1,1
 PM.N,PM,US7181721090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PMACA.O,PMACA,,,active,1,1,1,1,0,0,1,1
+PMBS.O,PMBS,US72201R5697,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 PMCSDE.INS,PMCSDE,,,active,1,1,1,1,0,0,1,1
 PMFG.OQ,PMFG,,,active,1,1,1,1,0,0,1,1
 PMI.N,PMI,US71953R1086,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3793,6 +4161,7 @@ PRCT.OQ,PRCT,US74276L1052,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0
 PRDO.OQ,PRDO,US71363P1066,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PRE.N,PRE,KYG722451229,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PRF0D.TRE,PRF0D,US60783X1046,London Stock Exchange,active,1,1,1,1,0,0,1,1
+PRFD.K,PRFD,US72201R6190,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 PRG.N,PRG,US74319R1014,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PRGS.OQ,PRGS,US7433121008,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PRI.N,PRI,US74164M1080,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3804,6 +4173,7 @@ PRLD.OQ,PRLD,US74065P1012,Nasdaq Stock Exchange Global Select Market,active,1,1,
 PRM.N,PRM,US71385M1071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PRME.OQ,PRME,US74168J1016,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 PRMW.OQ,PRMW,,,active,1,1,1,1,0,0,1,1
+PRNT.K,PRNT,US00214Q5009,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 PROP.OQ,PROP,US7396501097,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 PROV.OQ,PROV,US7438681014,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PRPL.OQ,PRPL,US74640Y1064,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -3827,6 +4197,7 @@ PSEM.O,PSEM,,,active,1,1,1,1,0,0,1,1
 PSEM.OQ,PSEM,,,active,1,1,1,1,0,0,1,1
 PSFE.N,PSFE,BMG6964L2062,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PSG.TO,PSG,,,active,1,1,1,1,0,0,1,1
+PSI.TO,PSI,CA7029251088,The Toronto Stock Exchange,active,1,0,0,0,0,1,0,1
 PSIX.OQ,PSIX,US73933G2021,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 PSMT.OQ,PSMT,US7415111092,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PSN.N,PSN,US70202L1026,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -3869,13 +4240,18 @@ PXED.N,PXED,US7189681007,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 PXLW.OQ,PXLW,US72581M4042,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 PXP.N,PXP,,,active,1,1,1,1,0,0,1,1
 PXT.B,PXT,,,active,1,1,1,1,0,0,1,1
+PYLD.K,PYLD,US72201R5853,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 PYPL.OQ,PYPL,US70450Y1038,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 PYX.B,PYX,,,active,1,1,1,1,0,0,1,1
 PZG.A,PZG,US69924M1099,American Stock Exchange,active,1,1,1,1,0,0,1,1
 PZZA.OQ,PZZA,US6988131024,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 QADI.OQ,QADI,,,active,1,1,1,1,0,0,1,1
+QALT.O,QALT,US81589A8099,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QBIG.O,QBIG,US46090A6718,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 QBTS.N,QBTS,US26740W1099,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+QCLN.O,QCLN,US33733E5006,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 QCOM.OQ,QCOM,US7475251036,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+QCPIX.O^A22,QCPIX,US00191K4500,NASDAQ Stock Exchange Capital Market,active,1,0,0,0,0,1,0,1
 QCRH.OQ,QCRH,US74727A1043,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 QDEL.OQ,QDEL,US2197981051,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 QEP^C21,QEP^C21,US74733V1008,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -3886,7 +4262,14 @@ QLYS.OQ,QLYS,US74758T3032,Nasdaq Stock Exchange Global Select Market,active,1,1,
 QMCO.OQ,QMCO,US7479066000,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 QNCX.O,QNCX,US22053A1079,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 QNST.OQ,QNST,US74874Q1004,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+QQA.O,QQA,US46090A6890,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QQHG.O,QQHG,US46127B4032,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QQLV.O,QQLV,US46138G4257,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QQMG.O,QQMG,US46138G5403,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 QQQ.OQ,QQQ,US46090E1038,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
+QQQJ.O,QQQJ,US46138G6310,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QQQM.O,QQQM,US46138G6492,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+QQQS.O,QQQS,US46138G4828,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 QRR.PH,QRR,,,active,1,1,1,1,0,0,1,1
 QRVO.OQ,QRVO,US74736K1016,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 QSFT.OQ,QSFT,,,active,1,1,1,1,0,0,1,1
@@ -3896,6 +4279,7 @@ QTNA.OQ,QTNA,,,active,1,1,1,1,0,0,1,1
 QTRX.OQ,QTRX,US74766Q1013,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 QTWO.N,QTWO,US74736L1098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 QUAD.N,QUAD,US7473011093,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+QUAL.P,QUAL,US46432F3394,NYSE Arca,active,1,0,0,0,0,1,0,1
 QUBT.OQ,QUBT,US74766W1080,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 QUIK.OQ,QUIK,US74837P4054,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 Q^D11,Q,US7491211097,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -4016,12 +4400,15 @@ RNT.C,RNT,,,active,1,1,1,1,0,0,1,1
 RNWKDE.INS,RNWKDE,,,active,1,1,1,1,0,0,1,1
 ROAD.OQ,ROAD,US21044C1071,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ROAN.N,ROAN,,,active,1,1,1,1,0,0,1,1
+ROBO.P,ROBO,US3015057074,NYSE Arca,active,1,0,0,0,0,1,0,1
+ROBT.O,ROBT,US33738R7200,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 ROC.P,ROC,US7530401048,NYSE Arca when trading NASDAQ Global Market,active,1,1,1,1,0,0,1,1
 ROCK.OQ,ROCK,US3746891072,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ROG.N,ROG,US7751331015,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ROH.II,ROH,,,active,1,1,1,1,0,0,1,1
 ROIV.OQ,ROIV,BMG762791017,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 ROK.N,ROK,US7739031091,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+ROKT.K,ROKT,US78468R6302,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 ROL.N,ROL,US7757111049,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 ROMA.OQ,ROMA,KYG7633Y1089,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 ROOT.OQ,ROOT,US77664L2079,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -4050,6 +4437,7 @@ RSE.N,RSE,,,active,1,1,1,1,0,0,1,1
 RSG.N,RSG,US7607591002,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 RSH.N,RSH,,,active,1,1,1,1,0,0,1,1
 RSI.N,RSI,US7820111000,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+RSP,RSP,US46137V3574,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 RST.N,RST,,,active,1,1,1,1,0,0,1,1
 RSTIDE.INS,RSTIDE,,,active,1,1,1,1,0,0,1,1
 RSTIN.BCU,RSTIN,US7750431022,BATS Europe,active,1,1,1,1,0,0,1,1
@@ -4078,6 +4466,7 @@ RVMD.OQ,RVMD,US76155X1000,Nasdaq Stock Exchange Global Select Market,active,1,1,
 RVP.A,RVP,US76129W1053,American Stock Exchange,active,1,1,1,1,0,0,1,1
 RVSB.OQ,RVSB,US7693971001,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 RVTY.K,RVTY,US7140461093,New York Consolidated,active,1,1,1,1,0,0,1,1
+RWJ,RWJ,US46138G6641,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 RWT.N,RWT,US7580754023,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 RX.II,RX,,,active,1,1,1,1,0,0,1,1
 RXO.N,RXO,US74982T1034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4138,9 +4527,21 @@ SBY.N,SBY,,,active,1,1,1,1,0,0,1,1
 SCA.C,SCA,US8585683068,,active,1,1,1,1,0,0,1,1
 SCAI.OQ,SCAI,,,active,1,1,1,1,0,0,1,1
 SCG^A19,SCG^A19,US80589M1027,New York Consolidated,active,1,1,1,1,0,0,1,1
+SCHA.K,SCHA,US8085246077,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHB.K,SCHB,US8085241029,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHD.P,SCHD,US8085247976,NYSE Arca,active,1,0,0,0,0,1,0,1
+SCHE.K,SCHE,US8085247067,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHF.K,SCHF,US8085248057,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHG.K,SCHG,US8085243009,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHK.K,SCHK,US8085247224,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SCHL.OQ,SCHL,US8070661058,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+SCHM.K,SCHM,US8085245087,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHP.K,SCHP,US8085248701,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SCHS.OQ,SCHS,,,active,1,1,1,1,0,0,1,1
+SCHV.K,SCHV,US8085244098,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SCHW.N,SCHW,US8085131055,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SCHX.K,SCHX,US8085242019,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SCHZ.K,SCHZ,US8085248396,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SCI.N,SCI,US8175651046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SCL.N,SCL,US8585861003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SCLN.OQ,SCLN,,,active,1,1,1,1,0,0,1,1
@@ -4154,8 +4555,10 @@ SCSC.OQ,SCSC,US8060371072,Nasdaq Stock Exchange Global Select Market,active,1,1,
 SCT.B,SCT,US0609003217,,active,1,1,1,1,0,0,1,1
 SCURDE.INS,SCURDE,,,active,1,1,1,1,0,0,1,1
 SCVL.OQ,SCVL,US8248891090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+SCZ.O,SCZ,US4642882736,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 SD.N,SD,US80007P8692,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SDGR.OQ,SDGR,US80810D1037,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+SDMF.K,SDMF,US82889N2100,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SDRL.N,SDRL,BMG7997W1029,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SDTH.OQ,SDTH,,,active,1,1,1,1,0,0,1,1
 SDXC.O,SDXC,,,active,1,1,1,1,0,0,1,1
@@ -4210,6 +4613,7 @@ SGK.N,SGK,,,active,1,1,1,1,0,0,1,1
 SGM.N,SGM,,,active,1,1,1,1,0,0,1,1
 SGMO.OQ,SGMO,US8006771062,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SGNT.OQ,SGNT,,,active,1,1,1,1,0,0,1,1
+SGOV.K,SGOV,US46436E7186,NYSE Consolidated,active,1,0,0,0,0,1,0,1
 SGP^K09,SGP,US8066051017,New York Consolidated,active,1,1,1,1,0,0,1,1
 SGR.N,SGR,,,active,1,1,1,1,0,0,1,1
 SGRY.OQ,SGRY,US86881A1007,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -4230,8 +4634,10 @@ SHOR.OQ,SHOR,,,active,1,1,1,1,0,0,1,1
 SHOS.OQ,SHOS,,,active,1,1,1,1,0,0,1,1
 SHPG.O^A19,SHPG,US82481R1068,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 SHS.PH,SHS,,,active,1,1,1,1,0,0,1,1
+SHV,SHV,US4642886794,NYSE Consolidated,active,1,0,0,0,0,1,0,1
 SHW.II,SHW,,,active,1,1,1,1,0,0,1,1
 SHW.N,SHW,US8243481061,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SHY.O,SHY,US4642874576,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 SI.N,SI,US82537J1088,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SIAL.O^K15,SIAL,US8265521018,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 SIALF.INS,SIALF,,,active,1,1,1,1,0,0,1,1
@@ -4257,7 +4663,9 @@ SITC.N,SITC,US82981J8514,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SITE.N,SITE,US82982L1035,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SITM.O,SITM,US82982T1060,NASDAQ National Market System,active,1,1,1,1,0,0,1,1
 SIXD.OQ,SIXD,,,active,1,1,1,1,0,0,1,1
+SIZE.K,SIZE,US46432F3709,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SJM.N,SJM,US8326964058,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SJNK.K,SJNK,US78468R4083,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SKIL.N,SKIL,US83066P3091,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SKIN.OQ,SKIN,US88331L1089,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SKS^K13,SKS,US79377W1080,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -4270,6 +4678,7 @@ SKYH.N,SKYH,US83085C1071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SKYT.OQ,SKYT,US83089J1088,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SKYW.OQ,SKYW,US8308791024,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SKYX.OQ,SKYX,US78471E1055,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+SKYY.OQ,SKYY,US33734X1928,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 SLAB.OQ,SLAB,US8269191024,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SLB.II,SLB,,,active,1,1,1,1,0,0,1,1
 SLB.N,SLB,AN8068571086,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4286,10 +4695,12 @@ SLM.OQ,SLM,US78442P1066,Nasdaq Stock Exchange Global Select Market,active,1,1,1,
 SLND.A,SLND,US84445C1009,American Stock Exchange,active,1,1,1,1,0,0,1,1
 SLNO.OQ,SLNO,US8342033094,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SLP.OQ,SLP,US8292141053,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+SLQD.O,SLQD,US46434V1008,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 SLQT.N,SLQT,US8163073005,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SLRC.OQ,SLRC,US83413U1007,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SLS.OQ,SLS,US81642T2096,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SLSN.OQ,SLSN,US6300791018,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+SLV,SLV,US46428Q1094,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SLVM.N,SLVM,US8713321029,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SLXP.O,SLXP,,,active,1,1,1,1,0,0,1,1
 SM.N,SM,US78454L1008,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4301,10 +4712,12 @@ SMC.N,SMC,US86614G1013,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SMCI.OQ,SMCI,US86800U3023,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SMDI.O,SMDI,,,active,1,1,1,1,0,0,1,1
 SMG.N,SMG,US8101861065,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SMH.OQ,SMH,US92189F6768,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 SMHG.O,SMHG,,,active,1,1,1,1,0,0,1,1
 SMHI.N,SMHI,US78413P1012,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SMID.OQ,SMID,US8321561032,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 SMMT.OQ,SMMT,US86627T1088,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+SMMU.K,SMMU,US72201R8741,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SMMXDE.INS,SMMXDE,,,active,1,1,1,1,0,0,1,1
 SMP.N,SMP,US8536661056,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SMPL.OQ,SMPL,US82900L1026,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -4354,17 +4767,26 @@ SONSDE.INS,SONSDE,,,active,1,1,1,1,0,0,1,1
 SORC.OQ,SORC,,,active,1,1,1,1,0,0,1,1
 SOUN.OQ,SOUN,US8361001071,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 SOV.II,SOV,,,active,1,1,1,1,0,0,1,1
+SOXL.K,SOXL,US25459W4583,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SOXS.K,SOXS,US25461H5726,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SOXX.OQ,SOXX,US4642875235,NASDAQ Stock Exchange Global Market,active,1,0,0,0,0,1,0,1
 SOY.TO,SOY,CA8676EP1086,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 SPB.N,SPB,US84790A1051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SPC.B,CUSD,US89834G7786,Boston SE when trading NASDAQ Global Market,active,1,1,1,1,0,0,1,1
+SPDW.K,SPDW,US78463X8891,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+SPEM.K,SPEM,US78463X5095,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SPFI.OQ,SPFI,US83946P1075,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SPG.II,SPG,,,active,1,1,1,1,0,0,1,1
 SPG.N,SPG,US8288061091,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SPGI.N,SPGI,US78409V1044,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SPHQ.P,SPHQ,US46137V2410,NYSE Arca,active,1,0,0,0,0,1,0,1
 SPHR.N,SPHR,US55826T1025,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SPIR.N,SPIR,US8485603067,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SPLG.L,SPLG,IE00BKW9SX35,London Stock Exchange,active,1,0,0,0,0,1,0,1
 SPLK.MX,SPLK*,US8486371045,Bolsa Mexicana de Valores S.A. de C.V.,active,1,1,1,1,0,0,1,1
 SPLS.O^I17,SPLS,US8550301027,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
+SPLV.P,SPLV,US46138E3541,NYSE Arca,active,1,0,0,0,0,1,0,1
+SPMO.P,SPMO,US46138E3392,NYSE Arca,active,1,0,0,0,0,1,0,1
 SPNC.O,SPNC,,,active,1,1,1,1,0,0,1,1
 SPNC.OQ,SPNC,,,active,1,1,1,1,0,0,1,1
 SPNT.N,SPNT,BMG8192H1060,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4374,10 +4796,12 @@ SPPIN.BCU,SPPIN,US84763A1088,BATS Europe,active,1,1,1,1,0,0,1,1
 SPRO.OQ,SPRO,US84833T1034,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SPRY.OQ,SPRY,US82835W1080,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 SPSC.OQ,SPSC,US78463M1071,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+SPSM.K,SPSM,US78468R8530,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SPSN.OQ,SPSN,,,active,1,1,1,1,0,0,1,1
 SPSS.OQ,SPSS,,,active,1,1,1,1,0,0,1,1
 SPSX.OQ,SPSX,,,active,1,1,1,1,0,0,1,1
 SPT.OQ,SPT,US85209W1099,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+SPTM.K,SPTM,US78464A8053,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SPWH.OQ,SPWH,US84920Y1064,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SPWR.OQ,SPWR,US20460L1044,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 SPWRN.BCU,SPWRN,US8676524064,BATS Europe,active,1,1,1,1,0,0,1,1
@@ -4394,6 +4818,7 @@ SRE.II,SRE,,,active,1,1,1,1,0,0,1,1
 SRE.N,SRE,US8168511090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SRG.N,SRG,US81752R1005,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SRI.N,SRI,US86183P1021,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+SRLN.K,SRLN,US78467V6083,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 SRNE.PK,SRNE,US83587F2020,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 SRPT.OQ,SRPT,US8036071004,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 SRR.B,SRR,,,active,1,1,1,1,0,0,1,1
@@ -4431,6 +4856,7 @@ STEP.O,STEP,US85914M1071,Consolidated Issue Listed on Nasdaq Global Select Marke
 STGW.OQ,STGW,US85256A1097,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 STI.II,STI,,,active,1,1,1,1,0,0,1,1
 STIM.OQ,STIM,US64131A1051,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+STIP.K,STIP,US46429B7477,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 STJ.II,STJ,,,active,1,1,1,1,0,0,1,1
 STJ^A17,STJ^A17,US7908491035,New York Consolidated,active,1,1,1,1,0,0,1,1
 STKS.OQ,STKS,US88338K1034,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -4440,6 +4866,7 @@ STNE.OQ,STNE,KYG851581069,Nasdaq Stock Exchange Global Select Market,active,1,1,
 STNG.N,STNG,MHY7542C1306,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 STNR.OQ,STNR,,,active,1,1,1,1,0,0,1,1
 STOK.OQ,STOK,US86150R1077,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+STPZ.K,STPZ,US72201R2058,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 STR.II,STR,,,active,1,1,1,1,0,0,1,1
 STR.N,STR,US82983N1081,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 STRA.OQ,STRA,US86272C1036,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -4523,8 +4950,10 @@ SYY.N,SYY,US8718291078,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 SZMK.OQ,SZMK,,,active,1,1,1,1,0,0,1,1
 T.N,T,US00206R1023,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 T4HF.TRE,T4HF,US89469A1043,London Stock Exchange,active,1,1,1,1,0,0,1,1
+TAIL.K,TAIL,US1320618622,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 TALK.OQ,TALK,US87427V1035,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 TALO.N,TALO,US87484T1088,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+TAN.P,TAN,US46138G7060,NYSE Arca,active,1,0,0,0,0,1,0,1
 TAP.II,TAP,,,active,1,1,1,1,0,0,1,1
 TAP.N,TAP,US60871R2094,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TARA.OQ,TARA,US74365U1079,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -4563,6 +4992,8 @@ TE.N,TE,US35834F1049,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TEAM.OQ,TEAM,US0494681010,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 TECD.O^G20,TECD,US8782371061,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 TECH.OQ,TECH,US09073M1045,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+TECL.K,TECL,US25459W1027,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+TECS.K,TECS,US25461A4940,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 TECX.OQ,TECX,US8789721086,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 TEG.II,TEG,,,active,1,1,1,1,0,0,1,1
 TEG.N,TEG,,,active,1,1,1,1,0,0,1,1
@@ -4577,6 +5008,7 @@ TEX.II,TEX,,,active,1,1,1,1,0,0,1,1
 TEX.N,TEX,US8807791038,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TE^G16,TE,US8723751009,New York Consolidated,active,1,1,1,1,0,0,1,1
 TFIN.N,TFIN,US89679E3009,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+TFLO.K,TFLO,US46434V8607,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 TFM.OQ,TFM,,,active,1,1,1,1,0,0,1,1
 TFSM.OQ,TFSM,,,active,1,1,1,1,0,0,1,1
 TFX.N,TFX,US8793691069,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4591,6 +5023,7 @@ TH.OQ,TH,US87615L1070,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,
 THC.N,THC,US88033G4073,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 THFF.OQ,THFF,US3202181000,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 THG.N,THG,US4108671052,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+THNQ.K,THNQ,US3015057314,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 THO.N,THO,US8851601018,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 THOR.OQ,THOR,,,active,1,1,1,1,0,0,1,1
 THQIDE.INS,THQIDE,,,active,1,1,1,1,0,0,1,1
@@ -4629,9 +5062,11 @@ TLRD.N,TLRD,,,active,1,1,1,1,0,0,1,1
 TLRD.N^H20,TLRD,US87403A1079,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TLS.OQ,TLS,US87969B1017,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 TLSI.OQ,TLSI,US89680M1018,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+TLT.O,TLT,US4642874329,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 TLYS.N,TLYS,US8868851028,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TMCI.OQ,TMCI,US89455T1097,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 TMDX.OQ,TMDX,US89377M1099,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+TMF,TMF,US25460G1388,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 TMH.N,TMH,US74016W7838,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TMHC.N,TMHC,US87724P1066,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TMK.II,TMK,,,active,1,1,1,1,0,0,1,1
@@ -4642,6 +5077,8 @@ TMR.B,TMR,,,active,1,1,1,1,0,0,1,1
 TMRK.PH,TMRK,,,active,1,1,1,1,0,0,1,1
 TMS.N,TMS,,,active,1,1,1,1,0,0,1,1
 TMUS.OQ,TMUS,US8725901040,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+TMV.DE,TMV,DE000A2YN900,Xetra,active,1,0,0,0,0,1,0,1
+TNA,TNA,US25459W8477,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 TNB^E12,TNB,US8843151023,New York Consolidated,active,1,1,1,1,0,0,1,1
 TNC.N,TNC,US8803451033,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TNDM.OQ,TNDM,US8753722037,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
@@ -4698,6 +5135,7 @@ TRR.N,TRR,,,active,1,1,1,1,0,0,1,1
 TRS.OQ,TRS,US8962152091,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 TRST.OQ,TRST,US8983492047,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 TRTX.N,TRTX,US87266M1071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+TRTY.K,TRTY,US1320618390,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 TRU.N,TRU,US89400J1079,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TRUP.OQ,TRUP,US8982021060,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 TRV.N,TRV,US89417E1091,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4773,6 +5211,7 @@ TYC.N,TYC,,,active,1,1,1,1,0,0,1,1
 TYL.N,TYL,US9022521051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 TYPE.OQ,TYPE,,,active,1,1,1,1,0,0,1,1
 TYRA.OQ,TYRA,US90240B1061,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+TZA,TZA,US25460E2321,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 TZIX.OQ,TZIX,,,active,1,1,1,1,0,0,1,1
 TZOO.OQ,TZOO,US89421Q2057,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 U.N,U,US91332U1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4802,6 +5241,7 @@ UEIC.OQ,UEIC,US9134831034,Nasdaq Stock Exchange Global Select Market,active,1,1,
 UFABQ.PK,UFABQ,US90915J1034,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 UFCS.OQ,UFCS,US9103401082,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 UFI.N,UFI,US9046772003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+UFO.L,UFO,VGG017351021,London Stock Exchange,active,1,0,0,0,0,1,0,1
 UFPI.OQ,UFPI,US90278Q1085,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 UFPT.OQ,UFPT,US9026731029,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 UFS^K21,UFS^K21,US2575592033,New York Consolidated,active,1,1,1,1,0,0,1,1
@@ -4826,6 +5266,7 @@ UNB.OQ,UNB,US9054001071,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1
 UNCA.O,UNCA,,,active,1,1,1,1,0,0,1,1
 UNF.N,UNF,US9047081040,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 UNFI.N,UNFI,US9111631035,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+UNG,UNG,US9123184098,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 UNH.N,UNH,US91324P1021,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 UNIS.OQ,UNIS,,,active,1,1,1,1,0,0,1,1
 UNIT.OQ,UNIT,US9129321009,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -4845,10 +5286,12 @@ UPLD.OQ,UPLD,US91544A1097,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0
 UPS.N,UPS,US9113121068,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 UPST.OQ,UPST,US91680M1071,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 UPWK.OQ,UPWK,US91688F1049,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+URA.P,URA,US37954Y8710,NYSE Arca,active,1,0,0,0,0,1,0,1
 URBN.OQ,URBN,US9170471026,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 URE.TO,URE,CA91688R1082,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 URGN.OQ,URGN,IL0011407140,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 URI.N,URI,US9113631090,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+URNM.P,URNM,US85208P3038,NYSE Arca,active,1,0,0,0,0,1,0,1
 URS.N,URS,,,active,1,1,1,1,0,0,1,1
 URZ.A,URZ,,,active,1,1,1,1,0,0,1,1
 US01671P1003.TRE,US01671P1003,US01671P1003,London Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4924,8 +5367,11 @@ USB.N,USB,US9029733048,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 USBE.OQ,USBE,,,active,1,1,1,1,0,0,1,1
 USCB.OQ,USCB,US90355N1019,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 USFD.N,USFD,US9120081099,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+USFR.K,USFR,US97717Y5270,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 USLM.OQ,USLM,US9119221029,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+USMV.P,USMV,US46429B6974,NYSE Arca,active,1,0,0,0,0,1,0,1
 USNA.N,USNA,US90328M1071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+USO,USO,US91232N2071,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 USPH.N,USPH,US90337L1089,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 UST.II,UST,,,active,1,1,1,1,0,0,1,1
 UTEK.O,UTEK,,,active,1,1,1,1,0,0,1,1
@@ -4942,6 +5388,7 @@ UUUU.A,UUUU,CA2926717083,American Stock Exchange,active,1,1,1,1,0,0,1,1
 UVE.N,UVE,US91359V1070,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 UVSP.OQ,UVSP,US9152711001,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 UVV.N,UVV,US9134561094,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+UVXY.K,UVXY,US74347Y6804,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 V.N,V,US92826C8394,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VA.OQ,VA,,,active,1,1,1,1,0,0,1,1
 VABK.OQ,VABK,US9280311039,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
@@ -4952,14 +5399,22 @@ VARI.OQ,VARI,,,active,1,1,1,1,0,0,1,1
 VAR^D21,VAR^D21,US92220P1057,New York Consolidated,active,1,1,1,1,0,0,1,1
 VASC.OQ,VASC,,,active,1,1,1,1,0,0,1,1
 VATE.N,VATE,US45784J3032,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+VAW,VAW,US92204A8018,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+VB.P,VB,US9229087518,NYSE Arca,active,1,0,0,0,0,1,0,1
+VBR,VBR,US9229086114,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VC.II,VC,,,active,1,1,1,1,0,0,1,1
 VC.OQ,VC,US92839U2069,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VCBI.OQ,VCBI,,,active,1,1,1,1,0,0,1,1
 VCEL.OQ,VCEL,US92346J1088,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 VCI.B,VCI,,,active,1,1,1,1,0,0,1,1
 VCI.N,VCI,,,active,1,1,1,1,0,0,1,1
+VCIT.O,VCIT,US92206C8709,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+VCR,VCR,US92204A1088,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+VCSH.O,VCSH,US92206C4096,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 VCTR.OQ,VCTR,US92645B1035,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VCYT.OQ,VCYT,US92337F1075,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+VDC,VDC,US92204A2078,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+VEA,VEA,US9219438580,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VECO.OQ,VECO,US9224171002,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VEEV.N,VEEV,US9224751084,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VEL.N,VEL,US92262D1019,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -4967,25 +5422,35 @@ VERA.OQ,VERA,US92337R1014,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0
 VERI.OQ,VERI,US92347M1009,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 VERU.OQ,VERU,US92536C2026,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VERX.OQ,VERX,US92538J1060,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+VEU,VEU,US9220427754,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VFC.II,VFC,,,active,1,1,1,1,0,0,1,1
 VFC.N,VFC,US9182041080,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VGAS.OQ,VGAS,US9233721060,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
+VGIT.O,VGIT,US92206C7065,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+VGLT.O,VGLT,US92206C8477,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+VGSH.O,VGSH,US92206C1027,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
+VGT,VGT,US92204A7028,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VGZ.A,VGZ,CA9279263037,American Stock Exchange,active,1,1,1,1,0,0,1,1
 VHI.N,VHI,US9189052098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VHS.N,VHS,,,active,1,1,1,1,0,0,1,1
+VHT,VHT,US92204A5048,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VIA.N,VIA,US92556W1045,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VIAB.II,VIAB,,,active,1,1,1,1,0,0,1,1
 VIAB.O^L19,VIAB,US92553P2011,Consolidated Issue Listed on Nasdaq Global Select Market,active,1,1,1,1,0,0,1,1
 VIAS.OQ,VIAS,,,active,1,1,1,1,0,0,1,1
 VIAV.OQ,VIAV,US9255501051,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VICR.OQ,VICR,US9258151029,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VIG.P,VIG,US9219088443,NYSE Arca,active,1,0,0,0,0,1,0,1
 VIGN.O,VIGN,,,active,1,1,1,1,0,0,1,1
 VIR.OQ,VIR,US92764N1028,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VIRC.OQ,VIRC,US9276511097,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 VIRT.K,VIRT,US9282541013,New York Consolidated,active,1,1,1,1,0,0,1,1
+VIS.MC,VIS,ES0184262212,BME SPANISH EXCHANGE,active,1,0,0,0,0,1,0,1
 VISN.OQ,VISN,US20337X1090,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VITC.OQ,VITC,,,active,1,1,1,1,0,0,1,1
 VITL.OQ,VITL,US92847W1036,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
+VIXM.K,VIXM,US74347W3381,Cboe Consolidated,active,1,0,0,0,0,1,0,1
+VIXY.K,VIXY,US74347Y7307,Cboe Consolidated,active,1,0,0,0,0,1,0,1
 VKTX.OQ,VKTX,US92686J1060,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VLCM.OQ,VLCM,,,active,1,1,1,1,0,0,1,1
 VLDRN.BCU,VLDRN,US92259F1012,BATS Europe,active,1,1,1,1,0,0,1,1
@@ -4995,6 +5460,7 @@ VLO.N,VLO,US91913Y1001,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VLTO.N,VLTO,US92338C1036,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VLTR.O,VLTR,,,active,1,1,1,1,0,0,1,1
 VLTR.OQ,VLTR,,,active,1,1,1,1,0,0,1,1
+VLUE.P,VLUE,US46432F3881,NYSE Arca,active,1,0,0,0,0,1,0,1
 VLY.OQ,VLY,US9197941076,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VMC.II,VMC,,,active,1,1,1,1,0,0,1,1
 VMC.N,VMC,US9291601097,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -5009,21 +5475,26 @@ VNDA.OQ,VNDA,US9216591084,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0
 VNO.II,VNO,,,active,1,1,1,1,0,0,1,1
 VNO.N,VNO,US9290421091,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VNOM.OQ,VNOM,US64361Q1013,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VNQ,VNQ,US9229085538,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VNT.N,VNT,US9288811014,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+VO,VO,US9229086296,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VOCS.O,VOCS,,,active,1,1,1,1,0,0,1,1
 VOCS.OQ,VOCS,,,active,1,1,1,1,0,0,1,1
 VOD.OQ,VOD,US92857W3088,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VOE,VOE,US9229085124,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VOL.PH,VOL,,,active,1,1,1,1,0,0,1,1
 VOLC.O,VOLC,,,active,1,1,1,1,0,0,1,1
 VOLC.OQ,VOLC,,,active,1,1,1,1,0,0,1,1
 VOO.P,VOO,US9229083632,NYSE Arca,active,1,0,0,0,0,1,0,1
 VOR.OQ,VOR,US9290332074,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VOT,VOT,US9229085389,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VOXR.TO,VOXR,CA92919F1036,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 VOYA.N,VOYA,US9290891004,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VOYG.N,VOYG,US92892B1035,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VPG.N,VPG,US92835K1034,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VPHM.OQ,VPHM,,,active,1,1,1,1,0,0,1,1
 VPHMDE.INS,VPHMDE,,,active,1,1,1,1,0,0,1,1
+VPU,VPU,US92204A8760,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VQ.PH,VQ,,,active,1,1,1,1,0,0,1,1
 VRA.OQ,VRA,US92335C1062,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VRAYQ.PK,VRAYQ,US92672L1070,USA Pink Sheets,active,1,1,1,1,0,0,1,1
@@ -5034,6 +5505,7 @@ VRE.N,VRE,US5544891048,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VREX.OQ,VREX,US92214X1063,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VRM.OQ,VRM,US92918V3078,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 VRNS.OQ,VRNS,US9222801022,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VRP,VRP,US46138G8704,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VRRM.OQ,VRRM,US92511U1025,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VRSK.OQ,VRSK,US92345Y1064,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 VRSN.OQ,VRSN,US92343E1029,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
@@ -5051,26 +5523,35 @@ VSLR.N,VSLR,,,active,1,1,1,1,0,0,1,1
 VST.N,VST,US92840M1027,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VSTM.OQ,VSTM,US92337C2035,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VSTS.N,VSTS,US29430C1027,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+VT,VT,US9220427424,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VTAE.OQ,VTAE,,,active,1,1,1,1,0,0,1,1
 VTAL.O,VTAL,,,active,1,1,1,1,0,0,1,1
+VTEB.K,VTEB,US9229077469,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VTEX.N,VTEX,KYG9470A1022,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VTGDF.PK,VTGDF,KYG932051132,USA Pink Sheets,active,1,1,1,1,0,0,1,1
 VTGN.OQ,VTGN,US92840H4002,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VTI.P,VTI,US9229087690,NYSE Arca,active,1,0,0,0,0,1,0,1
+VTIP.O,VTIP,US9220208055,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 VTIV.OQ,VTIV,,,active,1,1,1,1,0,0,1,1
 VTOL.N,VTOL,US11040G1031,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VTR.N,VTR,US92276F1003,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VTRU.P,VTRU,KYG9440D1034,NYSE Arca when trading NASDAQ Global Market,active,1,1,1,1,0,0,1,1
 VTS.N,VTS,US92852X1037,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+VTV.P,VTV,US9229087443,NYSE Arca,active,1,0,0,0,0,1,0,1
 VTVT.OQ,VTVT,US9183852048,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VTYF.TRE,VTYF,US92343X1000,London Stock Exchange,active,1,1,1,1,0,0,1,1
+VUG.P,VUG,US9229087369,NYSE Arca,active,1,0,0,0,0,1,0,1
 VUZI.OQ,VUZI,US92921W3007,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,0,1,1
 VVC^B19,VVC^B19,US92240G1013,New York Consolidated,active,1,1,1,1,0,0,1,1
 VVUSDE.INS,VVUSDE,,,active,1,1,1,1,0,0,1,1
 VVV.N,VVV,US92047W1018,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VVX.N,VVX,US92242T1016,New York Stock Exchange,active,1,1,1,1,0,0,1,1
+VWO,VWO,US9220428588,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
+VXF,VXF,US9229086528,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 VXRT.PK,VXRT,US92243A2006,USA Pink Sheets,active,1,1,1,1,0,0,1,1
+VXUS.O,VXUS,US9219097683,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 VYGR.OQ,VYGR,US92915B1061,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+VYM.P,VYM,US9219464065,NYSE Arca,active,1,0,0,0,0,1,0,1
 VYX.N,VYX,US62886E1082,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 VZ.N,VZ,US92343V1044,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 W.N,W,US94419L1017,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -5099,6 +5580,7 @@ WCC.N,WCC,US95082P1057,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 WCG.N,WCG,,,active,1,1,1,1,0,0,1,1
 WCI.B,WCI,,,active,1,1,1,1,0,0,1,1
 WCIC.N,WCIC,,,active,1,1,1,1,0,0,1,1
+WCLD.O,WCLD,US97717Y6914,NASDAQ Global Market Consolidated,active,1,0,0,0,0,1,0,1
 WCN.TO,WCN,CA94106B1013,The Toronto Stock Exchange,active,1,1,1,1,0,0,1,1
 WCRX.OQ,WCRX,,,active,1,1,1,1,0,0,1,1
 WD.N,WD,US93148P1021,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -5127,6 +5609,7 @@ WG.N,WG,,,active,1,1,1,1,0,0,1,1
 WGL^G18,WGL^G18,US92924F1066,New York Consolidated,active,1,1,1,1,0,0,1,1
 WGO.N,WGO,US9746371007,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 WGS.OQ,WGS,US81663L2007,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+WGSAX.O,WGSAX,US94952J1097,NASDAQ Stock Exchange Capital Market,active,1,0,0,0,0,1,0,1
 WH.N,WH,US98311A1051,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 WHD.N,WHD,US1272031071,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 WHG.N,WHG,US9617651040,New York Stock Exchange,active,1,1,1,1,0,0,1,1
@@ -5254,6 +5737,7 @@ XLU.P,XLU,,NYSE ARCA,active,1,0,0,0,0,1,0,1
 XLV.P,XLV,,NYSE ARCA,active,1,0,0,0,0,1,0,1
 XLY.P,XLY,,NYSE ARCA,active,1,0,0,0,0,1,0,1
 XL^I18,XL^I18,BMG982941046,New York Consolidated,active,1,1,1,1,0,0,1,1
+XMHQ.K,XMHQ,US46137V4721,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 XMTR.OQ,XMTR,US98423F1093,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 XNCR.OQ,XNCR,US98401F1057,NASDAQ Stock Exchange Global Market,active,1,1,1,1,0,0,1,1
 XNPT.O,XNPT,,,active,1,1,1,1,0,0,1,1
@@ -5270,6 +5754,7 @@ XRIS.INS,XRIS,,,active,1,1,1,1,0,0,1,1
 XRM.II,XRM,,,active,1,1,1,1,0,0,1,1
 XRN.N,XRN,US37954A3032,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 XRX.OQ,XRX,US98421M1062,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
+XSD.P,XSD,US78464A8624,NYSE Arca,active,1,0,0,0,0,1,0,1
 XTLY.N,XTLY,,,active,1,1,1,1,0,0,1,1
 XTO.II,XTO,,,active,1,1,1,1,0,0,1,1
 XTXI.OQ,XTXI,,,active,1,1,1,1,0,0,1,1
@@ -5278,6 +5763,7 @@ XXII.OQ,XXII,US90137F6088,NASDAQ Stock Exchange Capital Market,active,1,1,1,1,0,
 XYL.N,XYL,US98419M1009,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 XYZ,XYZ,US8522341036,New York Consolidated,active,1,1,1,1,0,0,1,1
 YANB.OQ,YANB,,,active,1,1,1,1,0,0,1,1
+YANG.K,YANG,US25461A4601,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 YCBD.A,YCBD,US12482W4087,American Stock Exchange,active,1,1,1,1,0,0,1,1
 YDKN.N,YDKN,,,active,1,1,1,1,0,0,1,1
 YDNT.OQ,YDNT,,,active,1,1,1,1,0,0,1,1
@@ -5286,6 +5772,7 @@ YELP.N,YELP,US9858171054,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 YETI.N,YETI,US98585X1046,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 YEXT.N,YEXT,US98585N1063,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 YHOODE.INS,YHOODE,,,active,1,1,1,1,0,0,1,1
+YINN.K,YINN,US25460G1958,NYSE Arca Consolidated,active,1,0,0,0,0,1,0,1
 YORW.OQ,YORW,US9871841089,Nasdaq Stock Exchange Global Select Market,active,1,1,1,1,0,0,1,1
 YOU.N,YOU,US18467V1098,New York Stock Exchange,active,1,1,1,1,0,0,1,1
 YRCW.OQ,YRCW,,,active,1,1,1,1,0,0,1,1
