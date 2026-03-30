@@ -349,6 +349,9 @@ Parallel cPAR note:
 - One-command operator check:
   - `make operator-check`
   - or `./scripts/operator_check.sh`
+  - staged `run_app` cutover entrypoints live in the cloud-native runbook:
+    - `make cloud-run-app-bundle`
+    - `CUTOVER_ACTION=plan|apply|verify ... make cloud-run-app-cutover`
   - topology-aware live wrapper:
     - `OPERATOR_API_TOKEN=... make cloud-topology-check`
     - real dispatch remains opt-in on that wrapper:

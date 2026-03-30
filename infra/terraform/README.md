@@ -97,6 +97,15 @@ Build/deploy operator rule:
 - when dispatch is enabled on that wrapper, `TOPOLOGY_CHECK_DISPATCH_SURFACE=active|run_app|edge` selects the one surface that receives the real refresh dispatch
 - both helper scripts can read a saved `terraform output -json` bundle through `PROD_TERRAFORM_OUTPUT_JSON=...` when the local prod root is not backend-initialized
 - `make cloud-topology-check` reuses `scripts/operator_check.sh`; during `run_app` soak it runs the local pytest gate once, then reuses the live-only path for the custom-domain rollback check
+- `make cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/`
+- `CUTOVER_ACTION=bundle|build-frontend|plan|apply|verify make cloud-run-app-cutover` drives the staged `run_app` rollout from that bundle
+- the bundle is a different operator artifact from `PROD_TERRAFORM_OUTPUT_JSON=...`:
+  - `PROD_TERRAFORM_OUTPUT_JSON` is a read-only helper input
+  - the rollout bundle is the staged cutover source that holds rollback and run_app base tfvars files
+- `run_app` plan/apply phases fail closed until a run.app-built frontend image ref is available:
+  - set `RUN_APP_FRONTEND_IMAGE_REF=...`
+  - or run `CUTOVER_ACTION=build-frontend ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+- `CUTOVER_ACTION=verify` wraps the topology-aware live smoke and optionally `make cloud-request-billing-check`, but `make smoke-check` remains a separate repo-side gate
 
 Observability prep owned here:
 - `_Default` Cloud Logging retention

@@ -362,6 +362,41 @@ Current observability prep:
   - explicit rollout smoke
   - operator/manual checks when needed
 
+## Cutover Execution
+
+Operator rollout entrypoints:
+- `make cloud-run-app-bundle`
+- `CUTOVER_ACTION=bundle make cloud-run-app-cutover`
+- `CUTOVER_ACTION=build-frontend ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+- `CUTOVER_ACTION=plan CUTOVER_PHASE=soak|no-edge|rollback ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+- `CUTOVER_ACTION=apply CUTOVER_PHASE=soak|no-edge|rollback ROLLOUT_BUNDLE_DIR=... ALLOW_TERRAFORM_APPLY=1 make cloud-run-app-cutover`
+- `CUTOVER_ACTION=verify ROLLOUT_BUNDLE_DIR=... OPERATOR_API_TOKEN=... make cloud-run-app-cutover`
+- `scripts/cloud/capture_run_app_rollout_bundle.sh`
+- `scripts/cloud/run_app_cutover.sh`
+
+Bundle contract:
+- `cloud-run-app-bundle` captures a distinct staged-cutover bundle under `backend/runtime/cloud_rollouts/` by default
+- that bundle is not the same thing as the generic `PROD_TERRAFORM_OUTPUT_JSON=...` input used by the read-only helper scripts
+- the bundle includes:
+  - `terraform-output.json`
+  - `manifest.json`
+  - `rollback_custom_domains.tfvars`
+  - `run_app_soak.base.tfvars`
+  - `run_app_no_edge.base.tfvars`
+- by default the bundle capture expects the live source topology to still be `custom_domains + edge_enabled=true`
+- `ROLLOUT_SOURCE_OUTPUT_JSON=...` is the rehearsal/debug seam for capture; do not confuse it with the saved bundle itself
+
+Execution contract:
+- `CUTOVER_ACTION=build-frontend` builds and pushes a `run_app` frontend image against the bundle's `service_urls.serve` origin and records that image ref into `run_app_frontend_image_ref.txt`
+- `CUTOVER_ACTION=plan` and `CUTOVER_ACTION=apply` are fail-closed for `run_app` phases:
+  - they require a run.app-built frontend image ref
+  - set `RUN_APP_FRONTEND_IMAGE_REF=...` explicitly or run `CUTOVER_ACTION=build-frontend` first
+- `CUTOVER_ACTION=apply` requires `ALLOW_TERRAFORM_APPLY=1`
+- `CUTOVER_PHASE=no-edge` apply also requires `ALLOW_EDGE_DISABLE=1`
+- `cloud-run-app-cutover` does not replace repo-side smoke:
+  - keep running `make smoke-check` separately
+  - `CUTOVER_ACTION=verify` wraps the live topology-aware operator check and may optionally include request-billing verification when `VERIFY_REQUEST_BILLING=1`
+
 ## Remaining Out Of Scope
 
 - queue-based refresh execution
@@ -382,6 +417,7 @@ For the request-based billing rollout specifically:
 - require a clean `terraform plan` after the rollout so live state and Terraform state agree
 - use `make smoke-check` for repo-side contract checks
 - use `make operator-check` with `APP_BASE_URL`, `CONTROL_BASE_URL`, and `OPERATOR_API_TOKEN` set for live control-plane validation
+- `CUTOVER_ACTION=verify make cloud-run-app-cutover` wraps the live topology-aware operator smoke; it does not replace `make smoke-check`
 - use `make cloud-topology-check` when you want the repo to choose the live URLs from current Terraform outputs:
   - `custom_domains`: checks only the custom-domain path
   - `run_app + edge_enabled=true`: checks both the `run.app` path and the still-live custom-domain rollback path
@@ -433,13 +469,13 @@ Topology guardrails:
   - build/push serve and control normally
   - use the repo-owned scripts so the published images stay `linux/amd64` for Cloud Run
 - `endpoint_mode=run_app` soak or no-edge contract:
-  - capture the current Cloud Run service URLs first
-    - or render the exact snippet with `make cloud-run-app-contract RUN_APP_PHASE=soak`
-  - set `endpoint_mode=run_app`
-  - set `edge_enabled=true` for soak, or `false` only after soak is clean
-  - set `frontend_public_origin`, `frontend_backend_api_origin`, and `frontend_backend_control_origin` from the intended `run.app` URLs
-  - pin all three image refs explicitly
-  - rebuild/push the frontend image against `frontend_backend_api_origin`
+  - capture the staged rollout bundle first:
+    - `make cloud-run-app-bundle`
+    - or `CUTOVER_ACTION=bundle make cloud-run-app-cutover`
+  - the bundle now holds the pinned rollback contract plus the staged `run_app` base contracts
+  - rebuild/push the frontend image against the bundle's `service_urls.serve` value:
+    - `CUTOVER_ACTION=build-frontend ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+  - do not plan/apply a `run_app` phase until a run.app-built frontend image ref is recorded or supplied explicitly
 
 4. Smoke the `run.app` surfaces
 - frontend root
@@ -449,13 +485,25 @@ Topology guardrails:
   - the control service's job IAM must allow execution overrides because the dispatch path sets env overrides on the Cloud Run Job request
 
 5. Soak with the edge still enabled
-- apply `endpoint_mode=run_app` with `edge_enabled=true`
-- re-run smoke against both paths with `make cloud-topology-check`
+- plan the soak contract:
+  - `CUTOVER_ACTION=plan CUTOVER_PHASE=soak ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+- apply the soak contract:
+  - `CUTOVER_ACTION=apply CUTOVER_PHASE=soak ROLLOUT_BUNDLE_DIR=... ALLOW_TERRAFORM_APPLY=1 make cloud-run-app-cutover`
+- re-run repo smoke separately:
+  - `make smoke-check`
+- then re-run the live topology smoke:
+  - `CUTOVER_ACTION=verify ROLLOUT_BUNDLE_DIR=... OPERATOR_API_TOKEN=... make cloud-run-app-cutover`
 
 6. Disable the edge only after soak
-- apply `endpoint_mode=run_app` with `edge_enabled=false`
+- plan the no-edge contract:
+  - `CUTOVER_ACTION=plan CUTOVER_PHASE=no-edge ROLLOUT_BUNDLE_DIR=... make cloud-run-app-cutover`
+- apply the no-edge contract:
+  - `CUTOVER_ACTION=apply CUTOVER_PHASE=no-edge ROLLOUT_BUNDLE_DIR=... ALLOW_TERRAFORM_APPLY=1 ALLOW_EDGE_DISABLE=1 make cloud-run-app-cutover`
 - confirm `load_balancer_ip`, `load_balancer_dns_records`, and `load_balancer_host_routing` now return `null`
-- re-run the live smoke against the `run.app` URLs only with `make cloud-topology-check`
+- re-run repo smoke separately:
+  - `make smoke-check`
+- then re-run the live smoke against the `run.app` URLs only:
+  - `CUTOVER_ACTION=verify ROLLOUT_BUNDLE_DIR=... OPERATOR_API_TOKEN=... make cloud-run-app-cutover`
 
 ## Current Rollout Notes
 
