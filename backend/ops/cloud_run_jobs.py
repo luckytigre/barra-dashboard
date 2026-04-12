@@ -30,14 +30,33 @@ def _execution_resource_name(execution_name: str) -> str:
     clean = str(execution_name or "").strip()
     if not clean:
         raise ValueError("Cloud Run execution name is required.")
+    if "/operations/" in clean:
+        return clean
     if clean.startswith("projects/"):
         return clean
-    if not dispatch_enabled():
-        raise RuntimeError("Cloud Run Jobs dispatch is not configured for serve-refresh.")
-    return (
-        f"projects/{config.CLOUD_RUN_PROJECT_ID}/locations/{config.CLOUD_RUN_REGION}/"
-        f"jobs/{config.SERVE_REFRESH_CLOUD_RUN_JOB_NAME}/executions/{clean}"
-    )
+    job_names = [
+        str(config.SERVE_REFRESH_CLOUD_RUN_JOB_NAME or "").strip(),
+        str(config.CORE_WEEKLY_CLOUD_RUN_JOB_NAME or "").strip(),
+        str(config.COLD_CORE_CLOUD_RUN_JOB_NAME or "").strip(),
+        str(config.CPAR_BUILD_CLOUD_RUN_JOB_NAME or "").strip(),
+    ]
+    for job_name in job_names:
+        if not job_name:
+            continue
+        if clean.startswith(f"{job_name}-"):
+            return (
+                f"projects/{config.CLOUD_RUN_PROJECT_ID}/locations/{config.CLOUD_RUN_REGION}/"
+                f"jobs/{job_name}/executions/{clean}"
+            )
+    # Backward-compatible fallback for legacy ids like "exec-1" used by tests
+    # and older control payloads that implicitly referred to serve-refresh.
+    serve_job_name = str(config.SERVE_REFRESH_CLOUD_RUN_JOB_NAME or "").strip()
+    if serve_job_name and dispatch_enabled():
+        return (
+            f"projects/{config.CLOUD_RUN_PROJECT_ID}/locations/{config.CLOUD_RUN_REGION}/"
+            f"jobs/{serve_job_name}/executions/{clean}"
+        )
+    raise RuntimeError(f"Unable to resolve Cloud Run execution resource for id: {clean}")
 
 
 def _google_auth_default(*, scopes: list[str]) -> tuple[Any, str | None]:
@@ -195,6 +214,8 @@ def dispatch_cpar_build(
 
 def describe_execution(execution_name: str) -> dict[str, Any]:
     resource_name = _execution_resource_name(execution_name)
+    if "/operations/" in resource_name:
+        return _request_json(f"https://run.googleapis.com/v2/{resource_name}")
     try:
         return _request_json(f"https://run.googleapis.com/v2/{resource_name}")
     except urllib.error.HTTPError as exc:
@@ -204,6 +225,32 @@ def describe_execution(execution_name: str) -> dict[str, Any]:
 
 
 def execution_terminal_summary(execution: dict[str, Any]) -> dict[str, Any]:
+    if "/operations/" in str(execution.get("name") or ""):
+        done = bool(execution.get("done"))
+        if not done:
+            return {
+                "terminal": False,
+                "status": "running",
+                "finished_at": None,
+                "message": "Cloud Run operation still running",
+            }
+        error = execution.get("error") or {}
+        if error:
+            return {
+                "terminal": True,
+                "status": "failed",
+                "finished_at": None,
+                "message": str(error.get("message") or "Cloud Run operation failed"),
+            }
+        response = execution.get("response") or {}
+        if isinstance(response, dict):
+            return execution_terminal_summary(response)
+        return {
+            "terminal": True,
+            "status": "ok",
+            "finished_at": None,
+            "message": "Cloud Run operation completed",
+        }
     conditions = execution.get("conditions") or execution.get("status", {}).get("conditions") or []
     completed = next(
         (cond for cond in conditions if str(cond.get("type") or "").strip() == "Completed"),

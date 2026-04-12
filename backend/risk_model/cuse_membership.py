@@ -127,11 +127,24 @@ def _load_structural_eligibility_rows_by_date(
     return rows_by_date
 
 
-def _derive_realized_role(*, model_status: str, exposure_origin: str) -> str:
+def _derive_realized_role(
+    *,
+    model_status: str,
+    exposure_origin: str,
+    reason_code: str = "",
+    projection_method: str = "",
+) -> str:
     if model_status == "core_estimated":
         return "core_estimated"
     if model_status == "projected_only":
-        if exposure_origin == "projected":
+        normalized_origin = _text(exposure_origin)
+        normalized_reason = _text(reason_code)
+        if normalized_origin in {"projected", "projected_returns"}:
+            return "projected_returns"
+        if (
+            normalized_reason in {"returns_projection", "projected_returns_regression", "projection_unavailable"}
+            or _text(projection_method)
+        ):
             return "projected_returns"
         return "projected_fundamental"
     return "ineligible"
@@ -328,7 +341,13 @@ def build_cuse_membership_payloads(
         )
         core_country_eligible = bool(structural_eligible and hq_country_code == "US")
         regression_candidate = core_country_eligible
-        realized_role = _derive_realized_role(model_status=model_status, exposure_origin=exposure_origin)
+        projection_method = _text(row.get("projection_method"))
+        realized_role = _derive_realized_role(
+            model_status=model_status,
+            exposure_origin=exposure_origin,
+            reason_code=reason_code,
+            projection_method=projection_method,
+        )
         regression_member = realized_role == "core_estimated"
         estu_candidate = core_country_eligible
         estu_row = estu_rows.get((as_of_date, ric), {}) if ric and as_of_date else {}
@@ -385,7 +404,6 @@ def build_cuse_membership_payloads(
                 else "not_applicable"
             )
         )
-        projection_method = _text(row.get("projection_method"))
         if not projection_method and realized_role == "projected_fundamental":
             projection_method = "native_characteristic_projection"
         projection_basis_status = (

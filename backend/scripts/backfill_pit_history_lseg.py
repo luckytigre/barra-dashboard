@@ -205,6 +205,12 @@ def _run_shard_with_retries(
                 "classification_rows_inserted": out.get("classification_rows_inserted"),
                 "price_rows_inserted": out.get("price_rows_inserted"),
             }
+            if str(out.get("status") or "").strip().lower() != "ok":
+                payload["error"] = f"non_ok_status:{out.get('status')}"
+                if attempt < int(max_retries):
+                    time.sleep(float(sleep_seconds))
+                    continue
+                return False, payload
             return True, payload
         except Exception as exc:
             payload = {

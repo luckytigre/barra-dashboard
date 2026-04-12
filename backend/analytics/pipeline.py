@@ -266,11 +266,14 @@ def _validate_projection_only_serving_outputs(
     if not projection_ok_tickers:
         return
     issues: list[str] = []
+    projected_origin_aliases = {"projected", "projected_returns", "projected_fundamental"}
     for ticker in sorted(projection_ok_tickers):
         universe_row = dict(universe_by_ticker.get(ticker) or {})
+        universe_model_status = str(universe_row.get("model_status") or "").strip()
+        universe_origin = str(universe_row.get("exposure_origin") or "").strip()
         if (
-            str(universe_row.get("model_status") or "").strip() != "projected_only"
-            or str(universe_row.get("exposure_origin") or "").strip() != "projected"
+            universe_model_status != "projected_only"
+            or universe_origin not in projected_origin_aliases
         ):
             issues.append(
                 f"{ticker}:universe:{universe_row.get('model_status') or 'missing'}:{universe_row.get('exposure_origin') or 'missing'}"
@@ -282,9 +285,11 @@ def _validate_projection_only_serving_outputs(
     }
     for ticker in sorted(projection_ok_tickers.intersection(positions_by_ticker.keys())):
         pos = dict(positions_by_ticker.get(ticker) or {})
+        pos_model_status = str(pos.get("model_status") or "").strip()
+        pos_origin = str(pos.get("exposure_origin") or "").strip()
         if (
-            str(pos.get("model_status") or "").strip() != "projected_only"
-            or str(pos.get("exposure_origin") or "").strip() != "projected"
+            pos_model_status != "projected_only"
+            or pos_origin not in projected_origin_aliases
         ):
             issues.append(
                 f"{ticker}:portfolio:{pos.get('model_status') or 'missing'}:{pos.get('exposure_origin') or 'missing'}"

@@ -71,9 +71,9 @@ def run_source_stage(
             as_of_date=as_of_date,
             shard_count=1,
             shard_index=0,
-            write_fundamentals=False,
+            write_fundamentals=bool(config_module.SOURCE_DAILY_WRITE_FUNDAMENTALS),
             write_prices=True,
-            write_classification=False,
+            write_classification=bool(config_module.SOURCE_DAILY_WRITE_CLASSIFICATION),
         )
         price_gap_repair = {"status": "skipped", "reason": "ingest_not_ok"}
         pit_gap_repair = {"status": "skipped", "reason": "ingest_not_ok"}

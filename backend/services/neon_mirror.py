@@ -421,6 +421,14 @@ def _sqlite_count_window(
     cutoff: str | None,
     distinct_col: str | None = "ric",
 ) -> dict[str, Any]:
+    if not _sqlite_table_exists(conn, table):
+        return {
+            "exists": False,
+            "row_count": 0,
+            "min_date": None,
+            "max_date": None,
+            "latest_distinct": None,
+        }
     params: list[Any] = []
     where = ""
     if date_col and cutoff:
@@ -449,6 +457,7 @@ def _sqlite_count_window(
             latest_distinct = int(latest_row[0] or 0) if latest_row else 0
 
     return {
+        "exists": True,
         "row_count": count,
         "min_date": min_date,
         "max_date": max_date,
@@ -1326,11 +1335,15 @@ def run_bounded_parity_audit(
         latest_closed_anchor = _pit_latest_closed_anchor(frequency=pit_frequency)
         for label, source_table, date_col, cutoff, distinct_col in data_specs:
             if date_col is None:
-                srow = sqlite_conn.execute(f"SELECT COUNT(*) FROM {source_table}").fetchone()
-                source = {"row_count": int(srow[0] or 0)}
+                source_exists = _sqlite_table_exists(sqlite_conn, source_table)
+                if source_exists:
+                    srow = sqlite_conn.execute(f"SELECT COUNT(*) FROM {source_table}").fetchone()
+                    source = {"exists": True, "row_count": int(srow[0] or 0)}
+                else:
+                    source = {"exists": False, "row_count": 0}
                 with pg_conn.cursor() as cur:
                     cur.execute(sql.SQL("SELECT COUNT(*) FROM {}").format(sql.Identifier(label)))
-                    target = {"row_count": int(cur.fetchone()[0] or 0)}
+                    target = {"exists": True, "row_count": int(cur.fetchone()[0] or 0)}
             else:
                 source = _sqlite_count_window(
                     sqlite_conn,
@@ -1347,6 +1360,14 @@ def run_bounded_parity_audit(
                     distinct_col=distinct_col,
                 )
 
+            if not bool(source.get("exists", True)):
+                out["tables"][label] = {
+                    "source": source,
+                    "target": target,
+                    "cutoff": cutoff,
+                    "status": "skipped_missing_source",
+                }
+                continue
             mismatch = source != target
             if mismatch:
                 out["issues"].append(f"mismatch:{label}")

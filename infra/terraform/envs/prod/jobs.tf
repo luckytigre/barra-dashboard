@@ -18,8 +18,8 @@ resource "google_cloud_run_v2_job" "core_weekly" {
 
         resources {
           limits = {
-            cpu    = "2"
-            memory = "4Gi"
+            cpu    = "8"
+            memory = "32Gi"
           }
         }
 
@@ -77,8 +77,8 @@ resource "google_cloud_run_v2_job" "cold_core" {
 
         resources {
           limits = {
-            cpu    = "2"
-            memory = "8Gi"
+            cpu    = "8"
+            memory = "32Gi"
           }
         }
 
@@ -136,8 +136,8 @@ resource "google_cloud_run_v2_job" "cpar_build" {
 
         resources {
           limits = {
-            cpu    = "1"
-            memory = "2Gi"
+            cpu    = "8"
+            memory = "32Gi"
           }
         }
 
@@ -195,8 +195,8 @@ resource "google_cloud_run_v2_job" "serve_refresh" {
 
         resources {
           limits = {
-            cpu    = "1"
-            memory = "4Gi"
+            cpu    = "8"
+            memory = "32Gi"
           }
         }
 
