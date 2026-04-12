@@ -676,7 +676,14 @@ def compute_daily_factor_returns(
         _shift_date_by_days(d, lag_days)
         for d in dates_to_compute
     })
-    eligibility_ctx = build_eligibility_context(data_db, dates=eligibility_dates)
+    # Factor-return recompute can run against a scratch workspace database even when
+    # cloud runtime is Neon-primary. Keep eligibility inputs on the same authority
+    # surface as prices/returns to avoid mixed-date windows across backends.
+    eligibility_ctx = build_eligibility_context(
+        data_db,
+        dates=eligibility_dates,
+        force_local=True,
+    )
     if not eligibility_ctx.exposure_dates:
         logger.warning("No exposure snapshots available — cannot compute daily factor returns")
         return pd.DataFrame(columns=["date", "factor_name", "factor_return", "robust_se", "t_stat", "r_squared", "residual_vol"])
