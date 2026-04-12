@@ -368,6 +368,29 @@ def test_sync_workspace_derivatives_to_local_mirror_copies_core_outputs(tmp_path
     target_cache_conn.close()
 
 
+def test_workspace_barra_table_keeps_expected_primary_key(tmp_path: Path) -> None:
+    db_path = tmp_path / "workspace.db"
+    conn = sqlite3.connect(str(db_path))
+    try:
+        neon_authority._drop_and_recreate_sqlite_table(
+            conn,
+            table="barra_raw_cross_section_history",
+            columns=[
+                {"name": "ric", "data_type": "text"},
+                {"name": "as_of_date", "data_type": "date"},
+                {"name": "ticker", "data_type": "text"},
+            ],
+        )
+        pk_cols = [
+            str(row[1])
+            for row in conn.execute("PRAGMA table_info(barra_raw_cross_section_history)").fetchall()
+            if int(row[5] or 0) > 0
+        ]
+    finally:
+        conn.close()
+    assert pk_cols == ["ric", "as_of_date"]
+
+
 def test_workspace_source_tables_are_registry_first() -> None:
     assert "security_registry" in neon_authority.WORKSPACE_SOURCE_TABLES
     assert "security_taxonomy_current" in neon_authority.WORKSPACE_SOURCE_TABLES
