@@ -208,25 +208,129 @@ Acceptance:
 
 ## Phase 4 - Stability Window and Rollback Readiness
 
-1. Run a 5-business-day stability window:
-   - daily local ingest + sync,
-   - scheduled/triggered cloud core/cpar compute.
-2. Track incidents:
-   - job OOM/retries,
-   - stale running-state reconciliation,
-   - parity drift,
-   - cPAR package readiness misses.
-3. Keep rollback artifacts current:
-   - rollout bundle recapture after any targeted image change.
+### 4A. Entry Gate (must pass before Day 1)
 
-Acceptance:
+Before the 5-business-day clock starts:
 
-- No Sev1/Sev2 operational regressions in window.
-- Execute one controlled rollback drill:
-  - induce a failed dispatch scenario,
-  - run full rollback sequence,
-  - rerun forward path.
-- Capture measured RTO and operator transcript; both rollback and forward recovery complete within target RTO.
+1. Recapture the immutable rollout bundle for the currently intended live state:
+   - `terraform output -json`
+   - current Cloud Run service revisions
+   - current Cloud Run job revisions
+   - current frontend/serve/control/job image digests
+2. Run and save green transcripts for:
+   - `make cloud-topology-check`
+   - `make operator-check`
+3. Record the current topology contract:
+   - `endpoint_mode`
+   - `edge_enabled`
+   - `public_origins`
+4. Record the current runtime truth:
+   - `/api/operator/status`
+   - `/api/refresh/status`
+   - `/api/health/diagnostics`
+   - `/api/data/diagnostics?include_paths=true`
+   - `/api/cpar/meta`
+5. Open one Phase 4 evidence log using:
+   - `docs/operations/cutover_evidence/PHASE4_STABILITY_AND_ROLLBACK_TEMPLATE.md`
+
+Gate to proceed:
+- rollout bundle recaptured,
+- topology/operator checks green,
+- current topology contract and runtime truth captured.
+
+### 4B. Daily Stability Window (5 business days)
+
+For each business day in the window:
+
+1. Run local ingest and source publication:
+   - local `source-daily`
+   - verify `source_sync` completion and source watermark tuple
+2. Run cloud validation:
+   - `make cloud-topology-check`
+   - `make operator-check`
+3. Capture current job execution state for:
+   - `serve-refresh`
+   - `core-weekly`
+   - `cold-core`
+   - `cpar-build`
+4. Capture current runtime/readiness snapshots:
+   - `/api/operator/status`
+   - `/api/refresh/status`
+   - `/api/health/diagnostics`
+   - `/api/data/diagnostics?include_paths=true`
+   - `/api/cpar/meta`
+5. Update the incident log explicitly for any of:
+   - job OOM/retries
+   - stale running-state reconciliation
+   - parity drift
+   - cPAR package readiness misses
+   - topology drift
+   - authority/read-path failures
+6. If any service/job image digest changes during the window:
+   - recapture the rollout bundle the same day
+   - record why the image changed
+
+### 4C. Controlled Rollback Drill
+
+Run one operator-controlled rollback drill during the window.
+
+Required shape:
+
+1. Use the saved rollout bundle as the rollback source of truth.
+2. Induce one failed dispatch or equivalent controlled failure scenario.
+3. Execute a cloud rollback to the prior known-good service/job image set and topology state.
+4. Re-run:
+   - `make cloud-topology-check`
+   - `make operator-check`
+5. Verify restored topology contract and runtime truth:
+   - `endpoint_mode`
+   - `edge_enabled`
+   - `public_origins`
+   - service/job image digests
+   - `/api/operator/status`
+   - `/api/refresh/status`
+   - `/api/health/diagnostics`
+   - `/api/cpar/meta`
+6. Execute forward recovery back to the intended current topology.
+7. Re-run the same checks after forward recovery.
+
+Required evidence:
+- rollback command transcript
+- rollback verification transcript
+- forward-recovery transcript
+- timestamps for:
+  - rollback start
+  - rollback green
+  - forward-recovery start
+  - forward-recovery green
+
+### 4D. RTO Target
+
+For this cutover phase, the rollback drill target RTO is:
+
+- rollback to restored green checks within 30 minutes
+- forward recovery to restored green checks within 30 minutes
+
+If either target is missed:
+- hold cutover open,
+- keep scheduler handback paused,
+- record the root cause and remediation before signoff.
+
+### 4E. Acceptance
+
+Phase 4 is complete only when all of the following are true:
+
+- 5-business-day stability window completed
+- no Sev1/Sev2 operational regressions during the window
+- no unexplained topology drift remains open
+- one controlled rollback drill completed
+- rollback green checks restored within target RTO
+- forward recovery green checks restored within target RTO
+- final evidence log contains:
+  - incident summary
+  - measured RTO
+  - final topology snapshot
+  - final rollout bundle reference
 
 ## Phase 5 - Cutover Signoff
 

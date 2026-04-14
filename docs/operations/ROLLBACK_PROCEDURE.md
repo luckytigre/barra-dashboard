@@ -1,51 +1,142 @@
-# Rollback Procedure: Revert to Local Authority
+# Rollback Procedure
 
-This document defines the procedure to revert the cUSE/cPAR system from Cloud-Native (Neon) to Local Authority (SQLite) in the event of severe cloud-side corruption, schema mismatch, or availability failure.
+Date: 2026-04-14
+Owner: Platform / Risk Ops
+Status: Active rollback baseline for cloud cutover
 
-## 1. Objective
-Re-establish Shaun's machine (or a local-ingest host) as the single source of truth for both ingest and serving, bypassing Neon.
+## Purpose
 
-## 2. Procedure
+This document defines two different rollback modes:
 
-### 2A. Environment Configuration
-On the local-ingest host, update the `.env` or shell environment:
+1. **Cloud rollback drill / incident rollback**
+   - restore the prior known-good cloud topology and image set
+   - keep the cloud-native operating model intact
+2. **Break-glass return to local authority**
+   - revert serving/rebuild authority to local SQLite
+   - use only when the cloud path is fundamentally unavailable or corrupted
+
+These modes are not interchangeable.
+Phase 4 of the cutover plan requires the first mode.
+The second mode is the emergency fallback.
+
+## Mode A - Cloud Rollback Drill / Incident Rollback
+
+### Objective
+
+Restore the last known-good cloud deployment using the saved rollout bundle and prove the system is healthy again before resuming forward progress.
+
+### Preconditions
+
+- schedulers paused or dispatches otherwise frozen
+- no new image rollout in progress
+- latest rollout bundle available with:
+  - `terraform output -json`
+  - service revisions
+  - job revisions
+  - image digests
+- operator token available
+
+### Required Evidence
+
+Record all of the following in the current Phase 4 evidence log:
+
+- rollback start timestamp
+- rollout bundle path / bundle timestamp
+- service and job digests before rollback
+- rollback command transcript
+- topology and operator check transcripts after rollback
+- forward-recovery transcript
+- measured rollback and forward-recovery RTO
+
+### Procedure
+
+1. Freeze automation
+   - pause schedulers if active
+   - block new dispatches
+2. Confirm the target rollback bundle
+   - identify the prior known-good frontend/serve/control image digests
+   - identify the prior known-good service/job revisions if needed
+   - confirm the bundle matches the intended topology contract
+3. Restore the cloud deployment to the target bundle
+   - update pinned image refs / rollout inputs to the target known-good values
+   - apply the deployment change using the normal production deployment path
+4. Re-verify topology
+   - run `make cloud-topology-check`
+   - confirm `endpoint_mode`, `edge_enabled`, and `public_origins`
+   - confirm service/job image digests match the target bundle
+5. Re-verify operator/runtime behavior
+   - run `make operator-check`
+   - capture:
+     - `/api/operator/status`
+     - `/api/refresh/status`
+     - `/api/health/diagnostics`
+     - `/api/cpar/meta`
+6. Only after rollback is green, execute forward recovery
+   - restore the intended current bundle
+   - rerun the same topology/operator checks
+
+### Success Criteria
+
+- rollback checks green within target RTO
+- forward-recovery checks green within target RTO
+- final topology and digest state exactly match the intended bundle
+
+### Failure Handling
+
+If rollback pointer/digest verification fails:
+
+- keep schedulers paused
+- keep new dispatches blocked
+- hold cutover open
+- escalate as an incident
+- do not proceed to forward recovery signoff until:
+  - the pointer mismatch is explained
+  - the restored topology is verified
+
+## Mode B - Break-Glass Return To Local Authority
+
+### Objective
+
+Re-establish a local-ingest host as the authority for serving and rebuilds when the cloud/Neon path is fundamentally unavailable or untrustworthy.
+
+### Environment Configuration
+
+On the local-ingest host:
 
 ```bash
-# 1. Revert authority to SQLite
 export DATA_BACKEND=sqlite
 export NEON_AUTHORITATIVE_REBUILDS=false
-
-# 2. Enable local-ingest role
 export APP_RUNTIME_ROLE=local-ingest
 export ORCHESTRATOR_ENABLE_INGEST=true
 ```
 
-### 2B. Data Reconciliation
-Ensure the local `data.db` and `cache.db` are healthy. If the local state is behind, perform a full re-ingest from the last known-good LSEG anchor:
+### Data Reconciliation
+
+Ensure local `data.db` and `cache.db` are healthy.
+If local state is behind, rebuild from the last known-good anchor:
 
 ```bash
-# Run a core rebuild locally to re-establish SQLite authority
 python3 -m backend.orchestration.run_model_pipeline \
   --profile cold-core \
   --as-of-date <LAST_STABLE_DATE> \
   --force-core
 ```
 
-### 2C. Frontend/API Pointing
-If the frontend was configured to talk to Cloud Run, it must be pointed back to the local API:
+### Frontend/API Pointing
 
-```bash
-# In frontend/.env.local
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
-```
+If frontend or operator clients were pointed at cloud services, point them back to the local API surface as needed.
 
-## 3. Post-Rollback Verification
-1. Run `make operator-check` locally.
-2. Verify holdings and risk views in the dashboard.
-3. Once stable, investigate the Neon corruption/mismatch before attempting to re-enable Cloud Cutover.
+### Post-Rollback Verification
 
-## 4. Recovery (Return to Cloud)
-Do not re-enable `DATA_BACKEND=neon` until:
-1. The root cause of the rollback is identified and fixed.
-2. `make neon-parity-audit` (if available) or `make cloud-topology-check` returns Green.
-3. A new `cold-core` run is successfully pushed from local to Neon.
+1. Run local operator checks
+2. Verify holdings and risk views
+3. Investigate the cloud-side issue before attempting any return to Neon/cloud authority
+
+## Return To Cloud After Break-Glass Mode
+
+Do not re-enable cloud/Neon authority until:
+
+1. root cause is identified and fixed
+2. `make cloud-topology-check` is green
+3. `make operator-check` is green
+4. a new rebuild / publish path has been successfully completed and verified
