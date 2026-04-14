@@ -121,6 +121,31 @@ def test_cloud_expensive_diagnostics_require_operator_token(monkeypatch) -> None
     assert client.get("/api/health/diagnostics", headers={"X-Operator-Token": "op-secret"}).status_code == 200
 
 
+def test_cloud_health_diagnostics_reports_authority_unavailable(monkeypatch) -> None:
+    monkeypatch.setattr(auth_module.config, "APP_RUNTIME_ROLE", "cloud-serve")
+    monkeypatch.setattr(auth_module.config, "OPERATOR_API_TOKEN", "op-secret")
+    monkeypatch.setattr(health_routes, "require_role", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        health_routes,
+        "load_health_diagnostics_payload",
+        lambda: (_ for _ in ()).throw(
+            health_routes.health_diagnostics_service.HealthDiagnosticsUnavailable(
+                message="Health diagnostics authority is unavailable from neon.",
+                source="neon",
+                error={"type": "OperationalError", "message": "timed out"},
+            )
+        ),
+    )
+
+    client = TestClient(app)
+    res = client.get("/api/health/diagnostics", headers={"X-Operator-Token": "op-secret"})
+
+    assert res.status_code == 503
+    assert res.json()["detail"]["status"] == "unavailable"
+    assert res.json()["detail"]["error"] == "health_diagnostics_authority_unavailable"
+    assert res.json()["detail"]["source"] == "neon"
+
+
 def test_cloud_operator_status_requires_operator_token(monkeypatch) -> None:
     monkeypatch.setattr(auth_module.config, "APP_RUNTIME_ROLE", "cloud-serve")
     monkeypatch.setattr(auth_module.config, "OPERATOR_API_TOKEN", "op-secret")

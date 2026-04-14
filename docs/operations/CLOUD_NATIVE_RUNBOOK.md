@@ -121,6 +121,7 @@ Expected behavior:
 - public durable serving-payload reads/writes stay behind `backend/data/serving_outputs.py`, while lower Neon/SQLite authority helpers remain non-public implementation detail
 - public runtime/control state reads and writes stay behind `backend/data/runtime_state.py`, while lower Neon/fallback authority helpers remain non-public implementation detail
 - `source_sync` remains a `local-ingest` concern; cloud-serving surfaces should not call the source-only cycle in `backend/services/neon_source_sync_cycle.py`
+- `source_sync` remains strictly `local-ingest` owned; `cloud-job` execution must fail closed rather than offering a generic env-toggle bypass for source publication from cloud compute
 - Neon mirror artifact persistence, sync-health publication, and offline parity-repair helpers stay behind `backend/services/neon_mirror_reporting.py`; cloud-serving surfaces should not reassemble those payloads ad hoc
 
 ### Backend control app
@@ -216,6 +217,10 @@ Refresh execution ownership is deliberately split:
   - Control-only `POST /api/cpar/build` route (operator-token protected)
 
 This prevents a serve-only process from reconciling or mutating shared refresh state as though it owned the worker.
+
+Operator diagnostics contract:
+- `cache_not_ready` means the durable payload is genuinely unpublished/missing for the requested surface
+- serving-authority connection/query failures must surface as an explicit authority-unavailable operator error, not as `cache_not_ready`
 
 ## Cloud Readiness Gates
 

@@ -398,18 +398,13 @@ def _validate_cloud_job_role(
     if not config.cloud_job_mode():
         return
 
-    # Cloud jobs are forbidden from running ingest or source_sync by default.
-    # source_sync can be explicitly allowed via ORCHESTRATOR_ALLOW_EMERGENCY_SYNC for self-healing.
-    # ingest is ALWAYS forbidden in cloud-job mode.
-    strictly_forbidden = {"ingest"}
-    sync_forbidden = {"source_sync"} if not config.ORCHESTRATOR_ALLOW_EMERGENCY_SYNC else set()
-    all_forbidden = strictly_forbidden.union(sync_forbidden)
+    all_forbidden = {"ingest", "source_sync"}
 
     requested = {s for s in (from_stage, to_stage) if s}
     if requested.intersection(all_forbidden):
         raise RuntimeError(
             f"Step 3 Cutover Guardrail: APP_RUNTIME_ROLE=cloud-job is forbidden from requesting stages: {sorted(requested.intersection(all_forbidden))}. "
-            "Ingest and Neon source-sync must be performed by a local-ingest host (unless ORCHESTRATOR_ALLOW_EMERGENCY_SYNC is set for sync)."
+            "Ingest and Neon source-sync must be performed by a local-ingest host."
         )
 
     if selected:
@@ -417,7 +412,7 @@ def _validate_cloud_job_role(
         if intersect:
             raise RuntimeError(
                 f"Step 3 Cutover Guardrail: APP_RUNTIME_ROLE=cloud-job is forbidden from running stages: {sorted(intersect)}. "
-                "Ingest and Neon source-sync must be performed by a local-ingest host (unless ORCHESTRATOR_ALLOW_EMERGENCY_SYNC is set for sync)."
+                "Ingest and Neon source-sync must be performed by a local-ingest host."
             )
 
 

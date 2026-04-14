@@ -100,8 +100,10 @@ def _load_admitted_runtime_tickers_neon() -> set[str] | None:
     from backend.data.neon import connect, resolve_dsn
     try:
         dsn = resolve_dsn(None)
-    except ValueError:
-        return None
+    except ValueError as exc:
+        raise RuntimeError(
+            "Unable to resolve Neon DSN while loading admitted runtime tickers."
+        ) from exc
     try:
         pg_conn = connect(dsn=dsn, autocommit=True)
         try:
@@ -117,10 +119,12 @@ def _load_admitted_runtime_tickers_neon() -> set[str] | None:
                 rows = cur.fetchall()
         finally:
             pg_conn.close()
-    except Exception:
-        return None
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to read admitted runtime tickers from Neon security_registry."
+        ) from exc
     if not rows:
-        return None
+        return set()
     return {str(row[0]).strip().upper() for row in rows if str(row[0]).strip()}
 
 
@@ -157,6 +161,9 @@ def _load_admitted_runtime_tickers(data_db: Path) -> set[str] | None:
             allow_empty_registry_fallback=False,
         )
     except sqlite3.DatabaseError:
+        from backend.data.core_read_backend import use_neon_core_reads
+        if use_neon_core_reads():
+            return _load_admitted_runtime_tickers_neon()
         return None
     finally:
         conn.close()

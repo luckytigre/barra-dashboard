@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from backend.analytics.services.universe_loadings import (
     build_universe_ticker_loadings,
@@ -798,3 +799,21 @@ def test_build_universe_ticker_loadings_excludes_non_registry_tickers_via_neon(
     # AAPL and MSFT are admitted (price data only, so ineligible but present)
     assert "AAPL" in out["by_ticker"]
     assert "MSFT" in out["by_ticker"]
+
+
+def test_load_admitted_runtime_tickers_fails_closed_when_neon_authority_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.analytics.services import universe_loadings as ul_mod
+
+    monkeypatch.setattr(
+        "backend.data.core_read_backend.use_neon_core_reads", lambda: True
+    )
+    monkeypatch.setattr(
+        ul_mod,
+        "_load_admitted_runtime_tickers_neon",
+        lambda: (_ for _ in ()).throw(RuntimeError("neon unavailable")),
+    )
+
+    with pytest.raises(RuntimeError, match="neon unavailable"):
+        ul_mod._load_admitted_runtime_tickers(tmp_path / "nonexistent.db")
