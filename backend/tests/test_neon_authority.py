@@ -104,11 +104,42 @@ def test_assess_neon_rebuild_readiness_allows_cold_core_without_existing_raw_his
     assert out["status"] == "ok"
 
 
-def test_assess_neon_rebuild_readiness_requires_model_output_tables() -> None:
+def test_assess_neon_rebuild_readiness_cold_core_tolerates_missing_model_output_tables() -> None:
+    # cold-core rebuilds covariance/specific-risk/metadata from scratch, so
+    # it must be allowed to run even on a bootstrap Neon with those tables missing.
     table_stats = _registry_first_table_stats(model_covariance_exists=False, model_run_metadata_exists=False)
 
     out = neon_authority._assess_neon_rebuild_readiness(
         profile="cold-core",
+        table_stats=table_stats,
+        analytics_years=5,
+    )
+
+    assert out["status"] == "ok"
+
+
+def test_assess_neon_rebuild_readiness_cold_core_tolerates_empty_model_output_tables() -> None:
+    # Same bootstrap scenario: tables exist but are empty (no prior run).
+    table_stats = _registry_first_table_stats()
+    table_stats["model_factor_covariance_daily"] = {"exists": True, "row_count": 0, "min_date": None, "max_date": None}
+    table_stats["model_specific_risk_daily"] = {"exists": True, "row_count": 0, "min_date": None, "max_date": None}
+    table_stats["model_run_metadata"] = {"exists": True, "row_count": 0, "min_date": None, "max_date": None}
+
+    out = neon_authority._assess_neon_rebuild_readiness(
+        profile="cold-core",
+        table_stats=table_stats,
+        analytics_years=5,
+    )
+
+    assert out["status"] == "ok"
+
+
+def test_assess_neon_rebuild_readiness_requires_model_output_tables_for_non_cold_core() -> None:
+    # Other profiles (e.g. core-weekly) still require existing model outputs.
+    table_stats = _registry_first_table_stats(model_covariance_exists=False, model_run_metadata_exists=False)
+
+    out = neon_authority._assess_neon_rebuild_readiness(
+        profile="core-weekly",
         table_stats=table_stats,
         analytics_years=5,
     )

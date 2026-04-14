@@ -376,12 +376,20 @@ def _assess_neon_rebuild_readiness(
         "security_fundamentals_pit",
         "security_classification_pit",
     ]
-    required_model_tables = [
-        "model_factor_returns_daily",
-        "model_factor_covariance_daily",
-        "model_specific_risk_daily",
-        "model_run_metadata",
-    ]
+    # cold-core rebuilds covariance/specific-risk/metadata from scratch; only
+    # factor-returns (incremental base) is required.  Other profiles need all
+    # four tables to be non-empty so the workspace is self-consistent.
+    if profile_key == "cold-core":
+        required_model_tables = [
+            "model_factor_returns_daily",
+        ]
+    else:
+        required_model_tables = [
+            "model_factor_returns_daily",
+            "model_factor_covariance_daily",
+            "model_specific_risk_daily",
+            "model_run_metadata",
+        ]
     if profile_key != "cold-core":
         required_tables.append("barra_raw_cross_section_history")
 
