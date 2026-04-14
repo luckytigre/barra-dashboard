@@ -688,3 +688,113 @@ def test_build_universe_ticker_loadings_preserves_factor_ids_in_covariance_path(
     serialized_ids = {entry["factor_id"] for entry in out["factor_catalog"]}
     assert "industry_market" not in serialized_ids
     assert "industry_style_beta_score" not in serialized_ids
+
+
+# ---------------------------------------------------------------------------
+# _load_admitted_runtime_tickers — Neon fallback
+# ---------------------------------------------------------------------------
+
+def test_load_admitted_runtime_tickers_neon_fallback_when_no_local_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When local data_db is absent and Neon reads are enabled, the security registry
+    is queried from Neon.  Universe loadings must then exclude tickers that are not in
+    that registry (e.g. ETF price-table tickers that were never model-universe members).
+    """
+    import pytest
+    from backend.analytics.services import universe_loadings as ul_mod
+
+    # Simulate Neon returning a registry of two tickers only.
+    def _fake_neon_admitted() -> set[str] | None:
+        return {"AAPL", "MSFT"}
+
+    monkeypatch.setattr(ul_mod, "_load_admitted_runtime_tickers_neon", _fake_neon_admitted)
+    monkeypatch.setattr(
+        "backend.data.core_read_backend.use_neon_core_reads", lambda: True
+    )
+
+    # data_db does not exist → should trigger Neon fallback.
+    result = ul_mod._load_admitted_runtime_tickers(tmp_path / "nonexistent.db")
+    assert result == {"AAPL", "MSFT"}
+
+
+def test_load_admitted_runtime_tickers_returns_none_when_no_local_db_and_neon_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When local data_db is absent and Neon reads are disabled, the function returns
+    None (no filter — safe open set, consistent with pre-Neon behaviour).
+    """
+    import pytest
+    from backend.analytics.services import universe_loadings as ul_mod
+
+    monkeypatch.setattr(
+        "backend.data.core_read_backend.use_neon_core_reads", lambda: False
+    )
+
+    result = ul_mod._load_admitted_runtime_tickers(tmp_path / "nonexistent.db")
+    assert result is None
+
+
+def test_load_admitted_runtime_tickers_neon_fallback_when_registry_absent_from_local_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When local data_db exists but has no security_registry table and Neon reads are
+    enabled, the Neon fallback is used instead of returning None.
+    """
+    import pytest
+    from backend.analytics.services import universe_loadings as ul_mod
+    import sqlite3
+
+    db_path = tmp_path / "data.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE some_other_table (id INTEGER PRIMARY KEY)")
+    conn.commit()
+    conn.close()
+
+    def _fake_neon_admitted() -> set[str] | None:
+        return {"SPY", "QQQ"}
+
+    monkeypatch.setattr(ul_mod, "_load_admitted_runtime_tickers_neon", _fake_neon_admitted)
+    monkeypatch.setattr(
+        "backend.data.core_read_backend.use_neon_core_reads", lambda: True
+    )
+
+    result = ul_mod._load_admitted_runtime_tickers(db_path)
+    assert result == {"SPY", "QQQ"}
+
+
+def test_build_universe_ticker_loadings_excludes_non_registry_tickers_via_neon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """End-to-end: when serve-refresh runs in a fresh container (no local SQLite),
+    tickers that are in the Neon prices table but NOT in the security registry must be
+    excluded from the universe so _assert_current_membership_coverage does not fire.
+    """
+    import pytest
+    from backend.analytics.services import universe_loadings as ul_mod
+
+    # Registry admits only AAPL and MSFT — ETF tickers AAXJ/ACWI must be excluded.
+    def _fake_neon_admitted() -> set[str] | None:
+        return {"AAPL", "MSFT"}
+
+    monkeypatch.setattr(ul_mod, "_load_admitted_runtime_tickers_neon", _fake_neon_admitted)
+    monkeypatch.setattr(
+        "backend.data.core_read_backend.use_neon_core_reads", lambda: True
+    )
+
+    prices_df = pd.DataFrame(
+        {"ticker": ["AAPL", "MSFT", "AAXJ", "ACWI"], "close": [200.0, 400.0, 50.0, 90.0]}
+    )
+    out = build_universe_ticker_loadings(
+        exposures_df=pd.DataFrame(),
+        fundamentals_df=pd.DataFrame(),
+        prices_df=prices_df,
+        cov=pd.DataFrame(),
+        data_db=tmp_path / "nonexistent.db",  # does not exist — triggers Neon path
+    )
+
+    assert "AAXJ" not in out["by_ticker"], "ETF ticker not in registry must be excluded"
+    assert "ACWI" not in out["by_ticker"], "ETF ticker not in registry must be excluded"
+    # AAPL and MSFT are admitted (price data only, so ineligible but present)
+    assert "AAPL" in out["by_ticker"]
+    assert "MSFT" in out["by_ticker"]

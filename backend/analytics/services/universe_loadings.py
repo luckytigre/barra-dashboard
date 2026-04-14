@@ -95,9 +95,42 @@ def _overlay_persisted_cuse_membership(
         )
 
 
+def _load_admitted_runtime_tickers_neon() -> set[str] | None:
+    """Load admitted tickers from Neon security_registry when local SQLite is unavailable."""
+    from backend.data.neon import connect, resolve_dsn
+    try:
+        dsn = resolve_dsn(None)
+    except ValueError:
+        return None
+    try:
+        pg_conn = connect(dsn=dsn, autocommit=True)
+        try:
+            with pg_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT ticker
+                    FROM security_registry
+                    WHERE (tracking_status IS NULL OR tracking_status != 'disabled')
+                    AND ticker IS NOT NULL AND ticker != ''
+                    """
+                )
+                rows = cur.fetchall()
+        finally:
+            pg_conn.close()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    return {str(row[0]).strip().upper() for row in rows if str(row[0]).strip()}
+
+
 def _load_admitted_runtime_tickers(data_db: Path) -> set[str] | None:
     db_path = Path(data_db)
     if not db_path.exists():
+        # Local SQLite unavailable — try Neon registry when it is the configured backend.
+        from backend.data.core_read_backend import use_neon_core_reads
+        if use_neon_core_reads():
+            return _load_admitted_runtime_tickers_neon()
         return None
     conn = sqlite3.connect(str(db_path))
     try:
@@ -110,6 +143,10 @@ def _load_admitted_runtime_tickers(data_db: Path) -> set[str] | None:
             """
         ).fetchone()
         if registry_exists is None:
+            # Registry absent from local SQLite — try Neon fallback.
+            from backend.data.core_read_backend import use_neon_core_reads
+            if use_neon_core_reads():
+                return _load_admitted_runtime_tickers_neon()
             return None
         registry_count = conn.execute("SELECT COUNT(*) FROM security_registry").fetchone()
         if not registry_count or int(registry_count[0] or 0) <= 0:
