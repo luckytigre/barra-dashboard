@@ -4,9 +4,23 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import sys
+import time
 from typing import Any, Callable
 
 import numpy as np
+
+
+def _memory_high_water_mb() -> float | None:
+    try:
+        import resource
+    except ImportError:
+        return None
+    usage = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss or 0.0)
+    if usage <= 0.0:
+        return None
+    divisor = 1024.0 * 1024.0 if sys.platform == "darwin" else 1024.0
+    return round(usage / divisor, 2)
 
 def run_core_stage(
     *,
@@ -100,19 +114,26 @@ def run_core_stage(
                     "cache_rows_cleared": reset_summary,
                 }
             )
+        compute_t0 = time.perf_counter()
         df = compute_daily_factor_returns_fn(
             data_db,
             cache_db,
             min_cross_section_age_days=config_module.CROSS_SECTION_MIN_AGE_DAYS,
             progress_callback=progress_callback,
         )
+        compute_seconds = time.perf_counter() - compute_t0
         if df is None or getattr(df, "empty", False):
             raise RuntimeError("factor_returns stage produced zero rows")
+        stage_metrics = dict(getattr(df, "attrs", {}).get("stage_metrics") or {})
+        stage_metrics.setdefault("compute_seconds", round(float(compute_seconds), 3))
+        stage_metrics.setdefault("rows_written", 0)
+        stage_metrics["memory_high_water_mb"] = _memory_high_water_mb()
         return {
             "status": "ok",
             "factor_return_rows_loaded": int(len(df)),
             "core_cache_reset": bool(reset_core_cache),
             "cache_rows_cleared": reset_summary,
+            "metrics": stage_metrics,
         }
 
     if stage == "risk_model":
@@ -123,6 +144,7 @@ def run_core_stage(
             }
         if progress_callback is not None:
             progress_callback({"message": "Building factor covariance matrix", "progress_kind": "stage"})
+        compute_t0 = time.perf_counter()
         cov, latest_r2 = build_factor_covariance_from_cache_fn(
             cache_db,
             lookback_days=config_module.LOOKBACK_DAYS,
@@ -133,6 +155,7 @@ def run_core_stage(
             cache_db,
             lookback_days=config_module.LOOKBACK_DAYS,
         )
+        compute_seconds = time.perf_counter() - compute_t0
         if cov is None or cov.empty:
             raise RuntimeError("risk_model stage produced empty covariance matrix")
         if not isinstance(specific_risk, dict) or len(specific_risk) == 0:
@@ -140,7 +163,10 @@ def run_core_stage(
         recompute_date = previous_or_same_xnys_session_fn(
             datetime.now(timezone.utc).date().isoformat()
         )
+        read_t0 = time.perf_counter()
         latest_factor_return_date = latest_factor_return_date_fn(cache_db)
+        source_dates = core_reads_module.load_source_dates(data_db=data_db)
+        read_seconds = time.perf_counter() - read_t0
         estimation_exposure_anchor_date = None
         if latest_factor_return_date:
             lag_days = max(0, int(config_module.CROSS_SECTION_MIN_AGE_DAYS))
@@ -161,6 +187,7 @@ def run_core_stage(
             "specific_risk_ticker_count": int(len(specific_risk)),
             "recompute_reason": "force_core" if force_core else core_reason,
         }
+        write_t0 = time.perf_counter()
         sqlite_module.cache_set("risk_engine_cov", serialize_covariance_fn(cov), db_path=cache_db)
         sqlite_module.cache_set("risk_engine_specific_risk", specific_risk, db_path=cache_db)
         sqlite_module.cache_set("risk_engine_meta", risk_engine_meta, db_path=cache_db)
@@ -172,7 +199,7 @@ def run_core_stage(
             status="ok",
             started_at=datetime.now(timezone.utc).isoformat(),
             completed_at=datetime.now(timezone.utc).isoformat(),
-            source_dates=core_reads_module.load_source_dates(data_db=data_db),
+            source_dates=source_dates,
             params={
                 "profile": str(profile),
                 "force_core": bool(force_core),
@@ -185,6 +212,7 @@ def run_core_stage(
             cov=cov,
             specific_risk_by_ticker=specific_risk,
         )
+        write_seconds = time.perf_counter() - write_t0
         if progress_callback is not None:
             progress_callback(
                 {
@@ -194,12 +222,22 @@ def run_core_stage(
                     "specific_risk_ticker_count": int(len(specific_risk)),
                 }
             )
+        rows_written = int(sum(int(v or 0) for v in (model_outputs_write.get("row_counts") or {}).values()))
         return {
             "status": "ok",
             "factor_count": int(cov.shape[1]) if cov is not None and not cov.empty else 0,
             "specific_risk_ticker_count": int(len(specific_risk)),
             "risk_engine_meta": risk_engine_meta,
             "model_outputs_write": model_outputs_write,
+            "metrics": {
+                "read_seconds": round(float(read_seconds), 3),
+                "query_seconds": round(float(read_seconds), 3),
+                "compute_seconds": round(float(compute_seconds), 3),
+                "write_seconds": round(float(write_seconds), 3),
+                "rows_read": int(len(cov.index) + len(specific_risk)),
+                "rows_written": int(rows_written),
+                "memory_high_water_mb": _memory_high_water_mb(),
+            },
         }
 
     raise ValueError(f"Unsupported core stage: {stage}")

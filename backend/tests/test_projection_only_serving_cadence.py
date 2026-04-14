@@ -43,6 +43,8 @@ def test_run_serving_stage_requests_projection_refresh_on_core_lane() -> None:
 
     assert out["status"] == "ok"
     assert captured["refresh_projected_loadings"] is True
+    assert out["metrics"]["compute_seconds"] >= 0.0
+    assert out["metrics"]["rows_written"] == 0
 
 
 def test_run_serving_stage_does_not_request_projection_refresh_on_serving_only_lane() -> None:
@@ -65,6 +67,27 @@ def test_run_serving_stage_does_not_request_projection_refresh_on_serving_only_l
 
     assert out["status"] == "ok"
     assert captured["refresh_projected_loadings"] is False
+
+
+def test_run_serving_stage_exposes_published_payload_metrics() -> None:
+    out = run_serving_stage(
+        stage="serving_refresh",
+        should_run_core=False,
+        serving_mode="light",
+        data_db=Path("/tmp/data.db"),
+        cache_db=Path("/tmp/cache.db"),
+        progress_callback=None,
+        core_reads_module=_CoreReadsModule,
+        serving_refresh_skip_risk_engine_fn=lambda **kwargs: (True, "stable_core_package_reused"),
+        run_refresh_fn=lambda **kwargs: {"status": "ok", "published_payload_count": 42},
+        previous_or_same_xnys_session_fn=lambda s: s,
+        canonical_data_db=Path("/tmp/data.db"),
+        canonical_cache_db=Path("/tmp/cache.db"),
+    )
+
+    assert out["status"] == "ok"
+    assert out["metrics"]["rows_written"] == 42
+    assert out["metrics"]["compute_seconds"] >= 0.0
 
 
 def test_run_refresh_uses_persisted_projection_outputs_on_serving_rebuild(

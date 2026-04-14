@@ -1068,6 +1068,56 @@ def test_risk_model_stage_writes_workspace_cache_without_global_path_mutation(
     assert captured["cache_db"] == workspace_cache_db
     assert captured["refresh_mode"] == "cold-core"
     assert captured["source_dates"]["prices_asof"] == "2026-03-14"
+    assert out["metrics"]["compute_seconds"] >= 0.0
+    assert out["metrics"]["write_seconds"] >= 0.0
+    assert out["metrics"]["rows_written"] == 0
+
+
+def test_factor_returns_stage_surfaces_stage_metrics_from_dataframe_attrs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    data_db = tmp_path / "data.db"
+    cache_db = tmp_path / "cache.db"
+    df = pd.DataFrame(
+        [{"date": "2026-03-14", "factor_name": "Market", "factor_return": 0.01}]
+    )
+    df.attrs["stage_metrics"] = {
+        "read_seconds": 1.25,
+        "compute_seconds": 2.5,
+        "write_seconds": 0.75,
+        "query_count": 4,
+        "rows_read": 1234,
+        "rows_written": 567,
+        "largest_batch_rows": 400,
+    }
+
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "compute_daily_factor_returns",
+        lambda *args, **kwargs: df,
+    )
+
+    out = run_model_pipeline._run_stage(
+        profile="core-weekly",
+        stage="factor_returns",
+        as_of_date="2026-03-14",
+        should_run_core=True,
+        serving_mode="full",
+        force_core=False,
+        core_reason="due",
+        data_db=data_db,
+        cache_db=cache_db,
+    )
+
+    assert out["status"] == "ok"
+    assert out["factor_return_rows_loaded"] == 1
+    assert out["metrics"]["read_seconds"] == 1.25
+    assert out["metrics"]["compute_seconds"] == 2.5
+    assert out["metrics"]["write_seconds"] == 0.75
+    assert out["metrics"]["query_count"] == 4
+    assert out["metrics"]["rows_read"] == 1234
+    assert out["metrics"]["rows_written"] == 567
 
 
 def test_explicit_neon_core_window_fails_without_neon_readiness(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
