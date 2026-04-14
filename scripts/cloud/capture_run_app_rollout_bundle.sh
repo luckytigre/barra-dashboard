@@ -255,7 +255,7 @@ control_image_ref = "{service_image_refs['control']}"
     run_app_soak_base = f"""# Captured from {outputs_path.name} at {captured_at}
 # Base contract for the run_app soak cutover.
 # Provide the run.app-built frontend image at plan/apply time through RUN_APP_FRONTEND_IMAGE_REF
-# or by creating {manifest['bundle_files']['run_app_frontend_image_ref']} with the built image ref.
+# or by creating {manifest['optional_generated_files']['run_app_frontend_image_ref']} with the built image ref.
 endpoint_mode = "run_app"
 edge_enabled = true
 frontend_public_origin = "{service_urls['frontend']}"
@@ -268,7 +268,7 @@ control_image_ref = "{service_image_refs['control']}"
     run_app_no_edge_base = f"""# Captured from {outputs_path.name} at {captured_at}
 # Base contract for the final run_app no-edge steady state.
 # Provide the run.app-built frontend image at plan/apply time through RUN_APP_FRONTEND_IMAGE_REF
-# or by creating {manifest['bundle_files']['run_app_frontend_image_ref']} with the built image ref.
+# or by creating {manifest['optional_generated_files']['run_app_frontend_image_ref']} with the built image ref.
 endpoint_mode = "run_app"
 edge_enabled = false
 frontend_public_origin = "{service_urls['frontend']}"
@@ -347,7 +347,7 @@ control_image_ref = "{service_image_refs['control']}"
     run_app_no_edge_base = f"""# Captured from {outputs_path.name} at {captured_at}
 # Base contract for the final run_app no-edge steady state using the current applied refs.
 # Provide the run.app-built frontend image at plan/apply time through RUN_APP_FRONTEND_IMAGE_REF
-# or by creating {manifest['bundle_files']['run_app_frontend_image_ref']} with the built image ref.
+# or by creating {manifest['optional_generated_files']['run_app_frontend_image_ref']} with the built image ref.
 endpoint_mode = "run_app"
 edge_enabled = false
 frontend_public_origin = "{service_urls['frontend']}"
