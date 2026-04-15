@@ -2,7 +2,7 @@
 
 Date: 2026-04-14
 Owner: Codex
-Status: current live topology is `custom_domains` with `edge_enabled=true`; `run_app` remains a supported rollout mode but is not the current production truth
+Status: current live topology is `run_app` with `edge_enabled=false`; `app.ceiora.com` is served through Firebase Hosting and backends are private behind the frontend
 
 ## Purpose
 
@@ -14,12 +14,12 @@ Resolve the current live origins from `terraform output endpoint_mode`, `terrafo
 ## Topology Modes
 
 - `endpoint_mode=custom_domains`
-  - current production mode during the active cutover window
+  - rollback-only topology
   - requires `edge_enabled=true`
   - canonical public origins are the frozen `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` hostnames
   - no explicit origin/image overrides are required beyond the normal custom-domain rollout inputs
 - `endpoint_mode=run_app`
-  - supported alternate rollout mode
+  - current production mode
   - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned frontend/serve/control image refs
   - `edge_enabled=true` is the soak state that keeps rollback paths and custom-domain validation alive
   - `edge_enabled=false` is the no-edge steady state
@@ -34,16 +34,15 @@ The Terraform contract now exposes:
 - `load_balancer_dns_records`
 - `load_balancer_host_routing`
 
-## Frozen Production Hostnames
+## Current Public Origins
 
-- when `endpoint_mode=custom_domains`:
-  - frontend: `https://app.ceiora.com`
-  - serve API: `https://api.ceiora.com`
-  - control API: `https://control.ceiora.com`
+- frontend: `https://app.ceiora.com`
+- serve runtime origin: resolve from `terraform output public_origins` and treat it as frontend-only private backend target, not a public user hostname
+- control runtime origin: resolve from `terraform output public_origins` and treat it as frontend-only private backend target, not a public user hostname
 
-Temporary smoke validation should use Cloud Run `run.app` hostnames first.
-During a `run_app + edge_enabled=true` soak, validate both the `run.app` path and the still-live custom-domain rollback path.
-Do not treat `run_app` as production truth until Terraform outputs and the active Phase 4 evidence both agree.
+Current operator rule:
+- users should only navigate through `https://app.ceiora.com`
+- do not publish or rely on `api.ceiora.com` / `control.ceiora.com`; those aliases were removed from live DNS
 
 ## Process Split
 
@@ -162,19 +161,22 @@ Required for split deployment:
   - that fallback is local/single-origin compatibility behavior, not the intended cloud steady state
 
 Auth contract:
+- the frontend now owns the shared signed-cookie app session and protects app pages plus `/api/*` before proxying upstream
+- because Firebase Hosting forwards the `__session` cookie on Cloud Run rewrites, the shared app session must use the `__session` cookie name
+- the frontend runtime requires:
+  - `CEIORA_SHARED_LOGIN_USERNAME`
+  - `CEIORA_SHARED_LOGIN_PASSWORD`
+  - `CEIORA_SESSION_SECRET`
+  - `CEIORA_PRIMARY_ACCOUNT_USERNAME`
 - the frontend service must not mount `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`
 - privileged frontend `/api/*` routes forward caller-supplied auth headers instead:
   - `X-Operator-Token`
   - `X-Editor-Token`
-  - `Authorization: Bearer <token>`
 - in cloud mode, `X-Refresh-Token` is not a public control-plane credential
-
-Cloud steady-state values:
-- `BACKEND_API_ORIGIN=https://api.ceiora.com`
-- `BACKEND_CONTROL_ORIGIN=https://control.ceiora.com`
+- when `CLOUD_RUN_BACKEND_IAM_AUTH=true`, the frontend proxy layer uses `Authorization: Bearer <Cloud Run ID token>` for backend service-to-service invocation
 
 run_app contract values:
-- `frontend_public_origin=https://<frontend-service>.run.app`
+- `frontend_public_origin=https://app.ceiora.com`
 - `BACKEND_API_ORIGIN=https://<serve-service>.run.app`
 - `BACKEND_CONTROL_ORIGIN=https://<control-service>.run.app`
 - all three `*_image_ref` inputs must be explicit rather than inheriting `:latest`
@@ -188,6 +190,11 @@ Local compatibility values:
 The split-origin decision is intentionally isolated to Next App Router proxy handlers and their shared helper:
 
 - `frontend/src/app/api/_backend.ts`
+
+Current rule:
+- browser `/api/*` traffic must terminate in owned App Router route handlers
+- the old catch-all `next.config.js` `/api/*` rewrite is no longer part of the supported contract
+- if `private_backend_invocation_enabled=true`, the frontend runtime proxies to backend `run.app` service URLs with Cloud Run IAM auth instead of relying on public backend hosts
 - `frontend/src/app/api/refresh/route.ts`
 - `frontend/src/app/api/refresh/status/route.ts`
 - `frontend/src/app/api/operator/status/route.ts`
@@ -195,6 +202,22 @@ The split-origin decision is intentionally isolated to Next App Router proxy han
 - `frontend/src/app/api/data/diagnostics/route.ts`
 
 Pages and components should not select backend origins directly.
+
+## Shared Auth And Private-Backend Deployment Notes
+
+The shared frontend auth boundary and the private-backend cutover are live.
+
+Current steady-state notes:
+1. `app.ceiora.com` is served through Firebase Hosting with a Cloud Run rewrite to the frontend service.
+2. The shared app session is stored in the `__session` cookie so Firebase forwards it on rewritten requests.
+3. `private_backend_invocation_enabled=true` is active.
+4. `serve` and `control` no longer allow unauthenticated direct invocation.
+5. The frontend service account invokes `serve` and `control` with Cloud Run IAM auth.
+6. The old HTTPS load balancer has been removed.
+7. The temporary ACME challenge route still exists in the frontend codebase and can be removed once Firebase control-plane certificate status settles beyond propagation.
+
+Execution record:
+- `docs/operations/cutover_evidence/FRONTEND_AUTH_EXECUTION_20260415T010336Z.md`
 
 ## Refresh Ownership
 

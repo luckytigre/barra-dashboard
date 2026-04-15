@@ -60,10 +60,10 @@ export default function SettingsPage() {
 
         <section className="settings-section">
           <div className="settings-section-header settings-section-header-global">
-            <h3>Cloud Auth</h3>
+            <h3>Privileged Backend Tokens</h3>
             <div className="settings-section-desc">
-              Stored only in this browser&apos;s local storage. Privileged actions send these headers to same-origin
-              frontend `/api/*` routes, which then forward them upstream.
+              This page is now a privileged maintenance surface. These backend tokens remain stored only in this browser&apos;s
+              local storage during the transition away from browser-held backend auth.
             </div>
           </div>
           <div className="settings-auth-grid">

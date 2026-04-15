@@ -234,9 +234,19 @@ Canonical page-to-backend wiring:
 - `Health` (`/cuse/health`)
   - reads: `/api/operator/status`, `/api/risk`, `/api/health/diagnostics`
   - purpose: live operator control-room status plus top-level model quality and deeper model-diagnostics study, loaded on demand because it is the heaviest dashboard page
+- Public entry and auth:
+  - `/` is now the lightweight public landing placeholder
+  - `/login` establishes the shared frontend session
+  - `/home` is the authenticated app home that replaced the old public dashboard landing role
+- Privileged settings:
+  - `/settings` is an authenticated privileged page for the primary account
+  - it remains the temporary maintenance surface for browser-held backend tokens during the transition to frontend-server trust
 
 Efficiency rules now in force:
+- the frontend now owns the app auth boundary through a shared signed-cookie session and middleware-gated `/api/*` routes; page-level token-presence checks are UI suppression only, not auth
 - operator state is fetched on demand plus fast-polled only while a refresh is actively running; pages should not each invent their own background loop
+- anonymous visits must not trigger shared-shell control-plane reads; operator chrome belongs behind an authenticated operator surface rather than ambient app-shell fetches
+- browser `/api/*` traffic should flow only through owned App Router route handlers; ambient catch-all backend rewrites are no longer part of the contract
 - header sync/recalc actions now use canonical profile semantics (`serve-refresh`) instead of legacy mode-based refresh calls
 - ticker/RIC typeahead is debounced before hitting `/api/universe/search`
 - Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls

@@ -21,7 +21,6 @@ resource "google_cloud_run_v2_service" "frontend" {
     timeout         = "300s"
 
     scaling {
-      min_instance_count = 0
       max_instance_count = var.frontend_max_instances
     }
 
@@ -40,16 +39,59 @@ resource "google_cloud_run_v2_service" "frontend" {
         container_port = 3000
       }
 
-      # The frontend image bakes BACKEND_API_ORIGIN into next.config rewrites.
-      # Mirror the same value at runtime for the Next server-side proxy helpers.
       env {
         name  = "BACKEND_API_ORIGIN"
-        value = local.frontend_backend_api_origin
+        value = var.private_backend_invocation_enabled ? google_cloud_run_v2_service.serve.uri : local.frontend_backend_api_origin
       }
 
       env {
         name  = "BACKEND_CONTROL_ORIGIN"
-        value = local.frontend_backend_control_origin
+        value = var.private_backend_invocation_enabled ? google_cloud_run_v2_service.control.uri : local.frontend_backend_control_origin
+      }
+
+      env {
+        name  = "CLOUD_RUN_BACKEND_IAM_AUTH"
+        value = var.private_backend_invocation_enabled ? "true" : "false"
+      }
+
+      env {
+        name = "CEIORA_SHARED_LOGIN_USERNAME"
+        value_source {
+          secret_key_ref {
+            secret  = module.secret_manager.secret_ids["shared_login_username"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "CEIORA_SHARED_LOGIN_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = module.secret_manager.secret_ids["shared_login_password"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "CEIORA_SESSION_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = module.secret_manager.secret_ids["session_secret"]
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "CEIORA_PRIMARY_ACCOUNT_USERNAME"
+        value_source {
+          secret_key_ref {
+            secret  = module.secret_manager.secret_ids["primary_account_username"]
+            version = "latest"
+          }
+        }
       }
 
     }
@@ -73,7 +115,6 @@ resource "google_cloud_run_v2_service" "serve" {
     timeout         = "300s"
 
     scaling {
-      min_instance_count = 0
       max_instance_count = var.serve_max_instances
     }
 
@@ -164,7 +205,6 @@ resource "google_cloud_run_v2_service" "control" {
     timeout         = "300s"
 
     scaling {
-      min_instance_count = 0
       max_instance_count = var.control_max_instances
     }
 
@@ -270,17 +310,40 @@ resource "google_cloud_run_v2_service" "control" {
 }
 
 resource "google_cloud_run_v2_service_iam_member" "public_invoker" {
-  for_each = {
-    frontend = google_cloud_run_v2_service.frontend.name
-    serve    = google_cloud_run_v2_service.serve.name
-    control  = google_cloud_run_v2_service.control.name
-  }
+  for_each = (
+    var.private_backend_invocation_enabled
+    ? {
+      frontend = google_cloud_run_v2_service.frontend.name
+    }
+    : {
+      frontend = google_cloud_run_v2_service.frontend.name
+      serve    = google_cloud_run_v2_service.serve.name
+      control  = google_cloud_run_v2_service.control.name
+    }
+  )
 
   project  = var.project_id
   location = var.region
   name     = each.value
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "frontend_private_backend_invoker" {
+  for_each = (
+    var.private_backend_invocation_enabled
+    ? {
+      serve   = google_cloud_run_v2_service.serve.name
+      control = google_cloud_run_v2_service.control.name
+    }
+    : {}
+  )
+
+  project  = var.project_id
+  location = var.region
+  name     = each.value
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.service_accounts.email_by_key["frontend"]}"
 }
 
 resource "google_cloud_run_v2_job_iam_member" "control_dispatch_invoker" {

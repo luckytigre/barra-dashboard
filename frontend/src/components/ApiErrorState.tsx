@@ -7,6 +7,7 @@ import {
   triggerRefreshProfile,
   useOperatorStatus,
 } from "@/hooks/useCuse4Api";
+import { useOperatorTokenAvailable } from "@/hooks/useOperatorTokenAvailable";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
 function parseError(error: unknown): {
@@ -66,7 +67,8 @@ export default function ApiErrorState({
 }) {
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const parsed = parseError(error);
-  const { data: operator } = useOperatorStatus();
+  const operatorTokenAvailable = useOperatorTokenAvailable();
+  const { data: operator } = useOperatorStatus(operatorTokenAvailable);
   const allowedProfiles = new Set(operator?.runtime?.allowed_profiles ?? []);
   const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
 
@@ -90,7 +92,7 @@ export default function ApiErrorState({
     <div className="chart-card">
       <h3>{title}</h3>
       <div className="detail-history-empty">{parsed.message}</div>
-      {parsed.actionEndpoint && parsed.actionMethod === "POST" && (
+      {operatorTokenAvailable && parsed.actionEndpoint && parsed.actionMethod === "POST" && (
         <div style={{ marginTop: 10 }}>
           <button
             className="btn btn-secondary"

@@ -68,7 +68,7 @@ variable "control_image_ref" {
 }
 
 variable "endpoint_mode" {
-  description = "Public topology contract for the cloud app. custom_domains preserves the current app/api/control hostnames; run_app expects explicit run.app origins."
+  description = "Public topology contract for the cloud app. custom_domains preserves the legacy app/api/control edge; run_app expects explicit frontend and backend origins."
   type        = string
   default     = "custom_domains"
 
@@ -79,19 +79,19 @@ variable "endpoint_mode" {
 }
 
 variable "edge_enabled" {
-  description = "Whether the custom-domain edge resources should remain provisioned. custom_domains requires true; run_app may use true for soak or false for no-edge steady state."
+  description = "Whether the legacy custom-domain edge resources should remain provisioned. custom_domains requires true; run_app may use true for soak or false for Firebase/no-edge steady state."
   type        = bool
   default     = true
 }
 
 variable "frontend_public_origin" {
-  description = "Canonical browser-facing frontend origin. Required when endpoint_mode=run_app; defaults to the custom-domain frontend hostname otherwise."
+  description = "Canonical browser-facing frontend origin. Required when endpoint_mode=run_app; may be a custom domain or a run.app origin."
   type        = string
   default     = ""
 }
 
 variable "frontend_backend_api_origin" {
-  description = "Origin baked into and exposed by the frontend service for API proxying. Required when endpoint_mode=run_app."
+  description = "Origin exposed by the frontend service for API proxying. Required when endpoint_mode=run_app."
   type        = string
   default     = ""
 }
@@ -100,6 +100,12 @@ variable "frontend_backend_control_origin" {
   description = "Origin exposed by the frontend service for control-plane proxying. Required when endpoint_mode=run_app."
   type        = string
   default     = ""
+}
+
+variable "private_backend_invocation_enabled" {
+  description = "When true, the frontend calls serve/control through their Cloud Run service URLs with IAM auth and serve/control stop granting unauthenticated invoker access."
+  type        = bool
+  default     = false
 }
 
 variable "frontend_max_instances" {

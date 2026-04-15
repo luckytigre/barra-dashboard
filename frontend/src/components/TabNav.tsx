@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useBackground, type BgMode } from "./BackgroundContext";
 import { useOperatorStatus } from "@/hooks/useCuse4Api";
+import { useOperatorTokenAvailable } from "@/hooks/useOperatorTokenAvailable";
+import { isPublicShellPath } from "@/lib/appAccess";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
 const CUSE_TABS = [
@@ -54,18 +56,20 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 export default function TabNav() {
   const pathname = usePathname();
   const activePath = pathname || "";
+  const isPublicShell = isPublicShellPath(activePath);
   const isPositionsPage = activePath === "/positions";
   const activeFamily = activePath.startsWith("/cpar") ? "cpar" : activePath.startsWith("/cuse") ? "cuse" : null;
   const [transitionFamily, setTransitionFamily] = useState<"cuse" | "cpar" | null>(null);
   const prevFamilyRef = useRef<string | null>(null);
   const badgeSlotRef = useRef<HTMLSpanElement>(null);
-  const showOperatorChrome = activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data";
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshActionState, setRefreshActionState] = useState<"idle" | "running" | "failed">("idle");
   const [clockMs, setClockMs] = useState<number>(0);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { mode, setMode } = useBackground();
+  const operatorTokenAvailable = useOperatorTokenAvailable();
+  const showOperatorChrome = operatorTokenAvailable && (activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data");
   const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus(showOperatorChrome);
   const holdingsSync = operatorStatusData?.holdings_sync;
   const neonSyncHealth = operatorStatusData?.neon_sync_health;
@@ -316,13 +320,22 @@ export default function TabNav() {
     syncIndicator();
   }, [activePath, tabs, syncIndicator]);
 
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.assign("/");
+  }
+
+  if (isPublicShell) {
+    return null;
+  }
+
   return (
     <nav
       ref={navRef}
       className={`dash-tabs${isLanding ? " dash-tabs-landing" : ""}${isPositionsPage ? " dash-tabs-positions" : ""}`}
     >
       <div className="dash-tabs-brand-cluster">
-        <Link href="/" className="dash-tabs-brand">
+        <Link href="/home" className="dash-tabs-brand">
           Ceiora
         </Link>
         <span
@@ -457,6 +470,16 @@ export default function TabNav() {
                   {opt.label}
                 </button>
               ))}
+              <div className="dash-dropdown-section">Account</div>
+              <button
+                className="dash-dropdown-item"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void handleLogout();
+                }}
+              >
+                Sign out
+              </button>
             </div>
           )}
         </div>

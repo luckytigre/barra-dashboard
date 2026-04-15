@@ -46,6 +46,11 @@
 - In `cloud-serve` mode, set non-empty auth tokens before exposing the app online:
   - `OPERATOR_API_TOKEN`
   - `EDITOR_API_TOKEN`
+- The frontend shared-session auth boundary also requires:
+  - `CEIORA_SHARED_LOGIN_USERNAME`
+  - `CEIORA_SHARED_LOGIN_PASSWORD`
+  - `CEIORA_SESSION_SECRET`
+  - `CEIORA_PRIMARY_ACCOUNT_USERNAME` (may match the shared username)
 - `REFRESH_API_TOKEN` remains a local-only compatibility token for the single-backend refresh route; do not rely on it for public cloud control-plane access
 - Prefer manual or low-frequency refreshes (`serve-refresh` most days).
 - Keep daily file backups of `data.db` and `cache.db`.
@@ -73,7 +78,9 @@
   - the public/editor-facing serve app should not expose refresh execution routes
   - operator/control routes should be served from the separate control app surface
   - the frontend may target a separate control origin through `BACKEND_CONTROL_ORIGIN`; when unset it falls back to `BACKEND_API_ORIGIN`
+  - the frontend now owns the shared app-session boundary; `/home`, `/cuse/*`, `/cpar/*`, `/positions`, `/data`, and privileged `/settings` are frontend-authenticated surfaces
   - the frontend must not hold operator/editor secrets in runtime env; privileged frontend `/api/*` routes should forward caller-supplied auth headers instead
+  - `/settings` is now a privileged maintenance page rather than the public auth bootstrap surface
 - Small local scratch/cache/workspace files may still appear, but they are not the historical source warehouse and are not the serving authority.
 - Local SQLite remains required only for:
   - direct LSEG ingest

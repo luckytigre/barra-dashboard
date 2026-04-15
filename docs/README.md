@@ -63,7 +63,7 @@ Primary files:
 
 Temporary or specialized active docs:
 - `architecture/FRONTEND_AUTH_AND_CUSTOM_DOMAIN_PLAN.md`
-  - deferred future proposal, not part of the current cutover path
+  - active implementation record for the frontend auth boundary, `/home` migration, private-backend cutover, and `app.ceiora.com` restoration path
 - `architecture/TEST_SUITE_TIGHTENING_PLAN.md`
   - engineering cleanup tracker, not an operational source of truth
 
