@@ -1,8 +1,8 @@
 # Full Cloud Compute Cutover Plan (LSEG Ingest Local-Only)
 
-Date: 2026-04-12  
+Date: 2026-04-14  
 Owner: Platform / Risk Ops  
-Status: Active execution plan (temporary)
+Status: Active temporary execution plan; Phase 4 is in progress, with entry gate, Day 1, and rollback drill complete
 
 ## 1. Objective
 
@@ -358,6 +358,10 @@ Signoff checklist:
      - `source-daily` -> local-ingest surface,
      - core/cPAR lanes -> control dispatch to Cloud Run Jobs.
    - verify first scheduled cycle end-to-end before closing cutover.
+
+Current status note:
+- Phase 5 is not yet open for signoff.
+- Remaining prerequisite is completion of the 5-business-day Phase 4 stability window.
 
 Approvers: Engineering lead + Operations owner.
 

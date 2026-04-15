@@ -107,6 +107,7 @@
   - serving-time prices remain read-only inputs to the projection layer; they must never write into canonical historical model-estimation tables such as `security_prices_eod`
   - projection-only outputs are read from persisted `projected_instrument_*` rows for the active `core_state_through_date`; if those rows are missing, the instrument is surfaced as projection-unavailable rather than being recomputed on the quick path
 - `source-daily`: local LSEG ingest into SQLite for the latest completed XNYS session, repair any missing daily price sessions up to that session, purge open-month PIT rows, backfill any missing closed-month fundamentals/classification anchors, publish the retained working window into Neon, then refresh serving only.
+- `source-daily` is a source-only lane plus serving refresh. It must not run the broad Neon mirror/parity tail that expects analytics/core rebuild outputs.
 - For identifier-based historical source/serving surfaces such as `security_prices_eod`, `security_fundamentals_pit`, and `security_classification_pit`, stage-2 Neon sync is identifier-aware:
   - existing identifiers that are already fully initialized in Neon continue to use the normal overlap-window sync
   - newly introduced or partially initialized identifiers receive retained-history backfill from local SQLite up to Neon's retained-history floor
@@ -123,6 +124,7 @@
   - During that run, `serving_refresh` must read the local/workspace source tables that just produced the rebuilt raw history; otherwise it can publish stale Neon factor-loadings metadata before the broad Neon mirror catches up.
   - During ordinary `serve-refresh`, the published weekly core-state should come from the latest durable `model_run_metadata` rather than a stale runtime cache key; otherwise a quick refresh can republish fresh loadings with regressed core metadata.
   - this lane also owns deep `health_diagnostics` recompute for structural rebuilds.
+  - partial stage-window execution is not an accepted operator path for `cold-core`; request the full lane or use a different profile
 - `universe-add`: finalization lane after explicit registry/policy merge and targeted source backfills for new names.
   - if the add includes new projection-only / returns-projection instruments that do not yet have persisted projected outputs for the active core package date, do not stop at `serve-refresh`; run at least `core-weekly` so durable `projected_instrument_*` rows are produced before app refresh
 
@@ -152,6 +154,9 @@ Runtime-role rule:
 - `local-ingest`: all lanes may be used.
 - `cloud-serve`: only `serve-refresh`, `core-weekly`, and `cold-core` are allowed (dispatched as Cloud Run Jobs).
 - `cloud-job`: the mode for running Cloud Run Jobs. `source_sync` is auto-skipped (no local SQLite); `neon_readiness` still runs.
+- `cloud-job` must fail closed for source publication work:
+  - `ingest` is never valid there
+  - `source_sync` is never a normal cloud-job escape hatch
 - In `cloud-serve`, a bare `POST /api/refresh` now defaults safely to `serve-refresh`.
 - `core-weekly` and `cold-core` are dispatched as Cloud Run Jobs when the control app has the job name env vars configured and those jobs are provisioned.
 - cPAR builds are dispatched via `POST /api/cpar/build` on the control app (not the serve app) once the `cpar-build` Cloud Run Job is provisioned.
@@ -203,6 +208,7 @@ Parallel cPAR note:
   - `curl -X POST "<control-origin>/api/refresh?profile=core-weekly" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
 - Cloud-dispatched cold-core (via control API):
   - `curl -X POST "<control-origin>/api/refresh?profile=cold-core" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
+- `cold-core` must not be dispatched with partial `from_stage` / `to_stage` windows; the control/job runner now rejects that request shape explicitly
 - Cloud-dispatched cPAR build (via control API):
   - `curl -X POST "<control-origin>/api/cpar/build?profile=cpar-weekly" -H "X-Operator-Token: $OPERATOR_API_TOKEN"`
   - resolve `<control-origin>` from `terraform output service_urls` for the active topology
@@ -215,6 +221,7 @@ Parallel cPAR note:
 - API refresh partial stage run:
   - `curl -X POST "http://localhost:8000/api/refresh?profile=source-daily-plus-core-if-due&from_stage=ingest&to_stage=risk_model"`
   - if Neon-authoritative rebuilds are active and you target core stages explicitly, include `neon_readiness` in the window or the run will fail closed before core work starts
+  - do not use this pattern with `cold-core`
 - Orchestrated refresh via CLI module:
   - `python3 -m backend.scripts.run_model_pipeline --profile serve-refresh`
 - Orchestrated refresh via script wrapper:

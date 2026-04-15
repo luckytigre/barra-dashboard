@@ -1,25 +1,25 @@
 # Cloud-Native Runbook
 
-Date: 2026-03-27
+Date: 2026-04-14
 Owner: Codex
-Status: `run_app` no-edge production is live; custom-domain edge remains a rollback/reference path only
+Status: current live topology is `custom_domains` with `edge_enabled=true`; `run_app` remains a supported rollout mode but is not the current production truth
 
 ## Purpose
 
 Define the process split and environment contract needed to run the app in a cloud-native shape without relying on one all-in-one web process.
 
-This runbook covers the live `run_app` Cloud Run production shape as well as the rollback/reference path for the retired custom-domain edge.
-Resolve the current live origins from `terraform output endpoint_mode`, `terraform output edge_enabled`, and `terraform output public_origins`; do not assume `app.ceiora.com` / `control.ceiora.com` are live.
+This runbook covers both supported Cloud Run topology modes.
+Resolve the current live origins from `terraform output endpoint_mode`, `terraform output edge_enabled`, and `terraform output public_origins`; do not assume a topology from stale rollout notes.
 
 ## Topology Modes
 
 - `endpoint_mode=custom_domains`
-  - rollback/reference mode
+  - current production mode during the active cutover window
   - requires `edge_enabled=true`
   - canonical public origins are the frozen `app.ceiora.com`, `api.ceiora.com`, and `control.ceiora.com` hostnames
   - no explicit origin/image overrides are required beyond the normal custom-domain rollout inputs
 - `endpoint_mode=run_app`
-  - current production mode
+  - supported alternate rollout mode
   - requires explicit `frontend_public_origin`, `frontend_backend_api_origin`, `frontend_backend_control_origin`, and pinned frontend/serve/control image refs
   - `edge_enabled=true` is the soak state that keeps rollback paths and custom-domain validation alive
   - `edge_enabled=false` is the no-edge steady state
@@ -43,7 +43,7 @@ The Terraform contract now exposes:
 
 Temporary smoke validation should use Cloud Run `run.app` hostnames first.
 During a `run_app + edge_enabled=true` soak, validate both the `run.app` path and the still-live custom-domain rollback path.
-Do not destroy the custom-domain edge until the `run.app` path is clean.
+Do not treat `run_app` as production truth until Terraform outputs and the active Phase 4 evidence both agree.
 
 ## Process Split
 
@@ -145,6 +145,9 @@ Expected behavior:
 - dispatches cPAR builds via `POST /api/cpar/build` (control-only route)
 - does not need to expose public dashboard read routes
 - uses Neon-backed runtime/control truth and should fail closed when that authority is unavailable
+- startup must fail closed if the Cloud Run dispatch contract is incomplete for the active surface
+  - control app requires project/region plus all four job-name vars
+  - serve app should not boot with an ambiguous partial dispatch contract
 - serving publication sequencing lives in `backend/analytics/refresh_publication.py`; do not split publish-only republish, durable publish, and post-publish health patch back across ad hoc `pipeline.py` branches
 - workspace `data_db` / `cache_db` inputs handed to serving lanes are explicit file targets, not an automatic local-core-read override by themselves
 
@@ -221,6 +224,18 @@ This prevents a serve-only process from reconciling or mutating shared refresh s
 Operator diagnostics contract:
 - `cache_not_ready` means the durable payload is genuinely unpublished/missing for the requested surface
 - serving-authority connection/query failures must surface as an explicit authority-unavailable operator error, not as `cache_not_ready`
+- this distinction is now part of the operator contract, not just logging hygiene; Step 3 hardened the route/service behavior so cloud-read failures are not misreported as unpublished payloads
+
+## Current Cutover Notes
+
+- As of the active Phase 4 window:
+  - live topology is `custom_domains`
+  - `edge_enabled=true`
+  - control-surface rollback has been drill-validated against the corrected bundle `backend/runtime/cloud_rollouts/phase4_entry_20260414T201917Z`
+- The recorded rollback drill used direct Cloud Run service/job updates because the full Terraform custom-domain path in that shell was blocked by missing Cloudflare auth.
+- Treat the Phase 4 evidence log and rollback drill note as the authoritative execution record:
+  - `docs/operations/cutover_evidence/PHASE4_ENTRY_20260414T193820Z.md`
+  - `docs/operations/cutover_evidence/PHASE4_ROLLBACK_DRILL_20260414T215254Z.md`
 
 ## Cloud Readiness Gates
 

@@ -129,6 +129,11 @@ make cloud-run-app-cutover
 - `CUTOVER_ACTION=verify ROLLOUT_BUNDLE_DIR=<bundle_dir> OPERATOR_API_TOKEN=<operator-token> make cloud-run-app-cutover` is the preferred wrapper when you want the helper to execute the topology-aware live verification path directly.
 - The rollback bundle must reflect the **live** service and job image refs at capture time. A bundle derived only from stale Terraform state is not sufficient for a rollback drill.
 - A Phase 4 entry-gate evidence file is not a rollback drill artifact. The rollback section must be populated with real command transcripts and restored-state evidence before the drill counts.
+- The 2026-04-14 Phase 4 drill exposed one more operator rule:
+  - immediately after a control revision cutover, direct control-surface probes may transiently timeout even when the proxied/operator surfaces are already healthy
+  - if the first post-cutover verification fails only on that direct probe shape, retry once after the new revision settles before declaring rollback or forward recovery failed
+- Recorded drill evidence:
+  - `docs/operations/cutover_evidence/PHASE4_ROLLBACK_DRILL_20260414T215254Z.md`
 
 ### Success Criteria
 
