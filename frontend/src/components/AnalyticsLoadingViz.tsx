@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 interface AnalyticsLoadingVizProps {
   message?: string | null;
   stepLabel?: string | null;
+  animate?: boolean;
 }
 
 const PALETTE: readonly (readonly [number, number, number])[] = [
@@ -47,16 +48,39 @@ const GRID = 18;
 const DOT_SPACING = 11;
 const DOT_RADIUS = 1.6;
 const CANVAS_PX = GRID * DOT_SPACING;
+const STATIC_GRID = 14;
+const STATIC_SPACING = 9;
+const STATIC_RADIUS = 1.7;
+const STATIC_CANVAS_PX = STATIC_GRID * STATIC_SPACING;
+
+function drawStaticGrid(ctx: CanvasRenderingContext2D) {
+  ctx.clearRect(0, 0, STATIC_CANVAS_PX, STATIC_CANVAS_PX);
+  const [r, g, b] = [198, 206, 220];
+
+  for (let row = 0; row < STATIC_GRID; row++) {
+    for (let col = 0; col < STATIC_GRID; col++) {
+      const cx = col * STATIC_SPACING + STATIC_SPACING / 2;
+      const cy = row * STATIC_SPACING + STATIC_SPACING / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, STATIC_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${r},${g},${b},0.62)`;
+      ctx.fill();
+    }
+  }
+}
 
 export default function AnalyticsLoadingViz({
   message = "Loading analytics...",
   stepLabel,
+  animate = true,
 }: AnalyticsLoadingVizProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resolvedMessage = message ?? "Loading analytics...";
   const ariaLabel = stepLabel
     ? `${resolvedMessage}. ${stepLabel}`
     : resolvedMessage;
+  const canvasPx = animate ? CANVAS_PX : STATIC_CANVAS_PX;
+  const canvasCssPx = animate ? 125 : STATIC_CANVAS_PX;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -64,7 +88,7 @@ export default function AnalyticsLoadingViz({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let raf: number;
+    let raf: number | null = null;
 
     const draw = (now: number) => {
       const t = now / 1000;
@@ -116,12 +140,21 @@ export default function AnalyticsLoadingViz({
         }
       }
 
-      raf = requestAnimationFrame(draw);
+      if (animate) {
+        raf = requestAnimationFrame(draw);
+      }
     };
 
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+    if (animate) {
+      raf = requestAnimationFrame(draw);
+    } else {
+      drawStaticGrid(ctx);
+    }
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [animate]);
 
   return (
     <div
@@ -132,10 +165,10 @@ export default function AnalyticsLoadingViz({
     >
       <canvas
         ref={canvasRef}
-        width={CANVAS_PX}
-        height={CANVAS_PX}
+        width={canvasPx}
+        height={canvasPx}
         aria-hidden="true"
-        style={{ width: 125, height: 125 }}
+        style={{ width: canvasCssPx, height: canvasCssPx }}
       />
     </div>
   );

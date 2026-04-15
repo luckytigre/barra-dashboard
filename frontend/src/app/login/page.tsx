@@ -105,7 +105,7 @@ function LoginShell({
       <div className="public-login-page">
         <div className="public-login-shell">
           <div className="public-login-loader-wrap">
-            <AnalyticsLoadingViz message={null} />
+            <AnalyticsLoadingViz message={null} animate={false} />
           </div>
 
           <form onSubmit={onSubmit} className="public-login-form">

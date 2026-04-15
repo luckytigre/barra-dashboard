@@ -39,9 +39,9 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const cxS = w * 0.5;
   const cyS = h * 0.52;
   const invZoom = 1 / sceneZoom;
-  const step = 4.2 * SCALE;
-  const isoStep = 0.32;
-  const bandTol = 0.048;
+  const step = 4.9 * SCALE;
+  const isoStep = 0.3;
+  const bandTol = 0.064;
   const e = 8 * SCALE;
 
   const sf = (sx: number, sy: number) => {
@@ -58,18 +58,18 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
       const hz = (sf(sx, sy + e) - sf(sx, sy - e)) / (2 * e);
       const grad = Math.hypot(hx, hz);
       const dense = clamp((grad - 0.008) / 0.02, 0, 1);
-      if (dense > 0.58) { if (((xi + yi * 3) % 18) !== 0) continue; }
-      else if (dense > 0.40) { if (((xi + yi * 2) % 8) !== 0) continue; }
-      else if (dense > 0.28) { if (((xi + yi * 2) % 6) !== 0) continue; }
+      if (dense > 0.62) { if (((xi + yi * 3) % 16) !== 0) continue; }
+      else if (dense > 0.44) { if (((xi + yi * 2) % 7) !== 0) continue; }
+      else if (dense > 0.26) { if (((xi + yi * 2) % 5) !== 0) continue; }
 
       const band = Math.abs(frac(val / isoStep) - 0.5);
       if (band > bandTol) continue;
-      if (hash01(xi * 0.173, yi * 0.197) > 0.84) continue;
+      if (hash01(xi * 0.173, yi * 0.197) > 0.88) continue;
       if (sx < -24 || sx > w + 24 || sy < -24 || sy > h + 24) continue;
 
-      const alpha = clamp(0.24 + (bandTol - band) * 0.35, 0.18, 0.52);
-      const size = 1.3 * sceneZoom * 0.85 * SCALE;
-      ctx.fillStyle = `rgba(176,176,176,${alpha.toFixed(3)})`;
+      const alpha = clamp(0.24 + (bandTol - band) * 0.82, 0.16, 0.5);
+      const size = 0.82 + dense * 0.12;
+      ctx.fillStyle = `rgba(182,182,184,${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(sx, sy, size, 0, Math.PI * 2);
       ctx.fill();

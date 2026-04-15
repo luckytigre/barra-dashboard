@@ -88,6 +88,11 @@ body {
   will-change: transform;
 }
 
+body.public-topo-boost .neo2-dot-bg {
+  opacity: 0.76;
+  filter: none;
+}
+
 main {
   position: relative;
   z-index: 1;
@@ -5564,8 +5569,8 @@ main {
   color: rgba(210, 217, 228, 0.72);
   text-decoration: none;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   animation: public-intro-link-pulse 2.4s ease-in-out infinite;
 }
@@ -5575,10 +5580,13 @@ main {
 }
 
 .public-intro-link-icon {
-  display: inline-block;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 400;
   line-height: 1;
-  transform: translateY(-1px);
+  transform: translateY(-0.5px);
 }
 
 .public-header-empty {
@@ -5613,6 +5621,19 @@ main {
 .public-text-intro {
   gap: 16px;
   max-width: 1180px;
+}
+
+.public-engine-header {
+  margin-top: 78px;
+}
+
+.public-engine-heading {
+  margin: 0;
+  color: rgba(244, 247, 255, 0.96);
+  font-size: clamp(1.6rem, 2.2vw, 2rem);
+  font-weight: 420;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
 }
 
 .public-text-headline,
@@ -5683,7 +5704,7 @@ main {
 }
 
 .public-engine-copy {
-  margin-top: 56px;
+  margin-top: 20px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
@@ -5725,8 +5746,14 @@ main {
   overflow: hidden;
   aspect-ratio: 1.55 / 0.86;
   background: #05070c;
-  display: grid;
-  place-items: center;
+}
+
+.public-engine-preview-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
 }
 
 .public-engine-card-copy {
@@ -5753,7 +5780,7 @@ main {
 }
 
 .public-login-form {
-  width: min(420px, 100%);
+  width: min(304px, 100%);
 }
 
 .public-engine-card p {
@@ -5763,42 +5790,47 @@ main {
   align-self: start;
 }
 
-.public-engine-preview-placeholder {
+.public-site-footer {
   position: relative;
-  width: min(108px, 34%);
-  aspect-ratio: 1.28 / 1;
-  border: 1.5px solid rgba(209, 215, 227, 0.54);
-  border-radius: 2px;
+  z-index: 1;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  background: rgb(172, 173, 177);
+  border-top: 1px solid rgba(28, 30, 34, 0.12);
 }
 
-.public-engine-preview-sun {
-  position: absolute;
-  top: 16%;
-  right: 14%;
-  width: 14px;
-  height: 14px;
-  border: 1.5px solid rgba(209, 215, 227, 0.54);
-  border-radius: 999px;
+.public-site-footer-inner {
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 32px 32px;
 }
 
-.public-engine-preview-ridge {
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  border-bottom: 1.5px solid rgba(209, 215, 227, 0.54);
-  transform-origin: left center;
+.public-footer-brand {
+  color: rgba(18, 19, 23, 0.94);
 }
 
-.public-engine-preview-ridge-back {
-  bottom: 28%;
-  height: 26%;
-  clip-path: polygon(0 100%, 22% 52%, 43% 72%, 60% 30%, 82% 64%, 100% 42%, 100% 100%);
+.public-site-footer-links {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
-.public-engine-preview-ridge-front {
-  bottom: 18%;
-  height: 20%;
-  clip-path: polygon(0 100%, 18% 58%, 38% 78%, 56% 46%, 74% 68%, 100% 28%, 100% 100%);
+.public-site-footer-link,
+.public-site-footer-meta {
+  color: rgba(32, 34, 39, 0.82);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+.public-site-footer-link:hover {
+  color: rgba(12, 13, 16, 0.96);
 }
 
 .public-login-loader-wrap {
@@ -6299,6 +6331,18 @@ main {
 
   .public-engine-card-copy h2 {
     font-size: clamp(1.65rem, 8vw, 2.1rem);
+  }
+
+  .public-site-footer-inner {
+    align-items: flex-start;
+    flex-direction: column;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .public-site-footer-links {
+    justify-content: flex-start;
+    gap: 14px 18px;
   }
 
   .public-text-actions,
