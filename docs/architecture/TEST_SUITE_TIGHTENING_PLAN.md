@@ -1,7 +1,7 @@
 # Test Suite Tightening Plan
 
 Date: 2026-03-30
-Status: Active
+Status: Active engineering cleanup tracker; not part of the operational docs surface
 Owner: Codex
 
 ## Purpose

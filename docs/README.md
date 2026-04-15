@@ -14,6 +14,7 @@ Use this file to find the current source of truth first, then drop into supporti
 - cUSE runtime and operator workflow:
   - `operations/OPERATIONS_PLAYBOOK.md`
   - `operations/CLOUD_NATIVE_RUNBOOK.md` for Cloud Run topology and deploy/runtime split
+  - `operations/FULL_CLOUD_COMPUTE_CUTOVER_PLAN.md` while the active cutover window remains open
   - `operations/OPERATIONS_HARDENING_CHECKLIST.md` for pre/post refresh hygiene
 - cUSE model specification:
   - `reference/specs/cUSE4_engine_spec.md`
@@ -39,7 +40,6 @@ Primary files:
 - `dependency-rules.md`
 - `maintainer-guide.md`
 - `MODEL_FAMILIES_AND_OWNERSHIP.md`
-- `TEST_SUITE_TIGHTENING_PLAN.md`
 - `UNIVERSE_REGISTRY_AND_MODEL_GATING_PLAN.md`
 
 cPAR-specific active architecture docs stay in the same folder:
@@ -57,8 +57,15 @@ Live runbooks and checklists live under `docs/operations/`.
 Primary files:
 - `OPERATIONS_PLAYBOOK.md`
 - `CLOUD_NATIVE_RUNBOOK.md`
+- `FULL_CLOUD_COMPUTE_CUTOVER_PLAN.md` while the cutover is still open
 - `OPERATIONS_HARDENING_CHECKLIST.md`
 - `CPAR_OPERATIONS_PLAYBOOK.md`
+
+Temporary or specialized active docs:
+- `architecture/FRONTEND_AUTH_AND_CUSTOM_DOMAIN_PLAN.md`
+  - deferred future proposal, not part of the current cutover path
+- `architecture/TEST_SUITE_TIGHTENING_PLAN.md`
+  - engineering cleanup tracker, not an operational source of truth
 
 ### Reference
 
@@ -80,6 +87,9 @@ Historical material is preserved, but it is not active guidance.
   - completed rollout trackers, implementation trackers, and archived planning specs
   - includes the archived repo-tightening tracker:
     `archive/implementation-trackers/REPO_TIGHTENING_PLAN_2026-03-28.md`
+  - includes archived cloud migration trackers:
+    - `archive/implementation-trackers/CLOUD_NATIVE_IMPLEMENTATION_PLAN_2026-03-21.md`
+    - `archive/implementation-trackers/GCP_CLOUD_RUN_TERRAFORM_PLAN_2026-03-22.md`
 - `archive/one-time-protocols/`
   - procedures that were useful for a specific cleanup or migration slice and are no longer live runbooks
 - `archive/execution-logs/`
