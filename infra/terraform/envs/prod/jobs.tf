@@ -138,8 +138,8 @@ resource "google_cloud_run_v2_job" "cpar_build" {
 
         resources {
           limits = {
-            cpu    = "8"
-            memory = "32Gi"
+            cpu    = "2"
+            memory = "4Gi"
           }
         }
 
@@ -197,8 +197,8 @@ resource "google_cloud_run_v2_job" "serve_refresh" {
 
         resources {
           limits = {
-            cpu    = "8"
-            memory = "32Gi"
+            cpu    = "2"
+            memory = "4Gi"
           }
         }
 
