@@ -70,7 +70,7 @@ resource "google_cloud_run_v2_job" "cold_core" {
   template {
     template {
       service_account = module.service_accounts.email_by_key["jobs"]
-      max_retries     = 1
+      max_retries     = 0
       timeout         = "9000s"
 
       containers {
