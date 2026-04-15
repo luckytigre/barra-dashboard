@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useMemo, useState } from "react";
+import Link from "next/link";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
 import { DEFAULT_APP_HOME_PATH, normalizeReturnTo } from "@/lib/appAccess";
@@ -92,44 +93,55 @@ function LoginShell({
   return (
     <>
       <LandingBackgroundLock />
-      <div className="public-login-page">
-        <div className="public-login-loader-wrap">
-          <AnalyticsLoadingViz message={null} />
+      <header className="dash-tabs">
+        <div className="dash-tabs-brand-cluster">
+          <Link href="/" className="dash-tabs-brand">
+            Ceiora
+          </Link>
         </div>
-
-        <form onSubmit={onSubmit} className="public-login-form">
-          <label className="public-login-field">
-            <input
-              type="text"
-              autoComplete="username"
-              value={username}
-              onChange={(event) => onUsernameChange?.(event.target.value)}
-              placeholder="Username"
-            />
-          </label>
-
-          <label className="public-login-field">
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => onPasswordChange?.(event.target.value)}
-              placeholder="Password"
-            />
-          </label>
-
-          {(configError || errorMessage) && (
-            <div className="public-login-message" aria-live="polite">
-              {configError ? "App auth is not configured yet." : errorMessage}
-            </div>
-          )}
-
-          <div className="public-login-actions">
-            <button type="submit" className="public-login-submit" disabled={status === "submitting"}>
-              {status === "submitting" ? "Signing in..." : "Sign in"}
-            </button>
+        <div className="dash-tabs-center" aria-hidden="true" />
+        <div className="dash-tabs-actions public-header-empty" aria-hidden="true" />
+      </header>
+      <div className="public-login-page">
+        <div className="public-login-shell">
+          <div className="public-login-loader-wrap">
+            <AnalyticsLoadingViz message={null} />
           </div>
-        </form>
+
+          <form onSubmit={onSubmit} className="public-login-form">
+            <label className="public-login-field">
+              <input
+                type="text"
+                autoComplete="username"
+                value={username}
+                onChange={(event) => onUsernameChange?.(event.target.value)}
+                placeholder="Username"
+              />
+            </label>
+
+            <label className="public-login-field">
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => onPasswordChange?.(event.target.value)}
+                placeholder="Password"
+              />
+            </label>
+
+            {(configError || errorMessage) && (
+              <div className="public-login-message" aria-live="polite">
+                {configError ? "App auth is not configured yet." : errorMessage}
+              </div>
+            )}
+
+            <div className="public-login-actions">
+              <button type="submit" className="public-login-submit" disabled={status === "submitting"}>
+                {status === "submitting" ? "Signing in..." : "Sign in"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </>
   );

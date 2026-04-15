@@ -5522,46 +5522,45 @@ main {
 .public-text-page,
 .public-login-page {
   position: relative;
-  width: min(1040px, 100%);
-  margin: 0 auto;
+  width: 100%;
 }
 
 .public-text-page {
-  padding: 34px 0 90px;
+  padding: 58px 0 90px;
 }
 
 .public-login-page {
-  min-height: calc(100vh - 120px);
+  width: min(1040px, 100%);
+  margin: 48px auto 0;
+  min-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 34px 0 48px;
+  padding: 0 0 32px;
 }
 
-.public-wordmark-wrap {
-  margin-bottom: 38px;
-}
-
-.public-wordmark {
-  display: inline-block;
-  color: #eef2fa;
-  text-decoration: none;
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1;
+.public-login-shell {
+  width: min(420px, 100%);
+  display: grid;
+  justify-items: stretch;
+  transform: translateY(-58px);
 }
 
 .public-intro-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 42px;
+  margin-bottom: 36px;
+}
+
+.public-text-shell {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: 0 32px;
 }
 
 .public-intro-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: rgba(210, 217, 228, 0.72);
   text-decoration: none;
   font-size: 12px;
@@ -5573,6 +5572,17 @@ main {
 
 .public-intro-link:hover {
   color: rgba(242, 246, 255, 0.92);
+}
+
+.public-intro-link-icon {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.public-header-empty {
+  min-width: 176px;
 }
 
 @keyframes public-intro-link-pulse {
@@ -6158,16 +6168,24 @@ main {
 @media (max-width: 720px) {
   .public-text-page,
   .public-login-page {
-    padding-top: 22px;
+    padding-top: 56px;
   }
 
-  .public-wordmark {
-    font-size: 22px;
+  .public-login-page {
+    margin-top: 48px;
+    padding-top: 0;
+  }
+
+  .public-login-shell {
+    transform: translateY(-38px);
+  }
+
+  .public-text-shell {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 
   .public-intro-header {
-    align-items: flex-start;
-    flex-direction: column;
     margin-bottom: 28px;
   }
 
