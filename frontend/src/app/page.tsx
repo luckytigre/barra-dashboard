@@ -1,123 +1,67 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
-import LandingSummary from "@/components/LandingSummary";
 import { readSessionFromCookieStore } from "@/lib/appAuth";
 
-const OPERATING_PILLARS = [
+const RISK_ENGINES = [
   {
-    label: "cUSE",
-    title: "Descriptor-native equity risk",
-    body: "Cross-sectional exposures, factor decomposition, and orthogonalized style structure built from the investable universe.",
+    name: "cUSE",
+    title: "Cross-sectional equity risk",
+    body: "cUSE is the descriptor-native engine. It estimates exposures from company characteristics, industry structure, and orthogonalized style descriptors so the platform can explain portfolio risk in a stable, interpretable factor language.",
   },
   {
-    label: "cPAR",
-    title: "Tradable proxy risk",
-    body: "Parsimonious ETF-space regression for hedging, what-if analysis, and direct mapping from portfolio intuition to executable sleeves.",
+    name: "cPAR",
+    title: "Parsimonious actionable regression",
+    body: "cPAR is the tradable proxy engine. It fits market, sector, and style sleeves in residualized ETF space so you can read incremental risk clearly and move directly from diagnosis to hedgeable action.",
   },
-  {
-    label: "Ops",
-    title: "Authoritative control plane",
-    body: "Protected operator surfaces for package health, refresh state, holdings, and serving payload publication.",
-  },
-] as const;
-
-const ENTRY_SURFACES = [
-  { title: "Exposure reading", route: "/cuse/exposures" },
-  { title: "Portfolio risk", route: "/cpar/risk" },
-  { title: "Operator health", route: "/health" },
 ] as const;
 
 export default async function PublicLandingPage() {
   const cookieStore = await cookies();
   const session = await readSessionFromCookieStore(cookieStore);
+  const appHref = session ? "/home" : "/login?returnTo=/home";
 
   return (
     <>
       <LandingBackgroundLock />
-      <div className="public-landing">
-        <section className="public-hero chart-card">
-          <div className="public-hero-grid">
-            <div className="public-hero-copy">
-              <div className="public-kicker">Ceiora Risk Platform</div>
-              <h1 className="public-headline">
-                Cross-sectional and tradable factor views, in one operator-grade shell.
-              </h1>
-              <p className="public-body">
-                Ceiora combines descriptor-native equity risk with a parsimonious ETF proxy surface so you can read exposures,
-                understand portfolio structure, and move from interpretation to hedgeable action without switching systems.
-              </p>
-              <div className="public-stat-row" aria-label="Platform summary">
-                <div className="public-stat-card">
-                  <span className="public-stat-value">2</span>
-                  <span className="public-stat-label">factor families</span>
-                </div>
-                <div className="public-stat-card">
-                  <span className="public-stat-value">1</span>
-                  <span className="public-stat-label">protected control plane</span>
-                </div>
-                <div className="public-stat-card">
-                  <span className="public-stat-value">Live</span>
-                  <span className="public-stat-label">serving refresh workflow</span>
-                </div>
-              </div>
-              <div className="public-hero-actions">
-                {session ? (
-                  <Link href="/home" className="btn btn-secondary">
-                    Continue to app
-                  </Link>
-                ) : (
-                  <Link href="/login?returnTo=/home" className="btn btn-secondary">
-                    Sign in to dashboard
-                  </Link>
-                )}
-                <Link href="/home" className="public-secondary-link">
-                  Preview internal landing
-                </Link>
-              </div>
-            </div>
+      <div className="public-text-page">
+        <header className="public-intro-header">
+          <Link href="/" className="dash-tabs-brand public-wordmark">
+            Ceiora
+          </Link>
+          <Link href={appHref} className="public-intro-link">
+            Go to App
+          </Link>
+        </header>
 
-            <aside className="public-hero-panel" aria-label="Protected surfaces">
-              <div className="public-panel-block">
-                <div className="public-panel-kicker">Protected surfaces</div>
-                <h2 className="public-panel-title">Where the app opens after sign-in</h2>
-                <div className="public-surface-list">
-                  {ENTRY_SURFACES.map((surface) => {
-                    const href = session
-                      ? surface.route
-                      : `/login?returnTo=${encodeURIComponent(surface.route)}`;
-
-                    return (
-                      <Link key={surface.route} href={href} className="public-surface-card">
-                        <span>{surface.title}</span>
-                        <code>{surface.route}</code>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="public-panel-block">
-                <div className="public-panel-kicker">Access posture</div>
-                <p className="public-panel-note">
-                  Shared login gates the dashboard, holdings tooling, data health pages, and package publication controls. The
-                  public shell stays informational; the operating surfaces remain authenticated.
-                </p>
-              </div>
-            </aside>
-          </div>
+        <section className="public-text-intro">
+          <h1 className="public-text-headline">Institutional risk modeling adapted for the individual investor</h1>
+          <p className="public-text-copy">
+            Ceiora does this by combining two different risk engines in one surface. cUSE preserves the descriptor-based,
+            cross-sectional structure used in institutional equity models, while cPAR translates the same portfolio into a
+            smaller tradable proxy space that is easier to interpret and act on.
+          </p>
+          <p className="public-text-copy">
+            The design choices are what make that usable for an individual investor: a constrained style and industry factor
+            model for structural reading, a parsimonious ETF proxy model for actionability, and one interface that keeps both
+            views aligned so the same book can be understood in institutional terms without becoming operationally opaque.
+          </p>
         </section>
 
-        <section className="public-pillars" aria-label="Platform pillars">
-          {OPERATING_PILLARS.map((pillar) => (
-            <article key={pillar.label} className="public-pillar-card">
-              <div className="public-pillar-label">{pillar.label}</div>
-              <h2 className="public-pillar-title">{pillar.title}</h2>
-              <p className="public-pillar-body">{pillar.body}</p>
+        <section className="public-engine-copy" aria-label="Risk engines">
+          {RISK_ENGINES.map((engine) => (
+            <article key={engine.name} className="public-engine-line">
+              <div className="public-engine-name">
+                <span className="public-engine-prefix">c</span>
+                {engine.name.slice(1)}
+              </div>
+              <div className="public-engine-content">
+                <h2>{engine.title}</h2>
+                <p>{engine.body}</p>
+              </div>
             </article>
           ))}
         </section>
-
-        <LandingSummary />
       </div>
     </>
   );
