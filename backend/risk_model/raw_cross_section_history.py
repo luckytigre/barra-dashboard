@@ -22,8 +22,8 @@ from backend.data.trbc_schema import (
     pick_trbc_industry_column,
 )
 from backend.trading_calendar import filter_xnys_sessions
-from backend.universe.runtime_rows import load_security_runtime_rows
-from backend.universe.security_master_sync import load_default_source_universe_rows
+from backend.universe.runtime_rows import load_security_runtime_rows_by_dates
+from backend.universe.selectors import _source_quality_exclusion_reason
 
 logger = logging.getLogger(__name__)
 
@@ -365,28 +365,74 @@ def _normalize_text(series: pd.Series) -> pd.Series:
     )
 
 
-def _load_runtime_identity(conn: sqlite3.Connection) -> pd.DataFrame:
-    runtime_rows = load_security_runtime_rows(
+def _has_historical_source_observations(conn: sqlite3.Connection) -> bool:
+    if not _table_exists(conn, "security_source_observation_daily"):
+        return False
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM security_source_observation_daily
+        LIMIT 1
+        """
+    ).fetchone()
+    return row is not None
+
+
+def _load_runtime_identity_by_dates(
+    conn: sqlite3.Connection,
+    *,
+    dates: list[str],
+) -> pd.DataFrame:
+    runtime_rows_by_date = load_security_runtime_rows_by_dates(
         conn,
+        as_of_dates=dates,
         include_disabled=False,
         allow_empty_registry_fallback=False,
     )
-    if not runtime_rows:
-        return pd.DataFrame(columns=["ric", "ticker"])
-    runtime_identity = pd.DataFrame(
-        [
-            {
-                "ric": row.get("ric"),
-                "ticker": row.get("ticker"),
-            }
-            for row in runtime_rows
-        ]
-    )
-    if runtime_identity.empty:
-        return pd.DataFrame(columns=["ric", "ticker"])
+    if not runtime_rows_by_date:
+        return pd.DataFrame(columns=["as_of_date", "ric", "ticker"])
+    require_observation_history = _has_historical_source_observations(conn)
+    rows: list[dict[str, str]] = []
+    for as_of_date, runtime_rows in runtime_rows_by_date.items():
+        for row in runtime_rows:
+            ric = str(row.get("ric") or "").strip().upper()
+            ticker = str(row.get("ticker") or "").strip().upper()
+            if not ric or not ticker:
+                continue
+            if require_observation_history and not str(row.get("observation_as_of_date") or "").strip():
+                continue
+            source = str(row.get("source") or "").strip()
+            if (
+                int(row.get("classification_ready") or 0) == 0
+                and source.endswith("_seed")
+                and int(row.get("allow_cuse_returns_projection") or 0) != 1
+            ):
+                continue
+            if str(row.get("legacy_coverage_role") or "").strip() == "projection_only":
+                continue
+            if _source_quality_exclusion_reason(
+                ric=ric,
+                ticker=ticker,
+                exchange_name=row.get("exchange_name"),
+            ):
+                continue
+            rows.append(
+                {
+                    "as_of_date": str(as_of_date),
+                    "ric": ric,
+                    "ticker": ticker,
+                }
+            )
+    if not rows:
+        return pd.DataFrame(columns=["as_of_date", "ric", "ticker"])
+    runtime_identity = pd.DataFrame(rows)
+    runtime_identity["as_of_date"] = runtime_identity["as_of_date"].astype(str)
     runtime_identity["ric"] = runtime_identity["ric"].astype(str).str.upper()
     runtime_identity["ticker"] = runtime_identity["ticker"].astype(str).str.upper()
-    return runtime_identity[["ric", "ticker"]].drop_duplicates(subset=["ric"], keep="last")
+    return runtime_identity[["as_of_date", "ric", "ticker"]].drop_duplicates(
+        subset=["as_of_date", "ric"],
+        keep="last",
+    )
 
 
 def rebuild_raw_cross_section_history(
@@ -445,31 +491,17 @@ def rebuild_raw_cross_section_history(
         max_date = dates[-1]
 
         read_t0 = time.perf_counter()
-        runtime_identity = _load_runtime_identity(conn)
+        runtime_identity_by_date = _load_runtime_identity_by_dates(conn, dates=dates)
         read_seconds += time.perf_counter() - read_t0
         query_count += 1
-        rows_read += int(len(runtime_identity))
-        largest_batch_rows = max(largest_batch_rows, int(len(runtime_identity)))
-        if runtime_identity.empty:
+        rows_read += int(len(runtime_identity_by_date))
+        largest_batch_rows = max(largest_batch_rows, int(len(runtime_identity_by_date)))
+        if runtime_identity_by_date.empty:
             return {"status": "no-runtime-identity", "rows_upserted": 0, "table": TABLE}
-        read_t0 = time.perf_counter()
-        default_source_rows = load_default_source_universe_rows(conn, include_pending_seed=False)
-        read_seconds += time.perf_counter() - read_t0
-        query_count += 1
-        rows_read += int(len(default_source_rows or []))
-        largest_batch_rows = max(largest_batch_rows, int(len(default_source_rows or [])))
-        if default_source_rows:
-            default_source_rics = {
-                str(row.get("ric") or "").strip().upper()
-                for row in default_source_rows
-                if str(row.get("ric") or "").strip()
-            }
-            runtime_identity = runtime_identity[
-                runtime_identity["ric"].astype(str).str.upper().isin(default_source_rics)
-            ]
-        if runtime_identity.empty:
-            return {"status": "no-runtime-identity", "rows_upserted": 0, "table": TABLE}
-        runtime_union_identity = runtime_identity[["ric", "ticker"]].drop_duplicates(subset=["ric"], keep="last")
+        runtime_union_identity = runtime_identity_by_date[["ric", "ticker"]].drop_duplicates(
+            subset=["ric"],
+            keep="last",
+        )
         runtime_rics = runtime_union_identity["ric"].astype(str).tolist()
         runtime_placeholders = ",".join("?" for _ in runtime_rics)
 
@@ -520,7 +552,10 @@ def rebuild_raw_cross_section_history(
         base = base.rename(columns={"date": "as_of_date", "close": "price_close", "volume": "price_volume"})
         base["as_of_date_dt"] = pd.to_datetime(base["as_of_date"], errors="coerce")
         base = base.dropna(subset=["as_of_date_dt"])
-        base = base.merge(runtime_union_identity, on=["ric", "ticker"], how="inner")
+        base["ric"] = base["ric"].astype(str).str.upper()
+        if "ticker" in base.columns:
+            base = base.drop(columns=["ticker"])
+        base = base.merge(runtime_identity_by_date, on=["as_of_date", "ric"], how="inner")
         if base.empty:
             return {"status": "no-base", "rows_upserted": 0, "table": TABLE}
 
