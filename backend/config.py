@@ -58,6 +58,7 @@ LOOKBACK_DAYS = int(os.getenv("LOOKBACK_DAYS", "504"))  # ~2 years trading days
 RISK_RECOMPUTE_INTERVAL_DAYS = int(os.getenv("RISK_RECOMPUTE_INTERVAL_DAYS", "7"))
 # Minimum calendar age of exposure snapshot used for cross-sectional regressions.
 CROSS_SECTION_MIN_AGE_DAYS = int(os.getenv("CROSS_SECTION_MIN_AGE_DAYS", "7"))
+RAW_HISTORY_RECENT_WINDOW_DAYS = max(7, int(os.getenv("RAW_HISTORY_RECENT_WINDOW_DAYS", "45")))
 RETURNS_WINSOR_PCT = float(os.getenv("RETURNS_WINSOR_PCT", "0.01"))
 # Snapshot materialization policy for universe_cross_section_snapshot.
 # "current": latest row per ticker (default); "full": historical rows by as_of_date.

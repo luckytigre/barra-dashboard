@@ -58,9 +58,24 @@ def run_core_stage(
                 "status": "skipped",
                 "reason": "profile_skip_raw_history_rebuild",
             }
-        frequency = "daily" if str(raw_history_policy) == "full-daily" else "weekly"
+        policy = str(raw_history_policy or "none")
+        frequency = "daily" if policy in {"full-daily", "recent-daily"} else "weekly"
+        start_date = None
+        if policy == "recent-daily":
+            try:
+                recent_window_days = max(
+                    1,
+                    int(getattr(config_module, "RAW_HISTORY_RECENT_WINDOW_DAYS", 45) or 45),
+                )
+            except (TypeError, ValueError):
+                recent_window_days = 45
+            start_candidate = (
+                datetime.fromisoformat(str(as_of_date)).date() - timedelta(days=recent_window_days)
+            ).isoformat()
+            start_date = previous_or_same_xnys_session_fn(start_candidate)
         out = rebuild_raw_cross_section_history_fn(
             data_db,
+            start_date=start_date,
             end_date=as_of_date,
             frequency=frequency,
             progress_callback=progress_callback,
@@ -72,6 +87,7 @@ def run_core_stage(
         return {
             "status": "ok",
             "raw_history_policy": str(raw_history_policy),
+            "start_date": start_date,
             "raw_history": out,
         }
 

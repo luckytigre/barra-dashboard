@@ -539,7 +539,7 @@ def test_planned_stages_insert_source_sync_and_neon_readiness_for_neon_core_prof
 
     _, _, selected = run_model_pipeline.planned_stages_for_profile(profile="core-weekly")
 
-    assert selected == ["source_sync", "neon_readiness", "factor_returns", "risk_model", "serving_refresh"]
+    assert selected == ["source_sync", "neon_readiness", "raw_history", "factor_returns", "risk_model", "serving_refresh"]
 
 
 def test_planned_stages_allow_explicit_skip_source_sync_for_neon_core_profiles(
@@ -553,7 +553,7 @@ def test_planned_stages_allow_explicit_skip_source_sync_for_neon_core_profiles(
         skip_source_sync=True,
     )
 
-    assert selected == ["neon_readiness", "factor_returns", "risk_model", "serving_refresh"]
+    assert selected == ["neon_readiness", "raw_history", "factor_returns", "risk_model", "serving_refresh"]
 
 
 def test_skip_source_sync_rejects_ingest_capable_profiles(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -861,6 +861,61 @@ def test_neon_readiness_stage_skips_when_core_is_not_running(monkeypatch: pytest
 
     assert out["status"] == "skipped"
     assert out["reason"] == "core_policy_skip_within_interval"
+
+
+def test_raw_history_stage_runs_recent_window_even_when_core_is_not_due(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    data_db = tmp_path / "data.db"
+    cache_db = tmp_path / "cache.db"
+    sqlite3.connect(str(data_db)).close()
+    sqlite3.connect(str(cache_db)).close()
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(run_model_pipeline.config, "RAW_HISTORY_RECENT_WINDOW_DAYS", 30)
+    monkeypatch.setattr(run_model_pipeline, "previous_or_same_xnys_session", lambda value: value)
+
+    def _fake_rebuild_raw_cross_section_history(
+        db_path: Path,
+        *,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        frequency: str = "weekly",
+        progress_callback=None,
+    ) -> dict[str, object]:
+        captured["db_path"] = db_path
+        captured["start_date"] = start_date
+        captured["end_date"] = end_date
+        captured["frequency"] = frequency
+        return {"status": "ok", "rows_upserted": 10, "table": "barra_raw_cross_section_history"}
+
+    monkeypatch.setattr(
+        run_model_pipeline,
+        "rebuild_raw_cross_section_history",
+        _fake_rebuild_raw_cross_section_history,
+    )
+
+    out = run_model_pipeline._run_stage(
+        profile="source-daily-plus-core-if-due",
+        stage="raw_history",
+        as_of_date="2026-03-26",
+        should_run_core=False,
+        serving_mode="light",
+        force_core=False,
+        core_reason="within_interval",
+        data_db=data_db,
+        cache_db=cache_db,
+        raw_history_policy="recent-daily",
+    )
+
+    assert out["status"] == "ok"
+    assert captured == {
+        "db_path": data_db,
+        "start_date": "2026-02-24",
+        "end_date": "2026-03-26",
+        "frequency": "daily",
+    }
 
 
 def test_neon_readiness_stage_prepares_workspace(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
