@@ -24,8 +24,8 @@ def test_universe_legacy_shim_reexports_supported_contract() -> None:
 
 def test_universe_legacy_shim_search_uses_legacy_module_globals(monkeypatch) -> None:
     payload = {
-        "index": [{"ticker": "JPM", "name": "JPMORGAN CHASE", "ric": "JPM.N"}],
-        "by_ticker": {"JPM": {"ticker": "JPM", "ric": "JPM.N"}},
+        "index": [{"ticker": "JPM", "name": "JPMORGAN CHASE", "ric": "JPM.N", "exposures": {"market": 1.0}}],
+        "by_ticker": {"JPM": {"ticker": "JPM", "ric": "JPM.N", "model_status": "core_estimated", "exposures": {"market": 1.0}}},
     }
     monkeypatch.setattr(
         universe_service,
@@ -33,6 +33,11 @@ def test_universe_legacy_shim_search_uses_legacy_module_globals(monkeypatch) -> 
         lambda name, *, fallback_loader=None: payload if name == "universe_loadings" else None,
     )
     monkeypatch.setattr(universe_service, "cache_get", lambda key: None)
+    monkeypatch.setattr(
+        cuse4_universe_service.registry_quote_reads,
+        "search_registry_quote_rows",
+        lambda *args, **kwargs: [],
+    )
 
     out = universe_service.search_universe_payload(
         q="jpm",
@@ -43,6 +48,7 @@ def test_universe_legacy_shim_search_uses_legacy_module_globals(monkeypatch) -> 
     assert out["total"] == 1
     assert out["results"][0]["ticker"] == "JPM"
     assert out["results"][0]["ric"] == "JPM.N"
+    assert out["results"][0]["whatif_ready"] is True
 
 
 def test_universe_legacy_shim_history_uses_legacy_data_db_and_loader(
@@ -108,8 +114,9 @@ def test_universe_search_includes_registry_only_rows(monkeypatch) -> None:
     out = universe_service.search_universe_payload(q="sp", limit=20, row_normalizer=lambda row: row)
 
     assert {row["ticker"] for row in out["results"]} == {"SPY"}
-    assert out["results"][0]["risk_tier_label"] == "Projected (Returns)"
+    assert out["results"][0]["risk_tier_label"] == "Projected (Returns Candidate)"
     assert out["results"][0]["quote_source_label"] == "Registry Runtime"
+    assert out["results"][0]["whatif_ready"] is False
 
 
 def test_universe_ticker_payload_falls_back_to_registry_runtime(monkeypatch) -> None:
@@ -139,8 +146,12 @@ def test_universe_ticker_payload_falls_back_to_registry_runtime(monkeypatch) -> 
 
     assert out["_cached"] is False
     assert out["item"]["ticker"] == "URA"
-    assert out["item"]["risk_tier_label"] == "Projected (Returns)"
+    assert out["item"]["risk_tier_label"] == "Projected (Returns Candidate)"
     assert out["item"]["quote_source_label"] == "Registry Runtime"
+    assert out["item"]["quote_source_detail"] == (
+        "This quote is coming from registry/runtime authority because the current published cUSE snapshot does not contain this ticker."
+    )
+    assert out["item"]["whatif_ready"] is False
 
 
 def test_universe_history_can_resolve_registry_runtime_ticker(monkeypatch, tmp_path: Path) -> None:

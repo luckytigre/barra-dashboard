@@ -29,6 +29,7 @@ from backend.data import serving_outputs as serving_outputs_store
 from backend.data.serving_outputs import load_current_payload
 from backend.data.sqlite import cache_get, cache_get_live_first
 from backend.risk_model.risk_attribution import risk_decomposition
+from backend.services.cuse4_universe_service import cuse_row_model_readiness
 from backend.services import cuse4_holdings_service as holdings_service
 
 
@@ -437,6 +438,36 @@ def _build_preview_payload(
     }
 
 
+def _assert_scenario_rows_are_preview_ready(
+    *,
+    scenario_rows: list[dict[str, Any]],
+    universe_loadings: dict[str, Any],
+) -> None:
+    by_ticker = dict(universe_loadings.get("by_ticker") or {})
+    rejected: list[str] = []
+    for row in scenario_rows:
+        ticker = _normalize_ticker(row.get("ticker"))
+        if not ticker:
+            continue
+        universe_row = dict(by_ticker.get(ticker) or {})
+        if not universe_row:
+            rejected.append(f"{ticker} (not in current served cUSE universe)")
+            continue
+        ready, _, detail = cuse_row_model_readiness(universe_row, quote_source="served_payload")
+        if ready:
+            continue
+        rejected.append(f"{ticker} ({detail})")
+    if rejected:
+        sample = "; ".join(rejected[:5])
+        remainder = len(rejected) - min(len(rejected), 5)
+        if remainder > 0:
+            sample = f"{sample}; +{remainder} more"
+        raise ValueError(
+            "What-if preview only supports tickers with a currently published cUSE modeled surface. "
+            f"Rejected: {sample}"
+        )
+
+
 def _factor_delta_rows(
     current_modes: dict[str, Any],
     hypothetical_modes: dict[str, Any],
@@ -484,6 +515,10 @@ def preview_portfolio_whatif(
         current_payloads.get("universe_loadings"),
         current_payload_loader=deps.current_payload_loader,
         fallback_loader=deps.runtime_cache_loader,
+    )
+    _assert_scenario_rows_are_preview_ready(
+        scenario_rows=normalized_scenario_rows,
+        universe_loadings=universe_loadings,
     )
     cov, cov_from_serving = deps.covariance_loader(
         current_payloads.get("risk_engine_cov"),

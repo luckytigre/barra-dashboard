@@ -380,6 +380,7 @@ def load_cpar_explore_whatif_payload(
         rics=rics,
         package_run_id=str(package["package_run_id"]),
         package_date=str(package["package_date"]),
+        positions=[*current_aggregated_positions, *hypothetical_aggregated_positions, *normalized_rows],
         data_db=data_db,
     )
     for row in normalized_rows:

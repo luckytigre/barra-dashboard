@@ -28,10 +28,13 @@ from backend.risk_model.cuse_membership import membership_row_to_overlay
 from backend.risk_model.eligibility import build_eligibility_context, structural_eligibility_for_date
 from backend.risk_model.factor_catalog import (
     MARKET_FACTOR,
+    STYLE_LABEL_TO_COLUMN,
     STYLE_COLUMN_TO_LABEL,
     build_factor_catalog_for_factors,
+    factor_id_for_name,
     factor_id_to_entry_map,
     factor_name_to_id_map,
+    infer_factor_family,
     serialize_factor_catalog,
 )
 from backend.risk_model.model_status import derive_model_status
@@ -443,6 +446,24 @@ def build_universe_ticker_loadings(
     catalog_by_id = factor_id_to_entry_map(catalog_by_name)
     factor_name_to_id = factor_name_to_id_map(catalog_by_name)
 
+    def _resolve_projected_factor_id(token: str) -> str | None:
+        clean = str(token or "").strip()
+        if not clean:
+            return None
+        if clean in catalog_by_id:
+            return clean
+        direct = factor_name_to_id.get(clean)
+        if direct:
+            return direct
+        family = infer_factor_family(clean, structural_factor_names=catalog_by_name.keys())
+        source_column = STYLE_LABEL_TO_COLUMN.get(clean)
+        factor_id = factor_id_for_name(
+            clean,
+            family=family,
+            source_column=source_column,
+        )
+        return factor_id if factor_id in catalog_by_id else None
+
     # Factor vol map from full-universe covariance
     factor_vol_map: dict[str, float] = {}
     if cov is not None and not cov.empty:
@@ -609,9 +630,9 @@ def build_universe_ticker_loadings(
                 continue
             # Map factor names to factor IDs for exposures
             proj_exposures = {
-                factor_name_to_id[k]: v
+                resolved_factor_id: v
                 for k, v in proj.exposures.items()
-                if k in factor_name_to_id
+                if (resolved_factor_id := _resolve_projected_factor_id(k))
             }
             proj_sensitivities = {
                 factor: round(_finite_float(proj_exposures.get(factor), 0.0) * _finite_float(vol, 0.0), 6)

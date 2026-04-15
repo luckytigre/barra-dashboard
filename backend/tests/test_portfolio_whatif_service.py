@@ -377,6 +377,41 @@ def test_preview_portfolio_whatif_rejects_duplicate_scenario_rows() -> None:
     raise AssertionError("duplicate scenario rows should be rejected")
 
 
+def test_preview_portfolio_whatif_rejects_tickers_without_published_modeled_surface() -> None:
+    universe_loadings = {
+        "by_ticker": {
+            "SPY": {
+                "ticker": "SPY",
+                "name": "SPY",
+                "price": 610.0,
+                "exposures": {},
+                "model_status": "projected_only",
+                "exposure_origin": "projected_returns",
+                "served_exposure_available": False,
+                "projection_output_status": "unavailable",
+            },
+        },
+        "source_dates": {"prices_asof": "2026-03-03"},
+    }
+    cov = pd.DataFrame([[0.04]], index=["Beta"], columns=["Beta"])
+
+    try:
+        portfolio_whatif.preview_portfolio_whatif(
+            scenario_rows=[{"account_id": "acct_a", "ticker": "SPY", "quantity": 10.0}],
+            dependencies=_deps(
+                holdings_loader=lambda account_id=None: [],
+                universe_loader=lambda current_payload, **kwargs: universe_loadings,
+                covariance_loader=lambda current_payload, **kwargs: (cov, True),
+                specific_risk_loader=lambda current_payload, **kwargs: ({}, True),
+            ),
+        )
+    except ValueError as exc:
+        assert "currently published cUSE modeled surface" in str(exc)
+        assert "SPY" in str(exc)
+        return
+    raise AssertionError("preview_portfolio_whatif should reject registry-visible but unmodeled names")
+
+
 class _FakeConn:
     def __init__(self) -> None:
         self.commits = 0

@@ -220,6 +220,9 @@ export interface UniverseTickerItem {
   quote_source?: string | null;
   quote_source_label?: string | null;
   quote_source_detail?: string | null;
+  whatif_ready?: boolean;
+  whatif_ready_label?: string | null;
+  whatif_ready_detail?: string | null;
 }
 
 export interface UniverseTickerData {
@@ -259,6 +262,9 @@ export interface UniverseSearchItem {
   quote_source?: string | null;
   quote_source_label?: string | null;
   quote_source_detail?: string | null;
+  whatif_ready?: boolean;
+  whatif_ready_label?: string | null;
+  whatif_ready_detail?: string | null;
 }
 
 export interface UniverseSearchData {

@@ -11,6 +11,8 @@ Use this file to find the current source of truth first, then drop into supporti
   - supporting rules: `architecture/architecture-invariants.md`, `architecture/dependency-rules.md`, `architecture/maintainer-guide.md`
 - Universe redesign plan:
   - `architecture/UNIVERSE_REGISTRY_AND_MODEL_GATING_PLAN.md`
+- Current cUSE/cPAR remediation plan:
+  - `architecture/CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN.md`
 - cUSE runtime and operator workflow:
   - `operations/OPERATIONS_PLAYBOOK.md`
   - `operations/CLOUD_NATIVE_RUNBOOK.md` for Cloud Run topology and deploy/runtime split
@@ -41,6 +43,7 @@ Primary files:
 - `maintainer-guide.md`
 - `MODEL_FAMILIES_AND_OWNERSHIP.md`
 - `UNIVERSE_REGISTRY_AND_MODEL_GATING_PLAN.md`
+- `CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN.md`
 
 cPAR-specific active architecture docs stay in the same folder:
 - `CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md`

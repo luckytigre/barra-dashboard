@@ -86,6 +86,51 @@ def _normalize_registry_ticker_row(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def cuse_row_model_readiness(
+    row: dict[str, Any],
+    *,
+    quote_source: str,
+) -> tuple[bool, str, str]:
+    model_status = str(row.get("model_status") or "").strip()
+    exposure_origin = str(row.get("exposure_origin") or "").strip()
+    has_factor_exposures = bool(dict(row.get("exposures") or {}))
+    served_exposure_available = bool(row.get("served_exposure_available", has_factor_exposures))
+
+    if (
+        quote_source == "served_payload"
+        and has_factor_exposures
+        and model_status != "ineligible"
+    ):
+        return (
+            True,
+            "Preview Ready",
+            "This security has a currently published cUSE modeled surface and can be staged into what-if preview.",
+        )
+    if quote_source == "served_payload" and exposure_origin == "projected_returns" and not served_exposure_available:
+        return (
+            False,
+            "Not Preview Ready",
+            "This security is admitted to the returns-projection path, but the current published cUSE snapshot does not contain served projected loadings for it.",
+        )
+    if quote_source == "served_payload" and exposure_origin == "projected_fundamental" and not served_exposure_available:
+        return (
+            False,
+            "Not Preview Ready",
+            "This security is admitted to the fundamental-projection path, but the current published cUSE snapshot does not contain served projected loadings for it.",
+        )
+    if quote_source != "served_payload":
+        return (
+            False,
+            "Not Preview Ready",
+            "This security is searchable through registry/runtime authority, but the current published cUSE snapshot does not contain a modeled surface for what-if preview.",
+        )
+    return (
+        False,
+        "Not Preview Ready",
+        "This security does not currently have a published cUSE modeled surface that what-if preview can use.",
+    )
+
+
 def _cuse_risk_tier(row: dict[str, Any]) -> tuple[str, str, str]:
     projection_output_status = str(row.get("projection_output_status") or "").strip()
     served_exposure_available = bool(row.get("served_exposure_available"))
@@ -158,11 +203,15 @@ def _decorate_cuse_row(
 ) -> dict[str, Any]:
     enriched = {**row, "quote_source": quote_source}
     tier, label, detail = _cuse_risk_tier(enriched)
+    whatif_ready, whatif_ready_label, whatif_ready_detail = cuse_row_model_readiness(
+        enriched,
+        quote_source=quote_source,
+    )
     source_label = "Live cUSE Payload" if quote_source == "served_payload" else "Registry Runtime"
     source_detail = (
         "This quote is coming from the current published cUSE payload."
         if quote_source == "served_payload"
-        else "This quote is coming from registry/runtime authority because there is no current cUSE payload row for it."
+        else "This quote is coming from registry/runtime authority because the current published cUSE snapshot does not contain this ticker."
     )
     return {
         **enriched,
@@ -172,6 +221,9 @@ def _decorate_cuse_row(
         "quote_source": quote_source,
         "quote_source_label": source_label,
         "quote_source_detail": source_detail,
+        "whatif_ready": whatif_ready,
+        "whatif_ready_label": whatif_ready_label,
+        "whatif_ready_detail": whatif_ready_detail,
     }
 
 

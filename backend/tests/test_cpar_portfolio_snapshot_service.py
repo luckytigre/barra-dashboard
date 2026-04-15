@@ -287,6 +287,66 @@ def test_support_rows_treats_classification_failures_as_degraded_context(
     assert covariance_rows[0]["factor_id"] == "SPY"
 
 
+def test_support_rows_aliases_holdings_ric_to_unique_active_package_ticker_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fits_for_rics",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_instrument_fits_for_tickers",
+        lambda *args, **kwargs: [{
+            "ric": "IBKR.OQ",
+            "ticker": "IBKR",
+            "display_name": "Interactive Brokers Group Inc",
+            "fit_status": "ok",
+            "warnings": [],
+            "specific_variance_proxy": 0.04,
+            "specific_volatility_proxy": 0.2,
+            "target_scope": "core_us_equity",
+            "fit_family": "returns_regression_weekly",
+            "price_on_package_date_status": "present",
+            "fit_row_status": "present",
+            "fit_quality_status": "ok",
+            "portfolio_use_status": "covered",
+            "ticker_detail_use_status": "available",
+            "hedge_use_status": "usable",
+            "reason_code": "ok",
+            "quality_label": "ok",
+        }],
+    )
+    monkeypatch.setattr(
+        cpar_outputs,
+        "load_package_covariance_rows",
+        lambda *args, **kwargs: [],
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.cpar_source_reads,
+        "load_latest_price_rows",
+        lambda *args, **kwargs: [{"ric": "IBKR.OQ", "adj_close": 210.0, "date": "2026-03-14"}],
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.cpar_source_reads,
+        "load_latest_classification_rows",
+        lambda *args, **kwargs: [{"ric": "IBKR.OQ", "trbc_industry_group": "Investment Banking & Investment Services"}],
+    )
+
+    fit_by_ric, price_by_ric, classification_by_ric, covariance_rows = cpar_portfolio_snapshot_service.load_cpar_portfolio_support_rows(
+        rics=["IBKR.O"],
+        positions=[{"account_id": "acct_main", "ric": "IBKR.O", "ticker": "IBKR", "quantity": 1.0}],
+        package_run_id="run_curr",
+        package_date="2026-03-14",
+    )
+
+    assert fit_by_ric["IBKR.O"]["ric"] == "IBKR.OQ"
+    assert price_by_ric["IBKR.O"]["ric"] == "IBKR.OQ"
+    assert classification_by_ric["IBKR.O"]["ric"] == "IBKR.OQ"
+    assert covariance_rows == []
+
+
 def test_support_rows_does_not_swallow_unexpected_output_decode_bugs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -356,3 +416,24 @@ def test_aggregate_risk_builder_uses_display_covariance_for_display_analytics() 
     assert payload["vol_scaled_shares"]["idio"] > 0
     assert pytest.approx(sum(payload["vol_scaled_shares"].values()), abs=0.05) == 100.0
     assert payload["positions"][0]["risk_mix"]["idio"] > 0
+
+
+def test_aggregate_risk_builder_labels_fit_miss_as_missing_cpar_fit() -> None:
+    payload = cpar_aggregate_risk_service.build_cpar_risk_snapshot(
+        package=_package(),
+        accounts=[{"account_id": "acct_a", "account_name": "Account A"}],
+        positions=[{"account_id": "all_accounts", "ric": "IBKR.O", "ticker": "IBKR", "quantity": 2.0}],
+        fit_by_ric={},
+        price_by_ric={},
+        classification_by_ric={},
+        covariance_rows=[],
+        display_covariance_rows=[],
+    )
+
+    assert payload["portfolio_status"] == "unavailable"
+    assert payload["coverage_breakdown"]["missing_cpar_fit"]["positions_count"] == 1
+    assert payload["coverage_breakdown"]["missing_price"]["positions_count"] == 0
+    position = payload["positions"][0]
+    assert position["ric"] == "IBKR.O"
+    assert position["coverage"] == "missing_cpar_fit"
+    assert position["coverage_reason"] == "No persisted cPAR fit row exists for this RIC in the active package."

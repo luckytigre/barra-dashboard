@@ -70,6 +70,14 @@ export function useWhatIfScenarioLab({
   const holdingsRows = holdingsData?.positions ?? [];
   const selectedTicker = normalizeTicker(item?.ticker);
   const scenarioTicker = normalizeTicker(searchQuery) || selectedTicker;
+  const scenarioUniverseRow = useMemo(() => {
+    const cleanTicker = normalizeTicker(searchQuery) || selectedTicker;
+    if (!cleanTicker) return item ?? null;
+    return (
+      searchResults.find((row) => normalizeTicker(row.ticker) === cleanTicker)
+      || (normalizeTicker(item?.ticker) === cleanTicker ? item : null)
+    );
+  }, [item, searchQuery, searchResults, selectedTicker]);
   const entryPrice = priceMap.get(scenarioTicker) ?? null;
   const entryQty = parseQty(quantityText);
   const entryMv = entryPrice != null && entryQty != null ? entryQty * entryPrice : null;
@@ -227,6 +235,13 @@ export function useWhatIfScenarioLab({
       setErrorMessage("Enter a ticker for the what-if row.");
       return;
     }
+    if (scenarioUniverseRow && scenarioUniverseRow.whatif_ready === false) {
+      setErrorMessage(
+        scenarioUniverseRow.whatif_ready_detail
+        || "This ticker is searchable, but it does not currently have a published cUSE modeled surface for what-if preview.",
+      );
+      return;
+    }
     if (qty === null) {
       setErrorMessage("Quantity must be numeric.");
       return;
@@ -243,7 +258,7 @@ export function useWhatIfScenarioLab({
       },
     }));
     setResultMessage(`Staged trade delta for ${ticker} in ${account}.`);
-  }, [accountId, clearMessages, quantityText, scenarioTicker, validAccountIds]);
+  }, [accountId, clearMessages, quantityText, scenarioTicker, scenarioUniverseRow, validAccountIds]);
 
   const updateScenarioRow = useCallback((key: string, quantityValue: string) => {
     setPreviewData(null);
@@ -440,8 +455,9 @@ export function useWhatIfScenarioLab({
   const normalizedAccountId = normalizeAccountId(accountId);
   const hasValidAccount = Boolean(normalizedAccountId) && (validAccountIds.size === 0 || validAccountIds.has(normalizedAccountId));
   const hasEntryTicker = Boolean(scenarioTicker);
+  const hasPreviewReadyEntry = scenarioUniverseRow?.whatif_ready !== false;
   const hasValidEntryQty = entryQty !== null;
-  const stageReady = !controlsBusy && hasValidAccount && hasEntryTicker && hasValidEntryQty;
+  const stageReady = !controlsBusy && hasValidAccount && hasEntryTicker && hasPreviewReadyEntry && hasValidEntryQty;
   const previewReady = !controlsBusy && scenarioRows.length > 0;
   const previewNeedsAttention = previewReady && !previewData;
   const applyReady = !controlsBusy && scenarioRows.length > 0;

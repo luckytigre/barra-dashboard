@@ -14,5 +14,5 @@ private_backend_invocation_enabled = true
 # Pinned rollout image refs.
 # Update these only when intentionally publishing a new service build.
 frontend_image_ref = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/frontend:40b5c89-authsession-fb4"
-serve_image_ref    = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/serve:2012c3a"
-control_image_ref  = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/control:ab737d3-stagemetrics2"
+serve_image_ref    = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/serve:88a53d4-cusephase1"
+control_image_ref  = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/control:88a53d4-cusephase3"

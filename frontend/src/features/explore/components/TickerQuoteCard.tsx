@@ -93,6 +93,7 @@ export default function TickerQuoteCard({
   const modelStatus = item.model_status ?? "ineligible";
   const exposureOrigin = normalizeExposureOrigin(item.exposure_origin, modelStatus);
   const hasModelExposures = chartFactors.length > 0;
+  const quoteSource = String(item.quote_source || "").trim();
 
   useEffect(() => {
     setExpanded(false);
@@ -174,6 +175,13 @@ export default function TickerQuoteCard({
       ? [{ label: "Projection As Of", value: formatDateLabel(item.projection_asof) }]
       : []),
   ];
+  const noteMessage = (
+    quoteSource === "registry_runtime"
+      ? String(item.quote_source_detail || "").trim()
+      : String(item.model_warning || "").trim()
+  ) || (!hasModelExposures
+    ? `Model ineligible: ${humanizeReason(item.model_status_reason || item.eligibility_reason)}`
+    : "");
 
   return (
     <section className={`explore-quote-module${expanded ? " open" : ""}${spotlight && !expanded ? " fresh" : ""}`}>
@@ -278,9 +286,9 @@ export default function TickerQuoteCard({
             </div>
           </div>
 
-          {(!hasModelExposures || item.model_warning) && (
+          {noteMessage && (
             <div className="explore-quote-note">
-              {item.model_warning || `Model ineligible: ${humanizeReason(item.model_status_reason || item.eligibility_reason)}`}
+              {noteMessage}
             </div>
           )}
         </div>

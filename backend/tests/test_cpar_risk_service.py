@@ -57,6 +57,7 @@ def test_load_cpar_risk_payload_uses_aggregate_snapshot_owner(monkeypatch) -> No
         "rics": ["AAPL.OQ"],
         "package_run_id": "run_curr",
         "package_date": "2026-03-14",
+        "positions": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 6.0}],
         "data_db": None,
     }
     assert calls["build_snapshot"]["accounts"] == [{"account_id": "acct_a", "account_name": "Account A"}]

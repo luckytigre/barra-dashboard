@@ -218,6 +218,7 @@ def load_cpar_risk_payload(
             rics=rics,
             package_run_id=str(package["package_run_id"]),
             package_date=str(package["package_date"]),
+            positions=positions,
             data_db=data_db,
         )
         try:
