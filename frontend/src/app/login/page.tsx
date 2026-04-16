@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
@@ -22,11 +22,21 @@ function LoginPageInner() {
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "failed">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const hasDefaultReturnTo =
+    searchParams.has("returnTo") &&
+    normalizeReturnTo(searchParams.get("returnTo")) === DEFAULT_APP_HOME_PATH &&
+    searchParams.get("error") !== "misconfigured";
   const returnTo = useMemo(
     () => normalizeReturnTo(searchParams.get("returnTo") || DEFAULT_APP_HOME_PATH),
     [searchParams],
   );
   const configError = searchParams.get("error") === "misconfigured";
+
+  useEffect(() => {
+    if (hasDefaultReturnTo) {
+      router.replace("/login");
+    }
+  }, [hasDefaultReturnTo, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
