@@ -19,7 +19,7 @@ export default function ExplorePage() {
   const [query, setQuery] = useState("");
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
 
-  const debouncedQuery = useDebouncedValue(query, 220);
+  const debouncedQuery = useDebouncedValue(query, 140);
   const { data: searchData, error: searchError } = useUniverseSearch(debouncedQuery, 10);
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
   const {

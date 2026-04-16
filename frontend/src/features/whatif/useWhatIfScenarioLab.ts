@@ -72,11 +72,11 @@ export function useWhatIfScenarioLab({
   const scenarioTicker = normalizeTicker(searchQuery) || selectedTicker;
   const scenarioUniverseRow = useMemo(() => {
     const cleanTicker = normalizeTicker(searchQuery) || selectedTicker;
-    if (!cleanTicker) return item ?? null;
-    return (
-      searchResults.find((row) => normalizeTicker(row.ticker) === cleanTicker)
-      || (normalizeTicker(item?.ticker) === cleanTicker ? item : null)
-    );
+    if (!cleanTicker) return null;
+    const detailRow = normalizeTicker(item?.ticker) === cleanTicker ? item : null;
+    const searchRow = searchResults.find((row) => normalizeTicker(row.ticker) === cleanTicker) ?? null;
+    if (detailRow && detailRow.whatif_ready !== false) return detailRow;
+    return searchRow ?? detailRow;
   }, [item, searchQuery, searchResults, selectedTicker]);
   const entryPrice = priceMap.get(scenarioTicker) ?? null;
   const entryQty = parseQty(quantityText);
@@ -129,7 +129,15 @@ export function useWhatIfScenarioLab({
       } else if (e.key === "Enter") {
         e.preventDefault();
         if (activeIndex >= 0 && activeIndex < searchResults.length) {
-          selectFromTypeahead(searchResults[activeIndex].ticker);
+          const activeRow = searchResults[activeIndex];
+          if (activeRow.whatif_ready === false) {
+            setErrorMessage(
+              activeRow.whatif_ready_detail
+              || "This security does not currently have a published cUSE modeled surface that what-if preview can use.",
+            );
+            return;
+          }
+          selectFromTypeahead(activeRow.ticker);
         } else {
           const direct = searchQuery.trim().toUpperCase();
           if (direct) selectFromTypeahead(direct);
@@ -233,6 +241,10 @@ export function useWhatIfScenarioLab({
     }
     if (!ticker) {
       setErrorMessage("Enter a ticker for the what-if row.");
+      return;
+    }
+    if (!scenarioUniverseRow || normalizeTicker(scenarioUniverseRow.ticker) !== ticker) {
+      setErrorMessage("Wait for typeahead to resolve this ticker before staging the what-if row.");
       return;
     }
     if (scenarioUniverseRow && scenarioUniverseRow.whatif_ready === false) {
@@ -455,7 +467,10 @@ export function useWhatIfScenarioLab({
   const normalizedAccountId = normalizeAccountId(accountId);
   const hasValidAccount = Boolean(normalizedAccountId) && (validAccountIds.size === 0 || validAccountIds.has(normalizedAccountId));
   const hasEntryTicker = Boolean(scenarioTicker);
-  const hasPreviewReadyEntry = scenarioUniverseRow?.whatif_ready !== false;
+  const hasResolvedEntry = Boolean(
+    scenarioUniverseRow && normalizeTicker(scenarioUniverseRow.ticker) === scenarioTicker,
+  );
+  const hasPreviewReadyEntry = hasResolvedEntry && scenarioUniverseRow?.whatif_ready !== false;
   const hasValidEntryQty = entryQty !== null;
   const stageReady = !controlsBusy && hasValidAccount && hasEntryTicker && hasPreviewReadyEntry && hasValidEntryQty;
   const previewReady = !controlsBusy && scenarioRows.length > 0;

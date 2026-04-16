@@ -13,7 +13,7 @@ from fastapi import HTTPException
 from backend import config
 from backend.data.history_queries import load_price_history_rows
 from backend.data import registry_quote_reads
-from backend.data.serving_outputs import load_runtime_payload
+from backend.data.serving_outputs import load_runtime_payload, load_runtime_payload_field
 from backend.data.sqlite import cache_get
 
 
@@ -95,10 +95,18 @@ def cuse_row_model_readiness(
     exposure_origin = str(row.get("exposure_origin") or "").strip()
     has_factor_exposures = bool(dict(row.get("exposures") or {}))
     served_exposure_available = bool(row.get("served_exposure_available", has_factor_exposures))
+    projection_output_status = str(row.get("projection_output_status") or "").strip()
 
     if (
         quote_source == "served_payload"
-        and has_factor_exposures
+        and (
+            has_factor_exposures
+            or served_exposure_available
+            or (
+                exposure_origin in {"projected_returns", "projected_fundamental"}
+                and projection_output_status == "available"
+            )
+        )
         and model_status != "ineligible"
     ):
         return (
@@ -452,34 +460,63 @@ def _search_universe_payload(
     fallback_loader,
     row_normalizer: RowNormalizer,
 ) -> dict[str, Any]:
-    data = _load_universe_payload(
+    index = load_runtime_payload_field(
         "universe_loadings",
-        payload_loader=payload_loader,
+        "index",
         fallback_loader=fallback_loader,
     )
+    if index is None:
+        data = _load_universe_payload(
+            "universe_loadings",
+            payload_loader=payload_loader,
+            fallback_loader=fallback_loader,
+        )
+        index = data.get("index") or []
+    if not isinstance(index, list):
+        index = []
     needle = str(q).strip().upper()
     if not needle:
         return {"query": q, "results": [], "total": 0, "_cached": True}
 
-    index = data.get("index") or []
-    by_ticker = data.get("by_ticker") or {}
+    full_payload: dict[str, Any] | None = None
+    by_ticker: dict[str, Any] = {}
     ranked: list[tuple[tuple[int, int, str], int, dict[str, Any]]] = []
     for row in index:
         ticker = str(row.get("ticker", "")).upper()
         name = str(row.get("name", "")).upper()
         ric = str(row.get("ric", "")).upper()
         if needle in ticker or needle in name or needle in ric:
-            normalized = row_normalizer(_decorate_cuse_row(dict(row), quote_source="served_payload"))
-            if not normalized.get("ric"):
-                resolved_ric = str((by_ticker.get(ticker) or {}).get("ric") or "").upper().strip()
-                if resolved_ric:
-                    normalized["ric"] = resolved_ric
+            served_row = dict(row)
+            if (
+                not served_row.get("exposures")
+                and "served_exposure_available" not in served_row
+                and "projection_output_status" not in served_row
+            ):
+                if full_payload is None:
+                    full_payload = _load_universe_payload(
+                        "universe_loadings",
+                        payload_loader=payload_loader,
+                        fallback_loader=fallback_loader,
+                    )
+                    by_ticker = full_payload.get("by_ticker") or {}
+                served_row = {
+                    **served_row,
+                    **dict(by_ticker.get(ticker) or {}),
+                }
+            normalized = row_normalizer(
+                _decorate_cuse_row(
+                    served_row,
+                    quote_source="served_payload",
+                )
+            )
             ranked.append((_search_rank(normalized, needle), 0, normalized))
 
-    try:
-        registry_rows = _registry_search_rows(q=q, limit=limit)
-    except registry_quote_reads.RegistryQuoteReadError:
-        registry_rows = []
+    registry_rows: list[dict[str, Any]] = []
+    if len(ranked) < limit:
+        try:
+            registry_rows = _registry_search_rows(q=q, limit=limit)
+        except registry_quote_reads.RegistryQuoteReadError:
+            registry_rows = []
     existing_tickers = {
         str(row.get("ticker") or "").upper().strip()
         for _, _, row in ranked

@@ -90,6 +90,32 @@ def load_runtime_payload(
     return load_runtime_payloads((clean,), fallback_loader=fallback_loader).get(clean)
 
 
+def load_runtime_payload_field(
+    payload_name: str,
+    field_name: str,
+    *,
+    fallback_loader: Callable[[str], Any | None] | None = None,
+) -> Any | None:
+    """Load a single top-level field from a runtime payload when available."""
+    clean = str(payload_name or "").strip()
+    field = str(field_name or "").strip()
+    if not clean or not field:
+        return None
+    value = (
+        _load_current_payload_field_neon(clean, field)
+        if _use_neon_reads()
+        else _load_current_payload_field_sqlite(clean, field)
+    )
+    if value is not None:
+        return value
+    if fallback_loader is None or not config.serving_outputs_cache_fallback_enabled():
+        return None
+    fallback = fallback_loader(clean)
+    if isinstance(fallback, dict):
+        return fallback.get(field)
+    return None
+
+
 def load_runtime_payload_state(
     payload_name: str,
     *,
@@ -421,6 +447,68 @@ def _load_current_payload_rows_neon(
     finally:
         conn.close()
     return list(rows)
+
+
+def _load_current_payload_field_sqlite(
+    payload_name: str,
+    field_name: str,
+    *,
+    data_db: Path | None = None,
+) -> Any | None:
+    db = Path(data_db or DATA_DB)
+    if not db.exists():
+        return None
+    conn = sqlite3.connect(str(db))
+    try:
+        _ensure_sqlite_schema(conn)
+        row = conn.execute(
+            """
+            SELECT json_extract(payload_json, ?)
+            FROM serving_payload_current
+            WHERE payload_name = ?
+            """,
+            (f"$.{field_name}", payload_name),
+        ).fetchone()
+    except Exception:
+        return None
+    finally:
+        conn.close()
+    if not row:
+        return None
+    return _decode_payload_json(row[0])
+
+
+def _load_current_payload_field_neon(
+    payload_name: str,
+    field_name: str,
+) -> Any | None:
+    try:
+        conn = connect(
+            dsn=resolve_dsn(None),
+            autocommit=True,
+            connect_timeout=5,
+            options={"options": "-c statement_timeout=8000"},
+        )
+    except Exception:
+        return None
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT (payload_json -> %s)::text
+                FROM serving_payload_current
+                WHERE payload_name = %s
+                """,
+                (field_name, payload_name),
+            )
+            row = cur.fetchone()
+    except Exception:
+        return None
+    finally:
+        conn.close()
+    if not row:
+        return None
+    return _decode_payload_json(row[0])
 
 
 def _load_current_payloads_sqlite(payload_names: Iterable[str]) -> dict[str, Any | None]:

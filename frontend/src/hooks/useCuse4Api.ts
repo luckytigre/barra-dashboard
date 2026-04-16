@@ -89,7 +89,10 @@ export function useUniverseTickerHistory(ticker: string | null, years = 5) {
 export function useUniverseSearch(query: string, limit = 8) {
   const q = query.trim();
   const key = q.length > 0 ? cuse4ApiPath.universeSearch(q, limit) : null;
-  return useSWR<UniverseSearchData>(key, apiFetch, SWR_OPTS);
+  return useSWR<UniverseSearchData>(key, apiFetch, {
+    ...SWR_OPTS,
+    keepPreviousData: true,
+  });
 }
 
 export function useUniverseFactors() {
