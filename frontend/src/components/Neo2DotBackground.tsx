@@ -67,9 +67,9 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
       if (hash01(xi * 0.173, yi * 0.197) > 0.88) continue;
       if (sx < -24 || sx > w + 24 || sy < -24 || sy > h + 24) continue;
 
-      const alpha = clamp(0.24 + (bandTol - band) * 0.82, 0.16, 0.5);
-      const size = 0.82 + dense * 0.12;
-      ctx.fillStyle = `rgba(182,182,184,${alpha.toFixed(3)})`;
+      const alpha = clamp(0.16 + (bandTol - band) * 0.58, 0.1, 0.36);
+      const size = 0.78 + dense * 0.1;
+      ctx.fillStyle = `rgba(152,152,156,${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(sx, sy, size, 0, Math.PI * 2);
       ctx.fill();
