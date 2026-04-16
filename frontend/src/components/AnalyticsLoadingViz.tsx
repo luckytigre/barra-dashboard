@@ -48,9 +48,9 @@ const GRID = 18;
 const DOT_SPACING = 11;
 const DOT_RADIUS = 1.6;
 const CANVAS_PX = GRID * DOT_SPACING;
-const STATIC_GRID = 16;
-const STATIC_SPACING = 9.5;
-const STATIC_RADIUS = 1.85;
+const STATIC_GRID = 14;
+const STATIC_SPACING = 9;
+const STATIC_RADIUS = 1.7;
 const STATIC_CANVAS_PX = STATIC_GRID * STATIC_SPACING;
 
 function drawStaticGrid(ctx: CanvasRenderingContext2D) {
@@ -63,7 +63,7 @@ function drawStaticGrid(ctx: CanvasRenderingContext2D) {
       const cy = row * STATIC_SPACING + STATIC_SPACING / 2;
       ctx.beginPath();
       ctx.arc(cx, cy, STATIC_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${r},${g},${b},0.68)`;
+      ctx.fillStyle = `rgba(${r},${g},${b},0.62)`;
       ctx.fill();
     }
   }

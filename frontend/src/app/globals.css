@@ -5780,7 +5780,7 @@ main {
 }
 
 .public-login-form {
-  width: min(356px, 100%);
+  width: min(304px, 100%);
 }
 
 .public-engine-card p {
@@ -5856,7 +5856,7 @@ main {
   width: 100%;
   min-height: 52px;
   border: 0;
-  border-bottom: 1px solid rgba(154, 171, 214, 0.32);
+  border-bottom: 1px solid rgba(154, 171, 214, 0.24);
   border-radius: 0;
   padding: 8px 0;
   background: transparent;
@@ -5867,13 +5867,13 @@ main {
 
 .public-login-field input:focus {
   outline: none;
-  border-color: rgba(217, 225, 240, 0.62);
+  border-color: rgba(217, 225, 240, 0.52);
   box-shadow: none;
   background: transparent;
 }
 
 .public-login-field input::placeholder {
-  color: rgba(169, 182, 210, 0.5);
+  color: rgba(169, 182, 210, 0.42);
 }
 
 .public-login-message {
