@@ -547,7 +547,7 @@ const CSS = `
   padding-top: 2px;
 }
 .palette-study .fam-logo-word {
-  font-family: var(--font-body);
+  font-family: var(--font-family);
   font-size: clamp(34px, 4vw, 52px);
   font-weight: 500;
   letter-spacing: -0.04em;
@@ -4248,308 +4248,6 @@ function LightModeStudy() {
   );
 }
 
-function SymbolStudy() {
-  const waistBars = [
-    { x: 0, width: 104 },
-    { x: 34, width: 52 },
-    { x: 16, width: 100 },
-  ];
-
-  return (
-    <section className="sec rise d6">
-      <div className="sec-head">
-        <span className="sec-num">13 · Ceiora symbol study</span>
-        <h2 className="sec-title">
-          Branding built around <em>one chosen mark.</em>
-        </h2>
-        <p className="sec-lede">
-          The symbol study is narrowed to a single direction: `Waist`. Long, short, long. The middle bar retreats enough to make the silhouette ownable, and everything below tests whether that one form can actually carry the brand.
-        </p>
-      </div>
-      <div className="symbol-grid" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
-        <article className="symbol-card">
-          <div className="symbol-plate">
-            <svg className="symbol-svg" viewBox="0 0 120 74" aria-hidden="true">
-              {waistBars.map((bar, i) => (
-                <rect
-                  key={i}
-                  className="symbol-fill"
-                  x={bar.x}
-                  y={i * 27}
-                  width={bar.width}
-                  height="20"
-                />
-              ))}
-            </svg>
-          </div>
-          <div className="symbol-meta">
-            <div className="symbol-name">Waist</div>
-            <div className="symbol-copy">
-              Long, short, long. The middle bar drops in to create a distinct silhouette: mass at the top and bottom, negative space in the center.
-            </div>
-            <div className="symbol-note">Solid · 3 bars · chosen direction</div>
-          </div>
-        </article>
-      </div>
-
-      <div className="brand-lockups">
-        <div className="brand-tile wide">
-          <div className="brand-tile-surface">
-            <div className="brand-primary">
-              <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                {waistBars.map((bar, i) => (
-                  <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                ))}
-              </svg>
-              <span className="brand-wordmark">Ceiora</span>
-              <div className="brand-primary-tag">
-                Portfolio risk, factor decomposition, and the hedges that hold them in place.
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Primary lockup · Waist</span>
-            <span className="brand-tile-note">Horizontal. Wordmark at 34 / mark at 78.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-stack">
-              <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                {waistBars.map((bar, i) => (
-                  <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                ))}
-              </svg>
-              <span className="brand-wordmark">Ceiora</span>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Stacked lockup · Waist</span>
-            <span className="brand-tile-note">For portrait or narrow chrome.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-scale">
-              <div className="brand-scale-item lg">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-wordmark">Ceiora</span>
-              </div>
-              <div className="brand-scale-item md">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-wordmark">Ceiora</span>
-              </div>
-              <div className="brand-scale-item sm">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-wordmark">Ceiora</span>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Wordmark scale · Waist</span>
-            <span className="brand-tile-note">A simple sanity check: same pair, three sizes.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-chrome">
-              <div className="brand-chrome-left">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-wordmark">Ceiora</span>
-              </div>
-              <span className="brand-chrome-rule" />
-              <div className="brand-chrome-nav">
-                <span className="active">Overview</span>
-                <span>Positions</span>
-                <span>Explore</span>
-              </div>
-              <span className="brand-chrome-cta">Open app</span>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">App chrome · Waist</span>
-            <span className="brand-tile-note">The default product-facing lockup.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile wide">
-          <div className="brand-tile-surface">
-            <div className="brand-header">
-              <div className="brand-header-left">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-wordmark">Ceiora</span>
-              </div>
-              <span className="brand-header-rule" />
-              <div className="brand-header-nav">
-                <span className="active">Overview</span>
-                <span>Positions</span>
-                <span>Explore</span>
-              </div>
-              <div className="brand-header-right">
-                <span>Household Aggregate</span>
-                <span className="brand-header-avatar">SK</span>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Full navigation bar · Waist</span>
-            <span className="brand-tile-note">Mark at 26, wordmark at 17, nav at 12.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile wide">
-          <div className="brand-tile-surface">
-            <div className="brand-launch">
-              <div className="brand-launch-inner">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <div className="brand-launch-wordmark">Ceiora</div>
-                <div className="brand-launch-sub">
-                  Quiet intelligence for portfolio risk, factor decomposition, and hedge construction.
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Launch screen · Waist</span>
-            <span className="brand-tile-note">A centered moment for boot, loading, or sign-in handoff.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-paper">
-              <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                {waistBars.map((bar, i) => (
-                  <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                ))}
-              </svg>
-              <span className="brand-paper-wordmark">Ceiora</span>
-              <p className="brand-paper-copy">
-                An editorial surface for intros and prospectuses. Warm paper, dark ink, the mark held quiet in the corner.
-              </p>
-              <div className="brand-paper-meta">
-                <span>Edition · Warm surface</span>
-                <span>MMXXVI</span>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Paper card · Waist</span>
-            <span className="brand-tile-note">Dark on cream. Restraint surface.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-light">
-              <div className="brand-light-row">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-                <span className="brand-light-wordmark">Ceiora</span>
-              </div>
-              <p className="brand-light-copy">
-                The mark inverts cleanly onto pale mineral ground. Single solid color — no gradients, no adjustments — because that was the constraint from the start.
-              </p>
-              <div className="brand-light-rule" />
-              <div className="brand-light-foot">
-                <span>Light surface · Waist</span>
-                <span>#1F2024 on #E8E6E0</span>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Light / inverted</span>
-            <span className="brand-tile-note">Same mark, dark ink, pale ground.</span>
-          </div>
-        </div>
-
-        <div className="brand-tile">
-          <div className="brand-tile-surface">
-            <div className="brand-favicon-grid">
-              <div className="brand-favicon xl">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-              </div>
-              <div className="brand-favicon lg">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-              </div>
-              <div className="brand-favicon md">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-              </div>
-              <div className="brand-favicon sm">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-              </div>
-              <div className="brand-favicon xs">
-                <svg className="brand-mark" viewBox="0 0 120 74" aria-hidden="true">
-                  {waistBars.map((bar, i) => (
-                    <rect key={i} x={bar.x} y={i * 27} width={bar.width} height="20" />
-                  ))}
-                </svg>
-              </div>
-              <div className="brand-favicon-labels">
-                <span>64</span>
-                <span>40</span>
-                <span>28</span>
-                <span>20</span>
-                <span>14</span>
-              </div>
-            </div>
-          </div>
-          <div className="brand-tile-caption">
-            <span className="brand-tile-label">Favicon scale · Waist</span>
-            <span className="brand-tile-note">Baseline favicon study before the tighter variant choice.</span>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function SymbolStudyVariant() {
   const variantBars = [
     { x: 0, width: 95 },
@@ -4560,12 +4258,12 @@ function SymbolStudyVariant() {
   return (
     <section className="sec rise d6">
       <div className="sec-head">
-        <span className="sec-num">14 · Ceiora symbol variant</span>
+        <span className="sec-num">13 · Ceiora symbol system</span>
         <h2 className="sec-title">
-          The same brand system with a <em>tuned alternate.</em>
+          Branding built around the <em>chosen mark.</em>
         </h2>
         <p className="sec-lede">
-          This section uses the manually tuned geometry you provided. Same applications, same rules, just a different long-short-long balance so you can compare brand behavior directly.
+          `Variant B` is the resolved Ceiora mark. The symbol keeps the long-short-long logic from the factor chart, but the tighter middle and shorter footing make it more compact in the app header, cleaner in lockups, and better for favicon-scale use.
         </p>
       </div>
       <div className="symbol-grid" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
@@ -4580,9 +4278,9 @@ function SymbolStudyVariant() {
           <div className="symbol-meta">
             <div className="symbol-name">Variant B</div>
             <div className="symbol-copy">
-              Derived from the local tuner state. The top remains long, the middle is still shorter, and the base cuts back harder for a slightly more compact finish.
+              Resolved from the local tuner. Long top bar, shorter middle, shorter footing. Compact enough for favicon-scale work without losing the offset-bar logic.
             </div>
-            <div className="symbol-note">Solid · 3 bars · tuned alternate · chosen favicon direction</div>
+            <div className="symbol-note">Solid · 3 bars · chosen direction · chosen favicon direction</div>
           </div>
         </article>
       </div>
@@ -4604,7 +4302,7 @@ function SymbolStudyVariant() {
           </div>
           <div className="brand-tile-caption">
             <span className="brand-tile-label">Primary lockup · Variant B</span>
-            <span className="brand-tile-note">A/B against the first chosen direction.</span>
+            <span className="brand-tile-note">Horizontal lockup for product chrome and editorial surfaces.</span>
           </div>
         </div>
 
@@ -4668,7 +4366,7 @@ function SymbolStudyVariant() {
           </div>
           <div className="brand-tile-caption">
             <span className="brand-tile-label">App chrome · Variant B</span>
-            <span className="brand-tile-note">The alternate in product context.</span>
+            <span className="brand-tile-note">Default product-facing lockup.</span>
           </div>
         </div>
 
@@ -4697,7 +4395,7 @@ function SymbolStudyVariant() {
           </div>
           <div className="brand-tile-caption">
             <span className="brand-tile-label">Full navigation bar · Variant B</span>
-            <span className="brand-tile-note">Header comparison against section 13.</span>
+            <span className="brand-tile-note">Header usage with the chosen mark.</span>
           </div>
         </div>
 
@@ -4719,7 +4417,7 @@ function SymbolStudyVariant() {
           </div>
           <div className="brand-tile-caption">
             <span className="brand-tile-label">Launch screen · Variant B</span>
-            <span className="brand-tile-note">Centered moment for direct comparison.</span>
+            <span className="brand-tile-note">Centered moment for boot, loading, or sign-in handoff.</span>
           </div>
         </div>
 
@@ -4764,7 +4462,7 @@ function SymbolStudyVariant() {
               <div className="brand-light-rule" />
               <div className="brand-light-foot">
                 <span>Light surface · Variant B</span>
-                <span>#1F2024 on #E8E6E0</span>
+                <span>#1F2024 on #F6F5F2</span>
               </div>
             </div>
           </div>
@@ -4823,7 +4521,6 @@ export default function PalettePreviewPage() {
         <AppliedFragments />
         <WorkflowSurfaces />
         <LightModeStudy />
-        <SymbolStudy />
         <SymbolStudyVariant />
       </main>
     </div>

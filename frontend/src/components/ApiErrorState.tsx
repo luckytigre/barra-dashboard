@@ -95,7 +95,7 @@ export default function ApiErrorState({
       {operatorTokenAvailable && parsed.actionEndpoint && parsed.actionMethod === "POST" && (
         <div style={{ marginTop: 10 }}>
           <button
-            className="btn btn-secondary"
+            className="btn-action"
             onClick={handleRefresh}
             disabled={refreshState === "running"}
           >
@@ -104,14 +104,14 @@ export default function ApiErrorState({
               : refreshProfileLabel(parsed.refreshProfile, onlyServeRefreshAllowed)}
           </button>
           {refreshState === "done" && (
-            <div style={{ marginTop: 8, color: "rgba(169,182,210,0.8)", fontSize: 12 }}>
+            <div style={{ marginTop: 8, color: "var(--text-secondary)", fontSize: 12 }}>
               {parsed.refreshProfile === "serve-refresh" || (!parsed.refreshProfile && onlyServeRefreshAllowed)
                 ? "Refresh completed."
                 : "Refresh started. Reload in a few seconds."}
             </div>
           )}
           {refreshState === "failed" && (
-            <div style={{ marginTop: 8, color: "rgba(204,53,88,0.9)", fontSize: 12 }}>
+            <div style={{ marginTop: 8, color: "var(--negative)", fontSize: 12 }}>
               Could not start refresh from this page.
             </div>
           )}

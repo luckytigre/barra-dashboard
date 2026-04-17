@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { useExposures, usePortfolio, useRisk } from "@/hooks/useCuse4Api";
 import ExposureBarChart from "@/features/cuse4/components/ExposureBarChart";
 import FactorDrilldown from "@/features/cuse4/components/FactorDrilldown";
@@ -30,6 +30,21 @@ const MODES = [
 ] as const;
 type SortKey = keyof FactorDetail;
 const COLLAPSED_ROWS = 10;
+const SNAPSHOT_WARNING_STYLE = {
+  marginTop: 12,
+  padding: "12px 14px",
+  border: "1px solid color-mix(in srgb, var(--negative) 32%, transparent)",
+  background: "color-mix(in srgb, var(--negative) 10%, transparent)",
+  color: "var(--text-primary)",
+  fontSize: 13,
+  lineHeight: 1.5,
+} satisfies CSSProperties;
+
+const RISK_CATEGORY_TONES = {
+  style: "var(--analytics-style)",
+  market: "var(--analytics-market)",
+  industry: "var(--analytics-industry)",
+} as const;
 
 export default function ExposuresPage() {
   const [mode, setMode] = useState<string>("raw");
@@ -170,17 +185,7 @@ export default function ExposuresPage() {
       <div>
         <div className="chart-card">
           <h3 style={{ marginTop: 0 }}>Risk Snapshot In Flight</h3>
-          <div
-            style={{
-              marginTop: 12,
-              padding: "12px 14px",
-              border: "1px solid rgba(204, 53, 88, 0.25)",
-              background: "rgba(204, 53, 88, 0.08)",
-              color: "rgba(248, 221, 228, 0.92)",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
+          <div style={SNAPSHOT_WARNING_STYLE}>
             Portfolio, risk, and exposures are spanning multiple published snapshots right now ({truth.snapshotIds.join(" / ")}).
             This page withholds analytics until RECALC finishes or the page reloads into one coherent publish.
           </div>
@@ -247,7 +252,7 @@ export default function ExposuresPage() {
             <span style={{
               fontSize: 10,
               letterSpacing: "0.04em",
-              color: "rgba(169, 182, 210, 0.5)",
+              color: "var(--text-muted)",
               fontVariantNumeric: "tabular-nums",
             }}>
               {compactTruthSummary}
@@ -259,7 +264,7 @@ export default function ExposuresPage() {
             style={{
               marginBottom: 10,
               fontSize: 12,
-              color: "rgba(169, 182, 210, 0.72)",
+              color: "var(--text-secondary)",
             }}
           >
             Non-core layers extend the base bars: Fundamental Projection first, Returns Projection outermost.
@@ -411,13 +416,14 @@ export default function ExposuresPage() {
                   <tr key={d.factor_id}>
                     <td><strong>{factorDisplayName(d.factor_id, factorCatalog)}</strong></td>
                     <td>
-                      <span className={`text-xs ${
-                        d.category === "style"
-                          ? "text-[#f5bae4]"
-                          : d.category === "market"
-                            ? "text-[#58b6c7]"
-                            : "text-[#cc3558]"
-                      }`}>
+                      <span
+                        className="text-xs"
+                        style={{
+                          color: RISK_CATEGORY_TONES[
+                            d.category as keyof typeof RISK_CATEGORY_TONES
+                          ] ?? "var(--text-secondary)",
+                        }}
+                      >
                         {d.category}
                       </span>
                     </td>

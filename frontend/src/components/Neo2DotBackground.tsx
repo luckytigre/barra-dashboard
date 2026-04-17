@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useBackground, type BgMode } from "./BackgroundContext";
+import { useAppSettings } from "./AppSettingsContext";
 
 /* ── Shared helpers ─────────────────────────────────────────── */
 
@@ -16,6 +17,14 @@ function hash01(a: number, b: number) {
 
 function frac(v: number) {
   return v - Math.floor(v);
+}
+
+function readCssRgbTriplet(name: string, fallback: [number, number, number]): [number, number, number] {
+  if (typeof window === "undefined") return fallback;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const parts = raw.split(",").map((part) => Number(part.trim()));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return fallback;
+  return [parts[0], parts[1], parts[2]];
 }
 
 /* ── Mode: "topo" — topographic isoline dots ─────────────── */
@@ -34,6 +43,7 @@ function terrainHeight(x: number, z: number) {
 }
 
 function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const dotRgb = readCssRgbTriplet("--neo-dot-rgb", [145, 147, 151]);
   const sceneZoom = 0.65;
   const scenePanX = -2000;
   const cxS = w * 0.5;
@@ -69,7 +79,7 @@ function drawTopo(ctx: CanvasRenderingContext2D, w: number, h: number) {
 
       const alpha = clamp(0.16 + (bandTol - band) * 0.58, 0.1, 0.36);
       const size = 0.78 + dense * 0.1;
-      ctx.fillStyle = `rgba(145,147,151,${alpha.toFixed(3)})`;
+      ctx.fillStyle = `rgba(${dotRgb[0]},${dotRgb[1]},${dotRgb[2]},${alpha.toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(sx, sy, size, 0, Math.PI * 2);
       ctx.fill();
@@ -149,11 +159,10 @@ function drawRibbon(ctx: CanvasRenderingContext2D, w: number, h: number, r: Ribb
 
 function drawFlow(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.lineCap = "round";
-
-  /* Subtle tints derived from theme accents, lifted to light pastel range:
-     accent-blue #3ba9e1  → [155,200,225]   accent-green #31f6ff → [150,220,225]
-     accent-purple #d757ba → [210,165,200]   accent-yellow #ff8f2a → [220,190,155]
-     neutral grey baseline: [176,176,176]                                        */
+  const ribbonA0 = readCssRgbTriplet("--flow-ribbon-a0-rgb", [155, 200, 225]);
+  const ribbonA1 = readCssRgbTriplet("--flow-ribbon-a1-rgb", [210, 165, 200]);
+  const ribbonB0 = readCssRgbTriplet("--flow-ribbon-b0-rgb", [176, 180, 190]);
+  const ribbonB1 = readCssRgbTriplet("--flow-ribbon-b1-rgb", [150, 220, 225]);
 
   const ribbons: Ribbon[] = [
     // Ribbon A: enters top-left, swoops down, pinches left-of-center,
@@ -162,7 +171,7 @@ function drawFlow(ctx: CanvasRenderingContext2D, w: number, h: number) {
       p0: [-0.25, -0.30], p1: [0.05, 1.00], p2: [0.55, -0.05], p3: [1.30, -0.34],
       s0: 682, s1: 55, s2: 308, s3: 748,
       n: 25, alpha: [0.06, 0.20], lw: 0.7,
-      c0: [155, 200, 225], c1: [210, 165, 200],
+      c0: ribbonA0, c1: ribbonA1,
     },
     // Ribbon B: enters bottom-right, arcs high, pinches right-of-center,
     // then fans wide as it descends to exit bottom-left.
@@ -170,7 +179,7 @@ function drawFlow(ctx: CanvasRenderingContext2D, w: number, h: number) {
       p0: [1.28, 1.11], p1: [0.90, -0.40], p2: [0.40, 0.68], p3: [-0.25, 1.13],
       s0: 638, s1: 60, s2: 286, s3: 715,
       n: 23, alpha: [0.05, 0.18], lw: 0.65,
-      c0: [176, 180, 190], c1: [150, 220, 225],
+      c0: ribbonB0, c1: ribbonB1,
     },
   ];
 
@@ -194,6 +203,7 @@ const DRAW_PADDING = 96;
 export default function Neo2DotBackground() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { mode } = useBackground();
+  const { themeMode } = useAppSettings();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -235,7 +245,7 @@ export default function Neo2DotBackground() {
       window.removeEventListener("resize", onResize);
       resizeObserver.disconnect();
     };
-  }, [mode]);
+  }, [mode, themeMode]);
 
   /* Scroll-driven parallax — pure GPU transform, no re-rendering */
   useEffect(() => {
@@ -256,7 +266,7 @@ export default function Neo2DotBackground() {
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
-  }, [mode]);
+  }, [mode, themeMode]);
 
   if (mode === "none") return null;
 
