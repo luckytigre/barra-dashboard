@@ -22,6 +22,15 @@ import { buildAnalyticsTruthCompactSummary, summarizeAnalyticsTruth } from "@/li
 import { exposureMethodDisplayLabel, exposureMethodTone } from "@/lib/exposureOrigin";
 
 type ModelDiffSortKey = "account" | "ticker" | "method" | "status" | "live" | "modeled" | "delta";
+const SNAPSHOT_WARNING_STYLE = {
+  marginTop: 12,
+  padding: "12px 14px",
+  border: "1px solid color-mix(in srgb, var(--negative) 32%, transparent)",
+  background: "color-mix(in srgb, var(--negative) 10%, transparent)",
+  color: "var(--text-primary)",
+  fontSize: 13,
+  lineHeight: 1.5,
+} as const;
 
 function modeLabel(m: HoldingsImportMode): string {
   if (m === "replace_account") return "Full Replace Account";
@@ -347,17 +356,7 @@ export default function PositionsPage() {
           This is the last modeled view across all accounts. It updates only after `RECALC`, so it is shown here as a compact check instead of a second full positions table.
         </div>
         {snapshotMismatch ? (
-          <div
-            style={{
-              marginTop: 12,
-              padding: "12px 14px",
-              border: "1px solid rgba(204, 53, 88, 0.25)",
-              background: "rgba(204, 53, 88, 0.08)",
-              color: "rgba(248, 221, 228, 0.92)",
-              fontSize: 13,
-              lineHeight: 1.5,
-            }}
-          >
+          <div style={SNAPSHOT_WARNING_STYLE}>
             The modeled snapshot and risk metadata are spanning multiple published snapshots ({truth.snapshotIds.join(" / ")}).
             Live holdings above remain authoritative, but this modeled analytics section is withheld until RECALC finishes or the page reloads into one coherent publish.
           </div>

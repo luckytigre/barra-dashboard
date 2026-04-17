@@ -12,8 +12,14 @@ const FAMILY_TARGETS: Record<FamilyKey, string> = {
 };
 
 const FAMILY_COLORS: Record<FamilyKey, { top: string; bottom: string }> = {
-  cuse: { top: "rgba(184, 220, 226, 0.96)", bottom: "rgba(118, 164, 172, 0.94)" },
-  cpar: { top: "rgba(228, 190, 220, 0.96)", bottom: "rgba(176, 132, 169, 0.94)" },
+  cuse: {
+    top: "color-mix(in srgb, var(--family-cuse) 22%, var(--surface-raised) 78%)",
+    bottom: "color-mix(in srgb, var(--family-cuse) 40%, var(--surface-raised) 60%)",
+  },
+  cpar: {
+    top: "color-mix(in srgb, var(--family-cpar) 22%, var(--surface-raised) 78%)",
+    bottom: "color-mix(in srgb, var(--family-cpar) 40%, var(--surface-raised) 60%)",
+  },
 };
 const LANDING_FAMILY_TRANSITION_EVENT = "landing-family-transition-start";
 

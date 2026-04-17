@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import BrandLockup from "@/components/BrandLockup";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
 import { DEFAULT_APP_HOME_PATH, normalizeReturnTo } from "@/lib/appAccess";
 
@@ -104,9 +104,13 @@ function LoginShell({
       <LandingBackgroundLock bodyClassName="public-topo-boost" />
       <header className="dash-tabs">
         <div className="dash-tabs-brand-cluster">
-          <Link href="/" className="dash-tabs-brand">
-            Ceiora
-          </Link>
+          <BrandLockup
+            href="/"
+            className="dash-tabs-brand"
+            markClassName="dash-tabs-brand-mark"
+            wordmarkClassName="dash-tabs-brand-wordmark"
+            markTitle="Ceiora"
+          />
         </div>
         <div className="dash-tabs-center" aria-hidden="true" />
         <div className="dash-tabs-actions public-header-empty" aria-hidden="true" />

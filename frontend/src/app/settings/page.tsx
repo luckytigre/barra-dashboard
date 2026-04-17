@@ -29,12 +29,26 @@ const BACKGROUND_OPTIONS = [
   },
 ] as const;
 
+const THEME_OPTIONS = [
+  {
+    value: "dark",
+    label: "Dark",
+    description: "Warm-neutral graphite field for the main analytical shell.",
+  },
+  {
+    value: "light",
+    label: "Light",
+    description: "Pale mineral field for daytime work without losing Ceiora density.",
+  },
+] as const;
+
 export default function SettingsPage() {
-  const { cparFactorHistoryMode, setCparFactorHistoryMode } = useAppSettings();
+  const { cparFactorHistoryMode, setCparFactorHistoryMode, themeMode, setThemeMode } = useAppSettings();
   const { mode: backgroundMode, setMode: setBackgroundMode } = useBackground();
   const [tokens, setTokens] = useState(() => readStoredAuthTokens());
   const useMarketAdjustedHistory = cparFactorHistoryMode === "market_adjusted";
   const selectedBackground = BACKGROUND_OPTIONS.find((option) => option.value === backgroundMode) ?? BACKGROUND_OPTIONS[0];
+  const selectedTheme = THEME_OPTIONS.find((option) => option.value === themeMode) ?? THEME_OPTIONS[0];
   const usingOperatorForEditor = Boolean(tokens.operatorToken) && !tokens.editorToken;
 
   function handleTokenChange(key: typeof OPERATOR_TOKEN_STORAGE_KEY | typeof EDITOR_TOKEN_STORAGE_KEY, value: string) {
@@ -111,6 +125,26 @@ export default function SettingsPage() {
         <section className="settings-section">
           <div className="settings-section-header settings-section-header-global">
             <h3>Global</h3>
+          </div>
+          <div className="settings-inline-row">
+            <div className="settings-inline-copy">
+              <div className="settings-option-label">Theme</div>
+              <div className="settings-option-help">{selectedTheme.description}</div>
+            </div>
+            <div className="settings-segmented-control" role="tablist" aria-label="Theme mode">
+              {THEME_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={themeMode === option.value}
+                  className={`settings-segmented-option${themeMode === option.value ? " active" : ""}`}
+                  onClick={() => setThemeMode(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="settings-inline-row">
             <div className="settings-inline-copy">

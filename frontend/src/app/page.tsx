@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { Instrument_Serif } from "next/font/google";
+import BrandLockup from "@/components/BrandLockup";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
 import { readSessionFromCookieStore } from "@/lib/appAuth";
 
@@ -44,9 +45,13 @@ export default async function PublicLandingPage() {
       <LandingBackgroundLock bodyClassName="public-topo-boost" />
       <header className="dash-tabs">
         <div className="dash-tabs-brand-cluster">
-          <Link href="/" className="dash-tabs-brand">
-            Ceiora
-          </Link>
+          <BrandLockup
+            href="/"
+            className="dash-tabs-brand"
+            markClassName="dash-tabs-brand-mark"
+            wordmarkClassName="dash-tabs-brand-wordmark"
+            markTitle="Ceiora"
+          />
         </div>
         <div className="dash-tabs-center" aria-hidden="true" />
         <div className="dash-tabs-actions">
@@ -108,9 +113,13 @@ export default async function PublicLandingPage() {
 
         <footer className="public-site-footer">
           <div className="public-site-footer-inner">
-            <Link href="/" className="dash-tabs-brand public-footer-brand">
-              Ceiora
-            </Link>
+            <BrandLockup
+              href="/"
+              className="dash-tabs-brand public-footer-brand"
+              markClassName="dash-tabs-brand-mark public-footer-brand-mark"
+              wordmarkClassName="dash-tabs-brand-wordmark"
+              markTitle="Ceiora"
+            />
             <nav className="public-site-footer-links" aria-label="Footer">
               <a href="#" className="public-site-footer-link">
                 About Us
