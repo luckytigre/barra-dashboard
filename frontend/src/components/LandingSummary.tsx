@@ -5,7 +5,7 @@ export default function LandingSummary() {
     <section className="landing-summary" aria-label="Model overview">
       <div className="landing-summary-card landing-summary-card-cuse">
         <div className="landing-summary-card-meta">
-          <span className="landing-summary-card-folio">01 · Core equity</span>
+          <span className="landing-summary-card-folio">Characteristics-Based Model</span>
           <Link href="/cuse/exposures" className="landing-summary-card-enter">
             Enter
             <span className="landing-summary-card-enter-icon" aria-hidden="true">
@@ -26,7 +26,21 @@ export default function LandingSummary() {
             <span className="landing-summary-card-prefix">c</span>USE
           </h3>
         </div>
-        <p className="landing-summary-card-subtitle">Cross-Sectional Equity Risk Model</p>
+        <p className="landing-summary-card-subtitle">Barra-Style US Equity Model</p>
+        <div className="landing-summary-signals landing-summary-signals-cuse" aria-label="cUSE signature">
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Reads from</span>
+            <span className="landing-summary-signal-value">Descriptors + structure</span>
+          </div>
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Best for</span>
+            <span className="landing-summary-signal-value">Structural diagnosis</span>
+          </div>
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Output</span>
+            <span className="landing-summary-signal-value">Interpretable native-factor map</span>
+          </div>
+        </div>
         <p className="landing-summary-card-body">
           Descriptor-based factor model inspired by USE4 methodology.
           Estimates exposures from fundamental characteristics, industry
@@ -59,7 +73,7 @@ export default function LandingSummary() {
 
       <div className="landing-summary-card landing-summary-card-cpar">
         <div className="landing-summary-card-meta">
-          <span className="landing-summary-card-folio">02 · Returns space</span>
+          <span className="landing-summary-card-folio">Returns-Based Model</span>
           <Link href="/cpar/risk" className="landing-summary-card-enter">
             Enter
             <span className="landing-summary-card-enter-icon" aria-hidden="true">
@@ -81,6 +95,20 @@ export default function LandingSummary() {
           </h3>
         </div>
         <p className="landing-summary-card-subtitle">Parsimonious and Actionable Regression</p>
+        <div className="landing-summary-signals landing-summary-signals-cpar" aria-label="cPAR signature">
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Reads from</span>
+            <span className="landing-summary-signal-value">ETF proxy returns</span>
+          </div>
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Best for</span>
+            <span className="landing-summary-signal-value">Incremental hedgeable exposure</span>
+          </div>
+          <div className="landing-summary-signal">
+            <span className="landing-summary-signal-label">Output</span>
+            <span className="landing-summary-signal-value">Residualized tradable factor space</span>
+          </div>
+        </div>
         <p className="landing-summary-card-body">
           Returns-based regression built on real ETF proxies, but expressed in
           residualized factor space for risk reading. Market stays explicit;
