@@ -223,6 +223,32 @@ def load_exposures_response(
     return response
 
 
+def load_account_scoped_exposures_response(
+    *,
+    mode: str,
+    scoped_preview: dict[str, Any],
+    account_id: str,
+) -> dict[str, Any]:
+    current = dict(scoped_preview.get("current") or {})
+    response = {
+        "mode": str(mode),
+        "factors": _normalize_exposure_factor_rows((current.get("exposure_modes") or {}).get(mode, [])),
+        "_cached": False,
+        "_account_scoped": True,
+        "account_id": str(account_id or "").strip().lower() or None,
+    }
+    source_dates = scoped_preview.get("source_dates")
+    if source_dates is not None:
+        response["source_dates"] = source_dates
+    serving_snapshot = scoped_preview.get("serving_snapshot")
+    if isinstance(serving_snapshot, dict):
+        for key in ("run_id", "snapshot_id", "refresh_started_at"):
+            value = serving_snapshot.get(key)
+            if value is not None:
+                response[key] = value
+    return response
+
+
 def load_risk_response(
     *,
     payload_loader: Callable[..., Any] | None = None,
@@ -258,6 +284,32 @@ def load_risk_response(
     response["risk_engine"] = _normalize_risk_engine_state(data.get("risk_engine"))
     response["model_sanity"] = _normalize_model_sanity(sanity)
     response["_cached"] = True
+    return response
+
+
+def load_account_scoped_risk_response(
+    *,
+    scoped_preview: dict[str, Any],
+    account_id: str,
+) -> dict[str, Any]:
+    current = dict(scoped_preview.get("current") or {})
+    response = dict(current)
+    response["risk_shares"] = _normalize_systematic_shares(current.get("risk_shares"))
+    response["component_shares"] = _normalize_systematic_shares(current.get("component_shares"))
+    response["factor_details"] = _normalize_risk_factor_details(current.get("factor_details"))
+    response["_cached"] = False
+    response["_account_scoped"] = True
+    response["account_id"] = str(account_id or "").strip().lower() or None
+    response["model_sanity"] = {"status": "scoped-preview", "warnings": [], "checks": {}}
+    source_dates = scoped_preview.get("source_dates")
+    if source_dates is not None:
+        response["source_dates"] = source_dates
+    serving_snapshot = scoped_preview.get("serving_snapshot")
+    if isinstance(serving_snapshot, dict):
+        for key in ("run_id", "snapshot_id", "refresh_started_at"):
+            value = serving_snapshot.get(key)
+            if value is not None:
+                response[key] = value
     return response
 
 

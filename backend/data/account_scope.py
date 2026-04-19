@@ -1,0 +1,108 @@
+"""Account scope resolution for app-authenticated holdings access."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from backend import config
+from backend.api.auth import AppPrincipal
+from backend.data import app_identity
+
+
+class AccountScopeError(RuntimeError):
+    """Base error for account-scoping failures."""
+
+
+class AccountScopeAuthRequired(AccountScopeError):
+    """Raised when account enforcement is enabled but no principal is present."""
+
+
+class AccountScopeProvisioningError(AccountScopeError):
+    """Raised when a principal cannot be mapped into app account memberships."""
+
+
+class AccountScopeDenied(AccountScopeError):
+    """Raised when a principal asks for an account outside its allowed scope."""
+
+
+@dataclass(frozen=True)
+class AccountScope:
+    enforced: bool
+    is_admin: bool
+    subject: str | None
+    default_account_id: str | None
+    account_ids: tuple[str, ...]
+
+
+def account_enforcement_enabled() -> bool:
+    return bool(config.APP_ACCOUNT_ENFORCEMENT_ENABLED)
+
+
+def shared_auth_legacy_allowed() -> bool:
+    return bool(config.APP_SHARED_AUTH_ACCEPT_LEGACY)
+
+
+def _normalize_account_ids(rows: list[app_identity.MembershipRow]) -> tuple[str | None, tuple[str, ...]]:
+    default_account_id: str | None = None
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        account_id = str(row.account_id or "").strip().lower()
+        if not account_id:
+            continue
+        if account_id not in seen:
+            ordered.append(account_id)
+            seen.add(account_id)
+        if bool(row.is_default) and default_account_id is None:
+            default_account_id = account_id
+    if default_account_id is None and ordered:
+        default_account_id = ordered[0]
+    return default_account_id, tuple(ordered)
+
+
+def resolve_account_scope(pg_conn, *, principal: AppPrincipal | None) -> AccountScope:
+    if not account_enforcement_enabled():
+        return AccountScope(
+            enforced=False,
+            is_admin=bool(principal and principal.is_admin),
+            subject=(principal.subject if principal else None),
+            default_account_id=None,
+            account_ids=(),
+        )
+
+    if principal is None:
+        raise AccountScopeAuthRequired("Authenticated app principal required for account-scoped holdings access.")
+
+    if principal.provider == "shared" and not shared_auth_legacy_allowed():
+        raise AccountScopeDenied(
+            "Shared sessions are not allowed to access account-scoped holdings while Neon account enforcement is enabled."
+        )
+
+    rows = app_identity.load_membership_rows(pg_conn, principal=principal)
+    if not rows and principal.provider == "neon" and app_identity.bootstrap_personal_account(pg_conn, principal=principal):
+        rows = app_identity.load_membership_rows(pg_conn, principal=principal)
+
+    default_account_id, account_ids = _normalize_account_ids(rows)
+    if not account_ids:
+        raise AccountScopeProvisioningError(
+            f"No account memberships found for principal '{principal.subject}'."
+        )
+
+    return AccountScope(
+        enforced=True,
+        is_admin=bool(principal.is_admin),
+        subject=principal.subject,
+        default_account_id=default_account_id,
+        account_ids=account_ids,
+    )
+
+
+def validate_requested_account(scope: AccountScope, requested_account_id: str | None) -> str | None:
+    requested = str(requested_account_id or "").strip().lower() or None
+    if not scope.enforced:
+        return requested
+    if requested is None:
+        return None
+    if requested not in scope.account_ids:
+        raise AccountScopeDenied(f"Account '{requested}' is outside the authenticated scope.")
+    return requested

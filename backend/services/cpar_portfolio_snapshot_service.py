@@ -830,17 +830,28 @@ def _attach_risk_mix(
 def load_cpar_portfolio_account_context(
     *,
     account_id: str,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
-) -> tuple[dict[str, object], dict[str, object], list[dict[str, Any]]]:
+    ) -> tuple[dict[str, object], dict[str, object], list[dict[str, Any]]]:
     package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
+    normalized_allowed_account_ids = {
+        _normalize_account_id(account_id)
+        for account_id in (allowed_account_ids or [])
+        if _normalize_account_id(account_id)
+    }
+    normalized_account_id = _normalize_account_id(account_id)
+    if normalized_allowed_account_ids and normalized_account_id not in normalized_allowed_account_ids:
+        raise CparPortfolioAccountNotFound(f"Holdings account {account_id!r} was not found.")
 
     try:
-        accounts = holdings_reads.load_holdings_accounts()
-        positions = holdings_reads.load_holdings_positions(account_id=account_id)
+        accounts = holdings_reads.load_holdings_accounts(allowed_account_ids=allowed_account_ids)
+        positions = holdings_reads.load_holdings_positions(
+            account_id=account_id,
+            allowed_account_ids=allowed_account_ids,
+        )
     except holdings_reads.HoldingsReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(f"Holdings read failed: {exc}") from exc
 
-    normalized_account_id = _normalize_account_id(account_id)
     account = next(
         (row for row in accounts if _normalize_account_id(str(row.get("account_id") or "")) == normalized_account_id),
         None,
@@ -853,13 +864,14 @@ def load_cpar_portfolio_account_context(
 
 def load_cpar_portfolio_holdings_context(
     *,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, Any]]]:
     package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
 
     try:
-        accounts = holdings_reads.load_holdings_accounts()
-        live_positions = holdings_reads.load_all_holdings_positions()
+        accounts = holdings_reads.load_holdings_accounts(allowed_account_ids=allowed_account_ids)
+        live_positions = holdings_reads.load_all_holdings_positions(allowed_account_ids=allowed_account_ids)
     except holdings_reads.HoldingsReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(f"Holdings read failed: {exc}") from exc
 
@@ -874,13 +886,14 @@ def aggregate_cpar_positions_across_accounts(
 
 def load_cpar_portfolio_aggregate_context(
     *,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
 ) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, Any]]]:
     package = cpar_meta_service.require_specific_risk_package(data_db=data_db)
 
     try:
-        accounts = holdings_reads.load_contributing_holdings_accounts()
-        live_positions = holdings_reads.load_aggregate_holdings_positions()
+        accounts = holdings_reads.load_contributing_holdings_accounts(allowed_account_ids=allowed_account_ids)
+        live_positions = holdings_reads.load_aggregate_holdings_positions(allowed_account_ids=allowed_account_ids)
     except holdings_reads.HoldingsReadError as exc:
         raise cpar_meta_service.CparReadUnavailable(f"Holdings read failed: {exc}") from exc
 

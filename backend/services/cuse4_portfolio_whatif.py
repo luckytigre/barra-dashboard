@@ -38,7 +38,7 @@ class PortfolioWhatIfDependencies:
     current_payload_loader: Callable[[str], Any]
     runtime_cache_loader: Callable[[str], Any]
     live_cache_loader: Callable[[str], Any]
-    holdings_loader: Callable[[str | None], list[dict[str, Any]]]
+    holdings_loader: Callable[..., list[dict[str, Any]]]
     universe_loader: Callable[..., dict[str, Any]]
     covariance_loader: Callable[..., tuple[pd.DataFrame, bool]]
     specific_risk_loader: Callable[..., tuple[dict[str, dict[str, Any]], bool]]
@@ -252,9 +252,11 @@ def _normalize_scenario_rows(scenario_rows: list[dict[str, Any]]) -> list[dict[s
 def _build_holdings_snapshot(
     scenario_rows: list[dict[str, Any]],
     *,
-    holdings_loader: Callable[[str | None], list[dict[str, Any]]] = holdings_service.load_holdings_positions,
+    account_id: str | None = None,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
+    holdings_loader: Callable[..., list[dict[str, Any]]] = holdings_service.load_holdings_positions,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    live_rows = holdings_loader(account_id=None)
+    live_rows = holdings_loader(account_id=account_id, allowed_account_ids=allowed_account_ids)
     current_by_key: dict[str, dict[str, Any]] = {}
     for raw in live_rows:
         account_id = _normalize_account_id(raw.get("account_id"))
@@ -500,6 +502,8 @@ def _factor_delta_rows(
 def preview_portfolio_whatif(
     *,
     scenario_rows: list[dict[str, Any]],
+    account_id: str | None = None,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     dependencies: PortfolioWhatIfDependencies | None = None,
 ) -> dict[str, Any]:
     deps = dependencies or get_portfolio_whatif_dependencies()
@@ -551,6 +555,8 @@ def preview_portfolio_whatif(
     factor_coverage: dict[str, Any] = {}
     current_rows, hypothetical_rows, deltas = _build_holdings_snapshot(
         normalized_scenario_rows,
+        account_id=account_id,
+        allowed_account_ids=allowed_account_ids,
         holdings_loader=deps.holdings_loader,
     )
     current_preview = _build_preview_payload(

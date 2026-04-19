@@ -41,7 +41,7 @@ def test_account_context_maps_typed_holdings_failures_to_unavailable(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_holdings_accounts",
-        lambda: (_ for _ in ()).throw(cpar_portfolio_snapshot_service.holdings_reads.HoldingsReadError("neon unavailable")),
+        lambda **kwargs: (_ for _ in ()).throw(cpar_portfolio_snapshot_service.holdings_reads.HoldingsReadError("neon unavailable")),
     )
 
     with pytest.raises(cpar_meta_service.CparReadUnavailable, match="Holdings read failed"):
@@ -80,7 +80,7 @@ def test_account_context_does_not_swallow_unexpected_holdings_bugs(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_holdings_accounts",
-        lambda: (_ for _ in ()).throw(ValueError("bad holdings row shape")),
+        lambda **kwargs: (_ for _ in ()).throw(ValueError("bad holdings row shape")),
     )
 
     with pytest.raises(ValueError, match="bad holdings row shape"):
@@ -94,12 +94,12 @@ def test_account_context_matches_accounts_after_normalization(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_holdings_accounts",
-        lambda: [{"account_id": " ACCT_MAIN ", "account_name": "Main", "positions_count": 1}],
+        lambda **kwargs: [{"account_id": " ACCT_MAIN ", "account_name": "Main", "positions_count": 1}],
     )
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_holdings_positions",
-        lambda *, account_id: [{"account_id": "acct_main", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 1.0}],
+        lambda **kwargs: [{"account_id": "acct_main", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 1.0}],
     )
 
     package, account, positions = cpar_portfolio_snapshot_service.load_cpar_portfolio_account_context(
@@ -118,12 +118,12 @@ def test_holdings_context_preserves_raw_live_position_rows(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_holdings_accounts",
-        lambda: [{"account_id": "acct_a", "account_name": "Account A", "positions_count": 1}],
+        lambda **kwargs: [{"account_id": "acct_a", "account_name": "Account A", "positions_count": 1}],
     )
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_all_holdings_positions",
-        lambda: [{"account_id": "acct_a", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 10.0, "source": "seed", "updated_at": "2026-03-14T10:00:00Z"}],
+        lambda **kwargs: [{"account_id": "acct_a", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 10.0, "source": "seed", "updated_at": "2026-03-14T10:00:00Z"}],
     )
 
     package, accounts, live_positions = cpar_portfolio_snapshot_service.load_cpar_portfolio_holdings_context()
@@ -149,7 +149,7 @@ def test_aggregate_context_aggregates_positions_across_accounts(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_contributing_holdings_accounts",
-        lambda: [
+        lambda **kwargs: [
             {"account_id": "acct_a", "account_name": "Account A"},
             {"account_id": "acct_b", "account_name": "Account B"},
         ],
@@ -157,7 +157,7 @@ def test_aggregate_context_aggregates_positions_across_accounts(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_aggregate_holdings_positions",
-        lambda: [
+        lambda **kwargs: [
             {"account_id": "all_accounts", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 6.0, "source": "aggregate", "updated_at": "2026-03-14T11:00:00Z"},
             {"account_id": "all_accounts", "ric": "MSFT.OQ", "ticker": "MSFT", "quantity": 5.0, "source": "aggregate", "updated_at": "2026-03-14T09:00:00Z"},
         ],
@@ -194,11 +194,71 @@ def test_aggregate_context_maps_typed_holdings_failures_to_unavailable(
     monkeypatch.setattr(
         cpar_portfolio_snapshot_service.holdings_reads,
         "load_contributing_holdings_accounts",
-        lambda: (_ for _ in ()).throw(cpar_portfolio_snapshot_service.holdings_reads.HoldingsReadError("neon unavailable")),
+        lambda **kwargs: (_ for _ in ()).throw(cpar_portfolio_snapshot_service.holdings_reads.HoldingsReadError("neon unavailable")),
     )
 
     with pytest.raises(cpar_meta_service.CparReadUnavailable, match="Holdings read failed"):
         cpar_portfolio_snapshot_service.load_cpar_portfolio_aggregate_context()
+
+
+def test_holdings_context_forwards_allowed_account_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    def _accounts_loader(**kwargs):
+        captured["accounts_kwargs"] = dict(kwargs)
+        return []
+    def _positions_loader(**kwargs):
+        captured["positions_kwargs"] = dict(kwargs)
+        return []
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: _package())
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.holdings_reads,
+        "load_holdings_accounts",
+        _accounts_loader,
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.holdings_reads,
+        "load_all_holdings_positions",
+        _positions_loader,
+    )
+
+    cpar_portfolio_snapshot_service.load_cpar_portfolio_holdings_context(
+        allowed_account_ids=("acct_a", "acct_b"),
+    )
+
+    assert captured["accounts_kwargs"] == {"allowed_account_ids": ("acct_a", "acct_b")}
+    assert captured["positions_kwargs"] == {"allowed_account_ids": ("acct_a", "acct_b")}
+
+
+def test_aggregate_context_forwards_allowed_account_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    def _accounts_loader(**kwargs):
+        captured["accounts_kwargs"] = dict(kwargs)
+        return []
+    def _positions_loader(**kwargs):
+        captured["positions_kwargs"] = dict(kwargs)
+        return []
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: _package())
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.holdings_reads,
+        "load_contributing_holdings_accounts",
+        _accounts_loader,
+    )
+    monkeypatch.setattr(
+        cpar_portfolio_snapshot_service.holdings_reads,
+        "load_aggregate_holdings_positions",
+        _positions_loader,
+    )
+
+    cpar_portfolio_snapshot_service.load_cpar_portfolio_aggregate_context(
+        allowed_account_ids=("acct_a",),
+    )
+
+    assert captured["accounts_kwargs"] == {"allowed_account_ids": ("acct_a",)}
+    assert captured["positions_kwargs"] == {"allowed_account_ids": ("acct_a",)}
 
 
 def test_support_rows_map_typed_package_authority_failures_to_unavailable(

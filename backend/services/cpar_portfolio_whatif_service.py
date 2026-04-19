@@ -183,10 +183,12 @@ def load_cpar_portfolio_whatif_payload(
     account_id: str,
     mode: str,
     scenario_rows: list[dict[str, Any]],
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
 ) -> dict[str, object]:
     package, account, live_positions = cpar_portfolio_snapshot_service.load_cpar_portfolio_account_context(
         account_id=account_id,
+        allowed_account_ids=allowed_account_ids,
         data_db=data_db,
     )
     normalized_rows = _normalize_scenario_rows(

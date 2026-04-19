@@ -201,9 +201,11 @@ def build_cpar_risk_snapshot(
 
 def load_cpar_risk_payload(
     *,
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
 ) -> dict[str, object]:
     package, accounts, positions = cpar_portfolio_snapshot_service.load_cpar_portfolio_aggregate_context(
+        allowed_account_ids=allowed_account_ids,
         data_db=data_db,
     )
     rics = [str(row.get("ric") or "") for row in positions if str(row.get("ric") or "").strip()]

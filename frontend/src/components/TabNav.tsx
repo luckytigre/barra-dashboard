@@ -1,13 +1,16 @@
 "use client";
 
+import { createInternalNeonAuth } from "@neondatabase/auth";
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandLockup from "@/components/BrandLockup";
 import { useAppSettings } from "./AppSettingsContext";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import { useOperatorStatus } from "@/hooks/useCuse4Api";
 import { useOperatorTokenAvailable } from "@/hooks/useOperatorTokenAvailable";
 import { isPublicShellPath } from "@/lib/appAccess";
+import { clearStoredAuthTokens } from "@/lib/authTokens";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 
 const CUSE_TABS = [
@@ -59,6 +62,7 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 
 export default function TabNav() {
   const pathname = usePathname();
+  const { session, context, neonProjectUrl } = useAuthSession();
   const activePath = pathname || "";
   const isPublicShell = isPublicShellPath(activePath);
   const isPositionsPage = activePath === "/positions";
@@ -330,6 +334,12 @@ export default function TabNav() {
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    if (session?.authProvider === "neon" && neonProjectUrl) {
+      try {
+        await createInternalNeonAuth(neonProjectUrl).adapter.signOut();
+      } catch {}
+    }
+    clearStoredAuthTokens();
     window.location.assign("/");
   }
 
@@ -460,6 +470,15 @@ export default function TabNav() {
                   >
                     Global settings
                   </Link>
+                  {session?.isAdmin && context?.admin_settings_enabled !== false ? (
+                    <Link
+                      href="/settings/admin"
+                      className={`dash-dropdown-item${pathname === "/settings/admin" ? " active" : ""}`}
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      Admin settings
+                    </Link>
+                  ) : null}
                   <Link
                     href="/data"
                     className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}

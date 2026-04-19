@@ -352,7 +352,7 @@ export function useCparExploreScenarioLab({
       setScenarioDrafts({});
       setPreviewData(null);
       setShowResults(false);
-      setResultMessage(`Applied ${formatScenarioCount(payloadRows.length)} to shared holdings.`);
+      setResultMessage(`Applied ${formatScenarioCount(payloadRows.length)} to your holdings.`);
     } catch (error) {
       if (error instanceof ApiError) {
         setErrorMessage(typeof error.detail === "string" ? error.detail : error.message);

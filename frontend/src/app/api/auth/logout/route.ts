@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { APP_SESSION_COOKIE_NAME, clearedAppSessionCookieOptions } from "@/lib/appAuth";
+import { APP_SESSION_COOKIE_NAMES, clearedAppSessionCookieOptions } from "@/lib/appAuth";
 
 export async function POST() {
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(APP_SESSION_COOKIE_NAME, "", clearedAppSessionCookieOptions());
+  for (const cookieName of APP_SESSION_COOKIE_NAMES) {
+    res.cookies.set(cookieName, "", clearedAppSessionCookieOptions());
+  }
   return res;
 }

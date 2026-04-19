@@ -4,7 +4,7 @@
 // Prefer this over `@/hooks/useApi` in cUSE4-owned frontend code.
 
 import useSWR from "swr";
-import { ApiError, apiFetch } from "@/lib/apiTransport";
+import { ApiError, apiFetch, apiPrivilegedFetch } from "@/lib/apiTransport";
 import { cuse4ApiPath } from "@/lib/cuse4Api";
 import type {
   DataDiagnosticsData,
@@ -100,22 +100,22 @@ export function useUniverseFactors() {
 }
 
 export function useHealthDiagnostics(enabled = true) {
-  return useSWR<HealthDiagnosticsData>(enabled ? cuse4ApiPath.healthDiagnostics() : null, apiFetch, HEAVY_DIAGNOSTICS_OPTS);
+  return useSWR<HealthDiagnosticsData>(enabled ? cuse4ApiPath.healthDiagnostics() : null, apiPrivilegedFetch, HEAVY_DIAGNOSTICS_OPTS);
 }
 
 export function useDataDiagnostics(opts?: { includeExactRowCounts?: boolean; includeExpensiveChecks?: boolean }) {
-  return useSWR<DataDiagnosticsData>(cuse4ApiPath.dataDiagnostics(opts), apiFetch, HEAVY_DIAGNOSTICS_OPTS);
+  return useSWR<DataDiagnosticsData>(cuse4ApiPath.dataDiagnostics(opts), apiPrivilegedFetch, HEAVY_DIAGNOSTICS_OPTS);
 }
 
 export function useOperatorStatus(enabled = true) {
-  return useSWR<OperatorStatusData>(enabled ? cuse4ApiPath.operatorStatus() : null, apiFetch, {
+  return useSWR<OperatorStatusData>(enabled ? cuse4ApiPath.operatorStatus() : null, apiPrivilegedFetch, {
     ...SWR_OPTS,
     refreshInterval: operatorStatusRefreshInterval,
   });
 }
 
 export function useRefreshStatus(enabled = true) {
-  return useSWR<RefreshStatusData>(enabled ? cuse4ApiPath.refreshStatus() : null, apiFetch, {
+  return useSWR<RefreshStatusData>(enabled ? cuse4ApiPath.refreshStatus() : null, apiPrivilegedFetch, {
     ...SWR_OPTS,
     refreshInterval: refreshStatusRefreshInterval,
   });
@@ -126,7 +126,7 @@ export async function triggerRefreshProfile(profile: string): Promise<{
   message?: string;
   refresh?: RefreshStatusData["refresh"];
 }> {
-  return apiFetch(cuse4ApiPath.refreshProfile(profile), { method: "POST" });
+  return apiPrivilegedFetch(cuse4ApiPath.refreshProfile(profile), { method: "POST" });
 }
 
 export async function triggerServeRefresh(): Promise<{

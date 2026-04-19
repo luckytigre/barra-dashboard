@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const upstream = `${controlBackendOrigin()}/api/refresh${req.nextUrl.search}`;
   const res = await fetch(upstream, {
     method: "POST",
-    headers: await upstreamHeaders(req, upstream),
+    headers: await upstreamHeaders(req, upstream, {}, { forwardPrivilegedHeaders: true }),
     cache: "no-store",
   });
   const body = await res.text();

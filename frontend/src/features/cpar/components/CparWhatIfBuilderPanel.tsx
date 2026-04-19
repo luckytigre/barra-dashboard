@@ -114,7 +114,7 @@ export default function CparWhatIfBuilderPanel({
           <div className="whatif-builder-kicker">Scenario Lab</div>
           <h2 className="whatif-builder-title">Position What-If</h2>
           <div className="whatif-builder-subtitle">
-            Stage trade deltas, preview the hypothetical aggregate cPAR book, and apply shared holdings updates from the
+            Stage trade deltas, preview the hypothetical aggregate cPAR book, and apply holdings updates from the
             same explore surface.
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function CparWhatIfBuilderPanel({
             onClick={onApply}
             disabled={!applyReady}
             type="button"
-            title="Write staged rows to shared holdings"
+            title="Write staged rows to your holdings"
           >
             Apply
           </button>

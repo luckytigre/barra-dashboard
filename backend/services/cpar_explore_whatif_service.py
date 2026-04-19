@@ -346,9 +346,11 @@ def _preview_side(snapshot: dict[str, object]) -> dict[str, object]:
 def load_cpar_explore_whatif_payload(
     *,
     scenario_rows: list[dict[str, Any]],
+    allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     data_db=None,
 ) -> dict[str, object]:
     package, accounts, live_positions = cpar_portfolio_snapshot_service.load_cpar_portfolio_holdings_context(
+        allowed_account_ids=allowed_account_ids,
         data_db=data_db,
     )
     normalized_rows = _normalize_scenario_rows(

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppSettingsProvider } from "@/components/AppSettingsContext";
+import AuthSessionGate from "@/components/AuthSessionGate";
+import { AuthSessionProvider } from "@/components/AuthSessionContext";
 import { BackgroundProvider } from "@/components/BackgroundContext";
 import Neo2DotBackground from "@/components/Neo2DotBackground";
 import TabNav from "@/components/TabNav";
 import PageTransition from "@/components/PageTransition";
+import { appAuthProvider, neonAuthProjectUrl } from "@/lib/appAuth";
 
 const THEME_BOOTSTRAP = `
 (() => {
@@ -25,19 +28,25 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const provider = appAuthProvider();
+  const projectUrl = provider === "neon" ? neonAuthProjectUrl() : "";
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <body data-theme="dark">
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-        <AppSettingsProvider>
-          <BackgroundProvider>
-            <Neo2DotBackground />
-            <TabNav />
-            <main className="dash-main">
-              <PageTransition>{children}</PageTransition>
-            </main>
-          </BackgroundProvider>
-        </AppSettingsProvider>
+        <AuthSessionProvider neonProjectUrl={projectUrl}>
+          <AppSettingsProvider>
+            <BackgroundProvider>
+              <Neo2DotBackground />
+              <TabNav />
+              <main className="dash-main">
+                <AuthSessionGate>
+                  <PageTransition>{children}</PageTransition>
+                </AuthSessionGate>
+              </main>
+            </BackgroundProvider>
+          </AppSettingsProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

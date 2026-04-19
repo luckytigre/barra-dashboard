@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const upstream = `${controlBackendOrigin()}/api/refresh/status`;
   const res = await fetch(upstream, {
     method: "GET",
-    headers: await upstreamHeaders(req, upstream),
+    headers: await upstreamHeaders(req, upstream, {}, { forwardPrivilegedHeaders: true }),
     cache: "no-store",
   });
   const body = await res.text();

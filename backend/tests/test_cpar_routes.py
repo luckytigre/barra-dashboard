@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from backend.api.routes import cpar as cpar_routes
+from backend.data.account_scope import AccountScope
+from backend.data.account_scope import AccountScopeDenied
 
 
 def _test_app() -> FastAPI:
@@ -220,7 +222,7 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_risk_service,
         "load_cpar_risk_payload",
-        lambda: {
+        lambda **kwargs: {
             "package_run_id": "run_curr",
             "package_date": "2026-03-14",
             "scope": "all_accounts",
@@ -263,7 +265,7 @@ def test_cpar_risk_route_maps_not_ready_to_503(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_risk_service,
         "load_cpar_risk_payload",
-        lambda: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadNotReady("No successful cPAR package")),
+        lambda **kwargs: (_ for _ in ()).throw(cpar_routes.cpar_meta_service.CparReadNotReady("No successful cPAR package")),
     )
 
     client = TestClient(_test_app())
@@ -271,6 +273,56 @@ def test_cpar_risk_route_maps_not_ready_to_503(monkeypatch) -> None:
 
     assert res.status_code == 503
     assert res.json()["detail"]["status"] == "not_ready"
+
+
+def test_cpar_risk_route_forwards_allowed_account_ids_when_enforced(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    def _load_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "scope": "all_accounts",
+            "accounts_count": 2,
+            "portfolio_status": "ok",
+            "coverage_breakdown": {"covered": {"positions_count": 0, "gross_market_value": 0.0}},
+            "aggregate_display_loadings": [],
+            "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0},
+            "factor_variance_contributions": [],
+            "display_factor_variance_contributions": [],
+            "factor_chart": [],
+            "display_factor_chart": [],
+            "cov_matrix": {"factors": [], "correlation": []},
+            "display_cov_matrix": {"factors": [], "correlation": []},
+            "factor_variance_proxy": 0.0,
+            "idio_variance_proxy": 0.0,
+            "total_variance_proxy": 0.0,
+            "positions": [],
+        }
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main", "acct_alt"),
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_routes.cpar_risk_service,
+        "load_cpar_risk_payload",
+        _load_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/risk", headers={"X-App-Session-Token": "signed"})
+
+    assert res.status_code == 200
+    assert captured["kwargs"] == {"allowed_account_ids": ["acct_main", "acct_alt"]}
 
 
 def test_cpar_factor_history_route_returns_payload(monkeypatch) -> None:
@@ -536,6 +588,107 @@ def test_cpar_portfolio_whatif_route_maps_missing_account_to_404(monkeypatch) ->
     assert "acct_missing" in res.json()["detail"]
 
 
+def test_cpar_portfolio_whatif_route_rejects_account_outside_scope(monkeypatch) -> None:
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main",),
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_routes,
+        "validate_requested_account",
+        lambda scope, requested_account_id: (_ for _ in ()).throw(AccountScopeDenied("cpar what-if denied")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_other",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+    )
+
+    assert res.status_code == 403
+    assert "cpar what-if denied" in res.json()["detail"]
+
+
+def test_cpar_portfolio_whatif_route_forwards_allowed_account_ids(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    def _load_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {"scenario_rows": [], "current": {}, "hypothetical": {}, "holding_deltas": [], "diff": {}, "_preview_only": True}
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main", "acct_alt"),
+        ),
+    )
+    monkeypatch.setattr(cpar_routes, "validate_requested_account", lambda scope, requested_account_id: requested_account_id)
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_whatif_service,
+        "load_cpar_portfolio_whatif_payload",
+        _load_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/portfolio/whatif",
+        json={
+            "account_id": "acct_main",
+            "mode": "factor_neutral",
+            "scenario_rows": [{"ric": "AAPL.OQ", "ticker": "AAPL", "quantity_delta": 5.0}],
+        },
+        headers={"X-App-Session-Token": "signed"},
+    )
+
+    assert res.status_code == 200
+    assert captured["kwargs"]["allowed_account_ids"] == ["acct_main", "acct_alt"]
+
+
+def test_cpar_risk_route_scopes_admin_reads_to_membership_accounts(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=True,
+            subject="admin@example.com",
+            default_account_id="acct_admin",
+            account_ids=("acct_admin", "acct_alt"),
+        ),
+    )
+    def _load_cpar_risk_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(cpar_routes.cpar_risk_service, "load_cpar_risk_payload", _load_cpar_risk_payload)
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/risk", headers={"X-App-Session-Token": "signed"})
+
+    assert res.status_code == 200
+    assert captured["kwargs"]["allowed_account_ids"] == ["acct_admin", "acct_alt"]
+
+
 def test_cpar_portfolio_whatif_route_enforces_max_rows() -> None:
     client = TestClient(_test_app())
     res = client.post(
@@ -596,6 +749,78 @@ def test_cpar_explore_whatif_route_maps_validation_errors_to_400(monkeypatch) ->
     assert "non-zero" in res.json()["detail"]
 
 
+def test_cpar_explore_whatif_route_rejects_rows_outside_scope(monkeypatch) -> None:
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main",),
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_routes,
+        "validate_requested_account",
+        lambda scope, requested_account_id: (_ for _ in ()).throw(AccountScopeDenied("cpar explore denied")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/explore/whatif",
+        json={"scenario_rows": [{"account_id": "acct_other", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 5.0}]},
+    )
+
+    assert res.status_code == 403
+    assert "cpar explore denied" in res.json()["detail"]
+
+
+def test_cpar_explore_whatif_route_forwards_allowed_account_ids(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    def _load_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {
+            "scenario_rows": [],
+            "current": {"risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0}, "exposure_modes": {"raw": [], "sensitivity": [], "risk_contribution": []}, "positions": [], "factor_catalog": [], "position_count": 0, "total_value": 0.0, "scope": "all_accounts", "portfolio_status": "ok", "portfolio_reason": None},
+            "hypothetical": {"risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0}, "exposure_modes": {"raw": [], "sensitivity": [], "risk_contribution": []}, "positions": [], "factor_catalog": [], "position_count": 0, "total_value": 0.0, "scope": "all_accounts", "portfolio_status": "ok", "portfolio_reason": None},
+            "holding_deltas": [],
+            "diff": {"total_value": 0.0, "position_count": 0, "risk_shares": {"market": 0.0, "industry": 0.0, "style": 0.0, "idio": 0.0}, "factor_deltas": {"raw": [], "sensitivity": [], "risk_contribution": []}},
+            "_preview_only": True,
+        }
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main",),
+        ),
+    )
+    monkeypatch.setattr(cpar_routes, "validate_requested_account", lambda scope, requested_account_id: requested_account_id)
+    monkeypatch.setattr(
+        cpar_routes.cpar_explore_whatif_service,
+        "load_cpar_explore_whatif_payload",
+        _load_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.post(
+        "/api/cpar/explore/whatif",
+        json={"scenario_rows": [{"account_id": "acct_main", "ric": "AAPL.OQ", "ticker": "AAPL", "quantity": 5.0}]},
+        headers={"X-App-Session-Token": "signed"},
+    )
+
+    assert res.status_code == 200
+    assert captured["kwargs"]["allowed_account_ids"] == ["acct_main"]
+
+
 def test_cpar_portfolio_hedge_route_returns_payload(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_portfolio_hedge_service,
@@ -650,6 +875,45 @@ def test_cpar_portfolio_hedge_route_returns_payload(monkeypatch) -> None:
     assert res.json()["positions"][0]["thresholded_contributions"][0]["factor_id"] == "SPY"
 
 
+def test_cpar_portfolio_hedge_route_scopes_admin_reads_to_membership_accounts(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=True,
+            subject="admin@example.com",
+            default_account_id="acct_admin",
+            account_ids=("acct_admin", "acct_alt"),
+        ),
+    )
+    monkeypatch.setattr(cpar_routes, "validate_requested_account", lambda scope, requested_account_id: requested_account_id)
+    def _load_cpar_portfolio_hedge_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {
+            "account_id": kwargs["account_id"],
+            "mode": kwargs["mode"],
+            "coverage_breakdown": {},
+            "factor_variance_contributions": [],
+            "positions": [],
+        }
+
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_hedge_service,
+        "load_cpar_portfolio_hedge_payload",
+        _load_cpar_portfolio_hedge_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/portfolio/hedge?account_id=acct_admin&mode=factor_neutral", headers={"X-App-Session-Token": "signed"})
+
+    assert res.status_code == 200
+    assert captured["kwargs"]["allowed_account_ids"] == ["acct_admin", "acct_alt"]
+
+
 def test_cpar_portfolio_hedge_route_maps_not_ready_to_503(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_portfolio_hedge_service,
@@ -698,6 +962,74 @@ def test_cpar_portfolio_hedge_route_maps_missing_account_to_404(monkeypatch) -> 
 
     assert res.status_code == 404
     assert "account missing" in res.json()["detail"]
+
+
+def test_cpar_portfolio_hedge_route_rejects_account_outside_scope(monkeypatch) -> None:
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main",),
+        ),
+    )
+    monkeypatch.setattr(
+        cpar_routes,
+        "validate_requested_account",
+        lambda scope, requested_account_id: (_ for _ in ()).throw(AccountScopeDenied("cpar hedge denied")),
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/portfolio/hedge?account_id=acct_other")
+
+    assert res.status_code == 403
+    assert "cpar hedge denied" in res.json()["detail"]
+
+
+def test_cpar_portfolio_hedge_route_forwards_allowed_account_ids(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    def _load_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {
+            "account_id": kwargs["account_id"],
+            "mode": kwargs["mode"],
+            "portfolio_status": "ok",
+            "coverage_breakdown": {"covered": {"positions_count": 0, "gross_market_value": 0.0}},
+            "factor_variance_contributions": [],
+            "positions": [],
+        }
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_main",
+            account_ids=("acct_main", "acct_alt"),
+        ),
+    )
+    monkeypatch.setattr(cpar_routes, "validate_requested_account", lambda scope, requested_account_id: requested_account_id)
+    monkeypatch.setattr(
+        cpar_routes.cpar_portfolio_hedge_service,
+        "load_cpar_portfolio_hedge_payload",
+        _load_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.get(
+        "/api/cpar/portfolio/hedge?account_id=acct_main&mode=factor_neutral",
+        headers={"X-App-Session-Token": "signed"},
+    )
+
+    assert res.status_code == 200
+    assert captured["kwargs"]["allowed_account_ids"] == ["acct_main", "acct_alt"]
 
 
 def test_router_registry_includes_cpar_router() -> None:

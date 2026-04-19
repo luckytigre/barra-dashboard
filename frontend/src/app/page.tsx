@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { Instrument_Serif } from "next/font/google";
 import BrandLockup from "@/components/BrandLockup";
 import LandingBackgroundLock from "@/components/LandingBackgroundLock";
-import { readSessionFromCookieStore } from "@/lib/appAuth";
+import { appAuthProvider, readSessionFromCookieStore } from "@/lib/appAuth";
 
 const instrumentSerif = Instrument_Serif({
   weight: "400",
@@ -16,20 +16,20 @@ const RISK_ENGINES = [
     step: "01",
     name: "cUSE",
     title: "Barra-style equity risk",
-    imageSrc: "/intro/cpar.jpg",
+    imageSrc: "/intro/cuse.jpg",
     body: "cUSE is the descriptor-native engine. It estimates exposures from company characteristics, industry structure, and orthogonalized style descriptors so the platform can explain portfolio risk in a stable, interpretable factor language.",
   },
   {
     step: "02",
     name: "cPAR",
     title: "Returns-based equity risk",
-    imageSrc: "/intro/cuse.jpg",
+    imageSrc: "/intro/cpar.jpg",
     body: "cPAR is the tradable proxy engine. It fits market, sector, and style sleeves in residualized ETF space so you can read incremental risk clearly and move directly from diagnosis to hedgeable action.",
   },
   {
     step: "03",
     name: "cMAC",
-    title: "cMAC | Multi-asset macro risk",
+    title: "Multi-asset macro risk",
     imageSrc: "/intro/cmac.jpg",
     body: "cMAC is the forthcoming macro layer. It will extend the platform beyond single-book factor diagnosis by framing exposures against rates, inflation, growth, credit, and liquidity regimes that shape how portfolio risk transmits through the broader market.",
   },
@@ -43,9 +43,9 @@ const MODEL_COMPARISON = [
     subtitle: "Barra-Style US Equity Model",
     accentClass: "public-model-panel-title-cuse",
     metrics: [
-      { value: "2.98K", label: "Core names", note: "core-estimated" },
+      { value: "3K+", label: "Core universe", note: "core-estimated" },
       { value: "45", label: "Live factors", note: "14 style" },
-      { value: "7d", label: "Core cadence", note: "weekly rebuild" },
+      { value: "30", label: "Industry groups", note: "business sectors" },
     ],
     readsFrom: "Barra USE4 lineage, but narrowed to a smaller live factor set, a tighter industry list, and style blocks that are orthogonalized in a clean dependency order",
     bestFor: "The model gives up breadth and institutional granularity so the factor language stays interpretable, maintainable, and harder to overfit in day-to-day use",
@@ -56,12 +56,12 @@ const MODEL_COMPARISON = [
     key: "cpar",
     folio: "Returns-Based Model",
     label: "cPAR",
-    subtitle: "Parsimonious and Actionable Regression",
+    subtitle: "Returns-Based Equity Model",
     accentClass: "public-model-panel-title-cpar",
     metrics: [
-      { value: "3.23K", label: "Fitted names", note: "active package" },
+      { value: "3K+", label: "Fitted universe", note: "active package" },
       { value: "17", label: "ETF proxies", note: "SPY + sector + style" },
-      { value: "52", label: "Weekly returns", note: "53 anchors" },
+      { value: "52", label: "Weekly bars", note: "one-year window" },
     ],
     readsFrom: "A fixed registry of real ETF proxies: SPY, sector sleeves, and a short list of style ETFs, with non-market sleeves orthogonalized to market before the fit",
     bestFor: "Returns-based breadth and direct hedgeability without inventing bespoke factor portfolios, plus one-shot weekly ridge to keep the fit stable instead of chasing noise",
@@ -72,13 +72,13 @@ const MODEL_COMPARISON = [
 
 export default async function PublicLandingPage() {
   const cookieStore = await cookies();
-  const session = await readSessionFromCookieStore(cookieStore);
+  const session = await readSessionFromCookieStore(cookieStore, undefined, { expectedProvider: appAuthProvider() });
   const appHref = session ? "/home" : "/login";
 
   return (
     <>
       <LandingBackgroundLock bodyClassName="public-topo-boost" />
-      <header className="dash-tabs">
+      <header className="dash-tabs dash-tabs-landing">
         <div className="dash-tabs-brand-cluster">
           <BrandLockup
             href="/"
@@ -149,7 +149,7 @@ export default async function PublicLandingPage() {
 
             <section className="public-model-compare" aria-label="How the models read risk">
               <div className="public-model-compare-header">
-                <span className="public-model-compare-folio">01 · MODEL PHILOSOPHY</span>
+                <span className="public-model-compare-folio">MODEL PHILOSOPHY</span>
                 <div className="public-model-compare-intro-block">
                   <h2 className="public-model-compare-display">Simpler by design</h2>
                   <p className="public-model-compare-intro">
