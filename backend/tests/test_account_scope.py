@@ -194,6 +194,19 @@ def test_resolve_account_scope_bootstraps_neon_principal_when_enabled(monkeypatc
     assert scope.account_ids == ("acct_new",)
 
 
+def test_resolve_account_scope_raises_explicit_bootstrap_disabled_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(account_scope.config, "APP_ACCOUNT_ENFORCEMENT_ENABLED", True)
+    monkeypatch.setattr(account_scope.app_identity, "load_membership_rows", lambda _conn, *, principal: [])
+    monkeypatch.setattr(account_scope.app_identity, "bootstrap_personal_account", lambda _conn, *, principal: False)
+    monkeypatch.setattr(account_scope.app_identity, "auth_bootstrap_enabled", lambda: False)
+
+    with pytest.raises(account_scope.AccountScopeBootstrapDisabled, match="bootstrap is disabled"):
+        account_scope.resolve_account_scope(
+            _FakeConn([]),
+            principal=AppPrincipal(provider="neon", subject="auth0|friend", is_admin=False, email="friend@example.com"),
+        )
+
+
 def test_validate_requested_account_denies_outside_scope() -> None:
     scope = account_scope.AccountScope(
         enforced=True,

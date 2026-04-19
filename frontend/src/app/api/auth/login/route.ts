@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
 
   let token = await createSessionToken(session);
   const returnTo = normalizeReturnTo(payload?.returnTo);
+  const sessionCookieOptions = appSessionCookieOptions(session.expiresAt);
   let context = null;
   try {
     context = await fetchAppAuthContext(req, {
@@ -61,17 +62,21 @@ export async function POST(req: NextRequest) {
           : "Could not initialize your Ceiora account.";
       const status = error instanceof AppAuthContextError ? error.status : 503;
       const code = error instanceof AppAuthContextError ? error.code : null;
-      return NextResponse.json(
+      const res = NextResponse.json(
         { detail: { message, code: code ?? (status === 409 ? "account_provisioning_required" : null) } },
         { status },
       );
+      res.cookies.set(APP_SESSION_COOKIE_NAME, token, sessionCookieOptions);
+      return res;
     }
   }
   if (provider === "neon" && !context) {
-    return NextResponse.json(
+    const res = NextResponse.json(
       { detail: { message: "Could not initialize your Ceiora account.", code: "account_context_unavailable" } },
       { status: 503 },
     );
+    res.cookies.set(APP_SESSION_COOKIE_NAME, token, sessionCookieOptions);
+    return res;
   }
   if (provider === "neon") {
     session.defaultAccountId = context?.default_account_id ?? null;
@@ -91,6 +96,6 @@ export async function POST(req: NextRequest) {
     },
     context,
   });
-  res.cookies.set(APP_SESSION_COOKIE_NAME, token, appSessionCookieOptions(session.expiresAt));
+  res.cookies.set(APP_SESSION_COOKIE_NAME, token, sessionCookieOptions);
   return res;
 }

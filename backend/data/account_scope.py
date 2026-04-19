@@ -21,6 +21,10 @@ class AccountScopeProvisioningError(AccountScopeError):
     """Raised when a principal cannot be mapped into app account memberships."""
 
 
+class AccountScopeBootstrapDisabled(AccountScopeProvisioningError):
+    """Raised when Neon login works but automatic personal-account bootstrap is off."""
+
+
 class AccountScopeDenied(AccountScopeError):
     """Raised when a principal asks for an account outside its allowed scope."""
 
@@ -79,8 +83,13 @@ def resolve_account_scope(pg_conn, *, principal: AppPrincipal | None) -> Account
         )
 
     rows = app_identity.load_membership_rows(pg_conn, principal=principal)
-    if not rows and principal.provider == "neon" and app_identity.bootstrap_personal_account(pg_conn, principal=principal):
-        rows = app_identity.load_membership_rows(pg_conn, principal=principal)
+    if not rows and principal.provider == "neon":
+        if app_identity.bootstrap_personal_account(pg_conn, principal=principal):
+            rows = app_identity.load_membership_rows(pg_conn, principal=principal)
+        elif not app_identity.auth_bootstrap_enabled():
+            raise AccountScopeBootstrapDisabled(
+                f"No account memberships found for principal '{principal.subject}'; automatic personal workspace bootstrap is disabled."
+            )
 
     default_account_id, account_ids = _normalize_account_ids(rows)
     if not account_ids:

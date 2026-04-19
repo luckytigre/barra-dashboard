@@ -85,12 +85,19 @@ function formatNeonLoginError(mode: "signin" | "signup", error: unknown, code?: 
   if (code === "account_context_unavailable") {
     return "Your Neon identity is valid, but Ceiora could not load your account context.";
   }
+  if (code === "account_bootstrap_disabled") {
+    return "Neon sign-in is working, but automatic personal workspace creation is disabled right now.";
+  }
   if (message) return message;
   return mode === "signup" ? "Could not create account." : "Could not sign in.";
 }
 
 function shouldPreserveNeonIdentity(code: string | null | undefined): boolean {
-  return code === "account_provisioning_required" || code === "account_context_unavailable";
+  return (
+    code === "account_provisioning_required" ||
+    code === "account_context_unavailable" ||
+    code === "account_bootstrap_disabled"
+  );
 }
 
 function LoginPageInner({ provider, authConfigured, neonProjectUrl, sharedLoginAllowed }: LoginClientProps) {
@@ -299,6 +306,8 @@ function LoginShell({
       ? "Your last session no longer has a usable Ceiora account context. Sign in again to restore your workspace."
       : routeError === "account_provisioning_required"
         ? "Your Neon identity is valid, but Ceiora is still preparing your personal workspace."
+      : routeError === "account_bootstrap_disabled"
+        ? "Neon sign-in is working, but automatic personal workspace creation is disabled right now."
       : routeError === "session_expired"
         ? "Your previous session is no longer valid. Sign in again to continue."
       : "";
@@ -400,11 +409,17 @@ function LoginShell({
                   {configError
                     ? "App auth is not configured yet."
                     : !neonConfigured
-                      ? "Neon Auth project URL is not configured."
+                      ? "Neon Auth base URL is not configured."
                       : errorMessage || routeErrorMessage}
-                  {provider === "neon" && (errorCode === "account_provisioning_required" || routeError === "account_provisioning_required") ? (
+                  {provider === "neon" &&
+                  (errorCode === "account_provisioning_required" ||
+                    routeError === "account_provisioning_required" ||
+                    errorCode === "account_bootstrap_disabled" ||
+                    routeError === "account_bootstrap_disabled") ? (
                     <div className="public-login-error-note">
-                      Ceiora creates your personal workspace automatically on first sign-in.
+                      {errorCode === "account_bootstrap_disabled" || routeError === "account_bootstrap_disabled"
+                        ? "Ask the operator to enable personal-account bootstrap before trying again."
+                        : "Ceiora creates your personal workspace automatically on first sign-in."}
                     </div>
                   ) : null}
                 </div>

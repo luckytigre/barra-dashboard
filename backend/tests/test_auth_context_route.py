@@ -77,7 +77,33 @@ def test_auth_context_surfaces_scope_error(monkeypatch) -> None:
     res = client.get("/api/auth/context", headers={"X-App-Session-Token": "signed"})
 
     assert res.status_code == 409
-    assert res.json()["detail"] == "No account memberships found."
+    assert res.json()["detail"] == {
+        "message": "No account memberships found.",
+        "code": "account_provisioning_required",
+    }
+
+
+def test_auth_context_surfaces_bootstrap_disabled_code(monkeypatch) -> None:
+    monkeypatch.setattr(
+        auth_context_route,
+        "_resolve_auth_scope",
+        lambda **kwargs: (_ for _ in ()).throw(
+            auth_context_route.AccountScopeBootstrapDisabled(
+                "No account memberships found for principal 'auth0|friend'; automatic personal workspace bootstrap is disabled."
+            )
+        ),
+    )
+
+    app = create_app(surface="full")
+    client = TestClient(app)
+
+    res = client.get("/api/auth/context", headers={"X-App-Session-Token": "signed"})
+
+    assert res.status_code == 409
+    assert res.json()["detail"] == {
+        "message": "No account memberships found for principal 'auth0|friend'; automatic personal workspace bootstrap is disabled.",
+        "code": "account_bootstrap_disabled",
+    }
 
 
 def test_auth_context_denies_shared_admin_when_legacy_disabled(monkeypatch) -> None:

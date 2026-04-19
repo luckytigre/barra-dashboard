@@ -7,7 +7,7 @@ import { useAuthSession } from "@/components/AuthSessionContext";
 
 export default function AuthSessionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { loading, authenticated, error, refresh } = useAuthSession();
+  const { loading, authenticated, error, contextErrorCode, refresh } = useAuthSession();
   const protectedPage = Boolean(pathname && isProtectedPagePath(pathname));
 
   if (!protectedPage) return <>{children}</>;
@@ -27,11 +27,23 @@ export default function AuthSessionGate({ children }: { children: React.ReactNod
   }
 
   if (error) {
+    const title =
+      contextErrorCode === "account_provisioning_required"
+        ? "Your workspace is still being prepared."
+        : contextErrorCode === "account_bootstrap_disabled"
+          ? "Automatic workspace creation is disabled."
+        : "This session needs attention.";
+    const folio =
+      contextErrorCode === "account_provisioning_required"
+        ? "Workspace provisioning"
+        : contextErrorCode === "account_bootstrap_disabled"
+          ? "Workspace setup blocked"
+        : "Account context unavailable";
     return (
       <div className="auth-session-gate">
         <div className="auth-session-gate-shell">
-          <span className="auth-session-gate-folio">Account context unavailable</span>
-          <h2 className="auth-session-gate-title">This session needs attention.</h2>
+          <span className="auth-session-gate-folio">{folio}</span>
+          <h2 className="auth-session-gate-title">{title}</h2>
           <p className="auth-session-gate-copy">{error}</p>
           <div className="auth-session-gate-actions">
             <button

@@ -14,7 +14,11 @@ function clearSessionCookies(res: NextResponse): NextResponse {
 }
 
 function shouldPreserveNeonSession(code: string | null | undefined): boolean {
-  return code === "account_provisioning_required" || code === "account_context_unavailable";
+  return (
+    code === "account_provisioning_required" ||
+    code === "account_context_unavailable" ||
+    code === "account_bootstrap_disabled"
+  );
 }
 
 function backendOrigin(): string {

@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createLocalJWKSet, createRemoteJWKSet, jwtVerify, type JWK } from "jose";
 
 export const APP_SESSION_COOKIE_NAME = "__session";
 const LEGACY_APP_SESSION_COOKIE_NAMES = ["ceiora-app-session", "ceiora.app-session"] as const;
@@ -34,6 +34,7 @@ interface AuthConfig {
   secret: string;
   neonIssuer: string;
   neonJwksUrl: string;
+  neonJwksJson: string;
   neonAudience: string;
   neonProjectUrl: string;
   neonAllowedIdentities: string[];
@@ -75,6 +76,9 @@ function authConfig(): AuthConfig {
   const password = String(process.env.CEIORA_SHARED_LOGIN_PASSWORD || "").trim();
   const secret = String(process.env.CEIORA_SESSION_SECRET || "").trim();
   const primaryUsername = String(process.env.CEIORA_PRIMARY_ACCOUNT_USERNAME || username).trim() || username;
+  const neonProjectUrl =
+    String(process.env.NEON_AUTH_BASE_URL || "").trim() ||
+    String(process.env.NEON_AUTH_PROJECT_URL || "").trim();
   return {
     provider,
     username,
@@ -83,8 +87,9 @@ function authConfig(): AuthConfig {
     secret,
     neonIssuer: String(process.env.NEON_AUTH_ISSUER || "").trim(),
     neonJwksUrl: String(process.env.NEON_AUTH_JWKS_URL || "").trim(),
+    neonJwksJson: String(process.env.NEON_AUTH_JWKS_JSON || "").trim(),
     neonAudience: String(process.env.NEON_AUTH_AUDIENCE || "").trim(),
-    neonProjectUrl: String(process.env.NEON_AUTH_PROJECT_URL || "").trim(),
+    neonProjectUrl,
     neonAllowedIdentities: String(process.env.NEON_AUTH_ALLOWED_EMAILS || "")
       .split(",")
       .map((part) => part.trim().toLowerCase())
@@ -124,8 +129,9 @@ export function authConfigMissingKeys(): string[] {
     if (!cfg.password) missing.push("CEIORA_SHARED_LOGIN_PASSWORD");
   } else {
     if (!cfg.neonIssuer) missing.push("NEON_AUTH_ISSUER");
-    if (!cfg.neonJwksUrl) missing.push("NEON_AUTH_JWKS_URL");
-    if (!cfg.neonProjectUrl) missing.push("NEON_AUTH_PROJECT_URL");
+    if (!cfg.neonJwksUrl && !cfg.neonJwksJson) missing.push("NEON_AUTH_JWKS_URL or NEON_AUTH_JWKS_JSON");
+    if (!cfg.neonProjectUrl) missing.push("NEON_AUTH_BASE_URL");
+    if (cfg.neonAllowedIdentities.length === 0) missing.push("NEON_AUTH_ALLOWED_EMAILS");
   }
   if (!cfg.secret) {
     missing.push("CEIORA_SESSION_SECRET");
@@ -162,6 +168,7 @@ export async function authenticateSharedLogin(username: string, password: string
 }
 
 const jwksByUrl = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+const localJwksByValue = new Map<string, ReturnType<typeof createLocalJWKSet>>();
 
 function normalizeIdentity(value: string | null | undefined): string | null {
   const clean = String(value || "").trim().toLowerCase();
@@ -176,6 +183,15 @@ function remoteJwks(url: string) {
   return jwks;
 }
 
+function localJwks(raw: string) {
+  const cached = localJwksByValue.get(raw);
+  if (cached) return cached;
+  const parsed = JSON.parse(raw) as JWK | { keys: JWK[] };
+  const jwks = createLocalJWKSet("keys" in parsed ? parsed : { keys: [parsed] });
+  localJwksByValue.set(raw, jwks);
+  return jwks;
+}
+
 export async function authenticateNeonLogin(idToken: string): Promise<AppSession | null> {
   const cfg = authConfig();
   if (cfg.provider !== "neon" || !cfg.secret || !cfg.neonIssuer || !cfg.neonJwksUrl) return null;
@@ -185,7 +201,8 @@ export async function authenticateNeonLogin(idToken: string): Promise<AppSession
 
   const verifyOptions: { issuer: string; audience?: string } = { issuer: cfg.neonIssuer };
   if (cfg.neonAudience) verifyOptions.audience = cfg.neonAudience;
-  const { payload } = await jwtVerify(token, remoteJwks(cfg.neonJwksUrl), verifyOptions);
+  const jwks = cfg.neonJwksJson ? localJwks(cfg.neonJwksJson) : remoteJwks(cfg.neonJwksUrl);
+  const { payload } = await jwtVerify(token, jwks, verifyOptions);
 
   const subject = String(payload.sub || "").trim();
   const email = String(payload.email || "").trim();

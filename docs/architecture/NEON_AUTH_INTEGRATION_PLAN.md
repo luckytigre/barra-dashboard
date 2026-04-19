@@ -71,10 +71,15 @@ New auth/provider envs must be defined explicitly rather than implied:
 - `APP_SHARED_AUTH_ACCEPT_LEGACY=true|false`
 - `NEON_AUTH_ISSUER`
 - `NEON_AUTH_JWKS_URL`
-- `NEON_AUTH_PROJECT_URL`
+- `NEON_AUTH_BASE_URL`
 - `NEON_AUTH_ALLOWED_EMAILS` or equivalent allowlist/invite config
 - `NEON_AUTH_BOOTSTRAP_ADMINS`
 - local-dev callback/origin settings
+
+For the initial friend-scale rollout, treat these as required operational contracts:
+
+- `NEON_AUTH_ALLOWED_EMAILS` must be non-empty
+- `APP_AUTH_BOOTSTRAP_ENABLED` must be `true` whenever `APP_ACCOUNT_ENFORCEMENT_ENABLED=true`
 
 ## Non-Goals
 
@@ -155,6 +160,9 @@ Frontend:
 - provider-seamed auth/session in [frontend/src/lib/appAuth.ts](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/frontend/src/lib/appAuth.ts)
 - protected route map in [frontend/src/lib/appAccess.ts](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/frontend/src/lib/appAccess.ts)
 - `/login` is provider-owned and can run either shared or Neon flows
+- Neon login/session now preserves an authenticated-but-unready state for provisioning/account-context errors instead of collapsing immediately into a generic signed-out state
+- Neon friend-onboarding assumes a non-empty allowlist and automatic personal-account bootstrap
+- account-context failures now distinguish generic provisioning from `account_bootstrap_disabled`
 - protected Neon page admission checks live `/api/auth/context` instead of trusting only cached cookie account state
 - browser-held operator tokens remain only for explicit maintenance/control routes in admin settings
 - app-facing holdings and what-if mutation proxies no longer forward privileged tokens by default

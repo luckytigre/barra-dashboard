@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from backend import config
 from backend.api.auth import parse_app_principal
 from backend.data.account_scope import AccountScopeAuthRequired
+from backend.data.account_scope import AccountScopeBootstrapDisabled
 from backend.data.account_scope import AccountScopeDenied
 from backend.data.account_scope import AccountScopeProvisioningError
 from backend.data.account_scope import account_enforcement_enabled
@@ -34,8 +35,16 @@ def _raise_scope_error(exc: Exception) -> None:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
     if isinstance(exc, AccountScopeDenied):
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if isinstance(exc, AccountScopeBootstrapDisabled):
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "code": "account_bootstrap_disabled"},
+        ) from exc
     if isinstance(exc, AccountScopeProvisioningError):
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(exc), "code": "account_provisioning_required"},
+        ) from exc
     raise exc
 
 

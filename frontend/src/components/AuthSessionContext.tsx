@@ -32,6 +32,7 @@ type AuthSessionState = {
   authenticated: boolean;
   session: AppSessionPayload | null;
   context: AppAuthContextPayload | null;
+  contextErrorCode: string | null;
   neonProjectUrl: string;
   error: string | null;
   refresh: () => Promise<void>;
@@ -42,6 +43,7 @@ const AuthSessionContext = createContext<AuthSessionState>({
   authenticated: false,
   session: null,
   context: null,
+  contextErrorCode: null,
   neonProjectUrl: "",
   error: null,
   refresh: async () => {},
@@ -67,6 +69,7 @@ async function loadSessionState() {
     authenticated: boolean;
     session?: AppSessionPayload;
     context?: AppAuthContextPayload | null;
+    contextError?: { message?: string; code?: string | null } | null;
   };
 }
 
@@ -76,6 +79,7 @@ export function AuthSessionProvider({ children, neonProjectUrl = "" }: { childre
   const [authenticated, setAuthenticated] = useState(false);
   const [session, setSession] = useState<AppSessionPayload | null>(null);
   const [context, setContext] = useState<AppAuthContextPayload | null>(null);
+  const [contextErrorCode, setContextErrorCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [booted, setBooted] = useState(false);
 
@@ -86,12 +90,14 @@ export function AuthSessionProvider({ children, neonProjectUrl = "" }: { childre
       setAuthenticated(Boolean(payload.authenticated));
       setSession(payload.authenticated ? payload.session ?? null : null);
       setContext(payload.authenticated ? payload.context ?? null : null);
-      setError(null);
+      setContextErrorCode(payload.authenticated ? payload.contextError?.code ?? null : null);
+      setError(payload.authenticated ? payload.contextError?.message ?? null : null);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Session service unavailable.";
       setAuthenticated(false);
       setSession(null);
       setContext(null);
+      setContextErrorCode(null);
       setError(message || "Session service unavailable.");
     } finally {
       setLoading(false);
@@ -105,6 +111,7 @@ export function AuthSessionProvider({ children, neonProjectUrl = "" }: { childre
       setAuthenticated(false);
       setSession(null);
       setContext(null);
+      setContextErrorCode(null);
       setError(null);
       return;
     }
@@ -119,8 +126,8 @@ export function AuthSessionProvider({ children, neonProjectUrl = "" }: { childre
   }, [pathname, refresh]);
 
   const value = useMemo(
-    () => ({ loading, authenticated, session, context, neonProjectUrl, error, refresh }),
-    [authenticated, context, error, loading, neonProjectUrl, refresh, session],
+    () => ({ loading, authenticated, session, context, contextErrorCode, neonProjectUrl, error, refresh }),
+    [authenticated, context, contextErrorCode, error, loading, neonProjectUrl, refresh, session],
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;
