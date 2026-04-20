@@ -16,6 +16,14 @@ resource "google_cloud_run_v2_service" "frontend" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
+  # Cloud Run v2 persists service-level zero-instance automatic scaling in
+  # Terraform state separately from revision max-scale. Declare the zero values
+  # explicitly so Terraform converges instead of planning a null reset.
+  scaling {
+    min_instance_count    = 0
+    manual_instance_count = 0
+  }
+
   template {
     service_account = module.service_accounts.email_by_key["frontend"]
     timeout         = "300s"
@@ -155,6 +163,11 @@ resource "google_cloud_run_v2_service" "serve" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
+  scaling {
+    min_instance_count    = 0
+    manual_instance_count = 0
+  }
+
   template {
     service_account = module.service_accounts.email_by_key["serve"]
     timeout         = "300s"
@@ -284,6 +297,11 @@ resource "google_cloud_run_v2_service" "control" {
   project  = var.project_id
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
+
+  scaling {
+    min_instance_count    = 0
+    manual_instance_count = 0
+  }
 
   template {
     service_account = module.service_accounts.email_by_key["control"]

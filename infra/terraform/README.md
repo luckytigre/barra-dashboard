@@ -127,6 +127,7 @@ Observability prep owned here:
 Important Cloud Run billing rule:
 - when a service defines `template.containers.resources`, set `cpu_idle = true` explicitly to preserve request-based billing
 - direct `gcloud run deploy` workflows must also pass `--cpu-throttling`, or the live service can drift back to instance-based billing
+- Cloud Run v2 also persists a separate service-level `scaling` block in Terraform state; keep `scaling { min_instance_count = 0, manual_instance_count = 0 }` explicit on the services while leaving `template.scaling.max_instance_count` as the max-scale owner
 - rollout verification should include `terraform plan`, `make cloud-request-billing-check`, `make smoke-check`, and either `RUN_REFRESH_DISPATCH=1 make operator-check` or `TOPOLOGY_CHECK_RUN_REFRESH_DISPATCH=1 make cloud-topology-check`
 - for config-only Terraform changes in production, pin `frontend_image_ref`, `serve_image_ref`, and `control_image_ref` to the currently deployed image refs so the plan does not drift to `:latest`
 
