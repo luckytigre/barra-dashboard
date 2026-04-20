@@ -220,13 +220,13 @@ The dashboard should stay thin. Each page should read one of a small number of s
 
 Canonical page-to-backend wiring:
 - `Risk` (`/cuse/exposures`)
-  - reads: `/api/exposures`, `/api/risk`, `/api/portfolio`
+  - reads: `/api/cuse/risk-page` for summary-first render, `/api/cuse/risk-page/exposure-mode?mode=...` for non-raw tabs on demand, `/api/cuse/risk-page/covariance` only when the heatmap scrolls into view, then `/api/exposures/history` for factor drilldown history on demand
   - purpose: factor-level portfolio views plus portfolio risk split and per-position drilldown
 - `Explore` (`/cuse/explore`)
-  - reads: `/api/universe/search`, `/api/universe/ticker/{ticker}`, `/api/universe/ticker/{ticker}/history`, `/api/universe/factors`, `/api/portfolio`, `/api/portfolio/whatif`
+  - reads: `/api/universe/search`, `/api/universe/ticker/{ticker}`, `/api/universe/ticker/{ticker}/history`, `/api/universe/factors`, `/api/cuse/explore/context`, `/api/portfolio/whatif`
   - purpose: single-name inspection plus account-aware what-if preview against the current live holdings ledger, with optional apply + `serve-refresh` once a scenario is accepted
 - `Positions` (`/positions`)
-  - reads: `/api/holdings/*`, `/api/portfolio`, `/api/risk`, `/api/cpar/risk`, `/api/universe/search`
+  - reads: `/api/holdings/*`, `/api/cuse/risk-page`, `/api/cpar/risk`, `/api/universe/search`
   - purpose: shared live-holdings editing/import plus a dual-family modeled coverage check, with cUSE as the operator/control owner and cPAR as a read-only method overlay
 - `Data` (`/data`)
   - reads: `/api/data/diagnostics`
@@ -244,6 +244,7 @@ Canonical page-to-backend wiring:
 
 Efficiency rules now in force:
 - the frontend now owns the app auth boundary through a shared signed-cookie session and middleware-gated `/api/*` routes; page-level token-presence checks are UI suppression only, not auth
+- protected pages should hydrate the shared shell from middleware-validated session/context bootstrap and treat `/api/auth/session` as a background refresh path rather than a first-paint gate
 - operator state is fetched on demand plus fast-polled only while a refresh is actively running; pages should not each invent their own background loop
 - anonymous visits must not trigger shared-shell control-plane reads; operator chrome belongs behind an authenticated operator surface rather than ambient app-shell fetches
 - browser `/api/*` traffic should flow only through owned App Router route handlers; ambient catch-all backend rewrites are no longer part of the contract
@@ -252,6 +253,7 @@ Efficiency rules now in force:
 - Health diagnostics are no longer fetched automatically on page load, and heavy sections mount only as the user scrolls
 - user-facing dashboard pages should consume durable serving outputs first rather than piecing together raw source tables in the browser
 - the Explore what-if preview is intentionally ephemeral until explicit apply; staged trade deltas live in browser state and are posted once to `/api/portfolio/whatif` for in-memory comparison only, then can be written only through explicit `Apply + RECALC`
+- `/api/cuse/explore/context` is the cUSE-owned held-position lookup for Explore first render; it may derive scoped positions from live holdings plus the current served cUSE loadings surface, but it must not grow into a second generic portfolio contract or duplicate builder-owned holdings account/ledger reads
 - in `local-ingest`, old local cache blobs remain bootstrap fallback only when a serving payload snapshot does not yet exist
 - in `cloud-serve`, serving routes fail closed instead of falling back to local cache/SQLite state
 - universe explore/search outputs

@@ -181,6 +181,61 @@ def test_preview_portfolio_whatif_projects_current_and_hypothetical_without_writ
     assert out["truth_surface"] == "live_holdings_projected_through_current_served_model"
 
 
+def test_preview_portfolio_whatif_can_limit_exposure_modes() -> None:
+    universe_loadings = {
+        "by_ticker": {
+            "AAA": {
+                "ticker": "AAA",
+                "name": "AAA",
+                "price": 10.0,
+                "exposures": {"Beta": 1.0},
+                "specific_var": 0.01,
+                "specific_vol": 0.1,
+                "model_status": "core_estimated",
+                "eligibility_reason": "",
+                "trbc_economic_sector_short": "Technology",
+                "trbc_economic_sector_short_abbr": "Tech",
+                "trbc_industry_group": "Software",
+            },
+        },
+    }
+    cov = pd.DataFrame([[0.04]], index=["Beta"], columns=["Beta"])
+
+    out = portfolio_whatif.preview_portfolio_whatif(
+        scenario_rows=[],
+        requested_exposure_modes=("raw",),
+        dependencies=_deps(
+            current_payload_loader=lambda key: {
+                "portfolio": {
+                    "source_dates": {"exposures_served_asof": "2026-03-03"},
+                    "run_id": "run_meta_3",
+                    "snapshot_id": "snap_meta_3",
+                },
+                "risk_engine_cov": {"factors": ["Beta"], "matrix": [[0.04]]},
+                "risk_engine_specific_risk": {
+                    "AAA.OQ": {"ticker": "AAA", "specific_var": 0.01},
+                },
+            }.get(key),
+            holdings_loader=lambda account_id=None: [
+                {"account_id": "acct_a", "ticker": "AAA", "ric": "AAA.N", "quantity": 10.0, "source": "ui_edit"},
+            ],
+            universe_loader=lambda current_payload, **kwargs: universe_loadings,
+            covariance_loader=lambda current_payload, **kwargs: (cov, True),
+            specific_risk_loader=lambda current_payload, **kwargs: (
+                {"AAA": {"specific_var": 0.01}},
+                True,
+            ),
+        ),
+    )
+
+    assert sorted(out["current"]["exposure_modes"].keys()) == ["raw"]
+    assert sorted(out["hypothetical"]["exposure_modes"].keys()) == ["raw"]
+    assert out["diff"]["factor_deltas"]["raw"][0]["factor_id"] == "Beta"
+    assert out["diff"]["factor_deltas"]["raw"][0]["delta"] == 0.0
+    assert out["diff"]["factor_deltas"]["sensitivity"] == []
+    assert out["diff"]["factor_deltas"]["risk_contribution"] == []
+
+
 def test_preview_portfolio_whatif_prefers_published_risk_payloads() -> None:
     published_payloads = {
         "portfolio": {

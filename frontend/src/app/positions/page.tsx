@@ -6,10 +6,7 @@ import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
 import ConfirmActionModal from "@/components/ConfirmActionModal";
 import MethodLabel, { type MethodLabelTone } from "@/components/MethodLabel";
 import { compareNumber, compareText, useSortableRows } from "@/hooks/useSortableRows";
-import {
-  usePortfolio,
-  useRisk,
-} from "@/hooks/useCuse4Api";
+import { useCuseRiskPageSnapshot } from "@/hooks/useCuse4Api";
 import { useCparRisk } from "@/hooks/useCparApi";
 import { useHoldingsAccounts, useHoldingsModes, useHoldingsPositions } from "@/hooks/useHoldingsApi";
 import type { HoldingsImportMode } from "@/lib/types/holdings";
@@ -60,13 +57,14 @@ function fmtQty(n: number): string {
 }
 
 export default function PositionsPage() {
-  const { data: portfolio, isLoading: pLoading, error: pError } = usePortfolio();
+  const { data: cuseSnapshot, isLoading: cuseLoading, error: cuseError } = useCuseRiskPageSnapshot();
   const { data: cparRiskData } = useCparRisk();
-  const { data: riskData, isLoading: riskLoading, error: riskError } = useRisk();
   const { data: modesData } = useHoldingsModes();
   const { data: accountsData, error: accountError } = useHoldingsAccounts();
   const [selectedAccount, setSelectedAccount] = useState("");
   const { data: holdingsData, error: holdingsError } = useHoldingsPositions(null);
+  const portfolio = cuseSnapshot?.portfolio;
+  const riskData = cuseSnapshot?.risk;
 
   const [mode, setMode] = useState<HoldingsImportMode>("upsert_absolute");
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -248,11 +246,11 @@ export default function PositionsPage() {
       ticker: row.ticker,
     });
 
-  if (pLoading || (riskLoading && !riskData)) {
+  if (cuseLoading) {
     return <AnalyticsLoadingViz message="Loading positions..." />;
   }
-  if (pError || accountError || riskError) {
-    return <ApiErrorState title="Positions Not Ready" error={pError || accountError || riskError} />;
+  if (cuseError || accountError) {
+    return <ApiErrorState title="Positions Not Ready" error={cuseError || accountError} />;
   }
 
   return (

@@ -82,6 +82,11 @@ Read-only backend routes:
 - `GET /api/cpar/meta`
 - `GET /api/cpar/search?q=&limit=`
 - `GET /api/cpar/risk`
+  - includes the package-pinned aggregate risk snapshot plus the factor registry needed for the risk-page first render
+- `GET /api/cpar/explore/context`
+  - includes only the package-pinned held-position lookup needed for `/cpar/explore` first render
+  - stops at package-aware position rows and must not expand into a second aggregate-risk payload
+  - reports `scope=restricted_accounts` when account enforcement trims the aggregate book for the active session
 - `GET /api/cpar/factors/history?factor_id=&years=`
 - `GET /api/cpar/portfolio/hedge?account_id=&mode=`
 - `POST /api/cpar/portfolio/whatif`
@@ -171,6 +176,7 @@ Current read behavior:
   - per-position weighted thresholded contributions plus additive display contributions
   - backend-owned `risk_shares`, `factor_variance_proxy`, `idio_variance_proxy`, `total_variance_proxy`, and row `risk_mix`
 - `/api/cpar/risk` additionally exposes the full package-pinned covariance matrix for the frontend heatmap
+- `/api/cpar/explore/context` is the cPAR-owned compact Explore bootstrap surface; it may reuse aggregate holdings context plus package/source support rows, but it must stop before covariance, factor charts, or aggregate risk-share analytics
 - the current implementation keeps the frontend meta-first gate intact, but shortens the backend risk path by:
   - reading pre-aggregated all-account holdings rows from the shared holdings adapter
   - fanning out independent package/source/display-covariance reads concurrently after the aggregate book is known
@@ -184,7 +190,8 @@ Current read behavior:
 - missing required relational coverage fails closed with cPAR-specific `503 not_ready`
 - the account-level what-if envelope and its nested `current` / `hypothetical` snapshots are part of the same package-scoped flow as the shared banner and baseline portfolio hedge payload
 - the frontend may keep rendering the incumbent baseline hedge while staged what-if rows are invalid, recomputing, or fail closed, but it must not promote a hypothetical comparison panel unless the what-if envelope and both nested snapshots share the same package identity
-- the frontend uses package metadata as the first gate for dependent reads and does not intentionally keep querying detail/hedge/account payloads after a package-level `not_ready` or `unavailable` response
+- `/cpar/risk` now uses the package-pinned `/api/cpar/risk` payload as its first-render contract instead of waiting on a separate meta read
+- the frontend does not intentionally keep querying detail/hedge/account payloads after a package-level `not_ready` or `unavailable` response
 - current package freshness is interpreted from the active package date/source-as-of date, not from any cUSE4 refresh/runtime-state surface
 
 Current runtime authority:

@@ -7,6 +7,7 @@ interface AnalyticsLoadingVizProps {
   message?: string | null;
   stepLabel?: string | null;
   animate?: boolean;
+  className?: string;
 }
 
 const FALLBACK_PALETTE: readonly (readonly [number, number, number])[] = [
@@ -98,6 +99,7 @@ export default function AnalyticsLoadingViz({
   message = "Loading analytics...",
   stepLabel,
   animate = true,
+  className,
 }: AnalyticsLoadingVizProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { themeMode } = useAppSettings();
@@ -185,7 +187,7 @@ export default function AnalyticsLoadingViz({
 
   return (
     <div
-      className="analytics-stage"
+      className={className ? `analytics-stage ${className}` : "analytics-stage"}
       role="status"
       aria-live="polite"
       aria-label={ariaLabel}
