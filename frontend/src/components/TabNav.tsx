@@ -75,6 +75,7 @@ export default function TabNav() {
   const [clockMs, setClockMs] = useState<number>(0);
   const navRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { themeMode } = useAppSettings();
   const operatorTokenAvailable = useOperatorTokenAvailable();
   const showOperatorChrome = operatorTokenAvailable && (activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data");
@@ -171,7 +172,10 @@ export default function TabNav() {
   useEffect(() => {
     if (!menuOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const insideButton = menuRef.current?.contains(target);
+      const insideDropdown = dropdownRef.current?.contains(target);
+      if (!insideButton && !insideDropdown) {
         setMenuOpen(false);
       }
     };
@@ -348,6 +352,8 @@ export default function TabNav() {
   }
 
   return (
+    <>
+      {menuOpen && <div className="dash-page-scrim" aria-hidden="true" />}
     <nav
       ref={navRef}
       className={`dash-tabs${isLanding ? " dash-tabs-landing" : ""}${isPositionsPage ? " dash-tabs-positions" : ""}`}
@@ -446,67 +452,76 @@ export default function TabNav() {
             </svg>
           </button>
 
-          {menuOpen && (
-            <div className="dash-dropdown">
-              <div className="dash-dropdown-group">
-                <div className="dash-dropdown-section">Navigation</div>
-                <div className="dash-dropdown-group-items">
-                  <Link
-                    href="/positions"
-                    className={`dash-dropdown-item${pathname === "/positions" ? " active" : ""}`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Positions
-                  </Link>
-                </div>
-              </div>
-              <div className="dash-dropdown-group">
-                <div className="dash-dropdown-section">Settings</div>
-                <div className="dash-dropdown-group-items">
-                  <Link
-                    href="/settings"
-                    className={`dash-dropdown-item${pathname === "/settings" ? " active" : ""}`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Global settings
-                  </Link>
-                  {session?.isAdmin && context?.admin_settings_enabled !== false ? (
-                    <Link
-                      href="/settings/admin"
-                      className={`dash-dropdown-item${pathname === "/settings/admin" ? " active" : ""}`}
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      Admin settings
-                    </Link>
-                  ) : null}
-                  <Link
-                    href="/data"
-                    className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    cUSE data
-                  </Link>
-                  <span className="dash-dropdown-item disabled" aria-disabled="true">cPAR data</span>
-                </div>
-              </div>
-              <div className="dash-dropdown-group">
-                <div className="dash-dropdown-section">Account</div>
-                <div className="dash-dropdown-group-items">
-                  <button
-                    className="dash-dropdown-item"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      void handleLogout();
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </nav>
+    {menuOpen && (
+      <div ref={dropdownRef} className="dash-dropdown">
+        <div className="dash-dropdown-group">
+          <div className="dash-dropdown-section">Navigation</div>
+          <div className="dash-dropdown-group-items">
+            <Link
+              href="/tutorial"
+              className={`dash-dropdown-item${pathname === "/tutorial" ? " active" : ""}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              Tutorial
+            </Link>
+            <Link
+              href="/positions"
+              className={`dash-dropdown-item${pathname === "/positions" ? " active" : ""}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              Positions
+            </Link>
+          </div>
+        </div>
+        <div className="dash-dropdown-group">
+          <div className="dash-dropdown-section">Settings</div>
+          <div className="dash-dropdown-group-items">
+            <Link
+              href="/settings"
+              className={`dash-dropdown-item${pathname === "/settings" ? " active" : ""}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              Global settings
+            </Link>
+            {session?.isAdmin && context?.admin_settings_enabled !== false ? (
+              <Link
+                href="/settings/admin"
+                className={`dash-dropdown-item${pathname === "/settings/admin" ? " active" : ""}`}
+                onClick={() => setMenuOpen(false)}
+              >
+                Admin settings
+              </Link>
+            ) : null}
+            <Link
+              href="/data"
+              className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
+              onClick={() => setMenuOpen(false)}
+            >
+              cUSE data
+            </Link>
+            <span className="dash-dropdown-item disabled" aria-disabled="true">cPAR data</span>
+          </div>
+        </div>
+        <div className="dash-dropdown-group">
+          <div className="dash-dropdown-section">Account</div>
+          <div className="dash-dropdown-group-items">
+            <button
+              className="dash-dropdown-item"
+              onClick={() => {
+                setMenuOpen(false);
+                void handleLogout();
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+        <div className="dash-dropdown-footer">Copyright © 2026 Ceiora</div>
+      </div>
+    )}
+    </>
   );
 }
