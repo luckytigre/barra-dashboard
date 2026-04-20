@@ -592,20 +592,6 @@ export default function ExposuresPage() {
         </LazyMountOnVisible>
       )}
 
-      <div className="floating-mode-toggle">
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            className={mode === m.key ? "active" : ""}
-            onClick={() => {
-              setMode(m.key);
-              setSelectedFactor(null);
-            }}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
