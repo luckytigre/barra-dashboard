@@ -1,7 +1,7 @@
 "use client";
 
 // cUSE4-only hook and mutation barrel for the default frontend surfaces.
-// Prefer this over `@/hooks/useApi` in cUSE4-owned frontend code.
+// Prefer this over generic frontend API-hook alias layers in cUSE4-owned frontend code.
 
 import useSWR, { preload } from "swr";
 import { ApiError, apiFetch, apiPrivilegedFetch } from "@/lib/apiTransport";

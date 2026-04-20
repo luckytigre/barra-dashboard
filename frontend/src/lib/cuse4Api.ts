@@ -1,5 +1,5 @@
 // cUSE4-only frontend API helpers for the default route family.
-// Prefer this over `@/lib/api` in cUSE4-owned frontend code.
+// Prefer this over generic frontend API alias layers in cUSE4-owned frontend code.
 
 import { ApiError, apiFetch } from "@/lib/apiTransport";
 import { holdingsApiPath } from "@/lib/holdingsApi";
