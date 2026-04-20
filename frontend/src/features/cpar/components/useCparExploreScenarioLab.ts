@@ -26,6 +26,8 @@ interface UseCparExploreScenarioLabArgs {
   searchQuery: string;
   searchResults: CparSearchItem[];
   onSelectInstrument: (item: CparSearchItem) => void;
+  searchSettled: boolean;
+  onPreviewInstrument: (item: CparSearchItem) => void;
 }
 
 export function useCparExploreScenarioLab({
@@ -34,6 +36,8 @@ export function useCparExploreScenarioLab({
   searchQuery,
   searchResults,
   onSelectInstrument,
+  searchSettled,
+  onPreviewInstrument,
 }: UseCparExploreScenarioLabArgs) {
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
@@ -129,16 +133,33 @@ export function useCparExploreScenarioLab({
   }, [searchResults]);
 
   const selectFromTypeahead = useCallback((item: CparSearchItem) => {
+    if (!searchSettled) return;
     if (!canNavigateCparSearchResult(item)) return;
+    onPreviewInstrument(item);
     onSelectInstrument(item);
     setTickerFocused(false);
     setDropdownOpen(false);
     setActiveIndex(-1);
-  }, [onSelectInstrument]);
+  }, [onPreviewInstrument, onSelectInstrument, searchSettled]);
+
+  useEffect(() => {
+    if (!searchSettled) {
+      setActiveIndex(-1);
+      return;
+    }
+    if (!dropdownOpen || activeIndex < 0 || activeIndex >= searchResults.length) return;
+    const activeItem = searchResults[activeIndex];
+    if (!canNavigateCparSearchResult(activeItem)) return;
+    onPreviewInstrument(activeItem);
+  }, [activeIndex, dropdownOpen, onPreviewInstrument, searchResults, searchSettled]);
 
   const handleTickerKeyDown = useCallback((e: KeyboardEvent<HTMLInputElement>) => {
     if (!dropdownOpen || searchResults.length === 0) {
       if (e.key === "Enter") {
+        if (!searchSettled) {
+          e.preventDefault();
+          return;
+        }
         const direct = resolveDirectSelection(searchQuery);
         if (direct) {
           e.preventDefault();
@@ -155,9 +176,11 @@ export function useCparExploreScenarioLab({
       setActiveIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
+      if (!searchSettled) return;
       if (activeIndex >= 0 && activeIndex < searchResults.length) {
         selectFromTypeahead(searchResults[activeIndex]);
       } else {
+        if (!searchSettled) return;
         const direct = resolveDirectSelection(searchQuery);
         if (direct) {
           selectFromTypeahead(direct);
@@ -167,7 +190,7 @@ export function useCparExploreScenarioLab({
       setDropdownOpen(false);
       setActiveIndex(-1);
     }
-  }, [activeIndex, dropdownOpen, resolveDirectSelection, searchQuery, searchResults, selectFromTypeahead]);
+  }, [activeIndex, dropdownOpen, resolveDirectSelection, searchQuery, searchResults, searchSettled, selectFromTypeahead]);
 
   const handleTickerFocus = useCallback(() => {
     setTickerFocused(true);
