@@ -131,6 +131,7 @@ export async function revalidateServedAnalyticsViews(): Promise<void> {
   await Promise.all([
     mutate(apiPath.refreshStatus()),
     mutate(apiPath.operatorStatus()),
+    mutate(apiPath.riskPageSnapshot()),
     mutate(apiPath.portfolio()),
     mutate(apiPath.risk()),
     mutate(apiPath.exposures("raw")),
@@ -141,6 +142,7 @@ export async function revalidateServedAnalyticsViews(): Promise<void> {
 
 async function revalidatePublishedAnalyticsViews(): Promise<void> {
   await Promise.all([
+    mutate(apiPath.riskPageSnapshot()),
     mutate(apiPath.portfolio()),
     mutate(apiPath.risk()),
     mutate(apiPath.exposures("raw")),

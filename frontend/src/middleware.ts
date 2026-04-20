@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { AppAuthContextPayload } from "@/app/api/auth/_context";
 import { DEFAULT_APP_HOME_PATH, isPrivilegedApiPath, isPrivilegedPagePath, isProtectedApiPath, isProtectedPagePath, normalizeReturnTo } from "@/lib/appAccess";
 import { APP_SESSION_COOKIE_NAMES, appAuthProvider, authConfigMissingKeys, clearedAppSessionCookieOptions, isAppAuthConfigured, readSessionFromRequest, readSessionTokenFromRequest } from "@/lib/appAuth";
+import { APP_AUTH_BOOTSTRAP_HEADER, encodeAuthSessionBootstrapHeader, type AuthSessionBootstrapPayload } from "@/lib/authSessionBootstrap";
 
 function unauthorizedApi(detail: string, status = 401): NextResponse {
   return NextResponse.json({ detail }, { status });
@@ -44,7 +46,7 @@ async function fetchCloudRunIdentityToken(audience: string): Promise<string> {
 }
 
 type MiddlewareAuthContextResult =
-  | { ok: true; defaultAccountId: string | null; isAdmin: boolean }
+  | { ok: true; context: AppAuthContextPayload; defaultAccountId: string | null; isAdmin: boolean }
   | { ok: false; status: number; code: string | null };
 
 async function fetchLiveNeonAuthContext(
@@ -77,17 +79,74 @@ async function fetchLiveNeonAuthContext(
       return { ok: false, status: res.status, code };
     }
     const payload = (await res.json().catch(() => ({}))) as {
-      default_account_id?: string | null;
+      auth_provider?: "shared" | "neon";
+      subject?: string;
+      email?: string | null;
+      display_name?: string | null;
       is_admin?: boolean;
+      account_enforcement_enabled?: boolean;
+      default_account_id?: string | null;
+      account_ids?: string[];
+      admin_settings_enabled?: boolean;
+    };
+    const context: AppAuthContextPayload = {
+      auth_provider: payload.auth_provider === "shared" ? "shared" : "neon",
+      subject: String(payload.subject || "").trim(),
+      email: typeof payload.email === "string" ? payload.email : null,
+      display_name: typeof payload.display_name === "string" ? payload.display_name : null,
+      is_admin: Boolean(payload.is_admin),
+      account_enforcement_enabled: Boolean(payload.account_enforcement_enabled),
+      default_account_id: payload.default_account_id ?? null,
+      account_ids: Array.isArray(payload.account_ids) ? payload.account_ids.map((value) => String(value)) : [],
+      admin_settings_enabled: payload.admin_settings_enabled !== false,
     };
     return {
       ok: true,
-      defaultAccountId: payload.default_account_id ?? null,
-      isAdmin: Boolean(payload.is_admin),
+      context,
+      defaultAccountId: context.default_account_id ?? null,
+      isAdmin: Boolean(context.is_admin),
     };
   } catch {
     return { ok: false, status: 503, code: "account_context_unavailable" };
   }
+}
+
+function authBootstrapPayload(
+  session: Awaited<ReturnType<typeof readSessionFromRequest>>,
+  provider: ReturnType<typeof appAuthProvider>,
+  neonContextStatus: MiddlewareAuthContextResult | null,
+): AuthSessionBootstrapPayload | null {
+  if (!session) return null;
+  const context = provider === "neon" && neonContextStatus?.ok ? neonContextStatus.context : null;
+  return {
+    authenticated: true,
+    session: {
+      authProvider: session.authProvider,
+      username: session.username,
+      email: context?.email ?? session.email ?? null,
+      displayName: context?.display_name ?? session.displayName ?? null,
+      defaultAccountId:
+        provider === "neon" && context
+          ? context.default_account_id ?? null
+          : session.defaultAccountId ?? null,
+      isAdmin: provider === "neon" && context ? Boolean(context.is_admin) : session.isAdmin,
+      primary: provider === "neon" && context ? Boolean(context.is_admin) : session.primary,
+      expiresAt: session.expiresAt,
+    },
+    context,
+    contextError: null,
+  };
+}
+
+function nextWithAuthBootstrap(req: NextRequest, payload: AuthSessionBootstrapPayload | null): NextResponse {
+  if (!payload) return NextResponse.next();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(APP_AUTH_BOOTSTRAP_HEADER, encodeAuthSessionBootstrapHeader(payload));
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
 
 export async function middleware(req: NextRequest) {
@@ -257,7 +316,7 @@ export async function middleware(req: NextRequest) {
     return unauthorizedApi("Forbidden: admin session required.", 403);
   }
 
-  return NextResponse.next();
+  return nextWithAuthBootstrap(req, protectedPage ? authBootstrapPayload(session, provider, neonContextStatus) : null);
 }
 
 export const config = {

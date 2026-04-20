@@ -6,6 +6,7 @@ import { ApiError, apiFetch } from "@/lib/apiTransport";
 export { ApiError, apiFetch };
 
 export const cparApiPath = {
+  cparExploreContext: () => "/api/cpar/explore/context",
   cparMeta: () => "/api/cpar/meta",
   cparSearch: (query: string, limit: number) =>
     `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}`,

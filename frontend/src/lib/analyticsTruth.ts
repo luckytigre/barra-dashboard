@@ -5,6 +5,7 @@
 // cPAR uses its own package-based truth semantics in `cparTruth.ts`.
 
 import type {
+  CuseRiskPageSummaryRiskData,
   ExposuresData,
   PortfolioData,
   RiskData,
@@ -101,7 +102,7 @@ export function summarizeAnalyticsTruth({
   exposures,
 }: {
   portfolio?: PortfolioData | null;
-  risk?: RiskData | null;
+  risk?: RiskData | CuseRiskPageSummaryRiskData | null;
   exposures?: ExposuresData | null;
 }): AnalyticsTruthSummary {
   const sourceDates = mergeSourceDates(

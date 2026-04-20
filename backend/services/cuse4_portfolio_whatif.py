@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
+import inspect
 from typing import Any
 
 import math
@@ -31,6 +32,8 @@ from backend.data.sqlite import cache_get, cache_get_live_first
 from backend.risk_model.risk_attribution import risk_decomposition
 from backend.services.cuse4_universe_service import cuse_row_model_readiness
 from backend.services import cuse4_holdings_service as holdings_service
+
+ALL_EXPOSURE_MODES = ("raw", "sensitivity", "risk_contribution")
 
 
 @dataclass(frozen=True)
@@ -256,7 +259,18 @@ def _build_holdings_snapshot(
     allowed_account_ids: list[str] | tuple[str, ...] | None = None,
     holdings_loader: Callable[..., list[dict[str, Any]]] = holdings_service.load_holdings_positions,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    live_rows = holdings_loader(account_id=account_id, allowed_account_ids=allowed_account_ids)
+    loader_signature = inspect.signature(holdings_loader)
+    accepts_allowed_account_ids = (
+        "allowed_account_ids" in loader_signature.parameters
+        or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in loader_signature.parameters.values()
+        )
+    )
+    if accepts_allowed_account_ids:
+        live_rows = holdings_loader(account_id=account_id, allowed_account_ids=allowed_account_ids)
+    else:
+        live_rows = holdings_loader(account_id=account_id)
     current_by_key: dict[str, dict[str, Any]] = {}
     for raw in live_rows:
         account_id = _normalize_account_id(raw.get("account_id"))
@@ -374,6 +388,7 @@ def _build_preview_payload(
     specific_risk_by_ticker: dict[str, dict[str, Any]],
     served_loadings_asof: str | None,
     factor_coverage: dict[str, Any],
+    requested_exposure_modes: tuple[str, ...] | list[str] | None = None,
 ) -> dict[str, Any]:
     shares_map, dynamic_meta = _rows_to_snapshot(
         holdings_rows,
@@ -427,6 +442,7 @@ def _build_preview_payload(
         factor_details,
         factor_coverage=factor_coverage,
         factor_coverage_asof=served_loadings_asof,
+        modes=requested_exposure_modes,
     )
     return {
         "positions": [dict(pos) for pos in positions],
@@ -504,9 +520,17 @@ def preview_portfolio_whatif(
     scenario_rows: list[dict[str, Any]],
     account_id: str | None = None,
     allowed_account_ids: list[str] | tuple[str, ...] | None = None,
+    requested_exposure_modes: tuple[str, ...] | list[str] | None = None,
     dependencies: PortfolioWhatIfDependencies | None = None,
 ) -> dict[str, Any]:
     deps = dependencies or get_portfolio_whatif_dependencies()
+    normalized_requested_exposure_modes = tuple(
+        dict.fromkeys(
+            mode
+            for mode in (requested_exposure_modes or ALL_EXPOSURE_MODES)
+            if str(mode or "").strip() in ALL_EXPOSURE_MODES
+        )
+    )
     normalized_scenario_rows = _normalize_scenario_rows(scenario_rows)
     current_payloads = _load_current_serving_payloads(
         "portfolio",
@@ -568,6 +592,7 @@ def preview_portfolio_whatif(
         specific_risk_by_ticker=specific_risk,
         served_loadings_asof=served_loadings_asof,
         factor_coverage=factor_coverage,
+        requested_exposure_modes=normalized_requested_exposure_modes,
     )
     hypothetical_preview = _build_preview_payload(
         holdings_rows=hypothetical_rows,
@@ -578,6 +603,7 @@ def preview_portfolio_whatif(
         specific_risk_by_ticker=specific_risk,
         served_loadings_asof=served_loadings_asof,
         factor_coverage=factor_coverage,
+        requested_exposure_modes=normalized_requested_exposure_modes,
     )
 
     risk_share_deltas = {

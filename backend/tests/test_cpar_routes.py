@@ -22,6 +22,7 @@ EXPECTED_CPAR_ROUTE_SET = {
     ("GET", "/api/cpar/search"),
     ("GET", "/api/cpar/ticker/{ticker}"),
     ("GET", "/api/cpar/ticker/{ticker}/history"),
+    ("GET", "/api/cpar/explore/context"),
     ("GET", "/api/cpar/risk"),
     ("GET", "/api/cpar/factors/history"),
     ("GET", "/api/cpar/portfolio/hedge"),
@@ -258,7 +259,117 @@ def test_cpar_risk_route_returns_payload(monkeypatch) -> None:
     assert "aggregate_display_loadings" in res.json()
     assert "display_cov_matrix" in res.json()
     assert res.json()["risk_shares"]["idio"] == 10.0
-    assert res.json()["total_variance_proxy"] == 0.2
+
+
+def test_cpar_explore_context_route_returns_payload(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cpar_routes.cpar_explore_context_service,
+        "load_cpar_explore_context_payload",
+        lambda **kwargs: {
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "profile": "weekly",
+            "method_version": "v1",
+            "factor_registry_version": "f1",
+            "data_authority": "neon",
+            "lookback_weeks": 52,
+            "half_life_weeks": 26,
+            "min_observations": 26,
+            "universe_count": 20,
+            "fit_ok_count": 19,
+            "fit_limited_count": 1,
+            "fit_insufficient_count": 0,
+            "scope": "all_accounts",
+            "accounts_count": 3,
+            "positions_count": 1,
+            "covered_positions_count": 1,
+            "excluded_positions_count": 0,
+            "gross_market_value": 1500.0,
+            "net_market_value": 1500.0,
+            "covered_gross_market_value": 1500.0,
+            "coverage_ratio": 1.0,
+            "portfolio_status": "ok",
+            "portfolio_reason": None,
+            "held_positions": [
+                {
+                    "ric": "AAPL.OQ",
+                    "ticker": "AAPL",
+                    "quantity": 10.0,
+                    "price": 150.0,
+                    "market_value": 1500.0,
+                    "portfolio_weight": 1.0,
+                    "long_short": "LONG",
+                    "fit_status": "ok",
+                    "coverage": "covered",
+                },
+            ],
+        },
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/explore/context")
+
+    assert res.status_code == 200
+    assert res.json()["scope"] == "all_accounts"
+    assert res.json()["held_positions"][0]["ric"] == "AAPL.OQ"
+
+
+def test_cpar_explore_context_route_forwards_account_scope(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(cpar_routes, "account_enforcement_enabled", lambda: True)
+    monkeypatch.setattr(
+        cpar_routes,
+        "_resolve_holdings_scope",
+        lambda **kwargs: AccountScope(
+            enforced=True,
+            is_admin=False,
+            subject="friend@example.com",
+            default_account_id="acct_a",
+            account_ids=("acct_a", "acct_b"),
+        ),
+    )
+    def _load_payload(**kwargs):
+        captured["kwargs"] = dict(kwargs)
+        return {
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "profile": "weekly",
+            "method_version": "v1",
+            "factor_registry_version": "f1",
+            "data_authority": "neon",
+            "lookback_weeks": 52,
+            "half_life_weeks": 26,
+            "min_observations": 26,
+            "universe_count": 1,
+            "fit_ok_count": 1,
+            "fit_limited_count": 0,
+            "fit_insufficient_count": 0,
+            "scope": "restricted_accounts",
+            "accounts_count": 2,
+            "positions_count": 0,
+            "covered_positions_count": 0,
+            "excluded_positions_count": 0,
+            "gross_market_value": 0.0,
+            "net_market_value": 0.0,
+            "covered_gross_market_value": 0.0,
+            "coverage_ratio": None,
+            "portfolio_status": "empty",
+            "portfolio_reason": "No live holdings positions are loaded across any account.",
+            "held_positions": [],
+        }
+
+    monkeypatch.setattr(
+        cpar_routes.cpar_explore_context_service,
+        "load_cpar_explore_context_payload",
+        _load_payload,
+    )
+
+    client = TestClient(_test_app())
+    res = client.get("/api/cpar/explore/context")
+
+    assert res.status_code == 200
+    assert captured["kwargs"] == {"allowed_account_ids": ["acct_a", "acct_b"]}
 
 
 def test_cpar_risk_route_maps_not_ready_to_503(monkeypatch) -> None:
