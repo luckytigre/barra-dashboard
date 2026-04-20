@@ -83,6 +83,28 @@ export default function CparRiskFactorSummaryCard({
         </div>
       ) : (
         <>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+            <div className="settings-segmented-control" role="tablist" aria-label="cPAR exposure mode">
+              {MODES.map((option) => {
+                const active = mode === option.key;
+                return (
+                  <button
+                    key={option.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`settings-segmented-option${active ? " active" : ""}`}
+                    onClick={() => {
+                      setMode(option.key);
+                      setSelectedFactorId(null);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <CparRiskFactorLoadingsChart
             rows={factorRows}
             mode={mode}
@@ -95,22 +117,6 @@ export default function CparRiskFactorSummaryCard({
           {selectedFactor ? <CparRiskFactorDrilldown factor={selectedFactor} mode={mode} /> : null}
         </>
       )}
-
-      <div className="floating-mode-toggle">
-        {MODES.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            className={mode === option.key ? "active" : ""}
-            onClick={() => {
-              setMode(option.key);
-              setSelectedFactorId(null);
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
     </section>
   );
 }
