@@ -903,3 +903,34 @@ def test_apply_ticker_bucket_scenario_rejects_alias_rows_that_resolve_to_same_ri
     assert out["rejection_counts"]["duplicate_resolved_instrument"] == 1
     assert delete_calls == []
     assert conn.commits == 0
+
+
+def test_apply_ticker_bucket_scenario_rejects_mismatched_ticker_and_ric(monkeypatch) -> None:
+    conn = _FakeConn()
+    delete_calls: list[str] = []
+
+    monkeypatch.setattr(
+        neon_holdings,
+        "_ric_exists",
+        lambda *_args, **_kwargs: (True, "AAA"),
+    )
+    monkeypatch.setattr(
+        neon_holdings,
+        "_delete_position",
+        lambda _conn, *, account_id, ric: delete_calls.append(f"{account_id}:{ric}"),
+    )
+
+    out = neon_holdings.apply_ticker_bucket_scenario(
+        conn,
+        scenario_rows=[
+            {"account_id": "acct_a", "ticker": "BBB", "ric": "AAA.N", "quantity": 10.0},
+        ],
+        requested_by="tester",
+    )
+
+    assert out["status"] == "rejected"
+    assert out["accepted_rows"] == 0
+    assert out["rejected_rows"] == 1
+    assert out["rejection_counts"]["identifier_mismatch"] == 1
+    assert delete_calls == []
+    assert conn.commits == 0

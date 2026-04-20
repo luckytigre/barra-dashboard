@@ -80,9 +80,16 @@ export async function proxyJson(
   options?: { method?: string; headers?: HeadersInit; forwardPrivilegedHeaders?: boolean },
 ) {
   const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
+  const upstreamRequestHeaders = new Headers(options?.headers);
+  if (body !== undefined && !upstreamRequestHeaders.has("content-type")) {
+    const incomingContentType = req.headers.get("content-type");
+    if (incomingContentType) {
+      upstreamRequestHeaders.set("content-type", incomingContentType);
+    }
+  }
   const res = await fetch(upstream, {
     method: options?.method || req.method,
-    headers: await upstreamHeaders(req, upstream, options?.headers, {
+    headers: await upstreamHeaders(req, upstream, upstreamRequestHeaders, {
       forwardPrivilegedHeaders: options?.forwardPrivilegedHeaders,
     }),
     body,

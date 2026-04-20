@@ -26,6 +26,10 @@ def _surface_title(surface: str) -> str:
 def _sanitize_validation_payload(value):
     if isinstance(value, float) and not math.isfinite(value):
         return str(value)
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, tuple):
+        return [_sanitize_validation_payload(item) for item in value]
     if isinstance(value, list):
         return [_sanitize_validation_payload(item) for item in value]
     if isinstance(value, dict):
