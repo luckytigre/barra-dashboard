@@ -99,7 +99,8 @@ def test_cpar_position_hedge_service_sizes_single_row_packages(monkeypatch) -> N
     assert payload["packages"]["market_neutral"]["mode"] == "market_neutral"
     assert payload["packages"]["factor_neutral"]["mode"] == "factor_neutral"
     factor_rows = payload["packages"]["factor_neutral"]["trade_rows"]
-    assert [row["proxy_ticker"] for row in factor_rows] == ["XLK", "SPY"]
-    assert math.isclose(float(factor_rows[0]["dollar_notional"]), -400.0, rel_tol=0.0, abs_tol=1e-12)
-    assert math.isclose(float(factor_rows[0]["quantity"]), -2.0, rel_tol=0.0, abs_tol=1e-12)
-
+    assert [row["proxy_ticker"] for row in factor_rows] == ["SPY", "XLK"]
+    assert math.isclose(float(factor_rows[0]["dollar_notional"]), -200.0, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(float(factor_rows[0]["quantity"]), -0.5, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(float(factor_rows[1]["dollar_notional"]), -400.0, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(float(factor_rows[1]["quantity"]), -2.0, rel_tol=0.0, abs_tol=1e-12)

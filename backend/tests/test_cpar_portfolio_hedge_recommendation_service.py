@@ -126,9 +126,10 @@ def test_cpar_portfolio_hedge_recommendation_service_returns_sized_trade_package
     assert payload["hedge_recommendation"]["mode"] == "factor_neutral"
     assert payload["hedge_recommendation"]["max_hedge_legs"] == 10
     assert payload["hedge_recommendation"]["base_notional"] == 1000.0
-    first_row = payload["hedge_recommendation"]["trade_rows"][0]
-    assert first_row["proxy_ticker"] == "XLK"
-    assert math.isclose(float(first_row["dollar_notional"]), -400.0, rel_tol=0.0, abs_tol=1e-12)
+    trade_rows = payload["hedge_recommendation"]["trade_rows"]
+    assert [row["proxy_ticker"] for row in trade_rows[:2]] == ["SPY", "XLK"]
+    assert math.isclose(float(trade_rows[0]["dollar_notional"]), -250.0, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(float(trade_rows[1]["dollar_notional"]), -400.0, rel_tol=0.0, abs_tol=1e-12)
 
 
 def test_cpar_portfolio_hedge_recommendation_service_returns_unavailable_package_for_empty_scope(monkeypatch) -> None:
