@@ -379,6 +379,25 @@ export default function ExposuresPage() {
             Non-core layers extend the base bars: Fundamental Projection first, Returns Projection outermost.
           </div>
         )}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
+          <div className="settings-segmented-control" role="tablist" aria-label="Exposure mode">
+            {MODES.map((entry) => {
+              const active = mode === entry.key;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`settings-segmented-option${active ? " active" : ""}`}
+                  onClick={() => setMode(entry.key)}
+                >
+                  {entry.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <ExposureBarChart
           factors={chartFactors}
           mode={renderedMode as "raw" | "sensitivity" | "risk_contribution"}
