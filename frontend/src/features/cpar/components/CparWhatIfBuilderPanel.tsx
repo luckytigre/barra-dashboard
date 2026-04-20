@@ -49,6 +49,7 @@ interface CparWhatIfBuilderPanelProps {
   onStage: () => void;
   onTickerBlur: (relatedTarget: EventTarget | null) => void;
   onTickerFocus: () => void;
+  onTickerHover: (item: CparSearchItem) => void;
   onTickerKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onTickerSelect: (item: CparSearchItem) => void;
   positionMap: Map<string, CparExplorePositionSummary>;
@@ -60,6 +61,7 @@ interface CparWhatIfBuilderPanelProps {
   scenarioRows: CparExploreScenarioDraftRow[];
   searchQuery: string;
   searchLoading: boolean;
+  searchSettled: boolean;
   searchResults: CparSearchItem[];
   stageReady: boolean;
   updateScenarioRow: (key: string, value: string) => void;
@@ -90,6 +92,7 @@ export default function CparWhatIfBuilderPanel({
   onStage,
   onTickerBlur,
   onTickerFocus,
+  onTickerHover,
   onTickerKeyDown,
   onTickerSelect,
   positionMap,
@@ -101,6 +104,7 @@ export default function CparWhatIfBuilderPanel({
   scenarioRows,
   searchQuery,
   searchLoading,
+  searchSettled,
   searchResults,
   stageReady,
   updateScenarioRow,
@@ -139,7 +143,7 @@ export default function CparWhatIfBuilderPanel({
           />
           {dropdownOpen && searchQuery.trim().length > 0 && (
             <div className="explore-typeahead whatif-typeahead">
-              {searchResults.length > 0 ? searchResults.map((row, index) => {
+              {searchSettled && searchResults.length > 0 ? searchResults.map((row, index) => {
                 const pos = row.ticker ? positionMap.get(normalizeTicker(row.ticker)) : undefined;
                 const fit = describeCparFitStatus(row.fit_status);
                 const disabled = !canNavigateCparSearchResult(row);
@@ -149,7 +153,10 @@ export default function CparWhatIfBuilderPanel({
                   <button
                     key={`${row.ric}:${row.ticker || "ric"}`}
                     className={`explore-typeahead-item${index === activeIndex ? " active" : ""}${pos ? " held" : ""}${disabled ? " disabled" : ""}`}
-                    onMouseEnter={() => onSetActiveIndex(index)}
+                    onMouseEnter={() => {
+                      onSetActiveIndex(index);
+                      onTickerHover(row);
+                    }}
                     onClick={() => onTickerSelect(row)}
                     type="button"
                     disabled={disabled}
@@ -178,7 +185,11 @@ export default function CparWhatIfBuilderPanel({
                 );
               }) : (
                 <div className="explore-typeahead-item disabled" aria-live="polite">
-                  {searchLoading ? "Searching cPAR registry and active package…" : "No cPAR registry matches yet."}
+                  {searchLoading
+                    ? "Searching cPAR registry and active package…"
+                    : !searchSettled
+                      ? "Waiting for current search input…"
+                      : "No cPAR registry matches yet."}
                 </div>
               )}
             </div>

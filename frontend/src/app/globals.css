@@ -616,8 +616,8 @@ main {
 }
 
 .dash-tabs-landing {
-  background-color: transparent;
-  border-bottom-color: transparent;
+  background-color: rgba(var(--nav-bg-rgb), 0.94);
+  border-bottom-color: var(--rule-soft);
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -3063,40 +3063,6 @@ main {
   z-index: 200;
 }
 
-.cpar-explore-loading-chip {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  z-index: 190;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 13px;
-  border: 1px solid var(--border);
-  border-radius: 0;
-  background: var(--surface-popover);
-  box-shadow: none;
-  color: var(--text-primary);
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.cpar-explore-loading-chip::before {
-  content: "";
-  width: 9px;
-  height: 9px;
-  border-radius: 0;
-  border: 2px solid color-mix(in srgb, var(--analytics-market) 20%, transparent);
-  border-top-color: var(--analytics-market);
-  animation: cpar-explore-loading-spin 0.8s linear infinite;
-}
-
-@keyframes cpar-explore-loading-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 .explore-quote-trigger {
   display: inline-flex;
@@ -4192,6 +4158,21 @@ main {
   justify-content: center;
   gap: 14px;
   padding: 0;
+}
+
+.analytics-stage-overlay {
+  position: fixed;
+  inset: 56px 0 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.analytics-stage-inline {
+  width: auto;
+  min-height: 0;
 }
 
 /* Scrollbar */
@@ -6513,7 +6494,14 @@ main {
 .public-model-compare-intro-block {
   display: grid;
   gap: 20px;
-  max-width: 980px;
+  max-width: 1080px;
+}
+
+.public-model-compare-intro-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 216px;
+  gap: 30px;
+  align-items: start;
 }
 
 .public-model-compare-folio,
@@ -6545,7 +6533,7 @@ main {
 .public-model-compare-intro,
 .public-model-fragment-copy {
   margin: 0;
-  max-width: 58ch;
+  max-width: 62ch;
   font-size: 18px;
   line-height: 1.58;
   letter-spacing: -0.018em;
@@ -6553,8 +6541,9 @@ main {
 }
 
 .public-model-compare-aside {
-  width: min(100%, 168px);
-  margin: 14px 0 0;
+  width: 100%;
+  margin: 6px 0 0;
+  justify-self: end;
 }
 
 .public-model-compare-aside-image {
@@ -6576,7 +6565,16 @@ main {
 
 .public-model-panel {
   display: grid;
+  grid-template-rows:
+    auto
+    auto
+    minmax(clamp(3.55rem, 4.25vw, 4.75rem), auto)
+    minmax(1.5em, auto)
+    minmax(calc(1.62em * 5), auto)
+    auto
+    auto;
   gap: 0;
+  align-content: start;
 }
 
 .public-model-panel-toprule {
@@ -6587,10 +6585,11 @@ main {
 }
 
 .public-model-panel-meta {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 12px;
+  min-height: 24px;
   margin-bottom: 16px;
 }
 
@@ -6601,7 +6600,6 @@ main {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   line-height: 1;
-  padding-top: 2px;
 }
 
 .public-model-panel-enter {
@@ -6614,7 +6612,7 @@ main {
   letter-spacing: -0.01em;
   line-height: 1;
   white-space: nowrap;
-  transform: translateY(-1px);
+  justify-self: end;
 }
 
 .public-model-panel-enter-icon {
@@ -6636,10 +6634,12 @@ main {
 
 .public-model-panel-title {
   margin: 0 0 8px;
-  font-family: "Ivar Text", "Canela", "Bodoni Moda", "Libre Caslon Display", Georgia, serif;
+  display: flex;
+  align-items: flex-end;
+  font-family: var(--font-family);
   font-size: clamp(3.1rem, 3.8vw, 4.3rem);
-  font-weight: 500;
-  letter-spacing: -0.05em;
+  font-weight: 560;
+  letter-spacing: -0.04em;
   line-height: 0.95;
   text-shadow:
     0 1px 0 rgba(255, 255, 255, 0.05),
@@ -6667,6 +6667,7 @@ main {
 
 .public-model-panel-subtitle {
   margin: 0 0 18px;
+  min-height: 1.5em;
   color: var(--text-muted);
   font-size: 15px;
   font-weight: 500;
@@ -6674,7 +6675,7 @@ main {
 }
 
 .public-model-panel-note {
-  margin: 0 0 18px;
+  margin: 0;
   max-width: 43ch;
   color: var(--text-secondary);
   font-size: 14px;
@@ -6875,6 +6876,11 @@ main {
     grid-template-columns: 1fr;
   }
 
+  .public-model-compare-intro-body {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
   .public-model-compare-display {
     max-width: 16ch;
   }
@@ -6891,6 +6897,8 @@ main {
 
   .public-model-compare-aside {
     width: min(100%, 300px);
+    margin: 0;
+    justify-self: start;
   }
 
   .public-site-footer-inner {

@@ -24,6 +24,7 @@ def build_cpar_risk_snapshot(
 
     base_payload: dict[str, object] = {
         **cpar_meta_service.package_meta_payload(package),
+        "factors": cpar_meta_service.factor_registry_payload(),
         "scope": "all_accounts",
         "accounts_count": int(len(accounts)),
         "portfolio_status": "empty",
