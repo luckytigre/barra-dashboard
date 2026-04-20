@@ -48,6 +48,7 @@ interface WhatIfBuilderPanelProps {
   onStage: () => void;
   onTickerBlur: (relatedTarget: EventTarget | null) => void;
   onTickerFocus: () => void;
+  onTickerHover: (ticker: string) => void;
   onTickerKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onTickerSelect: (ticker: string) => void;
   positionMap: Map<string, ExplorePositionSummary>;
@@ -58,6 +59,8 @@ interface WhatIfBuilderPanelProps {
   resultMessage: string;
   scenarioRows: ScenarioDraftRow[];
   searchQuery: string;
+  searchLoading: boolean;
+  searchSettled: boolean;
   searchResults: UniverseSearchItem[];
   stageReady: boolean;
   updateScenarioRow: (key: string, value: string) => void;
@@ -89,6 +92,7 @@ export default function WhatIfBuilderPanel({
   onStage,
   onTickerBlur,
   onTickerFocus,
+  onTickerHover,
   onTickerKeyDown,
   onTickerSelect,
   positionMap,
@@ -99,6 +103,8 @@ export default function WhatIfBuilderPanel({
   resultMessage,
   scenarioRows,
   searchQuery,
+  searchLoading,
+  searchSettled,
   searchResults,
   stageReady,
   updateScenarioRow,
@@ -132,9 +138,9 @@ export default function WhatIfBuilderPanel({
             disabled={controlsBusy}
             title="Search for a ticker — results appear as you type"
           />
-          {dropdownOpen && searchResults.length > 0 && (
+          {dropdownOpen && searchQuery.trim().length > 0 && (
             <div className="explore-typeahead whatif-typeahead">
-              {searchResults.map((row, index) => {
+              {searchSettled && searchResults.length > 0 ? searchResults.map((row, index) => {
                 const pos = positionMap.get(row.ticker.toUpperCase());
                 const tierLabel = row.risk_tier_label || row.model_status || "Unknown Tier";
                 const contextLabel = row.quote_source_label || row.trbc_economic_sector_short_abbr || row.trbc_economic_sector_short || "—";
@@ -143,7 +149,10 @@ export default function WhatIfBuilderPanel({
                   <button
                     key={row.ticker}
                     className={`explore-typeahead-item${index === activeIndex ? " active" : ""}${pos ? " held" : ""}`}
-                    onMouseEnter={() => onSetActiveIndex(index)}
+                    onMouseEnter={() => {
+                      onSetActiveIndex(index);
+                      onTickerHover(row.ticker);
+                    }}
                     onClick={() => {
                       if (whatIfReady) onTickerSelect(row.ticker);
                     }}
@@ -178,7 +187,15 @@ export default function WhatIfBuilderPanel({
                     </span>
                   </button>
                 );
-              })}
+              }) : (
+                <div className="explore-typeahead-item disabled" aria-live="polite">
+                  {searchLoading
+                    ? "Searching universe…"
+                    : !searchSettled
+                      ? "Waiting for current search input…"
+                      : "No universe matches yet."}
+                </div>
+              )}
             </div>
           )}
         </div>

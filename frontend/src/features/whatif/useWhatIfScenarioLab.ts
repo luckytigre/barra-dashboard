@@ -32,7 +32,9 @@ interface UseWhatIfScenarioLabArgs {
   priceMap: Map<string, number>;
   searchQuery: string;
   searchResults: UniverseSearchItem[];
+  searchSettled: boolean;
   onSelectTicker: (ticker: string) => void;
+  onPreviewTicker: (ticker: string) => void;
 }
 
 export function useWhatIfScenarioLab({
@@ -40,7 +42,9 @@ export function useWhatIfScenarioLab({
   priceMap,
   searchQuery,
   searchResults,
+  searchSettled,
   onSelectTicker,
+  onPreviewTicker,
 }: UseWhatIfScenarioLabArgs) {
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
@@ -103,18 +107,33 @@ export function useWhatIfScenarioLab({
 
   const selectFromTypeahead = useCallback(
     (ticker: string) => {
+      if (!searchSettled) return;
+      onPreviewTicker(ticker);
       onSelectTicker(ticker);
       setTickerFocused(false);
       setDropdownOpen(false);
       setActiveIndex(-1);
     },
-    [onSelectTicker],
+    [onPreviewTicker, onSelectTicker, searchSettled],
   );
+
+  useEffect(() => {
+    if (!searchSettled) {
+      setActiveIndex(-1);
+      return;
+    }
+    if (!dropdownOpen || activeIndex < 0 || activeIndex >= searchResults.length) return;
+    onPreviewTicker(searchResults[activeIndex].ticker);
+  }, [activeIndex, dropdownOpen, onPreviewTicker, searchResults, searchSettled]);
 
   const handleTickerKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (!dropdownOpen || searchResults.length === 0) {
         if (e.key === "Enter") {
+          if (!searchSettled) {
+            e.preventDefault();
+            return;
+          }
           const direct = searchQuery.trim().toUpperCase();
           if (direct) selectFromTypeahead(direct);
         }
@@ -128,6 +147,7 @@ export function useWhatIfScenarioLab({
         setActiveIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
       } else if (e.key === "Enter") {
         e.preventDefault();
+        if (!searchSettled) return;
         if (activeIndex >= 0 && activeIndex < searchResults.length) {
           const activeRow = searchResults[activeIndex];
           if (activeRow.whatif_ready === false) {
@@ -146,7 +166,7 @@ export function useWhatIfScenarioLab({
         setDropdownOpen(false);
       }
     },
-    [activeIndex, dropdownOpen, searchQuery, searchResults, selectFromTypeahead],
+    [activeIndex, dropdownOpen, searchQuery, searchResults, searchSettled, selectFromTypeahead],
   );
 
   const handleTickerFocus = useCallback(() => {
