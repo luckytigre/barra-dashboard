@@ -152,20 +152,22 @@ export default async function PublicLandingPage() {
                 <span className="public-model-compare-folio">MODEL PHILOSOPHY</span>
                 <div className="public-model-compare-intro-block">
                   <h2 className="public-model-compare-display">Simpler by design</h2>
-                  <p className="public-model-compare-intro">
-                    Ceiora isn&apos;t trying to out-math established institutional risk models. Instead, our risk engines are
-                    narrower on purpose: much smaller factor sets that enable clear risk visualization, explicit orthogonalization
-                    to push risk into ETF-tradable exposures, and regularization to stabilize factor loadings and reduce hedge
-                    management. Our goal is to provide models you can understand and act on quickly so you never have to miss{" "}
-                    <em className={instrumentSerif.className}>The Big Game™</em> with the boys.
-                  </p>
-                  <aside className="public-model-compare-aside" aria-label="The Big Game aside">
-                    <img
-                      src="/intro/big-game.webp"
-                      alt="Friends watching the big game together on a couch."
-                      className="public-model-compare-aside-image"
-                    />
-                  </aside>
+                  <div className="public-model-compare-intro-body">
+                    <p className="public-model-compare-intro">
+                      Ceiora isn&apos;t trying to out-math established institutional risk models. Instead, our risk engines are
+                      narrower on purpose: much smaller factor sets that enable clear risk visualization, explicit orthogonalization
+                      to push risk into ETF-tradable exposures, and regularization to stabilize factor loadings and reduce hedge
+                      management. Our goal is to provide models you can understand and act on quickly so you never have to miss{" "}
+                      <em className={instrumentSerif.className}>The Big Game™</em> with the boys.
+                    </p>
+                    <aside className="public-model-compare-aside" aria-label="The Big Game aside">
+                      <img
+                        src="/intro/big-game.webp"
+                        alt="Friends watching the big game together on a couch."
+                        className="public-model-compare-aside-image"
+                      />
+                    </aside>
+                  </div>
                 </div>
               </div>
 
