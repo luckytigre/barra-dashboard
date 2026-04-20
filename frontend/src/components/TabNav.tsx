@@ -70,7 +70,41 @@ export default function TabNav() {
   const [transitionFamily, setTransitionFamily] = useState<"cuse" | "cpar" | null>(null);
   const prevFamilyRef = useRef<string | null>(null);
   const badgeSlotRef = useRef<HTMLSpanElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuState, setMenuState] = useState<"closed" | "open" | "closing">("closed");
+  const menuOpen = menuState === "open";
+  const menuMounted = menuState !== "closed";
+  const closeTimerRef = useRef<number | null>(null);
+  const closeMenu = useCallback(() => {
+    setMenuState((prev) => {
+      if (prev !== "open") return prev;
+      if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = window.setTimeout(() => {
+        setMenuState("closed");
+        closeTimerRef.current = null;
+      }, 300);
+      return "closing";
+    });
+  }, []);
+  const toggleMenu = useCallback(() => {
+    setMenuState((prev) => {
+      if (prev === "open") {
+        if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = window.setTimeout(() => {
+          setMenuState("closed");
+          closeTimerRef.current = null;
+        }, 300);
+        return "closing";
+      }
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      return "open";
+    });
+  }, []);
+  useEffect(() => () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+  }, []);
   const [refreshActionState, setRefreshActionState] = useState<"idle" | "running" | "failed">("idle");
   const [clockMs, setClockMs] = useState<number>(0);
   const navRef = useRef<HTMLElement>(null);
@@ -176,12 +210,12 @@ export default function TabNav() {
       const insideButton = menuRef.current?.contains(target);
       const insideDropdown = dropdownRef.current?.contains(target);
       if (!insideButton && !insideDropdown) {
-        setMenuOpen(false);
+        closeMenu();
       }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [menuOpen]);
+  }, [menuOpen, closeMenu]);
 
   useEffect(() => {
     if (!pending) {
@@ -353,7 +387,7 @@ export default function TabNav() {
 
   return (
     <>
-      {menuOpen && <div className="dash-page-scrim" aria-hidden="true" />}
+      {menuMounted && <div className="dash-page-scrim" data-state={menuState} aria-hidden="true" />}
     <nav
       ref={navRef}
       className={`dash-tabs${isLanding ? " dash-tabs-landing" : ""}${isPositionsPage ? " dash-tabs-positions" : ""}`}
@@ -432,7 +466,7 @@ export default function TabNav() {
         <div ref={menuRef} style={{ position: "relative" }}>
           <button
             className="dash-menu-btn"
-            onClick={() => setMenuOpen(!menuOpen)}
+            onClick={() => toggleMenu()}
             aria-label="Menu"
             aria-expanded={menuOpen}
           >
@@ -455,22 +489,22 @@ export default function TabNav() {
         </div>
       </div>
     </nav>
-    {menuOpen && (
-      <div ref={dropdownRef} className="dash-dropdown">
+    {menuMounted && (
+      <div ref={dropdownRef} className="dash-dropdown" data-state={menuState}>
         <div className="dash-dropdown-group">
           <div className="dash-dropdown-section">Navigation</div>
           <div className="dash-dropdown-group-items">
             <Link
               href="/tutorial"
               className={`dash-dropdown-item${pathname === "/tutorial" ? " active" : ""}`}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu()}
             >
               Tutorial
             </Link>
             <Link
               href="/positions"
               className={`dash-dropdown-item${pathname === "/positions" ? " active" : ""}`}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu()}
             >
               Positions
             </Link>
@@ -482,7 +516,7 @@ export default function TabNav() {
             <Link
               href="/settings"
               className={`dash-dropdown-item${pathname === "/settings" ? " active" : ""}`}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu()}
             >
               Global settings
             </Link>
@@ -490,7 +524,7 @@ export default function TabNav() {
               <Link
                 href="/settings/admin"
                 className={`dash-dropdown-item${pathname === "/settings/admin" ? " active" : ""}`}
-                onClick={() => setMenuOpen(false)}
+                onClick={() => closeMenu()}
               >
                 Admin settings
               </Link>
@@ -498,7 +532,7 @@ export default function TabNav() {
             <Link
               href="/data"
               className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
-              onClick={() => setMenuOpen(false)}
+              onClick={() => closeMenu()}
             >
               cUSE data
             </Link>
@@ -511,7 +545,7 @@ export default function TabNav() {
             <button
               className="dash-dropdown-item"
               onClick={() => {
-                setMenuOpen(false);
+                closeMenu();
                 void handleLogout();
               }}
             >
