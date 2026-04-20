@@ -148,7 +148,7 @@ Current frontend boundary decision:
   - intentionally shared holdings/account plumbing now lives in `frontend/src/hooks/useHoldingsApi.ts` and `frontend/src/lib/holdingsApi.ts`
   - low-level fetch/error transport now lives in `frontend/src/lib/apiTransport.ts`
   - cPAR contracts now come from `frontend/src/lib/types/cpar.ts` plus shared `frontend/src/lib/types/holdings.ts` where account plumbing is intentionally reused
-  - mixed-family compatibility barrels remain in the repo, but they are no longer the preferred import path for cPAR-owned frontend files or the owner of shared holdings/account reuse
+  - mixed-family compatibility barrels have been retired; cPAR-owned files should stay on these explicit cPAR and shared-holdings owners
 
 Current package-truth decision:
 - a richer cPAR page may continue to compose multiple requests only while it preserves one `package_run_id` / `package_date` across the full page
@@ -177,7 +177,7 @@ Current read behavior:
   - backend-owned `risk_shares`, `factor_variance_proxy`, `idio_variance_proxy`, `total_variance_proxy`, and row `risk_mix`
 - `/api/cpar/risk` additionally exposes the full package-pinned covariance matrix for the frontend heatmap
 - `/api/cpar/explore/context` is the cPAR-owned compact Explore bootstrap surface; it may reuse aggregate holdings context plus package/source support rows, but it must stop before covariance, factor charts, or aggregate risk-share analytics
-- the current implementation keeps the frontend meta-first gate intact, but shortens the backend risk path by:
+- the current implementation removes the old frontend meta-first gate and shortens the backend risk path by:
   - reading pre-aggregated all-account holdings rows from the shared holdings adapter
   - fanning out independent package/source/display-covariance reads concurrently after the aggregate book is known
 - factor drilldown history now has a cPAR-owned supplemental route:

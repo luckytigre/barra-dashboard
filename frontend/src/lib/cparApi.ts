@@ -1,5 +1,5 @@
 // cPAR-only frontend API helpers for the namespaced cPAR route family.
-// Prefer this over `@/lib/api` in cPAR-owned frontend code.
+// Prefer this over generic frontend API alias layers in cPAR-owned frontend code.
 
 import { ApiError, apiFetch } from "@/lib/apiTransport";
 

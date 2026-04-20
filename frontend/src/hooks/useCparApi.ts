@@ -1,7 +1,7 @@
 "use client";
 
 // cPAR-only hook barrel for the namespaced cPAR frontend surfaces.
-// Prefer this over `@/hooks/useApi` in cPAR-owned frontend code.
+// Prefer this over generic frontend API-hook alias layers in cPAR-owned frontend code.
 
 import useSWR, { preload } from "swr";
 import { ApiError, apiFetch } from "@/lib/apiTransport";
