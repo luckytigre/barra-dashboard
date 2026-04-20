@@ -205,8 +205,8 @@ function LoginPageInner({ provider, authConfigured, neonProjectUrl, sharedLoginA
     setErrorCode(null);
     try {
       const payload = provider === "neon" ? await submitNeonLogin() : await submitSharedLogin();
-      router.replace(typeof payload?.returnTo === "string" ? payload.returnTo : returnTo);
-      router.refresh();
+      const destination = typeof payload?.returnTo === "string" ? payload.returnTo : returnTo;
+      window.location.replace(destination);
     } catch (error) {
       const code =
         typeof error === "object" &&
