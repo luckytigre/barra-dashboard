@@ -48,12 +48,14 @@ def get_universe_ticker_history(
 async def search_universe(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=200),
+    mode: str = Query("default", pattern="^(default|typeahead)$"),
 ):
     try:
         return universe_service.search_universe_payload(
             q=q,
             limit=int(limit),
             row_normalizer=normalize_trbc_sector_fields,
+            mode=mode,
         )
     except universe_service.UniversePayloadNotReady as exc:
         raise_cache_not_ready(

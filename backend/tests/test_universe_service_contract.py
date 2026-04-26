@@ -217,6 +217,140 @@ def test_universe_search_skips_registry_lookup_when_served_hits_fill_limit(monke
     assert all(row["whatif_ready"] is True for row in out["results"])
 
 
+def test_universe_typeahead_preserves_registry_fallback_when_served_hits_fill_limit(monkeypatch) -> None:
+    payload = {
+        "index": [
+            {"ticker": "MKT", "name": "Beta Market Fund", "ric": "MKT.P"},
+            {"ticker": "VAL", "name": "Beta Value Fund", "ric": "VAL.P"},
+        ],
+        "by_ticker": {
+            "MKT": {
+                "ticker": "MKT",
+                "ric": "MKT.P",
+                "model_status": "projected_only",
+                "exposure_origin": "projected_returns",
+                "projection_output_status": "available",
+                "served_exposure_available": True,
+                "exposures": {"market": 1.0},
+            },
+            "VAL": {
+                "ticker": "VAL",
+                "ric": "VAL.P",
+                "model_status": "projected_only",
+                "exposure_origin": "projected_returns",
+                "projection_output_status": "available",
+                "served_exposure_available": True,
+                "exposures": {"market": 1.0},
+            },
+        },
+    }
+    _patch_universe_payload(monkeypatch, payload)
+    monkeypatch.setattr(
+        cuse4_universe_service.registry_quote_reads,
+        "search_registry_typeahead_rows",
+        lambda *args, **kwargs: [
+            {
+                "ric": "BET.P",
+                "ticker": "BET",
+                "common_name": "Beta Exact ETF",
+                "allow_cuse_returns_projection": 1,
+                "registry_read_mode": "typeahead",
+            }
+        ],
+    )
+
+    out = universe_service.search_universe_payload(
+        q="bet",
+        limit=2,
+        row_normalizer=lambda row: row,
+        mode="typeahead",
+    )
+
+    assert out["results"][0]["ticker"] == "BET"
+    assert len(out["results"]) == 2
+
+
+def test_universe_search_skips_registry_lookup_for_exact_served_ticker(monkeypatch) -> None:
+    payload = {
+        "index": [
+            {"ticker": "COST", "name": "Costco Wholesale Corp", "ric": "COST.OQ"},
+        ],
+        "by_ticker": {
+            "COST": {
+                "ticker": "COST",
+                "ric": "COST.OQ",
+                "model_status": "core_estimated",
+                "served_exposure_available": True,
+                "exposures": {"market": 1.0},
+            },
+        },
+    }
+    _patch_universe_payload(monkeypatch, payload)
+
+    def _unexpected_registry_call(*args, **kwargs):
+        raise AssertionError("registry fallback should not run after an exact served ticker match")
+
+    monkeypatch.setattr(
+        cuse4_universe_service.registry_quote_reads,
+        "search_registry_quote_rows",
+        _unexpected_registry_call,
+    )
+    monkeypatch.setattr(
+        cuse4_universe_service.registry_quote_reads,
+        "search_registry_typeahead_rows",
+        _unexpected_registry_call,
+    )
+
+    out = universe_service.search_universe_payload(
+        q="cost",
+        limit=10,
+        row_normalizer=lambda row: row,
+        mode="typeahead",
+    )
+
+    assert out["total"] == 1
+    assert out["results"][0]["ticker"] == "COST"
+    assert out["results"][0]["quote_source_label"] == "Live cUSE Payload"
+
+
+def test_universe_search_still_uses_registry_fallback_for_non_exact_sparse_hits(monkeypatch) -> None:
+    payload = {
+        "index": [
+            {"ticker": "COST", "name": "Costco Wholesale Corp", "ric": "COST.OQ"},
+        ],
+        "by_ticker": {
+            "COST": {
+                "ticker": "COST",
+                "ric": "COST.OQ",
+                "model_status": "core_estimated",
+                "served_exposure_available": True,
+                "exposures": {"market": 1.0},
+            },
+        },
+    }
+    _patch_universe_payload(monkeypatch, payload)
+    monkeypatch.setattr(
+        cuse4_universe_service.registry_quote_reads,
+        "search_registry_quote_rows",
+        lambda *args, **kwargs: [
+            {
+                "ric": "COSTX.P",
+                "ticker": "COSTX",
+                "common_name": "Cost Extension Fund",
+                "price": 10.0,
+            }
+        ],
+    )
+
+    out = universe_service.search_universe_payload(
+        q="cos",
+        limit=10,
+        row_normalizer=lambda row: row,
+    )
+
+    assert {row["ticker"] for row in out["results"]} == {"COST", "COSTX"}
+
+
 def test_universe_ticker_payload_falls_back_to_registry_runtime(monkeypatch) -> None:
     monkeypatch.setattr(
         universe_service,

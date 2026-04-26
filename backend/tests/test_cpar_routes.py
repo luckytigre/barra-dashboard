@@ -110,6 +110,33 @@ def test_cpar_search_route_returns_payload(monkeypatch) -> None:
     assert res.json()["results"][0]["ric"] == "AAPL.OQ"
 
 
+def test_cpar_search_route_preserves_default_mode_and_accepts_typeahead(monkeypatch) -> None:
+    seen_modes: list[str] = []
+
+    def _search_payload(**kwargs):
+        seen_modes.append(kwargs["mode"])
+        return {
+            "query": kwargs["q"],
+            "limit": kwargs["limit"],
+            "package_run_id": "run_curr",
+            "package_date": "2026-03-14",
+            "results": [],
+            "total": 0,
+        }
+
+    monkeypatch.setattr(cpar_routes.cpar_search_service, "load_cpar_search_payload", _search_payload)
+
+    client = TestClient(_test_app())
+    default_res = client.get("/api/cpar/search?q=aapl&limit=10")
+    typeahead_res = client.get("/api/cpar/search?q=aapl&limit=10&mode=typeahead")
+    invalid_res = client.get("/api/cpar/search?q=aapl&limit=10&mode=fast")
+
+    assert default_res.status_code == 200
+    assert typeahead_res.status_code == 200
+    assert invalid_res.status_code == 422
+    assert seen_modes == ["default", "typeahead"]
+
+
 def test_cpar_search_route_preserves_null_ticker_rows(monkeypatch) -> None:
     monkeypatch.setattr(
         cpar_routes.cpar_search_service,

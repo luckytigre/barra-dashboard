@@ -31,6 +31,26 @@ def test_universe_search_uses_index_ric_when_present(monkeypatch) -> None:
     assert body["results"][0]["ric"] == "JPM.N"
 
 
+def test_universe_search_route_preserves_default_mode_and_accepts_typeahead(monkeypatch) -> None:
+    seen_modes: list[str] = []
+
+    def _search_payload(**kwargs):
+        seen_modes.append(kwargs["mode"])
+        return {"query": kwargs["q"], "results": [], "total": 0, "_cached": True}
+
+    monkeypatch.setattr(universe_routes.universe_service, "search_universe_payload", _search_payload)
+
+    client = TestClient(app)
+    default_res = client.get("/api/universe/search?q=jpm&limit=20")
+    typeahead_res = client.get("/api/universe/search?q=jpm&limit=20&mode=typeahead")
+    invalid_res = client.get("/api/universe/search?q=jpm&limit=20&mode=fast")
+
+    assert default_res.status_code == 200
+    assert typeahead_res.status_code == 200
+    assert invalid_res.status_code == 422
+    assert seen_modes == ["default", "typeahead"]
+
+
 def test_universe_search_fills_ric_from_by_ticker_when_index_missing(monkeypatch) -> None:
     payload = {
         "index": [

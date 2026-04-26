@@ -334,6 +334,136 @@ def test_cpar_search_service_includes_registry_only_hits(monkeypatch: pytest.Mon
     assert ura["scenario_stage_supported"] is False
 
 
+def test_cpar_search_service_skips_registry_lookup_for_exact_active_package_ticker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=1)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "search_package_instrument_fits",
+        lambda *args, **kwargs: [
+            {
+                "ticker": "COST",
+                "ric": "COST.OQ",
+                "display_name": "Costco Wholesale Corp",
+                "target_scope": "core_us_equity",
+                "fit_status": "ok",
+                "warnings": [],
+                "hq_country_code": "US",
+            }
+        ],
+    )
+
+    def _unexpected_registry_call(*args, **kwargs):
+        raise AssertionError("registry fallback should not run after an exact active-package ticker match")
+
+    monkeypatch.setattr(
+        cpar_search_service.registry_quote_reads,
+        "search_registry_typeahead_rows",
+        _unexpected_registry_call,
+    )
+    monkeypatch.setattr(
+        cpar_search_service.registry_quote_reads,
+        "search_registry_typeahead_rows",
+        _unexpected_registry_call,
+    )
+
+    payload = cpar_search_service.load_cpar_search_payload(q="cost", limit=10, mode="typeahead")
+
+    assert payload["total"] == 1
+    assert payload["results"][0]["ticker"] == "COST"
+    assert payload["results"][0]["quote_source_label"] == "Active cPAR Package"
+
+
+def test_cpar_search_service_preserves_registry_fallback_when_active_hits_fill_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=2)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "search_package_instrument_fits",
+        lambda *args, **kwargs: [
+            {
+                "ticker": "MKT",
+                "ric": "MKT.P",
+                "display_name": "Beta Market Fund",
+                "target_scope": "extended_etf",
+                "fit_status": "ok",
+                "warnings": [],
+                "hq_country_code": "US",
+            },
+            {
+                "ticker": "VAL",
+                "ric": "VAL.P",
+                "display_name": "Beta Value Fund",
+                "target_scope": "extended_etf",
+                "fit_status": "ok",
+                "warnings": [],
+                "hq_country_code": "US",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        cpar_search_service.registry_quote_reads,
+        "search_registry_typeahead_rows",
+        lambda *args, **kwargs: [
+            {
+                "ticker": "BET",
+                "ric": "BET.P",
+                "common_name": "Beta Exact ETF",
+                "allow_cpar_extended_target": 1,
+                "price": 10.0,
+            }
+        ],
+    )
+
+    payload = cpar_search_service.load_cpar_search_payload(q="bet", limit=2, mode="typeahead")
+
+    assert payload["results"][0]["ticker"] == "BET"
+    assert len(payload["results"]) == 2
+
+
+def test_cpar_search_service_still_uses_registry_fallback_for_non_exact_sparse_hits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = _package_run("run_meta", "2026-03-14", universe_count=1)
+    monkeypatch.setattr(cpar_meta_service, "require_active_package", lambda **kwargs: package)
+    monkeypatch.setattr(
+        cpar_outputs,
+        "search_package_instrument_fits",
+        lambda *args, **kwargs: [
+            {
+                "ticker": "COST",
+                "ric": "COST.OQ",
+                "display_name": "Costco Wholesale Corp",
+                "target_scope": "core_us_equity",
+                "fit_status": "ok",
+                "warnings": [],
+                "hq_country_code": "US",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        cpar_search_service.registry_quote_reads,
+        "search_registry_quote_rows",
+        lambda *args, **kwargs: [
+            {
+                "ticker": "COSTX",
+                "ric": "COSTX.P",
+                "common_name": "Cost Extension Fund",
+                "allow_cpar_extended_target": 1,
+                "price": 10.0,
+            }
+        ],
+    )
+
+    payload = cpar_search_service.load_cpar_search_payload(q="cos", limit=10)
+
+    assert {row["ticker"] for row in payload["results"]} == {"COST", "COSTX"}
+
+
 def test_cpar_meta_service_fails_closed_when_no_package_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

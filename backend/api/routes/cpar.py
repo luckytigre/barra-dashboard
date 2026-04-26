@@ -122,9 +122,10 @@ async def get_cpar_meta():
 async def search_cpar(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=200),
+    mode: str = Query("default", pattern="^(default|typeahead)$"),
 ):
     try:
-        return cpar_search_service.load_cpar_search_payload(q=q, limit=int(limit))
+        return cpar_search_service.load_cpar_search_payload(q=q, limit=int(limit), mode=mode)
     except cpar_meta_service.CparReadNotReady as exc:
         _raise_cpar_not_ready(str(exc))
     except cpar_meta_service.CparReadUnavailable as exc:

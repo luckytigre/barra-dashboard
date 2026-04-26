@@ -65,6 +65,7 @@ def search_universe_payload(
     q: str,
     limit: int,
     row_normalizer,
+    mode: str = "default",
 ) -> dict[str, Any]:
     return _owner._search_universe_payload(
         q=q,
@@ -72,6 +73,7 @@ def search_universe_payload(
         payload_loader=load_runtime_payload,
         fallback_loader=cache_get,
         row_normalizer=row_normalizer,
+        mode=mode,
     )
 
 

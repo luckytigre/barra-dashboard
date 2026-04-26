@@ -31,6 +31,12 @@ def _search_rank(row: dict[str, Any], needle: str) -> tuple[int, int, str]:
     return (4, name.find(needle), ticker)
 
 
+def _is_exact_ticker_or_ric_match(row: dict[str, Any], needle: str) -> bool:
+    ticker = str(row.get("ticker") or "").upper().strip()
+    ric = str(row.get("ric") or "").upper().strip()
+    return bool(needle and (ticker == needle or ric == needle))
+
+
 def _bool_flag(row: dict[str, Any], key: str) -> bool:
     return bool(int(row.get(key) or 0) == 1)
 
@@ -121,13 +127,18 @@ def _decorate_active_package_row(row: dict[str, Any]) -> dict[str, Any]:
 
 def _decorate_registry_row(row: dict[str, Any]) -> dict[str, Any]:
     risk_tier, risk_tier_label, risk_tier_detail = _registry_cpar_tier(row)
+    typeahead_omits_price = str(row.get("registry_read_mode") or "") == "typeahead"
     return {
         "ticker": row.get("ticker"),
         "ric": row.get("ric"),
         "display_name": row.get("common_name") or row.get("ticker") or row.get("ric"),
         "target_scope": None,
         "fit_family": None,
-        "price_on_package_date_status": "present" if row.get("price") is not None else "missing",
+        "price_on_package_date_status": (
+            "not_loaded"
+            if typeahead_omits_price
+            else ("present" if row.get("price") is not None else "missing")
+        ),
         "fit_row_status": "missing",
         "fit_quality_status": None,
         "portfolio_use_status": "missing_cpar_fit",
@@ -144,6 +155,9 @@ def _decorate_registry_row(row: dict[str, Any]) -> dict[str, Any]:
         "quote_source": "registry_runtime",
         "quote_source_label": "Registry Runtime",
         "quote_source_detail": "This quote is backed by registry/runtime authority because the active cPAR package does not contain a fit row for it.",
+        "registry_read_mode": row.get("registry_read_mode"),
+        "price_lookup_status": row.get("price_lookup_status"),
+        "classification_lookup_status": row.get("classification_lookup_status"),
         "scenario_stage_supported": False,
         "scenario_stage_detail": "cPAR what-if staging stays limited to active-package names.",
     }
@@ -154,6 +168,7 @@ def load_cpar_search_payload(
     q: str,
     limit: int,
     data_db=None,
+    mode: str = "default",
 ) -> dict[str, object]:
     package = cpar_meta_service.require_active_package(data_db=data_db)
     clean_q = str(q or "").strip()
@@ -182,15 +197,34 @@ def load_cpar_search_payload(
         decorated = _decorate_active_package_row(row)
         seen_rics.add(str(decorated.get("ric") or "").upper())
         combined.append((_search_rank(decorated, needle), 0, decorated))
-    try:
-        registry_rows = registry_quote_reads.search_registry_quote_rows(
-            clean_q,
-            limit=max(int(limit) * 8, int(limit)),
-            as_of_date=str(package["package_date"]),
-            data_db=data_db,
-        )
-    except registry_quote_reads.RegistryQuoteReadError:
+    exact_active_package_match = any(
+        source_order == 0 and _is_exact_ticker_or_ric_match(row, needle)
+        for _, source_order, row in combined
+    )
+    should_search_registry = (
+        not exact_active_package_match
+        and (mode == "typeahead" or len(combined) < int(limit))
+    )
+    if not should_search_registry:
         registry_rows = []
+    else:
+        try:
+            if mode == "typeahead":
+                registry_rows = registry_quote_reads.search_registry_typeahead_rows(
+                    clean_q,
+                    limit=max(int(limit) * 8, int(limit)),
+                    as_of_date=str(package["package_date"]),
+                    data_db=data_db,
+                )
+            else:
+                registry_rows = registry_quote_reads.search_registry_quote_rows(
+                    clean_q,
+                    limit=max(int(limit) * 8, int(limit)),
+                    as_of_date=str(package["package_date"]),
+                    data_db=data_db,
+                )
+        except registry_quote_reads.RegistryQuoteReadError:
+            registry_rows = []
     for row in registry_rows:
         clean_ric = str(row.get("ric") or "").upper().strip()
         if not clean_ric or clean_ric in seen_rics:

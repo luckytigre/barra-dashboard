@@ -229,6 +229,9 @@ def _decorate_cuse_row(
         "quote_source": quote_source,
         "quote_source_label": source_label,
         "quote_source_detail": source_detail,
+        "registry_read_mode": row.get("registry_read_mode"),
+        "price_lookup_status": row.get("price_lookup_status"),
+        "classification_lookup_status": row.get("classification_lookup_status"),
         "whatif_ready": whatif_ready,
         "whatif_ready_label": whatif_ready_label,
         "whatif_ready_detail": whatif_ready_detail,
@@ -239,12 +242,20 @@ def _registry_search_rows(
     *,
     q: str,
     limit: int,
+    mode: str = "default",
 ) -> list[dict[str, Any]]:
-    rows = registry_quote_reads.search_registry_quote_rows(
-        q,
-        limit=max(int(limit) * 8, int(limit)),
-        data_db=DATA_DB,
-    )
+    if mode == "typeahead":
+        rows = registry_quote_reads.search_registry_typeahead_rows(
+            q,
+            limit=max(int(limit) * 8, int(limit)),
+            data_db=DATA_DB,
+        )
+    else:
+        rows = registry_quote_reads.search_registry_quote_rows(
+            q,
+            limit=max(int(limit) * 8, int(limit)),
+            data_db=DATA_DB,
+        )
     return [
         _decorate_cuse_row(
             _normalize_registry_ticker_row(row),
@@ -346,6 +357,12 @@ def _search_rank(row: dict[str, Any], needle: str) -> tuple[int, int, str]:
     if name.startswith(needle):
         return (3, len(name), ticker)
     return (4, name.find(needle), ticker)
+
+
+def _is_exact_ticker_or_ric_match(row: dict[str, Any], needle: str) -> bool:
+    ticker = str(row.get("ticker") or "").upper().strip()
+    ric = str(row.get("ric") or "").upper().strip()
+    return bool(needle and (ticker == needle or ric == needle))
 
 
 def _week_ending_friday(day: date) -> date:
@@ -516,6 +533,7 @@ def _search_universe_payload(
     payload_loader: PayloadLoader,
     fallback_loader,
     row_normalizer: RowNormalizer,
+    mode: str = "default",
 ) -> dict[str, Any]:
     index = load_runtime_payload_field(
         "universe_loadings",
@@ -594,9 +612,17 @@ def _search_universe_payload(
         existing_tickers.add(ticker)
 
     registry_rows: list[dict[str, Any]] = []
-    if len(ranked) < limit:
+    exact_served_match = any(
+        source_order == 0 and _is_exact_ticker_or_ric_match(row, needle)
+        for _, source_order, row in ranked
+    )
+    should_search_registry = (
+        not exact_served_match
+        and (mode == "typeahead" or len(ranked) < limit)
+    )
+    if should_search_registry:
         try:
-            registry_rows = _registry_search_rows(q=q, limit=limit)
+            registry_rows = _registry_search_rows(q=q, limit=limit, mode=mode)
         except registry_quote_reads.RegistryQuoteReadError:
             registry_rows = []
     for row in registry_rows:
@@ -617,6 +643,7 @@ def search_universe_payload(
     q: str,
     limit: int,
     row_normalizer: RowNormalizer,
+    mode: str = "default",
 ) -> dict[str, Any]:
     return _search_universe_payload(
         q=q,
@@ -624,6 +651,7 @@ def search_universe_payload(
         payload_loader=load_runtime_payload,
         fallback_loader=cache_get,
         row_normalizer=row_normalizer,
+        mode=mode,
     )
 
 

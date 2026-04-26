@@ -461,6 +461,203 @@ def _query_registry_rows(
     return _fetch_rows(sql, params, data_db=data_db)
 
 
+def search_registry_typeahead_rows(
+    q: str,
+    *,
+    limit: int,
+    as_of_date: str | None = None,
+    data_db: Path | None = None,
+) -> list[dict[str, Any]]:
+    clean_q = str(q or "").strip().upper()
+    if not clean_q:
+        return []
+    available = _ensure_required_tables(data_db=data_db)
+    anchor_date = str(as_of_date or _today_iso()).strip() or _today_iso()
+    like_needle = f"%{clean_q}%"
+    prefix_needle = f"{clean_q}%"
+    search_limit = max(int(limit), 1)
+
+    params: list[Any] = []
+    ctes: list[str] = []
+    joins: list[str] = [
+        """
+        LEFT JOIN security_policy_current pol
+          ON UPPER(TRIM(COALESCE(pol.ric, ''))) = UPPER(TRIM(COALESCE(reg.ric, '')))
+        """
+    ]
+    selects: list[str] = [
+        "UPPER(TRIM(COALESCE(reg.ric, ''))) AS ric",
+        "NULLIF(UPPER(TRIM(COALESCE(reg.ticker, ''))), '') AS ticker",
+        "NULLIF(TRIM(COALESCE(reg.isin, '')), '') AS isin",
+        "NULLIF(TRIM(COALESCE(reg.exchange_name, '')), '') AS exchange_name",
+        "COALESCE(NULLIF(TRIM(reg.tracking_status), ''), 'active') AS tracking_status",
+        "COALESCE(pol.price_ingest_enabled, 0) AS price_ingest_enabled",
+        "COALESCE(pol.pit_fundamentals_enabled, 0) AS pit_fundamentals_enabled",
+        "COALESCE(pol.pit_classification_enabled, 0) AS pit_classification_enabled",
+        "COALESCE(pol.allow_cuse_native_core, 0) AS allow_cuse_native_core",
+        "COALESCE(pol.allow_cuse_fundamental_projection, 0) AS allow_cuse_fundamental_projection",
+        "COALESCE(pol.allow_cuse_returns_projection, 0) AS allow_cuse_returns_projection",
+        "COALESCE(pol.allow_cpar_core_target, 0) AS allow_cpar_core_target",
+        "COALESCE(pol.allow_cpar_extended_target, 0) AS allow_cpar_extended_target",
+    ]
+
+    if "security_taxonomy_current" in available:
+        joins.append(
+            """
+            LEFT JOIN security_taxonomy_current tax
+              ON UPPER(TRIM(COALESCE(tax.ric, ''))) = UPPER(TRIM(COALESCE(reg.ric, '')))
+            """
+        )
+        selects.extend(
+            [
+                "NULLIF(TRIM(COALESCE(tax.instrument_kind, '')), '') AS instrument_kind",
+                "NULLIF(TRIM(COALESCE(tax.vehicle_structure, '')), '') AS vehicle_structure",
+                "NULLIF(TRIM(COALESCE(tax.issuer_country_code, '')), '') AS issuer_country_code",
+                "NULLIF(TRIM(COALESCE(tax.listing_country_code, '')), '') AS listing_country_code",
+                "NULLIF(TRIM(COALESCE(tax.model_home_market_scope, '')), '') AS model_home_market_scope",
+                "COALESCE(tax.is_single_name_equity, 0) AS is_single_name_equity",
+                "COALESCE(tax.classification_ready, 0) AS classification_ready",
+            ]
+        )
+    else:
+        selects.extend(
+            [
+                "NULL AS instrument_kind",
+                "NULL AS vehicle_structure",
+                "NULL AS issuer_country_code",
+                "NULL AS listing_country_code",
+                "NULL AS model_home_market_scope",
+                "0 AS is_single_name_equity",
+                "0 AS classification_ready",
+            ]
+        )
+
+    if "security_fundamentals_pit" in available:
+        ctes.append(
+            """
+            latest_common_name AS (
+                SELECT ric, as_of_date, common_name
+                FROM (
+                    SELECT
+                        UPPER(TRIM(COALESCE(f.ric, ''))) AS ric,
+                        f.as_of_date,
+                        NULLIF(TRIM(COALESCE(f.common_name, '')), '') AS common_name,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY UPPER(TRIM(COALESCE(f.ric, '')))
+                            ORDER BY f.as_of_date DESC, f.stat_date DESC, f.updated_at DESC
+                        ) AS rn
+                    FROM security_fundamentals_pit f
+                    WHERE f.as_of_date <= ?
+                ) ranked
+                WHERE rn = 1
+            )
+            """
+        )
+        params.append(anchor_date)
+        joins.append(
+            """
+            LEFT JOIN latest_common_name nm
+              ON nm.ric = UPPER(TRIM(COALESCE(reg.ric, '')))
+            """
+        )
+        selects.extend(
+            [
+                "nm.common_name AS common_name",
+                "nm.as_of_date AS common_name_as_of_date",
+            ]
+        )
+        name_search_expr = "UPPER(COALESCE(nm.common_name, '')) LIKE ?"
+    else:
+        selects.extend(
+            [
+                "NULL AS common_name",
+                "NULL AS common_name_as_of_date",
+            ]
+        )
+        name_search_expr = "0 = 1"
+
+    selects.extend(
+        [
+            "NULL AS observation_as_of_date",
+            "0 AS has_price_history_as_of_date",
+            "0 AS has_fundamentals_history_as_of_date",
+            "0 AS has_classification_history_as_of_date",
+            "NULL AS latest_price_date",
+            "NULL AS latest_fundamentals_as_of_date",
+            "NULL AS latest_classification_as_of_date",
+            "NULL AS classification_as_of_date",
+            "NULL AS trbc_economic_sector",
+            "NULL AS trbc_business_sector",
+            "NULL AS trbc_industry_group",
+            "NULL AS trbc_industry",
+            "NULL AS trbc_activity",
+            "NULL AS hq_country_code",
+            "NULL AS price_date",
+            "NULL AS price",
+            "NULL AS price_field_used",
+            "NULL AS price_currency",
+            "'typeahead' AS registry_read_mode",
+            "'not_loaded' AS price_lookup_status",
+            "'not_loaded' AS classification_lookup_status",
+        ]
+    )
+
+    rank_expr = """
+        CASE
+            WHEN UPPER(COALESCE(reg.ticker, '')) = ? THEN 0
+            WHEN UPPER(COALESCE(reg.ric, '')) = ? THEN 1
+            WHEN UPPER(COALESCE(reg.ticker, '')) LIKE ? THEN 2
+            WHEN UPPER(COALESCE(reg.ric, '')) LIKE ? THEN 3
+            WHEN UPPER(COALESCE(reg.ticker, '')) LIKE ? THEN 4
+            WHEN UPPER(COALESCE(reg.ric, '')) LIKE ? THEN 5
+            WHEN UPPER(COALESCE(nm.common_name, '')) LIKE ? THEN 6
+            WHEN UPPER(COALESCE(nm.common_name, '')) LIKE ? THEN 7
+            ELSE 8
+        END
+    """ if "security_fundamentals_pit" in available else """
+        CASE
+            WHEN UPPER(COALESCE(reg.ticker, '')) = ? THEN 0
+            WHEN UPPER(COALESCE(reg.ric, '')) = ? THEN 1
+            WHEN UPPER(COALESCE(reg.ticker, '')) LIKE ? THEN 2
+            WHEN UPPER(COALESCE(reg.ric, '')) LIKE ? THEN 3
+            WHEN UPPER(COALESCE(reg.ticker, '')) LIKE ? THEN 4
+            WHEN UPPER(COALESCE(reg.ric, '')) LIKE ? THEN 5
+            ELSE 8
+        END
+    """
+
+    where_clause = (
+        "reg.ric IS NOT NULL\n"
+        "  AND TRIM(COALESCE(reg.ric, '')) <> ''\n"
+        "  AND COALESCE(NULLIF(TRIM(reg.tracking_status), ''), 'active') = 'active'\n"
+        "  AND (\n"
+        "        UPPER(COALESCE(reg.ticker, '')) LIKE ?\n"
+        "        OR UPPER(COALESCE(reg.ric, '')) LIKE ?\n"
+        f"        OR {name_search_expr}\n"
+        "      )"
+    )
+
+    rank_params = [clean_q, clean_q, prefix_needle, prefix_needle, like_needle, like_needle]
+    if "security_fundamentals_pit" in available:
+        rank_params.extend([prefix_needle, like_needle])
+    where_params = [like_needle, like_needle]
+    if "security_fundamentals_pit" in available:
+        where_params.append(like_needle)
+
+    sql = ""
+    if ctes:
+        sql += "WITH " + ",\n".join(ctes) + "\n"
+    sql += "SELECT\n        "
+    sql += ",\n        ".join(selects)
+    sql += "\nFROM security_registry reg\n"
+    sql += "\n".join(joins)
+    sql += "\nWHERE " + where_clause
+    sql += f"\nORDER BY {rank_expr}, UPPER(COALESCE(reg.ticker, '')) ASC, UPPER(COALESCE(reg.ric, '')) ASC"
+    sql += "\nLIMIT ?"
+
+    return _fetch_rows(sql, params + where_params + rank_params + [search_limit], data_db=data_db)
+
+
 def search_registry_quote_rows(
     q: str,
     *,
