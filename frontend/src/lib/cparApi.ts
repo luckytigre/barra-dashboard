@@ -8,8 +8,8 @@ export { ApiError, apiFetch };
 export const cparApiPath = {
   cparExploreContext: () => "/api/cpar/explore/context",
   cparMeta: () => "/api/cpar/meta",
-  cparSearch: (query: string, limit: number) =>
-    `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  cparSearch: (query: string, limit: number, mode: "default" | "typeahead" = "default") =>
+    `/api/cpar/search?q=${encodeURIComponent(query)}&limit=${limit}&mode=${mode}`,
   cparTicker: (ticker: string, ric?: string | null) =>
     ric && ric.trim().length > 0
       ? `/api/cpar/ticker/${encodeURIComponent(ticker)}?ric=${encodeURIComponent(ric.trim())}`

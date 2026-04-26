@@ -114,9 +114,9 @@ export function useUniverseTickerHistory(ticker: string | null, years = 5, enabl
   return useSWR<UniverseTickerHistoryData>(key, apiFetch, SWR_OPTS);
 }
 
-export function useUniverseSearch(query: string, limit = 8) {
+export function useUniverseSearch(query: string, limit = 8, mode: "default" | "typeahead" = "default") {
   const q = query.trim();
-  const key = q.length > 0 ? cuse4ApiPath.universeSearch(q, limit) : null;
+  const key = q.length > 0 ? cuse4ApiPath.universeSearch(q, limit, mode) : null;
   return useSWR<UniverseSearchData>(key, apiFetch, {
     ...SWR_OPTS,
     keepPreviousData: true,

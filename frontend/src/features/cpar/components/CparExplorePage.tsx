@@ -21,7 +21,7 @@ export default function CparExplorePage() {
   const [selectedInstrument, setSelectedInstrument] = useState<CparSearchItem | null>(null);
   const debouncedQuery = useDebouncedValue(query, 140);
 
-  const { data: searchData, error: searchError, isLoading: searchLoading, isValidating: searchValidating } = useCparSearch(debouncedQuery, 10);
+  const { data: searchData, error: searchError, isLoading: searchLoading, isValidating: searchValidating } = useCparSearch(debouncedQuery, 10, "typeahead");
   const { data: exploreContextData, error: exploreContextError } = useCparExploreContext();
   const { data: tickerData, isLoading, error: tickerError } = useCparTicker(
     selectedInstrument?.ticker || null,

@@ -69,7 +69,7 @@ export default function CparPortfolioWhatIfBuilder({
   const searchWrapRef = useRef<HTMLDivElement>(null);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
 
-  const { data: searchData, error: searchError, isLoading: searchLoading } = useCparSearch(debouncedSearchQuery, 8);
+  const { data: searchData, error: searchError, isLoading: searchLoading } = useCparSearch(debouncedSearchQuery, 8, "typeahead");
   const searchState = searchError ? readCparError(searchError) : null;
   const searchResults = searchData?.results ?? [];
   const selectableCount = useMemo(

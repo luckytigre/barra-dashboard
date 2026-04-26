@@ -21,8 +21,8 @@ export const cuse4ApiPath = {
   universeTicker: (ticker: string) => `/api/universe/ticker/${encodeURIComponent(ticker)}`,
   universeTickerHistory: (ticker: string, years: number) =>
     `/api/universe/ticker/${encodeURIComponent(ticker)}/history?years=${years}`,
-  universeSearch: (query: string, limit: number) =>
-    `/api/universe/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+  universeSearch: (query: string, limit: number, mode: "default" | "typeahead" = "default") =>
+    `/api/universe/search?q=${encodeURIComponent(query)}&limit=${limit}&mode=${mode}`,
   universeFactors: () => "/api/universe/factors",
   healthDiagnostics: () => "/api/health/diagnostics",
   dataDiagnostics: (opts?: { includeExactRowCounts?: boolean; includeExpensiveChecks?: boolean }) => {

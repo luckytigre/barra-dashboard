@@ -66,6 +66,9 @@ export interface CparSearchItem {
   quote_source?: string | null;
   quote_source_label?: string | null;
   quote_source_detail?: string | null;
+  registry_read_mode?: string | null;
+  price_lookup_status?: string | null;
+  classification_lookup_status?: string | null;
   scenario_stage_supported?: boolean;
   scenario_stage_detail?: string | null;
 }

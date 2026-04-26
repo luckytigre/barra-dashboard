@@ -38,9 +38,9 @@ export function useCparMeta() {
   return useSWR<CparMetaData>(cparApiPath.cparMeta(), apiFetch, SWR_OPTS);
 }
 
-export function useCparSearch(query: string, limit = 10) {
+export function useCparSearch(query: string, limit = 10, mode: "default" | "typeahead" = "default") {
   const q = query.trim();
-  const key = q.length > 0 ? cparApiPath.cparSearch(q, limit) : null;
+  const key = q.length > 0 ? cparApiPath.cparSearch(q, limit, mode) : null;
   return useSWR<CparSearchData>(key, apiFetch, {
     ...SWR_OPTS,
     keepPreviousData: true,

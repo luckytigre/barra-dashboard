@@ -57,33 +57,51 @@ export default function ManualPositionEditor({
   const [tickerDropdownOpen, setTickerDropdownOpen] = useState(false);
   const [tickerActiveIndex, setTickerActiveIndex] = useState(-1);
   const tickerWrapRef = useRef<HTMLDivElement>(null);
-
-  const debouncedTicker = useDebouncedValue(editTicker.trim().toUpperCase(), 220);
-  const { data: tickerSearch } = useUniverseSearch(debouncedTicker, 8);
-  const tickerResults = useMemo(
-    () => (tickerSearch?.results ?? []).filter((r) => typeof r.ric === "string" && r.ric.trim().length > 0),
-    [tickerSearch?.results],
-  );
+  const tickerInputRef = useRef<HTMLInputElement>(null);
 
   // --- RIC typeahead state ---
   const [ricFocused, setRicFocused] = useState(false);
   const [ricDropdownOpen, setRicDropdownOpen] = useState(false);
   const [ricActiveIndex, setRicActiveIndex] = useState(-1);
   const ricWrapRef = useRef<HTMLDivElement>(null);
+  const ricInputRef = useRef<HTMLInputElement>(null);
 
-  const debouncedRic = useDebouncedValue(editRic.trim().toUpperCase(), 220);
-  const { data: ricSearch } = useUniverseSearch(debouncedRic, 8);
-  const ricResults = useMemo(
-    () => (ricSearch?.results ?? []).filter((r) => typeof r.ric === "string" && r.ric.trim().length > 0),
-    [ricSearch?.results],
+  const activeSearchField = tickerFocused ? "ticker" : ricFocused ? "ric" : null;
+  const activeSearchQuery = useMemo(() => {
+    if (activeSearchField === "ticker") return (editTicker.trim() || editRic.trim()).toUpperCase();
+    if (activeSearchField === "ric") return (editRic.trim() || editTicker.trim()).toUpperCase();
+    return "";
+  }, [activeSearchField, editTicker, editRic]);
+  const debouncedSearchQuery = useDebouncedValue(activeSearchQuery, 220);
+  const {
+    data: searchData,
+    isLoading: searchLoading,
+    isValidating: searchValidating,
+  } = useUniverseSearch(activeSearchField ? debouncedSearchQuery : "", 8, "typeahead");
+  const searchPending = activeSearchQuery.trim() !== debouncedSearchQuery.trim();
+  const searchResultsCurrent =
+    activeSearchQuery.trim().length === 0
+      || (
+        !searchPending
+        && !searchLoading
+        && !searchValidating
+        && (searchData?.query ?? "").trim().toUpperCase() === debouncedSearchQuery.trim().toUpperCase()
+      );
+  const currentResults = useMemo(
+    () => (
+      activeSearchQuery.trim().length > 0 && searchResultsCurrent
+        ? (searchData?.results ?? []).filter((r) => typeof r.ric === "string" && r.ric.trim().length > 0)
+        : []
+    ),
+    [activeSearchQuery, searchData?.results, searchResultsCurrent],
   );
   const tickerSuggestions = useMemo(
-    () => (tickerResults.length > 0 ? tickerResults : ricResults),
-    [tickerResults, ricResults],
+    () => (activeSearchField === "ticker" ? currentResults : []),
+    [activeSearchField, currentResults],
   );
   const ricSuggestions = useMemo(
-    () => (ricResults.length > 0 ? ricResults : tickerResults),
-    [ricResults, tickerResults],
+    () => (activeSearchField === "ric" ? currentResults : []),
+    [activeSearchField, currentResults],
   );
 
   // --- Ticker dropdown open/close ---
@@ -91,6 +109,7 @@ export default function ManualPositionEditor({
     if (
       tickerFocused
       && (editTicker.trim().length > 0 || (editTicker.trim().length === 0 && editRic.trim().length > 0))
+      && searchResultsCurrent
       && tickerSuggestions.length > 0
     ) {
       setTickerDropdownOpen(true);
@@ -98,13 +117,14 @@ export default function ManualPositionEditor({
     } else {
       setTickerDropdownOpen(false);
     }
-  }, [tickerFocused, editTicker, editRic, tickerSuggestions.length]);
+  }, [tickerFocused, editTicker, editRic, searchResultsCurrent, tickerSuggestions.length]);
 
   // --- RIC dropdown open/close ---
   useEffect(() => {
     if (
       ricFocused
       && (editRic.trim().length > 0 || (editRic.trim().length === 0 && editTicker.trim().length > 0))
+      && searchResultsCurrent
       && ricSuggestions.length > 0
     ) {
       setRicDropdownOpen(true);
@@ -112,7 +132,7 @@ export default function ManualPositionEditor({
     } else {
       setRicDropdownOpen(false);
     }
-  }, [ricFocused, editRic, editTicker, ricSuggestions.length]);
+  }, [ricFocused, editRic, editTicker, searchResultsCurrent, ricSuggestions.length]);
 
   // --- Click-outside handlers ---
   useEffect(() => {
@@ -132,17 +152,17 @@ export default function ManualPositionEditor({
 
   // --- Auto-fill: ticker → RIC ---
   useEffect(() => {
-    if (!editTicker.trim() || editRic.trim().length > 0) return;
-    const exact = tickerResults.find((r) => r.ticker.toUpperCase() === editTicker.trim().toUpperCase());
+    if (activeSearchField !== "ticker" || !searchResultsCurrent || !editTicker.trim() || editRic.trim().length > 0) return;
+    const exact = currentResults.find((r) => r.ticker.toUpperCase() === editTicker.trim().toUpperCase());
     if (exact?.ric) onRicChange(String(exact.ric).toUpperCase());
-  }, [editTicker, editRic, tickerResults, onRicChange]);
+  }, [activeSearchField, currentResults, editTicker, editRic, onRicChange, searchResultsCurrent]);
 
   // --- Auto-fill: RIC → ticker ---
   useEffect(() => {
-    if (!editRic.trim() || editTicker.trim().length > 0) return;
-    const exact = ricResults.find((r) => String(r.ric || "").toUpperCase() === editRic.trim().toUpperCase());
+    if (activeSearchField !== "ric" || !searchResultsCurrent || !editRic.trim() || editTicker.trim().length > 0) return;
+    const exact = currentResults.find((r) => String(r.ric || "").toUpperCase() === editRic.trim().toUpperCase());
     if (exact?.ticker) onTickerChange(exact.ticker.toUpperCase());
-  }, [editRic, editTicker, ricResults, onTickerChange]);
+  }, [activeSearchField, currentResults, editRic, editTicker, onTickerChange, searchResultsCurrent]);
 
   // --- Ticker selection ---
   const selectTicker = useCallback(
@@ -151,6 +171,9 @@ export default function ManualPositionEditor({
       if (row.ric) onRicChange(String(row.ric).toUpperCase());
       setTickerDropdownOpen(false);
       setTickerActiveIndex(-1);
+      setTickerFocused(false);
+      setRicFocused(false);
+      tickerInputRef.current?.blur();
     },
     [onTickerChange, onRicChange],
   );
@@ -162,6 +185,9 @@ export default function ManualPositionEditor({
       if (row.ticker) onTickerChange(row.ticker.toUpperCase());
       setRicDropdownOpen(false);
       setRicActiveIndex(-1);
+      setTickerFocused(false);
+      setRicFocused(false);
+      ricInputRef.current?.blur();
     },
     [onTickerChange, onRicChange],
   );
@@ -235,6 +261,7 @@ export default function ManualPositionEditor({
           <label htmlFor="edit-ticker">Ticker</label>
           <input
             id="edit-ticker"
+            ref={tickerInputRef}
             className="explore-input holdings-compact-input"
             value={editTicker}
             onChange={(e) => {
@@ -277,6 +304,7 @@ export default function ManualPositionEditor({
           <label htmlFor="edit-ric">RIC</label>
           <input
             id="edit-ric"
+            ref={ricInputRef}
             className="explore-input holdings-compact-input"
             value={editRic}
             onChange={(e) => {

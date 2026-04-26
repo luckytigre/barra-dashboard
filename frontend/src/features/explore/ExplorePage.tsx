@@ -28,7 +28,7 @@ export default function ExplorePage() {
     error: searchError,
     isLoading: searchLoading,
     isValidating: searchValidating,
-  } = useUniverseSearch(debouncedQuery, 10);
+  } = useUniverseSearch(debouncedQuery, 10, "typeahead");
   const { data: tickerData, isLoading, error: tickerError } = useUniverseTicker(selectedTicker);
   const {
     data: historyData,
