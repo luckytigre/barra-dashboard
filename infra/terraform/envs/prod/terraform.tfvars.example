@@ -37,8 +37,8 @@ edge_enabled                  = true
 # neon_auth_issuer                = "https://<tenant>/auth"
 # neon_auth_audience              = "https://<tenant>"
 # neon_auth_jwks_json             = "{\"keys\":[...]}"
-# neon_auth_allowed_emails        = ["user@example.com"]
-# neon_auth_bootstrap_admins      = ["user@example.com"]
+# neon_auth_allowed_emails        = [] # Empty means any Neon-authenticated user can access non-admin app flows.
+# neon_auth_bootstrap_admins      = ["admin@example.com"]
 
 # Final no-edge run_app steady state flips only edge_enabled after soak:
 # endpoint_mode                   = "run_app"

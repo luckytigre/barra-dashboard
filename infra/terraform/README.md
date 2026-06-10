@@ -152,6 +152,7 @@ Important frontend rule:
 - the frontend service must not hold `OPERATOR_API_TOKEN` or `EDITOR_API_TOKEN`; privileged frontend `/api/*` routes must forward caller-supplied auth headers instead of injecting server-side secrets
 - secret access bindings in the prod root should therefore exist only for secret-consuming backend services and jobs, not for the frontend service account
 - exception: the frontend still consumes the shared session and shared-login compatibility secrets during the current Neon-auth transition, so those frontend secret bindings remain intentional until the shared-auth rollback path is formally removed
+- Neon Auth access is open when `neon_auth_allowed_emails = []`; admin access remains separately gated by `neon_auth_bootstrap_admins`
 - for the current no-edge production shape, set:
   - `frontend_public_origin=https://app.ceiora.com`
   - `frontend_backend_api_origin=https://<serve-service>.run.app`

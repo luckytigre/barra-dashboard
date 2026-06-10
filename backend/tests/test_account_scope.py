@@ -248,6 +248,22 @@ def test_resolve_effective_principal_denies_neon_user_not_on_allowlist(monkeypat
         )
 
 
+def test_resolve_effective_principal_allows_any_neon_user_when_allowlist_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_scope.config, "NEON_AUTH_ALLOWED_EMAILS", ())
+    monkeypatch.setattr(account_scope.config, "NEON_AUTH_BOOTSTRAP_ADMINS", ("admin@example.com",))
+
+    principal = account_scope.resolve_effective_principal(
+        _FakeConn([], neon_user=("auth0|friend", "friend@example.com", "Friend", "user")),
+        principal=AppPrincipal(provider="neon", subject="auth0|friend", is_admin=False, email=None),
+    )
+
+    assert principal.email == "friend@example.com"
+    assert principal.display_name == "Friend"
+    assert principal.is_admin is False
+
+
 def test_validate_requested_account_denies_outside_scope() -> None:
     scope = account_scope.AccountScope(
         enforced=True,

@@ -163,13 +163,13 @@ variable "neon_auth_jwks_json" {
 }
 
 variable "neon_auth_allowed_emails" {
-  description = "Email allowlist for the current friend-scale Neon auth rollout."
+  description = "Optional email allowlist for Neon auth. Leave empty to allow any Neon-authenticated non-admin user."
   type        = list(string)
   default     = []
 }
 
 variable "neon_auth_bootstrap_admins" {
-  description = "Emails that should receive admin bootstrap in the current Neon auth rollout."
+  description = "Emails that should receive admin bootstrap in the Neon auth rollout."
   type        = list(string)
   default     = []
 }

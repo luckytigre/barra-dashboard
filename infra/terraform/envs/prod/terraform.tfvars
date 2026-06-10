@@ -27,5 +27,5 @@ neon_auth_base_url         = "https://ep-ancient-mode-ai9rw5ae.neonauth.c-4.us-e
 neon_auth_issuer           = "https://ep-ancient-mode-ai9rw5ae.neonauth.c-4.us-east-1.aws.neon.tech/neondb/auth"
 neon_auth_audience         = "https://ep-ancient-mode-ai9rw5ae.neonauth.c-4.us-east-1.aws.neon.tech"
 neon_auth_jwks_json        = "{\"keys\":[{\"kid\":\"2cb9d9bd-5b83-4e06-abf6-981838f6c8be\",\"crv\":\"Ed25519\",\"x\":\"xbAMx6hLqh03W421gG0wqEirM4EPamhRJTIFPx5y2NM\",\"kty\":\"OKP\"}]}"
-neon_auth_allowed_emails   = ["shaun.skc@gmail.com", "shauny27@gmail.com"]
+neon_auth_allowed_emails   = []
 neon_auth_bootstrap_admins = ["shaun.skc@gmail.com", "shauny27@gmail.com"]

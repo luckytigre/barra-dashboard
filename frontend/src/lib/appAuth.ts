@@ -131,7 +131,6 @@ export function authConfigMissingKeys(): string[] {
     if (!cfg.neonIssuer) missing.push("NEON_AUTH_ISSUER");
     if (!cfg.neonJwksUrl && !cfg.neonJwksJson) missing.push("NEON_AUTH_JWKS_URL or NEON_AUTH_JWKS_JSON");
     if (!cfg.neonProjectUrl) missing.push("NEON_AUTH_BASE_URL");
-    if (cfg.neonAllowedIdentities.length === 0) missing.push("NEON_AUTH_ALLOWED_EMAILS");
   }
   if (!cfg.secret) {
     missing.push("CEIORA_SESSION_SECRET");
