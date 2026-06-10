@@ -13,8 +13,8 @@ private_backend_invocation_enabled = true
 
 # Pinned rollout image refs.
 # Update these only when intentionally publishing a new service build.
-frontend_image_ref = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/frontend:e9d94d5-open-neon-auth"
-serve_image_ref    = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/serve:7c5cbbb-cparhedge"
+frontend_image_ref = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/frontend:b6ed043-auth-401"
+serve_image_ref    = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/serve:b6ed043-auth-admin"
 control_image_ref  = "us-east4-docker.pkg.dev/project-4e18de12-63a3-4206-aaa/ceiora-images/control:c009762-rollup4"
 
 app_auth_provider               = "neon"

@@ -87,9 +87,7 @@ def resolve_effective_principal(pg_conn, *, principal: AppPrincipal | None) -> A
             "This Neon account is not allowlisted for Ceiora access."
         )
 
-    is_admin = bool(principal.is_admin)
-    if canonical_email and canonical_email in _admin_neon_emails():
-        is_admin = True
+    is_admin = bool(canonical_email and canonical_email in _admin_neon_emails())
 
     return replace(
         principal,

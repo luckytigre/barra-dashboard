@@ -172,6 +172,7 @@ def test_resolve_account_scope_denies_shared_admin_when_legacy_disabled(monkeypa
 def test_resolve_account_scope_scopes_admin_to_memberships(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(account_scope.config, "APP_ACCOUNT_ENFORCEMENT_ENABLED", True)
     monkeypatch.setattr(account_scope.config, "APP_SHARED_AUTH_ACCEPT_LEGACY", True)
+    monkeypatch.setattr(account_scope.config, "NEON_AUTH_BOOTSTRAP_ADMINS", ("admin@example.com",))
     conn = _FakeConn(
         [
             ("acct_admin", True),
@@ -188,6 +189,27 @@ def test_resolve_account_scope_scopes_admin_to_memberships(monkeypatch: pytest.M
     assert scope.is_admin is True
     assert scope.default_account_id == "acct_admin"
     assert scope.account_ids == ("acct_admin", "acct_shared")
+
+
+def test_resolve_account_scope_revokes_neon_admin_when_email_removed_from_admin_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_scope.config, "APP_ACCOUNT_ENFORCEMENT_ENABLED", True)
+    monkeypatch.setattr(account_scope.config, "APP_SHARED_AUTH_ACCEPT_LEGACY", True)
+    monkeypatch.setattr(account_scope.config, "NEON_AUTH_BOOTSTRAP_ADMINS", ())
+    conn = _FakeConn(
+        [("acct_admin", True)],
+        neon_user=("auth0|admin", "admin@example.com", "Admin", "user"),
+    )
+
+    scope = account_scope.resolve_account_scope(
+        conn,
+        principal=AppPrincipal(provider="neon", subject="auth0|admin", is_admin=True, email="admin@example.com"),
+    )
+
+    assert scope.is_admin is False
+    assert scope.default_account_id == "acct_admin"
+    assert scope.account_ids == ("acct_admin",)
 
 
 def test_resolve_account_scope_bootstraps_neon_principal_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:

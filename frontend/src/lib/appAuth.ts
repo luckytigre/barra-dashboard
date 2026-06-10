@@ -200,8 +200,14 @@ export async function authenticateNeonLogin(idToken: string): Promise<AppSession
 
   const verifyOptions: { audience?: string } = {};
   if (cfg.neonAudience) verifyOptions.audience = cfg.neonAudience;
-  const jwks = cfg.neonJwksJson ? localJwks(cfg.neonJwksJson) : remoteJwks(cfg.neonJwksUrl);
-  const { payload } = await jwtVerify(token, jwks, verifyOptions);
+  let payload: Awaited<ReturnType<typeof jwtVerify>>["payload"];
+  try {
+    const jwks = cfg.neonJwksJson ? localJwks(cfg.neonJwksJson) : remoteJwks(cfg.neonJwksUrl);
+    const verified = await jwtVerify(token, jwks, verifyOptions);
+    payload = verified.payload;
+  } catch {
+    return null;
+  }
 
   const subject = String(payload.sub || "").trim();
   const email = String(payload.email || "").trim();
