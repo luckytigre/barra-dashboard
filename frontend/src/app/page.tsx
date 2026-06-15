@@ -177,7 +177,7 @@ export default async function PublicLandingPage() {
                     <div className="public-model-panel-toprule" aria-hidden="true" />
                     <div className="public-model-panel-meta">
                       <span className="public-model-panel-folio">{model.folio}</span>
-                      <span className="public-model-panel-enter">
+                      <Link href={appHref} className="public-model-panel-enter">
                         Enter
                         <span className="public-model-panel-enter-icon" aria-hidden="true">
                           <svg viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -190,7 +190,7 @@ export default async function PublicLandingPage() {
                             />
                           </svg>
                         </span>
-                      </span>
+                      </Link>
                     </div>
                     <h3 className={`public-model-panel-title ${model.accentClass}`}>
                       <span className="public-model-panel-prefix">c</span>

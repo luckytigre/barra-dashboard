@@ -47,7 +47,8 @@ export default function HoldingsImportPanel({
         <div>
           <div className="holdings-panel-title">CSV Import</div>
           <div className="holdings-panel-desc">
-            Upload a CSV to write live holdings for the selected account. Dashboard analytics stay on the last published snapshot until you run `RECALC`.
+            Upload a CSV to write live holdings for the selected account. Suggested format: `ticker,quantity`, for example `AAPL,100`, one position per row.
+            Dashboard analytics stay on the last published snapshot until you run `RECALC`.
           </div>
         </div>
       </div>

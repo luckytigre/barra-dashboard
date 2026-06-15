@@ -27,7 +27,7 @@ export function parseCsvLine(line: string): string[] {
 }
 
 function normalizeHeader(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[\s\-]+/g, "_");
+  return raw.replace(/^\uFEFF/, "").trim().toLowerCase().replace(/[\s\-]+/g, "_");
 }
 
 function pickField(cells: string[], idx: Record<string, number>, keys: string[]): string {
@@ -65,7 +65,7 @@ export function parseHoldingsCsv(text: string, defaultSource: string) {
     const source = pickField(cells, idx, ["source", "origin"]) || defaultSource;
     const accountId = pickField(cells, idx, ["account_id", "account", "accountid", "acct"]);
 
-    const qty = Number.parseFloat(qtyRaw);
+    const qty = Number(qtyRaw);
     if (!Number.isFinite(qty)) {
       rejected.push(`line ${r + 1}: invalid quantity "${qtyRaw}"`);
       continue;
