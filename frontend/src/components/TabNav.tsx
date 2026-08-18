@@ -63,6 +63,7 @@ function formatAgeFromIso(iso: string | null | undefined, nowMs: number): string
 export default function TabNav() {
   const pathname = usePathname();
   const { session, context, neonProjectUrl } = useAuthSession();
+  const isAdmin = Boolean(context?.is_admin || session?.isAdmin);
   const activePath = pathname || "";
   const isPublicShell = isPublicShellPath(activePath);
   const isPositionsPage = activePath === "/positions";
@@ -112,7 +113,7 @@ export default function TabNav() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { themeMode } = useAppSettings();
   const operatorTokenAvailable = useOperatorTokenAvailable();
-  const showOperatorChrome = operatorTokenAvailable && (activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data");
+  const showOperatorChrome = isAdmin && operatorTokenAvailable && (activePath.startsWith("/cuse") || activePath === "/positions" || activePath === "/data");
   const { data: operatorStatusData, mutate: mutateOperatorStatus } = useOperatorStatus(showOperatorChrome);
   const holdingsSync = operatorStatusData?.holdings_sync;
   const neonSyncHealth = operatorStatusData?.neon_sync_health;
@@ -526,7 +527,7 @@ export default function TabNav() {
             >
               Global settings
             </Link>
-            {session?.isAdmin && context?.admin_settings_enabled !== false ? (
+            {isAdmin && context?.admin_settings_enabled !== false ? (
               <Link
                 href="/settings/admin"
                 className={`dash-dropdown-item${pathname === "/settings/admin" ? " active" : ""}`}
@@ -535,14 +536,18 @@ export default function TabNav() {
                 Admin settings
               </Link>
             ) : null}
-            <Link
-              href="/data"
-              className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
-              onClick={() => closeMenu()}
-            >
-              cUSE data
-            </Link>
-            <span className="dash-dropdown-item disabled" aria-disabled="true">cPAR data</span>
+            {isAdmin ? (
+              <>
+                <Link
+                  href="/data"
+                  className={`dash-dropdown-item${pathname === "/data" ? " active" : ""}`}
+                  onClick={() => closeMenu()}
+                >
+                  cUSE data
+                </Link>
+                <span className="dash-dropdown-item disabled" aria-disabled="true">cPAR data</span>
+              </>
+            ) : null}
           </div>
         </div>
         <div className="dash-dropdown-group">
