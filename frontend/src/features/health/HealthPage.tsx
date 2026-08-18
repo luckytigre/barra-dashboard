@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
 import ApiErrorState from "@/features/cuse4/components/ApiErrorState";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import KpiCard from "@/components/KpiCard";
 import {
   triggerDailyMaintenanceRefresh,
@@ -38,15 +39,19 @@ export default function HealthPage() {
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const [dismissUpdatePrompt, setDismissUpdatePrompt] = useState(false);
   const operatorTokenAvailable = useOperatorTokenAvailable();
-  const { data, isLoading, error } = useHealthDiagnostics(loadDiagnostics);
+  const { session, context } = useAuthSession();
+  const isAdmin = Boolean(context?.is_admin || session?.isAdmin);
+  const privilegedDiagnosticsEnabled = isAdmin && loadDiagnostics;
+  const privilegedOperatorEnabled = isAdmin && operatorTokenAvailable;
+  const { data, isLoading, error } = useHealthDiagnostics(privilegedDiagnosticsEnabled);
   const {
     data: operatorData,
     isLoading: operatorLoading,
     error: operatorError,
-  } = useOperatorStatus(operatorTokenAvailable);
+  } = useOperatorStatus(privilegedOperatorEnabled);
   const { data: riskData, isLoading: riskLoading, error: riskError } = useRisk();
 
-  if (operatorTokenAvailable && operatorLoading && !operatorData && riskLoading && !riskData && !loadDiagnostics) {
+  if (privilegedOperatorEnabled && operatorLoading && !operatorData && riskLoading && !riskData && !loadDiagnostics) {
     return <AnalyticsLoadingViz message="Loading operator health..." />;
   }
   if (isLoading && !operatorData && !riskData) {
@@ -79,7 +84,7 @@ export default function HealthPage() {
   const coreRefreshActionAvailable = coreDue && !onlyServeRefreshAllowed;
   const canRunRefreshAction = servedLoadingsBehind || coreRefreshActionAvailable;
   const updateAvailable = Boolean(
-    operatorTokenAvailable
+    privilegedOperatorEnabled
     && canRunRefreshAction
     && !dismissUpdatePrompt
     && (servedLoadingsBehind || coreDue),
@@ -103,7 +108,7 @@ export default function HealthPage() {
     }
   }
 
-  const operatorSection = operatorTokenAvailable
+  const operatorSection = privilegedOperatorEnabled
     ? <OperatorStatusSection data={operatorData} error={operatorError} isLoading={operatorLoading} />
     : null;
   const modelSummary = (
@@ -202,7 +207,7 @@ export default function HealthPage() {
       )}
       {refreshState === "failed" && (
         <div className="update-banner-feedback error">
-          Could not start refresh from this page.
+          The maintenance refresh did not start. Existing model data is still active; review Operator status before retrying.
         </div>
       )}
     </div>
@@ -214,7 +219,7 @@ export default function HealthPage() {
         {operatorSection}
         {updateBanner}
         {modelSummary}
-        <div className="chart-card">
+        {isAdmin ? <div className="chart-card">
           <h3 style={{ margin: "0 0 4px" }}>Model Health Diagnostics</h3>
           <div className="health-load-prompt">
             <div className="section-subtitle">
@@ -227,7 +232,7 @@ export default function HealthPage() {
               Load Diagnostics
             </button>
           </div>
-        </div>
+        </div> : null}
       </div>
     );
   }
@@ -238,7 +243,7 @@ export default function HealthPage() {
         {operatorSection}
         {updateBanner}
         {modelSummary}
-        <ApiErrorState title="Health Diagnostics Not Ready" error={error} />
+        <ApiErrorState surface="health diagnostics" error={error} />
       </div>
     );
   }

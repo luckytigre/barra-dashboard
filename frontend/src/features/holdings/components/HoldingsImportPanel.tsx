@@ -1,6 +1,7 @@
 "use client";
 
 import type { HoldingsAccount, HoldingsImportMode } from "@/lib/types/holdings";
+import { accountTypeLabel } from "@/lib/uiErrors";
 
 interface HoldingsImportPanelProps {
   selectedAccount: string;
@@ -67,7 +68,7 @@ export default function HoldingsImportPanel({
           <datalist id="account-id-options">
             {accountOptions.map((a) => (
               <option key={a.account_id} value={a.account_id}>
-                {a.account_name}
+                {a.account_name} · {accountTypeLabel(a.account_type)}
               </option>
             ))}
           </datalist>

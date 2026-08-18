@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { mutate } from "swr";
-import { ApiError } from "@/lib/apiTransport";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import { cuse4ApiPath } from "@/lib/cuse4Api";
 import { holdingsApiPath } from "@/lib/holdingsApi";
 import { triggerHoldingsImport } from "@/hooks/useHoldingsApi";
-import type { HoldingsImportMode, HoldingsPosition } from "@/lib/types/holdings";
+import type { HoldingsAccount, HoldingsImportMode, HoldingsPosition } from "@/lib/types/holdings";
+import { accountTypeFromSession, uiErrorMessage } from "@/lib/uiErrors";
 import {
-  refreshFailureMessage,
   refreshSucceeded,
   runServeRefreshAndRevalidate,
 } from "@/lib/cuse4Refresh";
@@ -64,7 +64,12 @@ function parseDraftQuantity(raw: string): number | null {
   return Number.isFinite(qty) ? qty : null;
 }
 
-export function useHoldingsManager(selectedAccount: string, holdingsRows: HoldingsPosition[]) {
+export function useHoldingsManager(
+  selectedAccount: string,
+  holdingsRows: HoldingsPosition[],
+  selectedAccountContext?: Pick<HoldingsAccount, "account_name" | "account_type"> | null,
+) {
+  const { authenticated, session, context } = useAuthSession();
   const [busy, setBusy] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<HoldingsConfirmConfig | null>(null);
   const [resultMessage, setResultMessage] = useState("");
@@ -73,6 +78,18 @@ export function useHoldingsManager(selectedAccount: string, holdingsRows: Holdin
   const [drafts, setDrafts] = useState<Record<string, HoldingsDraftEntry>>({});
 
   const normalizedSelectedAccount = normalizeAccountId(selectedAccount);
+
+  function mutationFailure(error: unknown, surface: string): string {
+    return uiErrorMessage(error, {
+      surface,
+      operation: "write",
+      accountType: selectedAccountContext?.account_type ?? accountTypeFromSession(session, context),
+      accountName: selectedAccountContext?.account_name,
+      authenticated,
+      authProvider: session?.authProvider,
+      isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+    });
+  }
 
   const draftEntries = useMemo(() => Object.values(drafts), [drafts]);
   const draftCount = draftEntries.length;
@@ -227,13 +244,7 @@ export function useHoldingsManager(selectedAccount: string, holdingsRows: Holdin
       setRejectionPreview((out.preview_rejections ?? []).slice(0, 15));
       await revalidateHoldingsViews([selectedAccount]);
     } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(typeof err.detail === "string" ? err.detail : err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Import failed.");
-      }
+      setErrorMessage(mutationFailure(err, "holdings import"));
     } finally {
       setBusy(false);
     }
@@ -285,11 +296,11 @@ export function useHoldingsManager(selectedAccount: string, holdingsRows: Holdin
         },
       });
     } catch (err) {
-      if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Unable to inspect CSV import.");
-      }
+      setErrorMessage(
+        err instanceof Error && /csv|header|row|quantity|ticker|ric/i.test(err.message)
+          ? err.message
+          : "Ceiora could not read this CSV. Confirm that it is a text CSV with ticker or RIC and quantity columns, then try again.",
+      );
     }
   }
 
@@ -437,29 +448,17 @@ export function useHoldingsManager(selectedAccount: string, holdingsRows: Holdin
           );
         } else {
           setErrorMessage(
-            `Staged edits were applied, but RECALC failed: ${refreshFailureMessage(refresh)}`,
+            "Holdings changes were saved, but modeled analytics did not refresh. The holdings ledger is current; risk views may remain stale until RECALC succeeds.",
           );
         }
       } catch (err) {
         await revalidateHoldingsViews([...byAccount.keys()]);
-        if (err instanceof ApiError) {
-          setErrorMessage(
-            `Staged edits were applied, but RECALC failed: ${typeof err.detail === "string" ? err.detail : err.message}`,
-          );
-        } else if (err instanceof Error) {
-          setErrorMessage(`Staged edits were applied, but RECALC failed: ${err.message}`);
-        } else {
-          setErrorMessage("Staged edits were applied, but RECALC failed.");
-        }
+        setErrorMessage(
+          "Holdings changes were saved, but modeled analytics did not refresh. The holdings ledger is current; risk views may remain stale until RECALC succeeds.",
+        );
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(typeof err.detail === "string" ? err.detail : err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Could not apply staged edits.");
-      }
+      setErrorMessage(mutationFailure(err, "staged holdings changes"));
     } finally {
       setBusy(false);
     }

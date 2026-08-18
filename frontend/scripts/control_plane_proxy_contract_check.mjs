@@ -37,13 +37,13 @@ assert(
   `${backendHelperPath} must forward caller auth headers to upstream services`,
 );
 assert(
-  backendHelper.includes("headers: await upstreamHeaders(req, upstream, options?.headers)"),
+  /headers:\s*await upstreamHeaders\(\s*req,\s*upstream,/.test(backendHelper),
   `${backendHelperPath} proxyJson must merge caller auth headers into upstream requests and support backend service auth`,
 );
 
 const controlRoutes = [
-  { routePath: "src/app/api/refresh/route.ts", authMarker: "await upstreamHeaders(req, upstream)" },
-  { routePath: "src/app/api/refresh/status/route.ts", authMarker: "await upstreamHeaders(req, upstream)" },
+  { routePath: "src/app/api/refresh/route.ts", authMarker: /await upstreamHeaders\(\s*req,\s*upstream[,)]/ },
+  { routePath: "src/app/api/refresh/status/route.ts", authMarker: /await upstreamHeaders\(\s*req,\s*upstream[,)]/ },
   { routePath: "src/app/api/operator/status/route.ts", authMarker: "proxyJson(" },
   { routePath: "src/app/api/health/diagnostics/route.ts", authMarker: "proxyJson(" },
   { routePath: "src/app/api/data/diagnostics/route.ts", authMarker: "proxyJson(" },
@@ -54,7 +54,8 @@ for (const { routePath, authMarker } of controlRoutes) {
   assert(source.includes("controlBackendOrigin"), `${routePath} must import/use controlBackendOrigin`);
   assert(!source.includes("backendOrigin()"), `${routePath} must not route operator/control traffic through backendOrigin()`);
   assert(!source.includes("operatorHeaders("), `${routePath} must not inject operator headers from frontend runtime env`);
-  assert(source.includes(authMarker), `${routePath} must forward caller auth headers to the control backend`);
+  const authMatched = typeof authMarker === "string" ? source.includes(authMarker) : authMarker.test(source);
+  assert(authMatched, `${routePath} must forward caller auth headers to the control backend`);
 }
 
 const privilegedWriteRoutes = [

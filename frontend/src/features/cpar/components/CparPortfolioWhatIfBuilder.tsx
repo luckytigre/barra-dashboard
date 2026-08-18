@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import InlineApiError from "@/components/InlineApiError";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useCparSearch } from "@/hooks/useCparApi";
@@ -339,9 +340,11 @@ export default function CparPortfolioWhatIfBuilder({
         ) : null}
 
         {searchQuery.trim().length > 0 && searchState ? (
-          <div className="whatif-builder-feedback error">
-            {searchState.kind === "not_ready" ? "Package not ready." : "Search unavailable."} {searchState.message}
-          </div>
+          <InlineApiError
+            error={searchError}
+            surface="cPAR scenario search"
+            className="whatif-builder-feedback error"
+          />
         ) : searchQuery.trim().length > 0 && searchLoading && !searchData ? (
           <div className="whatif-builder-feedback">Searching the active cPAR package…</div>
         ) : searchQuery.trim().length > 0 && searchResults.length === 0 && !searchState ? (

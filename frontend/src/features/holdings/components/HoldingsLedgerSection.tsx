@@ -238,7 +238,7 @@ export default function HoldingsLedgerSection({
     return (
       <div className="chart-card mb-4">
         <h3>Portfolio Holdings</h3>
-        <ApiErrorState title="Holdings Not Ready" error={holdingsError} />
+        <ApiErrorState surface="portfolio holdings" error={holdingsError} />
       </div>
     );
   }

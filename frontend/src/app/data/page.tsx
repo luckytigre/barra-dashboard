@@ -61,7 +61,7 @@ export default function DataPage() {
     return <AnalyticsLoadingViz message="Loading data diagnostics..." />;
   }
   if (error) {
-    return <ApiErrorState title="Data Diagnostics Unavailable" error={error} />;
+    return <ApiErrorState surface="data diagnostics" error={error} />;
   }
 
   const src = data?.source_tables;

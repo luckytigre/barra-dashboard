@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import {
   ApiError,
   triggerDailyMaintenanceRefresh,
@@ -9,9 +11,9 @@ import {
 } from "@/hooks/useCuse4Api";
 import { useOperatorTokenAvailable } from "@/hooks/useOperatorTokenAvailable";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
+import { accountTypeFromSession, describeUiError, type UiAccountType } from "@/lib/uiErrors";
 
 function parseError(error: unknown): {
-  message: string;
   actionMethod?: string;
   actionEndpoint?: string;
   refreshProfile?: string;
@@ -36,16 +38,12 @@ function parseError(error: unknown): {
       }
     }
     return {
-      message: detail?.message || error.message || "Request failed.",
       actionMethod: detail?.action?.method,
       actionEndpoint,
       refreshProfile,
     };
   }
-  if (error instanceof Error) {
-    return { message: error.message };
-  }
-  return { message: "Unknown error while loading API data." };
+  return {};
 }
 
 function refreshProfileLabel(profile: string | undefined, onlyServeRefreshAllowed: boolean): string {
@@ -59,16 +57,38 @@ function refreshProfileLabel(profile: string | undefined, onlyServeRefreshAllowe
 }
 
 export default function ApiErrorState({
-  title = "Data Not Ready",
+  title,
+  surface = "data",
   error,
+  operation = "read",
+  accountType,
+  accountName,
+  onRetry,
 }: {
   title?: string;
+  surface?: string;
   error: unknown;
+  operation?: "read" | "write" | "recalculate";
+  accountType?: UiAccountType | null;
+  accountName?: string | null;
+  onRetry?: () => void;
 }) {
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const parsed = parseError(error);
+  const { authenticated, session, context } = useAuthSession();
+  const isAdmin = Boolean(context?.is_admin || session?.isAdmin);
+  const description = describeUiError(error, {
+    surface,
+    operation,
+    accountType: accountType ?? accountTypeFromSession(session, context),
+    accountName,
+    authenticated,
+    authProvider: session?.authProvider,
+    isAdmin,
+  });
   const operatorTokenAvailable = useOperatorTokenAvailable();
-  const { data: operator } = useOperatorStatus(operatorTokenAvailable);
+  const canUseOperatorActions = isAdmin && operatorTokenAvailable;
+  const { data: operator } = useOperatorStatus(canUseOperatorActions);
   const allowedProfiles = new Set(operator?.runtime?.allowed_profiles ?? []);
   const onlyServeRefreshAllowed = allowedProfiles.size > 0 && allowedProfiles.size === 1 && allowedProfiles.has("serve-refresh");
 
@@ -90,9 +110,26 @@ export default function ApiErrorState({
 
   return (
     <div className="chart-card">
-      <h3>{title}</h3>
-      <div className="detail-history-empty">{parsed.message}</div>
-      {operatorTokenAvailable && parsed.actionEndpoint && parsed.actionMethod === "POST" && (
+      <h3>{title || description.title}</h3>
+      <div className="detail-history-empty" role="alert">
+        {description.message}
+        {description.diagnostic ? (
+          <details className="ui-error-diagnostic">
+            <summary>Admin details</summary>
+            <code>{description.diagnostic}</code>
+          </details>
+        ) : null}
+      </div>
+      <div className="ui-error-actions">
+        {description.action === "sign_in" ? (
+          <Link href="/login" className="btn-action">Return to login</Link>
+        ) : description.action === "retry" ? (
+          <button className="btn-action" type="button" onClick={onRetry ?? (() => window.location.reload())}>
+            Try again
+          </button>
+        ) : null}
+      </div>
+      {canUseOperatorActions && parsed.actionEndpoint && parsed.actionMethod === "POST" && (
         <div style={{ marginTop: 10 }}>
           <button
             className="btn-action"
@@ -112,7 +149,7 @@ export default function ApiErrorState({
           )}
           {refreshState === "failed" && (
             <div style={{ marginTop: 8, color: "var(--negative)", fontSize: 12 }}>
-              Could not start refresh from this page.
+              The maintenance refresh did not start. Review Admin details or Operator status before retrying.
             </div>
           )}
         </div>

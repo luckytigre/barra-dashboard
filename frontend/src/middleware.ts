@@ -4,8 +4,8 @@ import { DEFAULT_APP_HOME_PATH, isPrivilegedApiPath, isPrivilegedPagePath, isPro
 import { APP_SESSION_COOKIE_NAMES, appAuthProvider, authConfigMissingKeys, clearedAppSessionCookieOptions, isAppAuthConfigured, readSessionFromRequest, readSessionTokenFromRequest } from "@/lib/appAuth";
 import { APP_AUTH_BOOTSTRAP_HEADER, encodeAuthSessionBootstrapHeader, type AuthSessionBootstrapPayload } from "@/lib/authSessionBootstrap";
 
-function unauthorizedApi(detail: string, status = 401): NextResponse {
-  return NextResponse.json({ detail }, { status });
+function unauthorizedApi(message: string, status = 401, code = "session_required"): NextResponse {
+  return NextResponse.json({ detail: { code, message } }, { status });
 }
 
 function clearSessionCookies(res: NextResponse): NextResponse {
@@ -174,7 +174,7 @@ export async function middleware(req: NextRequest) {
 
   if (!isAppAuthConfigured()) {
     const detail = `App auth is not configured. Missing: ${authConfigMissingKeys().join(", ")}`;
-    if (protectedApi) return unauthorizedApi(detail, 503);
+    if (protectedApi) return unauthorizedApi(detail, 503, "auth_misconfigured");
     if (protectedPage) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
@@ -253,7 +253,7 @@ export async function middleware(req: NextRequest) {
 
   if (!session) {
     if (protectedApi) {
-      const res = unauthorizedApi("Unauthorized: sign in required.");
+      const res = unauthorizedApi("Sign in required.", 401, "session_required");
       return hasStaleSession ? clearSessionCookies(res) : res;
     }
     const url = req.nextUrl.clone();
@@ -282,7 +282,7 @@ export async function middleware(req: NextRequest) {
           : code === "account_provisioning_required"
             ? 409
             : 401;
-      const res = unauthorizedApi(`Unauthorized: ${code}.`, status);
+      const res = unauthorizedApi("Ceiora could not confirm the account for this session.", status, code);
       return shouldPreserveNeonSession(code) ? res : clearSessionCookies(res);
     }
     const url = req.nextUrl.clone();
@@ -313,7 +313,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (protectedApi && isPrivilegedApiPath(pathname) && !effectiveIsAdmin) {
-    return unauthorizedApi("Forbidden: admin session required.", 403);
+    return unauthorizedApi("Admin session required.", 403, "admin_required");
   }
 
   return nextWithAuthBootstrap(req, protectedPage ? authBootstrapPayload(session, provider, neonContextStatus) : null);

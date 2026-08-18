@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuthSession } from "@/components/AuthSessionContext";
+import { accountTypeFromSession, describeUiError } from "@/lib/uiErrors";
 import {
   clearStoredAuthTokens,
   OPERATOR_TOKEN_STORAGE_KEY,
@@ -10,8 +11,18 @@ import {
 } from "@/lib/authTokens";
 
 export default function AdminSettingsPage() {
-  const { loading, context, error } = useAuthSession();
+  const { loading, authenticated, session, context, contextErrorCode, error } = useAuthSession();
   const [tokens, setTokens] = useState(() => readStoredAuthTokens());
+  const sessionError = error ? describeUiError(
+    { code: contextErrorCode, message: error },
+    {
+      surface: "admin settings",
+      accountType: accountTypeFromSession(session, context),
+      authenticated,
+      authProvider: session?.authProvider,
+      isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+    },
+  ) : null;
 
   function handleTokenChange(key: typeof OPERATOR_TOKEN_STORAGE_KEY, value: string) {
     writeStoredAuthToken(key, value);
@@ -41,8 +52,10 @@ export default function AdminSettingsPage() {
               This page is only available to app-admin principals. Backend operator/editor tokens remain a separate transitional layer.
             </div>
           </div>
-          {error ? (
-            <div className="settings-empty-row">Session context unavailable: {error}</div>
+          {sessionError ? (
+            <div className="settings-empty-row" role="alert">
+              {sessionError.title}. {sessionError.message}
+            </div>
           ) : null}
           <div className="settings-session-summary">
             <div className="settings-session-row">

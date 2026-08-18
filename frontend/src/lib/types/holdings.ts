@@ -115,6 +115,7 @@ export interface HoldingsModeData {
 export interface HoldingsAccount {
   account_id: string;
   account_name: string;
+  account_type: "personal" | "shared" | "system";
   is_active: boolean;
   positions_count: number;
   gross_quantity: number;

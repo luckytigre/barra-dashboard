@@ -87,6 +87,7 @@ export default function PositionsPage() {
   }, [accountsData?.accounts, selectedAccount]);
   const positions = portfolio?.positions ?? [];
   const accountOptions = accountsData?.accounts ?? [];
+  const selectedAccountContext = accountOptions.find((account) => account.account_id === selectedAccount) ?? null;
   const liveHoldingsRows = holdingsData?.positions ?? [];
 
   const {
@@ -108,7 +109,7 @@ export default function PositionsPage() {
     handleManualUpsert,
     discardDrafts,
     setConfirmConfig,
-  } = useHoldingsManager(selectedAccount, liveHoldingsRows);
+  } = useHoldingsManager(selectedAccount, liveHoldingsRows, selectedAccountContext);
 
   const holdingsRows = useMemo(() => {
     const liveKeys = new Set(
@@ -250,7 +251,7 @@ export default function PositionsPage() {
     return <AnalyticsLoadingViz message="Loading positions..." />;
   }
   if (cuseError || accountError) {
-    return <ApiErrorState title="Positions Not Ready" error={cuseError || accountError} />;
+    return <ApiErrorState surface="positions" error={cuseError || accountError} />;
   }
 
   return (

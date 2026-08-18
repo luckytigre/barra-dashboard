@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
+import InlineApiError from "@/components/InlineApiError";
 import CparTickerQuoteCard from "@/features/cpar/components/CparTickerQuoteCard";
 import CparExploreWhatIfSection from "@/features/cpar/components/CparExploreWhatIfSection";
 import {
@@ -108,19 +109,20 @@ export default function CparExplorePage() {
   return (
     <div className="explore-page-stack" data-testid="cpar-explore-page">
       {exploreContextState && (
-        <div className="explore-error">
-          {exploreContextState.message}
-        </div>
+        <InlineApiError
+          error={exploreContextError}
+          surface="cPAR held-position context"
+          impact="Security search still works, but holding badges may be incomplete."
+        />
       )}
       {!isLoading && selectedInstrument && tickerState && (
-        <div className="explore-error">
-          {tickerState.message}
-        </div>
+        <InlineApiError
+          error={tickerError}
+          surface={`${selectedInstrument.ticker || selectedInstrument.ric} cPAR details`}
+        />
       )}
       {searchState && query.trim().length > 0 && (
-        <div className="explore-error">
-          {searchState.message}
-        </div>
+        <InlineApiError error={searchError} surface="cPAR security search" />
       )}
 
       {isLoading && selectedInstrument && (

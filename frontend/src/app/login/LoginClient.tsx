@@ -46,7 +46,16 @@ function formatSharedLoginError(error: unknown): string {
       : error instanceof Error
         ? error.message
         : "";
-  return message || "Could not sign in.";
+  if (/invalid|incorrect|unauthorized|password|credential/i.test(message)) {
+    return "The username or password did not match this shared account.";
+  }
+  if (/rate|too many/i.test(message)) {
+    return "Too many sign-in attempts. Wait a moment before trying again.";
+  }
+  if (/network|fetch|timeout|unavailable/i.test(message)) {
+    return "Ceiora could not reach the sign-in service. Try again when the connection is stable.";
+  }
+  return "Ceiora could not start the shared session. Check the credentials and try again.";
 }
 
 function parseApiDetail(payload: unknown): { message: string; code: string | null } {
@@ -88,7 +97,20 @@ function formatNeonLoginError(mode: "signin" | "signup", error: unknown, code?: 
   if (code === "account_bootstrap_disabled") {
     return "Neon sign-in is working, but automatic personal workspace creation is disabled right now.";
   }
-  if (message) return message;
+  if (/invalid|incorrect|unauthorized|password|credential/i.test(message)) {
+    return mode === "signup"
+      ? "Ceiora could not create the account with those credentials. Check the email and password requirements."
+      : "The email or password did not match a Ceiora account.";
+  }
+  if (/already|exists|registered/i.test(message)) {
+    return "An account already exists for this email. Switch to Sign in to continue.";
+  }
+  if (/rate|too many/i.test(message)) {
+    return "Too many account attempts. Wait a moment before trying again.";
+  }
+  if (/network|fetch|timeout|unavailable/i.test(message)) {
+    return "Ceiora could not reach the identity service. Try again when the connection is stable.";
+  }
   return mode === "signup" ? "Could not create account." : "Could not sign in.";
 }
 

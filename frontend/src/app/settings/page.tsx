@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useAppSettings } from "@/components/AppSettingsContext";
 import { useAuthSession } from "@/components/AuthSessionContext";
 import { useBackground } from "@/components/BackgroundContext";
+import { accountTypeFromSession, accountTypeLabel, describeUiError } from "@/lib/uiErrors";
 
 const BACKGROUND_OPTIONS = [
   {
@@ -40,13 +41,24 @@ const THEME_OPTIONS = [
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const { loading, session, context, error } = useAuthSession();
+  const { loading, authenticated, session, context, contextErrorCode, error } = useAuthSession();
   const { cparFactorHistoryMode, setCparFactorHistoryMode, themeMode, setThemeMode } = useAppSettings();
   const { mode: backgroundMode, setMode: setBackgroundMode } = useBackground();
   const useMarketAdjustedHistory = cparFactorHistoryMode === "market_adjusted";
   const selectedBackground = BACKGROUND_OPTIONS.find((option) => option.value === backgroundMode) ?? BACKGROUND_OPTIONS[0];
   const selectedTheme = THEME_OPTIONS.find((option) => option.value === themeMode) ?? THEME_OPTIONS[0];
   const adminRedirected = searchParams.get("error") === "admin_required";
+  const sessionAccountType = accountTypeFromSession(session, context);
+  const sessionError = error ? describeUiError(
+    { code: contextErrorCode, message: error },
+    {
+      surface: "session settings",
+      accountType: accountTypeFromSession(session, context),
+      authenticated,
+      authProvider: session?.authProvider,
+      isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+    },
+  ) : null;
 
   return (
     <div className="settings-page">
@@ -56,15 +68,17 @@ export default function SettingsPage() {
         </div>
         {adminRedirected ? (
           <div className="settings-empty-row">
-            Admin settings are only available to app-admin sessions. You have been returned to the standard settings surface.
+            That maintenance page is only available to app-admin sessions. You have been returned to your account settings; portfolio access is unchanged.
           </div>
         ) : null}
         <section className="settings-section">
           <div className="settings-section-header settings-section-header-global">
             <h3>Session</h3>
           </div>
-          {error ? (
-            <div className="settings-empty-row">Session context unavailable: {error}</div>
+          {sessionError ? (
+            <div className="settings-empty-row" role="alert">
+              {sessionError.title}. {sessionError.message}
+            </div>
           ) : null}
           <div className="settings-session-summary">
             <div className="settings-session-row">
@@ -79,9 +93,15 @@ export default function SettingsPage() {
                 {loading ? "Loading…" : session?.authProvider === "neon" ? "Neon Auth" : "Shared session"}
               </span>
             </div>
+            <div className="settings-session-row">
+              <span className="settings-option-label">Access type</span>
+              <span className="settings-session-value">
+                {loading ? "Loading…" : accountTypeLabel(sessionAccountType)}
+              </span>
+            </div>
             {session?.authProvider === "neon" || context?.account_enforcement_enabled ? (
               <div className="settings-session-row">
-                <span className="settings-option-label">Personal account</span>
+                <span className="settings-option-label">Default portfolio</span>
                 <span className="settings-session-value">
                   {loading ? "Loading…" : context?.default_account_id || "None provisioned"}
                 </span>

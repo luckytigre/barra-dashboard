@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { mutate } from "swr";
-import { ApiError } from "@/lib/apiTransport";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import {
   previewCparExploreWhatIf,
 } from "@/hooks/useCparApi";
@@ -8,6 +8,7 @@ import { applyPortfolioWhatIf, useHoldingsAccounts, useHoldingsPositions } from 
 import { cparApiPath } from "@/lib/cparApi";
 import { holdingsApiPath } from "@/lib/holdingsApi";
 import { canNavigateCparSearchResult } from "@/lib/cparTruth";
+import { accountTypeFromSession, uiErrorMessage } from "@/lib/uiErrors";
 import type { CparExploreWhatIfData, CparSearchItem } from "@/lib/types/cpar";
 import {
   formatScenarioCount,
@@ -39,6 +40,7 @@ export function useCparExploreScenarioLab({
   searchSettled,
   onPreviewInstrument,
 }: UseCparExploreScenarioLabArgs) {
+  const { authenticated, session, context } = useAuthSession();
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
 
@@ -106,6 +108,19 @@ export function useCparExploreScenarioLab({
     () => Object.values(scenarioDrafts).sort((a, b) => a.key.localeCompare(b.key)),
     [scenarioDrafts],
   );
+  const scenarioFailure = useCallback((error: unknown, operation: "read" | "write") => {
+    const targetAccountId = scenarioRows[0]?.account_id || accountId;
+    const targetAccount = accountOptions.find((account) => account.account_id === targetAccountId);
+    return uiErrorMessage(error, {
+      surface: operation === "read" ? "cPAR what-if preview" : "cPAR what-if changes",
+      operation,
+      accountType: targetAccount?.account_type ?? accountTypeFromSession(session, context),
+      accountName: targetAccount?.account_name,
+      authenticated,
+      authProvider: session?.authProvider,
+      isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+    });
+  }, [accountId, accountOptions, authenticated, context, scenarioRows, session]);
 
   const currentModeFactorOrder = useMemo(() => {
     const currentFactors = previewData?.current.display_exposure_modes?.[mode]
@@ -347,17 +362,11 @@ export function useCparExploreScenarioLab({
         toggleRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
     } catch (error) {
-      if (error instanceof ApiError) {
-        setErrorMessage(typeof error.detail === "string" ? error.detail : error.message);
-      } else if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("cPAR explore preview failed.");
-      }
+      setErrorMessage(scenarioFailure(error, "read"));
     } finally {
       setBusy(false);
     }
-  }, [buildPayloadRows, clearMessages]);
+  }, [buildPayloadRows, clearMessages, scenarioFailure]);
 
   const applyScenario = useCallback(async () => {
     clearMessages();
@@ -390,17 +399,11 @@ export function useCparExploreScenarioLab({
       setShowResults(false);
       setResultMessage(`Applied ${formatScenarioCount(payloadRows.length)} to your holdings.`);
     } catch (error) {
-      if (error instanceof ApiError) {
-        setErrorMessage(typeof error.detail === "string" ? error.detail : error.message);
-      } else if (error instanceof Error) {
-        setErrorMessage(error.message);
-      } else {
-        setErrorMessage("cPAR explore apply failed.");
-      }
+      setErrorMessage(scenarioFailure(error, "write"));
     } finally {
       setBusy(false);
     }
-  }, [buildPayloadRows, clearMessages, liveQuantityByKey]);
+  }, [buildPayloadRows, clearMessages, liveQuantityByKey, scenarioFailure]);
 
   const previewReady = scenarioRows.length > 0 && !busy;
   const applyReady = previewReady;

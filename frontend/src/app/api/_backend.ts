@@ -79,25 +79,41 @@ export async function proxyJson(
   upstream: string,
   options?: { method?: string; headers?: HeadersInit; forwardPrivilegedHeaders?: boolean },
 ) {
-  const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
-  const upstreamRequestHeaders = new Headers(options?.headers);
-  if (body !== undefined && !upstreamRequestHeaders.has("content-type")) {
-    const incomingContentType = req.headers.get("content-type");
-    if (incomingContentType) {
-      upstreamRequestHeaders.set("content-type", incomingContentType);
+  try {
+    const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.text();
+    const upstreamRequestHeaders = new Headers(options?.headers);
+    if (body !== undefined && !upstreamRequestHeaders.has("content-type")) {
+      const incomingContentType = req.headers.get("content-type");
+      if (incomingContentType) {
+        upstreamRequestHeaders.set("content-type", incomingContentType);
+      }
     }
+    const res = await fetch(upstream, {
+      method: options?.method || req.method,
+      headers: await upstreamHeaders(req, upstream, upstreamRequestHeaders, {
+        forwardPrivilegedHeaders: options?.forwardPrivilegedHeaders,
+      }),
+      body,
+      cache: "no-store",
+    });
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: { "content-type": res.headers.get("content-type") || "application/json" },
+    });
+  } catch (error) {
+    // This catch also covers upstreamHeaders(), which mints the Cloud Run identity
+    // token. Log before collapsing to 503 so an auth misconfiguration is not
+    // indistinguishable from a transient data-service outage.
+    console.error(`proxyJson failed for ${upstream}:`, error);
+    return NextResponse.json(
+      {
+        detail: {
+          code: "upstream_unavailable",
+          message: "Ceiora could not reach the requested data service.",
+        },
+      },
+      { status: 503 },
+    );
   }
-  const res = await fetch(upstream, {
-    method: options?.method || req.method,
-    headers: await upstreamHeaders(req, upstream, upstreamRequestHeaders, {
-      forwardPrivilegedHeaders: options?.forwardPrivilegedHeaders,
-    }),
-    body,
-    cache: "no-store",
-  });
-  const text = await res.text();
-  return new NextResponse(text, {
-    status: res.status,
-    headers: { "content-type": res.headers.get("content-type") || "application/json" },
-  });
 }

@@ -45,5 +45,10 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Run frontend contract checks
+        run: |
+          npm run test:control-plane-proxies
+          npm run test:ui-errors
+
       - name: Build frontend
         run: npm run build

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AnalyticsLoadingViz from "@/components/AnalyticsLoadingViz";
+import InlineApiError from "@/components/InlineApiError";
 import TickerQuoteCard from "@/features/explore/components/TickerQuoteCard";
 import ExploreWhatIfSection from "@/features/whatif/ExploreWhatIfSection";
 import {
@@ -160,19 +161,17 @@ export default function ExplorePage() {
   return (
     <div className="explore-page-stack">
       {exploreContextError && (
-        <div className="explore-error">
-          Held-position context is temporarily unavailable. Explore remains available, but current holding badges may be incomplete.
-        </div>
+        <InlineApiError
+          error={exploreContextError}
+          surface="held-position context"
+          impact="Security search still works, but holding badges may be incomplete."
+        />
       )}
       {!isLoading && selectedTicker && tickerError && (
-        <div className="explore-error">
-          Unable to load {selectedTicker}. Check universe cache and try refresh.
-        </div>
+        <InlineApiError error={tickerError} surface={`${selectedTicker} details`} />
       )}
       {searchError && query.trim().length > 0 && (
-        <div className="explore-error">
-          Universe search is temporarily unavailable.
-        </div>
+        <InlineApiError error={searchError} surface="cUSE security search" />
       )}
 
       {isLoading && selectedTicker && (

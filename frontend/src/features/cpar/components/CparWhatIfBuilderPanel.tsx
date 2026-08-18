@@ -3,6 +3,7 @@
 import type { KeyboardEvent } from "react";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
 import { canNavigateCparSearchResult, describeCparFitStatus } from "@/lib/cparTruth";
+import { accountTypeLabel } from "@/lib/uiErrors";
 import type { HoldingsAccount } from "@/lib/types/holdings";
 import type { CparSearchItem } from "@/lib/types/cpar";
 import {
@@ -220,7 +221,7 @@ export default function CparWhatIfBuilderPanel({
           {accountOptions.length === 0 ? <option value="">No accounts</option> : null}
           {accountOptions.map((account) => (
             <option key={account.account_id} value={account.account_id}>
-              {account.account_name || account.account_id}
+              {account.account_name || account.account_id} · {accountTypeLabel(account.account_type)}
             </option>
           ))}
         </select>

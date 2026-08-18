@@ -77,6 +77,7 @@ def load_holdings_accounts(*, allowed_account_ids: list[str] | tuple[str, ...] |
                     SELECT
                         a.account_id,
                         a.account_name,
+                        a.account_type,
                         a.is_active,
                         COUNT(p.ric) AS positions_count,
                         COALESCE(SUM(ABS(CAST(p.quantity AS DOUBLE PRECISION))), 0) AS gross_quantity,
@@ -85,7 +86,7 @@ def load_holdings_accounts(*, allowed_account_ids: list[str] | tuple[str, ...] |
                     LEFT JOIN holdings_positions_current p
                       ON p.account_id = a.account_id
                     WHERE a.account_id = ANY(%s)
-                    GROUP BY a.account_id, a.account_name, a.is_active
+                    GROUP BY a.account_id, a.account_name, a.account_type, a.is_active
                     ORDER BY a.account_id ASC
                     """,
                     (scoped_ids,),
@@ -96,6 +97,7 @@ def load_holdings_accounts(*, allowed_account_ids: list[str] | tuple[str, ...] |
                     SELECT
                         a.account_id,
                         a.account_name,
+                        a.account_type,
                         a.is_active,
                         COUNT(p.ric) AS positions_count,
                         COALESCE(SUM(ABS(CAST(p.quantity AS DOUBLE PRECISION))), 0) AS gross_quantity,
@@ -103,7 +105,7 @@ def load_holdings_accounts(*, allowed_account_ids: list[str] | tuple[str, ...] |
                     FROM holdings_accounts a
                     LEFT JOIN holdings_positions_current p
                       ON p.account_id = a.account_id
-                    GROUP BY a.account_id, a.account_name, a.is_active
+                    GROUP BY a.account_id, a.account_name, a.account_type, a.is_active
                     ORDER BY a.account_id ASC
                     """
                 )
@@ -117,11 +119,12 @@ def load_holdings_accounts(*, allowed_account_ids: list[str] | tuple[str, ...] |
             conn.close()
 
     out: list[dict[str, Any]] = []
-    for account_id, account_name, is_active, positions_count, gross_qty, last_updated in rows:
+    for account_id, account_name, account_type, is_active, positions_count, gross_qty, last_updated in rows:
         out.append(
             {
                 "account_id": str(account_id),
                 "account_name": str(account_name or account_id),
+                "account_type": str(account_type or "personal").strip().lower() or "personal",
                 "is_active": bool(is_active),
                 "positions_count": int(positions_count or 0),
                 "gross_quantity": float(gross_qty or 0.0),

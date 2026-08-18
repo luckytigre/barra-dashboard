@@ -46,8 +46,8 @@ def test_load_holdings_accounts_shapes_rows_and_uses_expected_sql(
     connect_calls: dict[str, object] = {}
     cursor = _FakeCursor(
         rows=[
-            ("acct_alpha", None, 1, 2, 15.25, None),
-            ("acct_beta", "Beta Account", 0, 0, 0.0, "2026-03-15T10:30:00Z"),
+            ("acct_alpha", None, "personal", 1, 2, 15.25, None),
+            ("acct_beta", "Beta Account", "shared", 0, 0, 0.0, "2026-03-15T10:30:00Z"),
         ],
         capture=captured,
     )
@@ -71,6 +71,7 @@ def test_load_holdings_accounts_shapes_rows_and_uses_expected_sql(
         {
             "account_id": "acct_alpha",
             "account_name": "acct_alpha",
+            "account_type": "personal",
             "is_active": True,
             "positions_count": 2,
             "gross_quantity": 15.25,
@@ -79,6 +80,7 @@ def test_load_holdings_accounts_shapes_rows_and_uses_expected_sql(
         {
             "account_id": "acct_beta",
             "account_name": "Beta Account",
+            "account_type": "shared",
             "is_active": False,
             "positions_count": 0,
             "gross_quantity": 0.0,

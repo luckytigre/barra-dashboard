@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { mutate } from "swr";
+import { useAuthSession } from "@/components/AuthSessionContext";
 import {
   applyPortfolioWhatIf,
   previewPortfolioWhatIf,
   useHoldingsAccounts,
   useHoldingsPositions,
 } from "@/hooks/useCuse4Api";
-import { ApiError, apiPath } from "@/lib/cuse4Api";
+import { apiPath } from "@/lib/cuse4Api";
 import { runServeRefreshAndRevalidate } from "@/lib/cuse4Refresh";
 import type {
   UniverseSearchItem,
@@ -14,6 +15,7 @@ import type {
   WhatIfPreviewData,
 } from "@/lib/types/cuse4";
 import { factorTier } from "@/lib/factorLabels";
+import { accountTypeFromSession, uiErrorMessage, validationUiMessage } from "@/lib/uiErrors";
 import {
   buildScenarioPayloadRows,
   formatScenarioCount,
@@ -21,7 +23,6 @@ import {
   normalizeAccountId,
   normalizeTicker,
   parseQty,
-  refreshFailureMessage,
   scenarioKey,
   type WhatIfMode,
   type ScenarioDraftRow,
@@ -46,6 +47,7 @@ export function useWhatIfScenarioLab({
   onSelectTicker,
   onPreviewTicker,
 }: UseWhatIfScenarioLabArgs) {
+  const { authenticated, session, context } = useAuthSession();
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
 
@@ -226,6 +228,19 @@ export function useWhatIfScenarioLab({
       }),
     [scenarioDrafts],
   );
+  const scenarioFailure = useCallback((error: unknown, operation: "read" | "write") => {
+    const targetAccountId = scenarioRows[0]?.account_id || accountId;
+    const targetAccount = accountOptions.find((account) => account.account_id === targetAccountId);
+    return uiErrorMessage(error, {
+      surface: operation === "read" ? "what-if preview" : "what-if changes",
+      operation,
+      accountType: targetAccount?.account_type ?? accountTypeFromSession(session, context),
+      accountName: targetAccount?.account_name,
+      authenticated,
+      authProvider: session?.authProvider,
+      isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+    });
+  }, [accountId, accountOptions, authenticated, context, scenarioRows, session]);
 
   const currentModeFactorOrder = useMemo(() => {
     const currentFactors = previewData?.current.exposure_modes[mode] ?? [];
@@ -364,17 +379,11 @@ export function useWhatIfScenarioLab({
         toggleRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       });
     } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(typeof err.detail === "string" ? err.detail : err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("What-if preview failed.");
-      }
+      setErrorMessage(scenarioFailure(err, "read"));
     } finally {
       setBusy(false);
     }
-  }, [clearMessages, scenarioRows, validAccountIds]);
+  }, [clearMessages, scenarioFailure, scenarioRows, validAccountIds]);
 
   const applyScenario = useCallback(async () => {
     clearMessages();
@@ -414,20 +423,28 @@ export function useWhatIfScenarioLab({
         const rejected = out.rejected?.[0];
         const warning = out.warnings?.[0];
         setErrorMessage(
-          rejected?.message
-            || warning
-            || "What-if apply was rejected. Review the staged rows and try again.",
+          validationUiMessage(
+            rejected?.message || warning,
+            "What-if changes were rejected. Review the selected account, securities, and quantities before trying again.",
+          ),
         );
         return;
       }
       if (out.rejected_rows > 0) {
         const rejected = out.rejected?.[0];
-        setErrorMessage(rejected?.message || "One or more scenario rows were rejected.");
+        setErrorMessage(
+          validationUiMessage(
+            rejected?.message,
+            "One or more scenario rows were rejected. Review the selected accounts, securities, and quantities.",
+          ),
+        );
         return;
       }
 
       const appliedScenarioCount = payload.rows.length;
-      const warningText = out.warnings.length > 0 ? out.warnings[0] : "";
+      const warningText = out.warnings?.length
+        ? validationUiMessage(out.warnings[0], "Some rows were applied with warnings; review the updated holdings.")
+        : "";
 
       await Promise.all([
         mutate(apiPath.holdingsAccounts()),
@@ -454,33 +471,19 @@ export function useWhatIfScenarioLab({
           return;
         }
         setResultMessage("");
-        setErrorMessage(`What-if changes were applied, but RECALC failed: ${refreshFailureMessage(refresh)}${warningText ? ` ${warningText}` : ""}`);
+        setErrorMessage(`Holdings changes were saved, but modeled analytics did not refresh. Risk views may remain stale until RECALC succeeds.${warningText ? ` ${warningText}` : ""}`);
       } catch (refreshErr) {
         setResultMessage("");
-        if (refreshErr instanceof ApiError) {
-          setErrorMessage(
-            `What-if changes were applied, but RECALC failed: ${typeof refreshErr.detail === "string" ? refreshErr.detail : refreshErr.message}${warningText ? ` ${warningText}` : ""}`,
-          );
-        } else if (refreshErr instanceof Error) {
-          setErrorMessage(`What-if changes were applied, but RECALC failed: ${refreshErr.message}${warningText ? ` ${warningText}` : ""}`);
-        } else {
-          setErrorMessage(`What-if changes were applied, but RECALC failed.${warningText ? ` ${warningText}` : ""}`);
-        }
+        setErrorMessage(`Holdings changes were saved, but modeled analytics did not refresh. Risk views may remain stale until RECALC succeeds.${warningText ? ` ${warningText}` : ""}`);
       } finally {
         setAwaitingRefresh(false);
       }
     } catch (err) {
-      if (err instanceof ApiError) {
-        setErrorMessage(typeof err.detail === "string" ? err.detail : err.message);
-      } else if (err instanceof Error) {
-        setErrorMessage(err.message);
-      } else {
-        setErrorMessage("Could not apply what-if scenario.");
-      }
+      setErrorMessage(scenarioFailure(err, "write"));
     } finally {
       setBusy(false);
     }
-  }, [clearMessages, liveQuantityByScenarioKey, scenarioRows, validAccountIds]);
+  }, [clearMessages, liveQuantityByScenarioKey, scenarioFailure, scenarioRows, validAccountIds]);
 
   const discardScenario = useCallback(() => {
     setScenarioDrafts({});

@@ -5,6 +5,7 @@ import type { UniverseSearchItem } from "@/lib/types/analytics";
 import type { HoldingsAccount } from "@/lib/types/holdings";
 import { useUniverseSearch } from "@/hooks/useCuse4Api";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { accountTypeLabel } from "@/lib/uiErrors";
 
 function highlightMatch(text: string, query: string) {
   if (!query) return text;
@@ -357,7 +358,7 @@ export default function ManualPositionEditor({
           <datalist id="manual-account-id-options">
             {accountOptions.map((a) => (
               <option key={a.account_id} value={a.account_id}>
-                {a.account_name}
+                {a.account_name} · {accountTypeLabel(a.account_type)}
               </option>
             ))}
           </datalist>

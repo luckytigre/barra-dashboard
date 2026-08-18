@@ -2,6 +2,7 @@
 
 import { Suspense, useMemo } from "react";
 import { CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
+import InlineApiError from "@/components/InlineApiError";
 import CparRiskCovarianceSection from "@/features/cpar/components/CparRiskCovarianceSection";
 import CparRiskDecompChart from "@/features/cpar/components/CparRiskDecompChart";
 import CparRiskFactorSummaryCard from "@/features/cpar/components/CparRiskFactorSummaryCard";
@@ -9,7 +10,6 @@ import CparRiskPositionsContributionTable from "@/features/cpar/components/CparR
 import { useCparRisk } from "@/hooks/useCparApi";
 import {
   normalizeCparRiskData,
-  readCparDependencyErrorMessage,
   readCparError,
 } from "@/lib/cparTruth";
 import {
@@ -61,16 +61,11 @@ function CparRiskWorkspaceInner() {
       {riskState ? (
         <section className="chart-card" data-testid="cpar-portfolio-error">
           <h3>Risk Surface</h3>
-          <div className={`cpar-inline-message ${riskState.kind === "missing" ? "warning" : "error"}`}>
-            <strong>
-              {riskState.kind === "missing"
-                ? "Aggregate risk surface missing."
-                : riskState.kind === "not_ready"
-                  ? "Risk package not ready."
-                  : "Risk surface unavailable."}
-            </strong>
-            <span>{readCparDependencyErrorMessage(riskError)}</span>
-          </div>
+          <InlineApiError
+            error={riskError}
+            surface="cPAR risk"
+            className={`cpar-inline-message ${riskState.kind === "missing" ? "warning" : "error"}`}
+          />
         </section>
       ) : normalizedRisk ? (
         <>

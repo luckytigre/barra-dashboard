@@ -2,15 +2,16 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import CparPortfolioHedgeRecommendationPanel from "@/features/cpar/components/CparPortfolioHedgeRecommendationPanel";
+import InlineApiError from "@/components/InlineApiError";
 import CparRiskFactorSummaryCard from "@/features/cpar/components/CparRiskFactorSummaryCard";
 import { CparPageLoadingState } from "@/features/cpar/components/CparLoadingState";
 import { useCparPortfolioHedgeRecommendation } from "@/hooks/useCparApi";
 import { useHoldingsAccounts } from "@/hooks/useHoldingsApi";
 import {
   normalizeCparPortfolioHedgeRecommendationData,
-  readCparDependencyErrorMessage,
   readCparError,
 } from "@/lib/cparTruth";
+import { accountTypeLabel } from "@/lib/uiErrors";
 
 const ALL_SCOPE = "__all__";
 
@@ -52,7 +53,7 @@ function CparHedgeWorkspaceInner() {
               <option value={ALL_SCOPE}>All Accounts</option>
               {accountOptions.map((account) => (
                 <option key={account.account_id} value={account.account_id}>
-                  {account.account_name || account.account_id}
+                  {account.account_name || account.account_id} · {accountTypeLabel(account.account_type)}
                 </option>
               ))}
             </select>
@@ -63,16 +64,12 @@ function CparHedgeWorkspaceInner() {
       {errorState ? (
         <section className="chart-card" data-testid="cpar-hedge-error">
           <h3>Hedge Workspace</h3>
-          <div className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}>
-            <strong>
-              {errorState.kind === "not_ready"
-                ? "Hedge package not ready."
-                : errorState.kind === "missing"
-                  ? "Selected scope unavailable."
-                  : "Hedge workspace unavailable."}
-            </strong>
-            <span>{readCparDependencyErrorMessage(error)}</span>
-          </div>
+          <InlineApiError
+            error={error}
+            surface="cPAR hedge workspace"
+            accountName={accountOptions.find((account) => account.account_id === accountId)?.account_name}
+            className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}
+          />
         </section>
       ) : normalized ? (
         <>

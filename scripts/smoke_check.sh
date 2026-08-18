@@ -23,4 +23,5 @@ fi
 (
   cd frontend
   npm run test:control-plane-proxies
+  npm run test:ui-errors
 )

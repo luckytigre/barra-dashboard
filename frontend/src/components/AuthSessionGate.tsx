@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isProtectedPagePath } from "@/lib/appAccess";
 import { useAuthSession } from "@/components/AuthSessionContext";
+import { accountTypeFromSession, describeUiError } from "@/lib/uiErrors";
 
 export default function AuthSessionGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { loading, authenticated, error, contextErrorCode, refresh } = useAuthSession();
+  const { loading, authenticated, session, context, error, contextErrorCode, refresh } = useAuthSession();
   const protectedPage = Boolean(pathname && isProtectedPagePath(pathname));
 
   if (!protectedPage) return <>{children}</>;
@@ -27,34 +28,40 @@ export default function AuthSessionGate({ children }: { children: React.ReactNod
   }
 
   if (error) {
-    const title =
-      contextErrorCode === "account_provisioning_required"
-        ? "Your workspace is still being prepared."
-        : contextErrorCode === "account_bootstrap_disabled"
-          ? "Automatic workspace creation is disabled."
-        : "This session needs attention.";
-    const folio =
-      contextErrorCode === "account_provisioning_required"
-        ? "Workspace provisioning"
-        : contextErrorCode === "account_bootstrap_disabled"
-          ? "Workspace setup blocked"
-        : "Account context unavailable";
+    const description = describeUiError(
+      { code: contextErrorCode || "account_context_unavailable", message: error },
+      {
+        surface: "your workspace",
+        accountType: accountTypeFromSession(session, context),
+        authenticated,
+        authProvider: session?.authProvider,
+        isAdmin: Boolean(context?.is_admin || session?.isAdmin),
+      },
+    );
     return (
       <div className="auth-session-gate">
         <div className="auth-session-gate-shell">
-          <span className="auth-session-gate-folio">{folio}</span>
-          <h2 className="auth-session-gate-title">{title}</h2>
-          <p className="auth-session-gate-copy">{error}</p>
+          <span className="auth-session-gate-folio">{description.kind.replaceAll("_", " ")}</span>
+          <h2 className="auth-session-gate-title">{description.title}.</h2>
+          <p className="auth-session-gate-copy">{description.message}</p>
+          {description.diagnostic ? (
+            <details className="ui-error-diagnostic">
+              <summary>Admin details</summary>
+              <code>{description.diagnostic}</code>
+            </details>
+          ) : null}
           <div className="auth-session-gate-actions">
-            <button
-              type="button"
-              className="public-inline-action auth-session-gate-button"
-              onClick={() => {
-                void refresh();
-              }}
-            >
-              Retry <span aria-hidden="true">↗</span>
-            </button>
+            {description.action === "retry" ? (
+              <button
+                type="button"
+                className="public-inline-action auth-session-gate-button"
+                onClick={() => {
+                  void refresh();
+                }}
+              >
+                Try again <span aria-hidden="true">↗</span>
+              </button>
+            ) : null}
             <Link href="/login" className="public-inline-action">
               Return to login <span aria-hidden="true">↗</span>
             </Link>

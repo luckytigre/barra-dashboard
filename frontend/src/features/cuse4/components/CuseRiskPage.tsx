@@ -275,7 +275,7 @@ export default function ExposuresPage() {
     return <CuseRiskPageLoadingCards />;
   }
   if (error) {
-    return <ApiErrorState title="Risk Data Not Ready" error={error} />;
+    return <ApiErrorState surface="cUSE risk" error={error} />;
   }
   if (snapshotMismatch) {
     return (

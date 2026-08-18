@@ -2,6 +2,7 @@
 
 import type { KeyboardEvent } from "react";
 import InlineShareDraftEditor from "@/features/holdings/components/InlineShareDraftEditor";
+import { accountTypeLabel } from "@/lib/uiErrors";
 import type { HoldingsAccount, UniverseSearchItem } from "@/lib/types/cuse4";
 import {
   fmtMarketValue,
@@ -226,7 +227,7 @@ export default function WhatIfBuilderPanel({
           ) : null}
           {accountOptions.map((account) => (
             <option key={account.account_id} value={account.account_id}>
-              {account.account_name || account.account_id}
+              {account.account_name || account.account_id} · {accountTypeLabel(account.account_type)}
             </option>
           ))}
         </select>

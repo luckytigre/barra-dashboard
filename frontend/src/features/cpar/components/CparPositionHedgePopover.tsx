@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CparInlineLoadingState } from "@/features/cpar/components/CparLoadingState";
+import InlineApiError from "@/components/InlineApiError";
 import { useCparPositionHedge } from "@/hooks/useCparApi";
 import {
   describeCparHedgeStatus,
   formatCparPercent,
-  readCparDependencyErrorMessage,
   readCparError,
 } from "@/lib/cparTruth";
 import type { CparPackageMeta, CparPortfolioPositionRow, CparPositionHedgePackage } from "@/lib/types/cpar";
@@ -180,10 +180,11 @@ export default function CparPositionHedgePopover({
       {isLoading && !data ? <CparInlineLoadingState message="Loading row hedge packages..." /> : null}
 
       {errorState ? (
-        <div className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}>
-          <strong>Hedge surface unavailable.</strong>
-          <span>{readCparDependencyErrorMessage(error)}</span>
-        </div>
+        <InlineApiError
+          error={error}
+          surface={`${row.ticker || row.ric} hedge package`}
+          className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}
+        />
       ) : null}
 
       {driftedPackage ? (
