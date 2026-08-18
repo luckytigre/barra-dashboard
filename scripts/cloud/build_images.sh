@@ -148,6 +148,12 @@ prepare_context_dir() {
       exit 1
       ;;
   esac
+  # Docker reads .dockerignore from the build-context root. The prepared context is a
+  # temp dir, so the repo-root file must be copied in or its exclusions (notably
+  # frontend/.env.* and backend/.env.*) silently do not apply to the built image.
+  if [[ -f "${ROOT_DIR}/.dockerignore" ]]; then
+    cp "${ROOT_DIR}/.dockerignore" "${tmpdir}/.dockerignore"
+  fi
   PREPARED_CONTEXT_DIR="${tmpdir}"
 }
 

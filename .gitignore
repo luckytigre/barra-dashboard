@@ -13,6 +13,8 @@ node_modules/
 
 # Environment
 .env
+.env.*
+!.env.example
 .neon
 *.db
 *.db.*
@@ -52,6 +54,12 @@ override.tf.json
 
 # Local agent / merge debris
 /.claude/worktrees/
+/AGENTS.md
+/CLAUDE.md
+/SYSTEM.md
+/claude.md
+/agents.md
+/system.md
 /*conflicted copy*
 
 # Root-generated hygiene debris
