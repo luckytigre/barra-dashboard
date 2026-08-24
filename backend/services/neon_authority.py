@@ -196,7 +196,8 @@ def _copy_pg_table_to_sqlite(
     _drop_and_recreate_sqlite_table(sqlite_conn, table=table, columns=columns)
     column_names = [str(col["name"]) for col in columns]
     placeholders = ",".join("?" for _ in column_names)
-    insert_sql = f'INSERT INTO "{table}" ({", ".join(f"""\"{name}\"""" for name in column_names)}) VALUES ({placeholders})'
+    quoted_columns = ", ".join(f'"{name}"' for name in column_names)
+    insert_sql = f'INSERT INTO "{table}" ({quoted_columns}) VALUES ({placeholders})'
     copied = 0
     with pg_conn.cursor() as cur:
         cur.execute(sql.SQL("SELECT * FROM {}").format(sql.Identifier(table)))
