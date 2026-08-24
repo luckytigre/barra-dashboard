@@ -147,11 +147,23 @@ def load_cpar_position_hedge_payload(
     fit_status = str((fit or {}).get("fit_status") or "ok")
     hedge_use_status = (fit or {}).get("hedge_use_status")
     covariance = _covariance_lookup(covariance_rows)
+    # market_neutral trades SPY alone, so it must size on total market beta.
+    # The residual-space aggregate carries that in its market entry; the
+    # trade-space vector's market entry is net of the factor legs and is only
+    # correct for factor_neutral, which trades them.
+    aggregate_residual_loadings, _, _ = cpar_portfolio_snapshot_service._aggregate_loadings(
+        provisional_rows,
+        loadings_by_ric={
+            str(row_ric): dict((fit_row or {}).get("thresholded_loadings") or {})
+            for row_ric, fit_row in fit_by_ric.items()
+        },
+    )
     market_preview = hedge_engine.build_market_neutral_hedge(
         aggregate_trade_loadings,
         covariance,
         fit_status=fit_status,
         hedge_use_status=None if hedge_use_status is None else str(hedge_use_status),
+        market_total_beta=aggregate_residual_loadings.get(hedge_engine.MARKET_FACTOR_ID),
     )
     factor_preview = hedge_engine.build_factor_neutral_hedge(
         aggregate_trade_loadings,

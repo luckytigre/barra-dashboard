@@ -238,6 +238,10 @@ def build_cpar_portfolio_hedge_snapshot(
 
     preview = hedge_engine.build_hedge_preview(
         mode=mode,
+        # market_neutral sizes on total market beta, which is what the
+        # residual-space aggregate carries in its market entry; factor_neutral
+        # ignores this and keeps the trade-space market coefficient.
+        market_total_beta=aggregate_loadings.get(hedge_engine.MARKET_FACTOR_ID),
         thresholded_loadings=aggregate_trade_loadings,
         covariance={
             (str(row["factor_id"]), str(row["factor_id_2"])): float(row["covariance"])

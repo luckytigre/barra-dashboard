@@ -1,9 +1,13 @@
 # cPAR Hedge Redesign — Design Note
 
-- Status: draft for review
+- Status: **decided and partially implemented** — see §9
 - Date: 2026-08-23
 - Scope: `backend/cpar/hedge_engine.py` and the services that consume it
 - Decision owner: Shaun
+
+§§1-2 (status quo and defects) stand as written. §§3-6 record the options that
+were considered; the design actually chosen is simpler than P2 and is recorded
+in §9, which supersedes the Phase 0 / Phase 1 split in §6.
 
 This note records why the cPAR hedge packages are being reworked, what is
 proposed, and what was validated before committing to the change. It does not
@@ -589,3 +593,68 @@ threshold instead, and wire up the dead stability diagnostics to manage churn.
 Claims in this note are sourced to `file:line`; citations were audited in the
 adversarial pass. Covariance figures are from an assumed synthetic matrix — no
 return data exists in-repo.
+
+## 9. Decision and implementation
+
+**Decision: keep exact negation. No re-optimization, no covariance in the
+sizing.** The loadings are used as they already exist; converting to trade space
+and negating is the whole of it. A six-instrument factor package — the five
+largest factor legs plus a market leg — plus a separate pure beta hedge.
+
+This supersedes the Phase 0 / Phase 1 split in §6 and defers P2 (§3) and P2-lite
+(§4.2) indefinitely. They remain on record as refinements, not commitments.
+
+### What shipped
+
+1. **Market-neutral sizes on total market beta.** `build_market_neutral_hedge`
+   takes an optional `market_total_beta`; when supplied it replaces the market
+   entry of the loading vector. Both call sites pass the market entry of the
+   *residual-space* aggregate, which is already `β_m`
+   (`cpar_stages.py:333`) — so no new field, no schema change, and no second
+   trade-space aggregation. `build_factor_neutral_hedge` does not receive it and
+   keeps the trade-space coefficient, which is correct there (§3).
+2. **The correlated-substitute pruner is deleted**, along with
+   `_correlation_matrix` and `CORRELATION_PRUNE_THRESHOLD`, which had no other
+   users. Weights are exact negation, so collinearity causes no numerical harm
+   and the leg cap already bounds ticket count.
+3. **The leg cap now bounds non-market legs only.** The market leg rides
+   alongside rather than competing for a slot, so a full package is
+   `MAX_HEDGE_LEGS + 1` = 6 instruments. This is what makes the market leg
+   structurally un-droppable.
+4. **The recommendation path uses the same selection helper**, so the two
+   surfaces can no longer recommend different instrument sets for one vector.
+
+### Deliberately not done
+
+The market leg uses the **stored** `spy_trade_beta`, which nets out the market
+content of *all* factor loadings including untraded ones. Recomputing it over
+only the traded legs would zero total market beta exactly; as shipped, a small
+residue remains (`+0.0277` of beta on a representative 8-factor vector, ~$277k
+on a $10M position). Accepted as the minimal-change option. Revisit if that
+residue proves material.
+
+`non_market_reduction_ratio` is unchanged. It still excludes the market factor,
+but the defect that made this dangerous — a silently dropped market leg — is
+structurally impossible now, so replacing it with a variance ratio (§5) is no
+longer urgent and would force a threshold recalibration against data that
+cannot currently be read (§6).
+
+### Verification
+
+`backend/tests/test_cpar_hedge_engine.py` rewritten against the new rules, with
+regression coverage added for the two defects in §2.2: the market leg surviving
+a 0.98-correlated substitute, and a fix-agnostic assertion that a hedge never
+increases `post_hedge_variance_proxy` above `pre_hedge_variance_proxy`.
+
+Full backend suite run before and after on Python 3.12: identical failure sets
+(26 pre-existing, unrelated), pass count 963 → 967. **No regressions
+introduced.**
+
+### Pre-existing issue found during verification
+
+`backend/services/neon_authority.py` uses a backslash inside an f-string
+expression, which is a `SyntaxError` before Python 3.12 (PEP 701). The project
+declares `requires-python = ">=3.11"` and `.github/workflows/ci.yml` pins
+`python-version: "3.11"`, so **13 test files fail to collect on CI today**,
+independent of this change. Either raise the CI pin and `requires-python` to
+3.12, or rewrite that f-string. Not addressed here.

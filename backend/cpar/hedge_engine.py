@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from itertools import combinations
 
 import numpy as np
 
@@ -12,7 +11,6 @@ from backend.cpar.factor_registry import MARKET_FACTOR_ID, factor_group_for_id
 
 MARKET_MATERIALITY_THRESHOLD = 0.10
 NON_MARKET_THRESHOLD = 0.05
-CORRELATION_PRUNE_THRESHOLD = 0.90
 MAX_HEDGE_LEGS = 5
 TINY_POSITION_THRESHOLD = 0.05
 
@@ -61,19 +59,6 @@ def covariance_matrix_for_factors(
         )
     return matrix
 
-
-def _correlation_matrix(covariance_matrix: np.ndarray) -> np.ndarray:
-    diag = np.clip(np.diag(covariance_matrix), a_min=0.0, a_max=None)
-    vol = np.sqrt(diag)
-    corr = np.zeros_like(covariance_matrix, dtype=float)
-    for row_idx in range(covariance_matrix.shape[0]):
-        for col_idx in range(covariance_matrix.shape[1]):
-            denom = float(vol[row_idx] * vol[col_idx])
-            if denom <= 0.0:
-                corr[row_idx, col_idx] = 0.0
-            else:
-                corr[row_idx, col_idx] = float(covariance_matrix[row_idx, col_idx] / denom)
-    return corr
 
 
 def _variance_proxy(loadings: Mapping[str, float], covariance: Mapping[object, object]) -> float:
@@ -163,7 +148,15 @@ def build_market_neutral_hedge(
     fit_status: str,
     hedge_use_status: str | None = None,
     previous_hedge_weights: Mapping[str, float] | None = None,
+    market_total_beta: float | None = None,
 ) -> HedgePreview:
+    # This package trades SPY alone, so it must size on the instrument's TOTAL
+    # market beta. The trade-space market coefficient carried in
+    # `thresholded_loadings` is net of the market exposure delivered by the
+    # factor legs -- correct inside factor_neutral, which trades those legs, but
+    # a systematic under-hedge here, where they are never traded.
+    if market_total_beta is not None:
+        thresholded_loadings = {**dict(thresholded_loadings), MARKET_FACTOR_ID: float(market_total_beta)}
     if str(hedge_use_status or "").strip() in {"missing_price", "insufficient_history"}:
         return _build_preview(
             mode="market_neutral",
@@ -221,61 +214,26 @@ def _candidate_factor_ids(thresholded_loadings: Mapping[str, float]) -> list[str
     return sorted(set(candidates), key=lambda factor_id: (factor_id != MARKET_FACTOR_ID, -abs(float(thresholded_loadings.get(factor_id, 0.0))), factor_id))
 
 
-def _prune_correlated_substitutes(
-    candidate_ids: list[str],
-    thresholded_loadings: Mapping[str, float],
-    covariance: Mapping[object, object],
-) -> list[str]:
-    if len(candidate_ids) <= 1:
-        return candidate_ids
-    remaining = list(candidate_ids)
-    while True:
-        factor_ids = tuple(remaining)
-        corr = _correlation_matrix(covariance_matrix_for_factors(factor_ids, covariance))
-        violating_pairs: list[tuple[float, str, str]] = []
-        for left_idx, right_idx in combinations(range(len(factor_ids)), 2):
-            abs_corr = abs(float(corr[left_idx, right_idx]))
-            if abs_corr > CORRELATION_PRUNE_THRESHOLD:
-                violating_pairs.append((abs_corr, factor_ids[left_idx], factor_ids[right_idx]))
-        if not violating_pairs:
-            return remaining
-        violating_pairs.sort(key=lambda item: (-item[0], item[1], item[2]))
-        _, left, right = violating_pairs[0]
-        left_abs = abs(float(thresholded_loadings.get(left, 0.0)))
-        right_abs = abs(float(thresholded_loadings.get(right, 0.0)))
-        if left_abs > right_abs:
-            loser = right
-        elif right_abs > left_abs:
-            loser = left
-        else:
-            loser = max(left, right)
-        remaining = [factor_id for factor_id in remaining if factor_id != loser]
-
-
-def _apply_leg_cap(candidate_ids: list[str], thresholded_loadings: Mapping[str, float]) -> list[str]:
-    return _apply_leg_cap_with_limit(candidate_ids, thresholded_loadings, max_hedge_legs=MAX_HEDGE_LEGS)
-
-
 def _apply_leg_cap_with_limit(
     candidate_ids: list[str],
     thresholded_loadings: Mapping[str, float],
     *,
     max_hedge_legs: int,
 ) -> list[str]:
-    if max_hedge_legs <= 0:
-        return []
-    if len(candidate_ids) <= max_hedge_legs:
-        return candidate_ids
+    """Keep the `max_hedge_legs` largest non-market legs, plus the market leg.
+
+    The cap bounds the number of *factor* legs; the market leg does not compete
+    for a slot, so a full package is `max_hedge_legs + 1` instruments. Legs are
+    ranked by absolute trade-space loading and taken as-is -- weights are exact
+    negation, so there is no solve and dropping a leg simply leaves that
+    exposure unhedged.
+    """
     keep: list[str] = []
+    non_market = [factor_id for factor_id in candidate_ids if factor_id != MARKET_FACTOR_ID]
+    non_market.sort(key=lambda factor_id: (-abs(float(thresholded_loadings.get(factor_id, 0.0))), factor_id))
+    keep.extend(non_market[: max(0, max_hedge_legs)])
     if MARKET_FACTOR_ID in candidate_ids:
         keep.append(MARKET_FACTOR_ID)
-    non_market = [
-        factor_id
-        for factor_id in candidate_ids
-        if factor_id != MARKET_FACTOR_ID
-    ]
-    non_market.sort(key=lambda factor_id: (-abs(float(thresholded_loadings.get(factor_id, 0.0))), factor_id))
-    keep.extend(non_market[: max(0, max_hedge_legs - len(keep))])
     return keep
 
 
@@ -323,8 +281,7 @@ def build_factor_neutral_hedge(
             previous_hedge_weights=previous_hedge_weights,
             non_market_reduction_ratio=1.0,
         )
-    pruned = _prune_correlated_substitutes(candidates, underlying, covariance)
-    capped = _apply_leg_cap_with_limit(pruned, underlying, max_hedge_legs=max_hedge_legs)
+    capped = _apply_leg_cap_with_limit(candidates, underlying, max_hedge_legs=max_hedge_legs)
     hedge_weights = {factor_id: -float(underlying.get(factor_id, 0.0)) for factor_id in capped}
     hedge_weights = {
         factor_id: weight
@@ -400,10 +357,10 @@ def build_factor_neutral_recommendation(
             previous_hedge_weights=previous_hedge_weights,
             non_market_reduction_ratio=1.0,
         )
-    selected = sorted(
-        candidates,
-        key=lambda factor_id: (-abs(float(underlying.get(factor_id, 0.0))), factor_id),
-    )[: max(0, max_hedge_legs)]
+    # Same selection rule as build_factor_neutral_hedge: the cap bounds factor
+    # legs and the market leg rides alongside, so the two surfaces cannot
+    # recommend different instrument sets for the same loading vector.
+    selected = _apply_leg_cap_with_limit(candidates, underlying, max_hedge_legs=max_hedge_legs)
     hedge_weights = {factor_id: -float(underlying.get(factor_id, 0.0)) for factor_id in selected}
     hedge_weights = {
         factor_id: weight
@@ -441,6 +398,7 @@ def build_hedge_preview(
     hedge_use_status: str | None = None,
     previous_hedge_weights: Mapping[str, float] | None = None,
     max_hedge_legs: int = MAX_HEDGE_LEGS,
+    market_total_beta: float | None = None,
 ) -> HedgePreview:
     clean_mode = str(mode or "").strip().lower()
     if clean_mode == "market_neutral":
@@ -450,6 +408,7 @@ def build_hedge_preview(
             fit_status=fit_status,
             hedge_use_status=hedge_use_status,
             previous_hedge_weights=previous_hedge_weights,
+            market_total_beta=market_total_beta,
         )
     if clean_mode == "factor_neutral":
         return build_factor_neutral_hedge(
