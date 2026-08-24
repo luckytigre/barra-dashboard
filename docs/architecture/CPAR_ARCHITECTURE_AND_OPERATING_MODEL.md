@@ -7,12 +7,12 @@ Owner: Codex
 This document is the canonical repo-level overview for the current cPAR implementation.
 
 Use the slice-specific docs for detailed implementation notes:
-- [CPAR1_MATH_KERNEL.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR1_MATH_KERNEL.md)
-- [CPAR_PERSISTENCE_LAYER.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_PERSISTENCE_LAYER.md)
-- [CPAR_ORCHESTRATION.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_ORCHESTRATION.md)
-- [CPAR_BACKEND_READ_SURFACES.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_BACKEND_READ_SURFACES.md)
-- [CPAR_FRONTEND_SURFACES.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_FRONTEND_SURFACES.md)
-- [CPAR_OPERATIONS_PLAYBOOK.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/operations/CPAR_OPERATIONS_PLAYBOOK.md)
+- [CPAR1_MATH_KERNEL.md](CPAR1_MATH_KERNEL.md)
+- [CPAR_PERSISTENCE_LAYER.md](CPAR_PERSISTENCE_LAYER.md)
+- [CPAR_ORCHESTRATION.md](CPAR_ORCHESTRATION.md)
+- [CPAR_BACKEND_READ_SURFACES.md](CPAR_BACKEND_READ_SURFACES.md)
+- [CPAR_FRONTEND_SURFACES.md](CPAR_FRONTEND_SURFACES.md)
+- [CPAR_OPERATIONS_PLAYBOOK.md](../operations/CPAR_OPERATIONS_PLAYBOOK.md)
 
 ## Purpose
 
@@ -67,7 +67,7 @@ Core rules:
 - raw ETF trade-space translation retained for hedge workflows
 - deterministic hedge generation in raw ETF trade space
 
-The authoritative math contract lives in [CPAR1_MATH_KERNEL.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR1_MATH_KERNEL.md).
+The authoritative math contract lives in [CPAR1_MATH_KERNEL.md](CPAR1_MATH_KERNEL.md).
 
 ## Durable Surfaces
 
@@ -123,8 +123,8 @@ Current active workstream:
 - cPAR hedge packages are the one intentionally active temporary UX expansion:
   - row-level hedge popovers on `/cpar/risk`
   - a real portfolio hedge workspace on `/cpar/hedge`
-- while that work is in flight, the temporary implementation plan lives in `CPAR_HEDGE_WORKSTREAM_PLAN_2026-04-20.md`
-- that temporary plan should be archived once the hedge surfaces land and this canonical document has been updated
+- while that work is in flight, the owner-approved design and implementation status live in `CPAR_HEDGE_REDESIGN_DESIGN_NOTE.md`
+- that design note should be archived once the hedge surfaces land and this canonical document has been updated
 
 Current owner decisions:
 - rebuilt `/cpar/explore`, `/cpar/hedge`, and `/cpar/health` surfaces should remain cPAR-owned when they return

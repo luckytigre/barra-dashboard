@@ -15,13 +15,13 @@ The April 15, 2026 production repair is now part of the current cPAR operating b
 - Post-recovery production validation:
   - active package-date coverage is healthy for names such as `SPY.P`, `QQQ.OQ`, `URA.P`, `ASML.OQ`, `APO.N`, and `IBKR.OQ`
   - aggregate cPAR risk is healthy with `portfolio_status = ok`, `covered_positions_count = 24`, `missing_price = 0`, and `missing_cpar_fit = 0`
-- The full cross-model remediation record, including the cUSE side of the same recovery window, lives in [CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN_2026-04-15.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/archive/implementation-trackers/CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN_2026-04-15.md).
+- The full cross-model remediation record, including the cUSE side of the same recovery window, lives in [CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN_2026-04-15.md](../archive/implementation-trackers/CUSE_CPAR_AUTHORITY_AND_READ_SURFACE_PLAN_2026-04-15.md).
 
 Related references:
-- [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
-- [CPAR_ORCHESTRATION.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_ORCHESTRATION.md)
-- [CPAR_PERSISTENCE_LAYER.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_PERSISTENCE_LAYER.md)
-- [CPAR_BACKEND_READ_SURFACES.md](/Users/shaun/Library/CloudStorage/Dropbox/045%20-%20Vibing/ceiora-risk/docs/architecture/CPAR_BACKEND_READ_SURFACES.md)
+- [CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md](../architecture/CPAR_ARCHITECTURE_AND_OPERATING_MODEL.md)
+- [CPAR_ORCHESTRATION.md](../architecture/CPAR_ORCHESTRATION.md)
+- [CPAR_PERSISTENCE_LAYER.md](../architecture/CPAR_PERSISTENCE_LAYER.md)
+- [CPAR_BACKEND_READ_SURFACES.md](../architecture/CPAR_BACKEND_READ_SURFACES.md)
 
 ## Purpose
 

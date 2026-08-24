@@ -50,10 +50,13 @@ These are the current repo-level decisions worth knowing before you start editin
 
 Keep these only while the work is actually active:
 
+- `REPOSITORY_CLEANUP_PLAN_2026-08-23.md`
+  - adversarially reviewed repository and documentation cleanup plan;
+    implementation is in progress
 - `operations/FULL_CLOUD_COMPUTE_CUTOVER_PLAN.md`
   - temporary cutover execution plan while cloud compute cutover remains open
-- `architecture/CPAR_HEDGE_WORKSTREAM_PLAN_2026-04-20.md`
-  - temporary hedge-package implementation plan while `/cpar/risk` hedge popovers and `/cpar/hedge` are still in flight
+- `architecture/CPAR_HEDGE_REDESIGN_DESIGN_NOTE.md`
+  - current owner-approved hedge redesign record while its remaining implementation is in flight
 
 ## Supporting Drill-Down Docs
 
