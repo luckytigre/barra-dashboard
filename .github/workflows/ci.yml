@@ -43,11 +43,12 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend deps
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Run frontend contract checks
         run: |
           npm run test:control-plane-proxies
+          npm run test:auth-session
           npm run test:ui-errors
 
       - name: Build frontend

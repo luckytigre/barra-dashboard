@@ -215,8 +215,10 @@ export async function authenticateNeonLogin(idToken: string): Promise<AppSession
   if (!subject) return null;
 
   const issuedAt = Math.floor(Date.now() / 1000);
-  const tokenExpiry = Number(payload.exp || 0);
-  const expiresAt = Number.isFinite(tokenExpiry) && tokenExpiry > issuedAt ? tokenExpiry : issuedAt + APP_SESSION_TTL_SECONDS;
+  // The verified Neon token establishes identity for this login. Ceiora then
+  // applies its own session lifetime instead of inheriting the short-lived
+  // identity token expiry.
+  const expiresAt = issuedAt + APP_SESSION_TTL_SECONDS;
 
   return {
     authProvider: "neon",
