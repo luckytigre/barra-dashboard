@@ -33,7 +33,6 @@ export default function AuthSessionGate({ children }: { children: React.ReactNod
       {
         surface: "your workspace",
         accountType: accountTypeFromSession(session, context),
-        authenticated,
         authProvider: session?.authProvider,
         isAdmin: Boolean(context?.is_admin || session?.isAdmin),
       },

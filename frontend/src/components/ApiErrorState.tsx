@@ -75,14 +75,13 @@ export default function ApiErrorState({
 }) {
   const [refreshState, setRefreshState] = useState<"idle" | "running" | "done" | "failed">("idle");
   const parsed = parseError(error);
-  const { authenticated, session, context } = useAuthSession();
+  const { session, context } = useAuthSession();
   const isAdmin = Boolean(context?.is_admin || session?.isAdmin);
   const description = describeUiError(error, {
     surface,
     operation,
     accountType: accountType ?? accountTypeFromSession(session, context),
     accountName,
-    authenticated,
     authProvider: session?.authProvider,
     isAdmin,
   });

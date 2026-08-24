@@ -3,7 +3,7 @@
 interface HoldingsMutationFeedbackProps {
   resultMessage: string;
   errorMessage: string;
-  rejectionPreview: Array<Record<string, unknown>>;
+  rejectionPreview: Array<{ rowNumber: number | null; message: string }>;
   draftCount?: number;
   draftDeleteCount?: number;
 }
@@ -33,7 +33,13 @@ export default function HoldingsMutationFeedback({
       {rejectionPreview.length > 0 && (
         <div className="feedback-rejection">
           Preview rejections:
-          <pre>{JSON.stringify(rejectionPreview, null, 2)}</pre>
+          <ul>
+            {rejectionPreview.map((row, index) => (
+              <li key={`${row.rowNumber ?? "unknown"}-${index}`}>
+                {row.rowNumber == null ? "Row" : `Row ${row.rowNumber}`}: {row.message}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </>

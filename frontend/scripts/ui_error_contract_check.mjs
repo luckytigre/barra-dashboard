@@ -15,12 +15,11 @@ const transpiled = ts.transpileModule(source, {
 const importless = transpiled.replace(/^import .*;\s*$/gm, "");
 const testableModule = `class ApiError extends Error {}\n${importless}`;
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(testableModule).toString("base64")}`;
-const { describeUiError } = await import(moduleUrl);
+const { accountTypeFromSession, describeUiError, whatIfApplyUiError } = await import(moduleUrl);
 
 const personalContext = {
   surface: "positions",
   accountType: "personal",
-  authenticated: true,
   authProvider: "neon",
   isAdmin: false,
 };
@@ -51,7 +50,7 @@ const bootstrapDisabled = describeUiError(
   personalContext,
 );
 assert.equal(bootstrapDisabled.kind, "account_provisioning");
-assert.equal(bootstrapDisabled.action, "contact_operator");
+assert.equal(bootstrapDisabled.action, "none");
 
 const cparNotReady = describeUiError(
   { status: 503, error: "cpar_not_ready", message: "internal package message" },
@@ -64,20 +63,25 @@ const adminFailure = describeUiError(
   {
     status: 503,
     code: "upstream_unavailable",
-    message: "postgresql://db-user:db-password@example.test/app token=very-secret-value",
+    message: "postgresql://db-user:db-password@example.test/app token=very-secret-value Authorization: Bearer opaque-credential-value",
   },
-  { ...personalContext, accountType: "admin", isAdmin: true },
+  { ...personalContext, isAdmin: true },
 );
 assert.equal(adminFailure.kind, "service_unavailable");
 assert.match(adminFailure.diagnostic, /\[redacted\]/);
-assert.doesNotMatch(adminFailure.diagnostic, /db-password|very-secret-value/);
+assert.doesNotMatch(adminFailure.diagnostic, /db-password|very-secret-value|opaque-credential-value/);
+
+assert.equal(
+  describeUiError({ status: 503, error: "cache_not_ready" }, personalContext).kind,
+  "not_ready",
+);
 
 const validation = describeUiError(
   { status: 400, message: "Quantity must be numeric and non-zero." },
   { ...personalContext, operation: "write" },
 );
 assert.equal(validation.kind, "invalid_request");
-assert.equal(validation.message, "Quantity must be numeric and non-zero.");
+assert.doesNotMatch(validation.message, /Quantity must be numeric/);
 
 // The middleware returns 401 for an authenticated-but-unprovisioned session while
 // preserving the session cookies. Account-state codes must win over the bare status,
@@ -101,7 +105,7 @@ const adminRequiredOn403 = describeUiError(
 );
 assert.equal(adminRequiredOn403.kind, "admin_required");
 
-// Validation passthrough must not echo identifiers or internal locations.
+// Invalid-request details never pass through, regardless of whether they appear safe.
 const leakyAccountId = describeUiError(
   { status: 400, message: "Requested account acct_7f3a91c2 is not in the selected scope." },
   personalContext,
@@ -120,25 +124,42 @@ const leakyUuid = describeUiError(
 );
 assert.doesNotMatch(leakyUuid.message, /3f2504e0/);
 
-// A plain validation message must still reach the user.
-assert.equal(
-  describeUiError({ status: 400, message: "Quantity must be numeric and non-zero." }, personalContext).message,
-  "Quantity must be numeric and non-zero.",
+assert.doesNotMatch(
+  describeUiError({ status: 400, message: "Each what-if row requires account_id." }, personalContext).message,
+  /account_id/,
 );
 
-// Literal field names are not identifier values: these real backend validation
-// messages must survive the id/path denylist above.
-for (const passthrough of [
-  "Each what-if row requires account_id.",
-  "Each cPAR explore scenario row requires account_id.",
-  "account_id is required when scope=account.",
-  "invalid account_id",
+// Admin is a role, not a persisted holdings account type.
+assert.equal(
+  accountTypeFromSession(
+    { authProvider: "neon", isAdmin: true },
+    { auth_provider: "neon", is_admin: true },
+  ),
+  "personal",
+);
+
+assert.equal(
+  whatIfApplyUiError(
+    {
+      status: "rejected",
+      rejected_rows: 1,
+      rejected: [{ reason_code: "invalid_quantity", message: "raw row details" }],
+    },
+    "What-if changes were rejected.",
+  ),
+  "What-if changes were rejected. Enter a numeric, non-zero quantity.",
+);
+assert.equal(
+  whatIfApplyUiError({ status: "ok", rejected_rows: 0, rejected: [] }, "fallback"),
+  null,
+);
+
+for (const relativePath of [
+  "src/features/whatif/useWhatIfScenarioLab.ts",
+  "src/features/cpar/components/useCparExploreScenarioLab.ts",
 ]) {
-  assert.equal(
-    describeUiError({ status: 400, message: passthrough }, personalContext).message,
-    passthrough,
-    `expected validation passthrough for: ${passthrough}`,
-  );
+  const consumer = fs.readFileSync(path.join(frontendRoot, relativePath), "utf8");
+  assert.match(consumer, /whatIfApplyUiError\(\s*out,/);
 }
 
 console.log("ui error contract ok");

@@ -41,7 +41,7 @@ const THEME_OPTIONS = [
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const { loading, authenticated, session, context, contextErrorCode, error } = useAuthSession();
+  const { loading, session, context, contextErrorCode, error } = useAuthSession();
   const { cparFactorHistoryMode, setCparFactorHistoryMode, themeMode, setThemeMode } = useAppSettings();
   const { mode: backgroundMode, setMode: setBackgroundMode } = useBackground();
   const useMarketAdjustedHistory = cparFactorHistoryMode === "market_adjusted";
@@ -54,7 +54,6 @@ export default function SettingsPage() {
     {
       surface: "session settings",
       accountType: accountTypeFromSession(session, context),
-      authenticated,
       authProvider: session?.authProvider,
       isAdmin: Boolean(context?.is_admin || session?.isAdmin),
     },
@@ -94,9 +93,15 @@ export default function SettingsPage() {
               </span>
             </div>
             <div className="settings-session-row">
-              <span className="settings-option-label">Access type</span>
+              <span className="settings-option-label">Portfolio type</span>
               <span className="settings-session-value">
                 {loading ? "Loading…" : accountTypeLabel(sessionAccountType)}
+              </span>
+            </div>
+            <div className="settings-session-row">
+              <span className="settings-option-label">Role</span>
+              <span className="settings-session-value">
+                {loading ? "Loading…" : (context?.is_admin || session?.isAdmin) ? "Admin" : "Member"}
               </span>
             </div>
             {session?.authProvider === "neon" || context?.account_enforcement_enabled ? (

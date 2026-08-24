@@ -13,7 +13,6 @@ import {
   useCparTickerHistory,
 } from "@/hooks/useCparApi";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { readCparError } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types/cpar";
 import { normalizeTicker, type CparExplorePositionSummary } from "@/features/cpar/components/cparExploreUtils";
 
@@ -92,9 +91,6 @@ export default function CparExplorePage() {
     }
   }, [selectedInstrument]);
 
-  const exploreContextState = exploreContextError ? readCparError(exploreContextError) : null;
-  const searchState = searchError ? readCparError(searchError) : null;
-  const tickerState = tickerError ? readCparError(tickerError) : null;
   const searchPending = query.trim() !== debouncedQuery.trim();
   const settledQuery = debouncedQuery.trim().toUpperCase();
   const searchRequestSettled = !searchPending && !searchLoading && !searchValidating;
@@ -108,20 +104,20 @@ export default function CparExplorePage() {
 
   return (
     <div className="explore-page-stack" data-testid="cpar-explore-page">
-      {exploreContextState && (
+      {exploreContextError && (
         <InlineApiError
           error={exploreContextError}
           surface="cPAR held-position context"
           impact="Security search still works, but holding badges may be incomplete."
         />
       )}
-      {!isLoading && selectedInstrument && tickerState && (
+      {!isLoading && selectedInstrument && tickerError && (
         <InlineApiError
           error={tickerError}
           surface={`${selectedInstrument.ticker || selectedInstrument.ric} cPAR details`}
         />
       )}
-      {searchState && query.trim().length > 0 && (
+      {searchError && query.trim().length > 0 && (
         <InlineApiError error={searchError} surface="cPAR security search" />
       )}
 

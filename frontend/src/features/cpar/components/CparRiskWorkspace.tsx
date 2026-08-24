@@ -10,8 +10,8 @@ import CparRiskPositionsContributionTable from "@/features/cpar/components/CparR
 import { useCparRisk } from "@/hooks/useCparApi";
 import {
   normalizeCparRiskData,
-  readCparError,
 } from "@/lib/cparTruth";
+import { describeUiError } from "@/lib/uiErrors";
 import {
   COMBINED_DECOMP_SUBTITLE,
   deriveRawLoadingSharesFromCparLoadings,
@@ -50,7 +50,7 @@ function CparRiskWorkspaceInner() {
     [normalizedRisk?.aggregate_display_loadings, normalizedRisk?.display_factor_chart, normalizedRisk?.positions],
   );
   const volScaledShares = normalizedRisk?.vol_scaled_shares ?? normalizedRisk?.risk_shares ?? { market: 0, industry: 0, style: 0, idio: 100 };
-  const riskState = riskError ? readCparError(riskError) : null;
+  const riskErrorKind = riskError ? describeUiError(riskError).kind : null;
 
   if (riskLoading && !risk) {
     return <CparRiskLoadingCards />;
@@ -58,13 +58,13 @@ function CparRiskWorkspaceInner() {
 
   return (
     <div className="cpar-page">
-      {riskState ? (
+      {riskError ? (
         <section className="chart-card" data-testid="cpar-portfolio-error">
           <h3>Risk Surface</h3>
           <InlineApiError
             error={riskError}
             surface="cPAR risk"
-            className={`cpar-inline-message ${riskState.kind === "missing" ? "warning" : "error"}`}
+            className={`cpar-inline-message ${riskErrorKind === "not_found" ? "warning" : "error"}`}
           />
         </section>
       ) : normalizedRisk ? (

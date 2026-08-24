@@ -7,7 +7,7 @@ import { cuse4ApiPath } from "@/lib/cuse4Api";
 import { holdingsApiPath } from "@/lib/holdingsApi";
 import { triggerHoldingsImport } from "@/hooks/useHoldingsApi";
 import type { HoldingsAccount, HoldingsImportMode, HoldingsPosition } from "@/lib/types/holdings";
-import { accountTypeFromSession, uiErrorMessage } from "@/lib/uiErrors";
+import { accountTypeFromSession, rejectionReasonUiMessage, uiErrorMessage } from "@/lib/uiErrors";
 import {
   refreshSucceeded,
   runServeRefreshAndRevalidate,
@@ -69,12 +69,12 @@ export function useHoldingsManager(
   holdingsRows: HoldingsPosition[],
   selectedAccountContext?: Pick<HoldingsAccount, "account_name" | "account_type"> | null,
 ) {
-  const { authenticated, session, context } = useAuthSession();
+  const { session, context } = useAuthSession();
   const [busy, setBusy] = useState(false);
   const [confirmConfig, setConfirmConfig] = useState<HoldingsConfirmConfig | null>(null);
   const [resultMessage, setResultMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [rejectionPreview, setRejectionPreview] = useState<Array<Record<string, unknown>>>([]);
+  const [rejectionPreview, setRejectionPreview] = useState<Array<{ rowNumber: number | null; message: string }>>([]);
   const [drafts, setDrafts] = useState<Record<string, HoldingsDraftEntry>>({});
 
   const normalizedSelectedAccount = normalizeAccountId(selectedAccount);
@@ -85,7 +85,6 @@ export function useHoldingsManager(
       operation: "write",
       accountType: selectedAccountContext?.account_type ?? accountTypeFromSession(session, context),
       accountName: selectedAccountContext?.account_name,
-      authenticated,
       authProvider: session?.authProvider,
       isAdmin: Boolean(context?.is_admin || session?.isAdmin),
     });
@@ -241,7 +240,10 @@ export function useHoldingsManager(
       setResultMessage(
         `${out.status}: ${out.applied_upserts} upserts, ${out.applied_deletes} deletes, ${out.rejected_rows} backend rejects${extras}. Holdings were written immediately; run RECALC to publish updated analytics.`,
       );
-      setRejectionPreview((out.preview_rejections ?? []).slice(0, 15));
+      setRejectionPreview((out.preview_rejections ?? []).slice(0, 15).map((row) => ({
+        rowNumber: typeof row.row_number === "number" ? row.row_number : null,
+        message: rejectionReasonUiMessage(row.reason_code),
+      })));
       await revalidateHoldingsViews([selectedAccount]);
     } catch (err) {
       setErrorMessage(mutationFailure(err, "holdings import"));

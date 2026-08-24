@@ -1,6 +1,5 @@
 "use client";
 
-import { ApiError } from "@/lib/cparApi";
 import type {
   CparCoverageBreakdown,
   CparCovMatrix,
@@ -23,13 +22,6 @@ import type {
 
 export type BadgeTone = "success" | "warning" | "error" | "neutral";
 
-interface CparApiErrorDetail {
-  status?: string;
-  error?: string;
-  message?: string;
-  build_profile?: string;
-}
-
 interface CparPackageFreshnessInput {
   package_date?: string | null;
   source_prices_asof?: string | null;
@@ -40,13 +32,6 @@ export interface CparBadgeDescriptor {
   label: string;
   tone: BadgeTone;
   detail: string;
-}
-
-export interface CparErrorSummary {
-  kind: "not_ready" | "unavailable" | "ambiguous" | "missing" | "unknown";
-  message: string;
-  statusCode: number | null;
-  buildProfile: string | null;
 }
 
 interface CparPackageIdentity {
@@ -581,65 +566,5 @@ export function normalizeCparPortfolioWhatIfData(
     ...whatIf,
     current: normalizeCparPortfolioHedgeData(whatIf.current) as CparPortfolioHedgeData,
     hypothetical: normalizeCparPortfolioHedgeData(whatIf.hypothetical) as CparPortfolioHedgeData,
-  };
-}
-
-export function readCparError(error: unknown): CparErrorSummary {
-  if (error instanceof ApiError) {
-    const detail = error.detail as CparApiErrorDetail | string | null;
-    if (error.status === 503 && detail && typeof detail === "object") {
-      if (detail.error === "cpar_not_ready") {
-        return {
-          kind: "not_ready",
-          message: String(detail.message || error.message),
-          statusCode: error.status,
-          buildProfile: String(detail.build_profile || "") || null,
-        };
-      }
-      if (detail.error === "cpar_authority_unavailable") {
-        return {
-          kind: "unavailable",
-          message: String(detail.message || error.message),
-          statusCode: error.status,
-          buildProfile: null,
-        };
-      }
-    }
-    if (error.status === 409) {
-      return {
-        kind: "ambiguous",
-        message: typeof detail === "string" ? detail : error.message,
-        statusCode: error.status,
-        buildProfile: null,
-      };
-    }
-    if (error.status === 404) {
-      return {
-        kind: "missing",
-        message: typeof detail === "string" ? detail : error.message,
-        statusCode: error.status,
-        buildProfile: null,
-      };
-    }
-    return {
-      kind: "unknown",
-      message: typeof detail === "string" ? detail : error.message,
-      statusCode: error.status,
-      buildProfile: null,
-    };
-  }
-  if (error instanceof Error) {
-    return {
-      kind: "unknown",
-      message: error.message,
-      statusCode: null,
-      buildProfile: null,
-    };
-  }
-  return {
-    kind: "unknown",
-    message: "Unknown cPAR frontend error.",
-    statusCode: null,
-    buildProfile: null,
   };
 }

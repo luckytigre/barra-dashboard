@@ -11,14 +11,13 @@ import {
 } from "@/lib/authTokens";
 
 export default function AdminSettingsPage() {
-  const { loading, authenticated, session, context, contextErrorCode, error } = useAuthSession();
+  const { loading, session, context, contextErrorCode, error } = useAuthSession();
   const [tokens, setTokens] = useState(() => readStoredAuthTokens());
   const sessionError = error ? describeUiError(
     { code: contextErrorCode, message: error },
     {
       surface: "admin settings",
       accountType: accountTypeFromSession(session, context),
-      authenticated,
       authProvider: session?.authProvider,
       isAdmin: Boolean(context?.is_admin || session?.isAdmin),
     },

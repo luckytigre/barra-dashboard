@@ -18,12 +18,11 @@ export default function InlineApiError({
   accountName?: string | null;
   className?: string;
 }) {
-  const { authenticated, session, context } = useAuthSession();
+  const { session, context } = useAuthSession();
   const description = describeUiError(error, {
     surface,
     accountType: accountType ?? accountTypeFromSession(session, context),
     accountName,
-    authenticated,
     authProvider: session?.authProvider,
     isAdmin: Boolean(context?.is_admin || session?.isAdmin),
   });

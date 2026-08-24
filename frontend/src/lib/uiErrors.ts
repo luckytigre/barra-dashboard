@@ -2,7 +2,7 @@ import { ApiError } from "@/lib/apiTransport";
 import type { AppAuthContextPayload } from "@/app/api/auth/_context";
 import type { AppSessionPayload } from "@/lib/authSessionBootstrap";
 
-export type UiAccountType = "personal" | "shared" | "system" | "admin" | "unknown";
+export type UiAccountType = "personal" | "shared" | "system" | "unknown";
 export type UiErrorKind =
   | "session_required"
   | "account_provisioning"
@@ -22,7 +22,6 @@ export interface UiErrorContext {
   operation?: "read" | "write" | "recalculate";
   accountType?: UiAccountType | null;
   accountName?: string | null;
-  authenticated?: boolean;
   authProvider?: AppSessionPayload["authProvider"] | null;
   isAdmin?: boolean;
 }
@@ -31,8 +30,7 @@ export interface UiErrorDescription {
   kind: UiErrorKind;
   title: string;
   message: string;
-  action: "sign_in" | "retry" | "change_account" | "contact_owner" | "contact_operator" | "none";
-  actionLabel: string | null;
+  action: "sign_in" | "retry" | "none";
   diagnostic: string | null;
 }
 
@@ -49,7 +47,23 @@ interface ErrorMeta {
   rawMessage: string;
   buildProfile: string;
   timedOut: boolean;
+  networkFailure: boolean;
 }
+
+const ERROR_KIND_BY_CODE: Partial<Record<string, UiErrorKind>> = {
+  account_bootstrap_disabled: "account_provisioning",
+  account_provisioning_required: "account_provisioning",
+  account_context_unavailable: "account_context",
+  admin_required: "admin_required",
+  session_expired: "session_required",
+  session_required: "session_required",
+  account_access_denied: "account_access",
+  cache_not_ready: "not_ready",
+  cpar_not_ready: "not_ready",
+  cpar_authority_unavailable: "service_unavailable",
+  authority_unavailable: "service_unavailable",
+  upstream_unavailable: "service_unavailable",
+};
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -65,6 +79,7 @@ function readErrorMeta(error: unknown): ErrorMeta {
       rawMessage: cleanText(typeof detail === "string" ? detail : objectDetail?.message) || cleanText(error.message),
       buildProfile: cleanText(objectDetail?.build_profile),
       timedOut: false,
+      networkFailure: false,
     };
   }
   if (error instanceof Error) {
@@ -75,6 +90,7 @@ function readErrorMeta(error: unknown): ErrorMeta {
       rawMessage: message,
       buildProfile: "",
       timedOut: error.name === "AbortError" || /timed? out|timeout|aborted/i.test(message),
+      networkFailure: error instanceof TypeError,
     };
   }
   if (error && typeof error === "object") {
@@ -87,36 +103,24 @@ function readErrorMeta(error: unknown): ErrorMeta {
       rawMessage,
       buildProfile: cleanText(value.build_profile),
       timedOut: /timed? out|timeout|aborted/i.test(rawMessage),
+      networkFailure: false,
     };
   }
-  return { status: null, code: "", rawMessage: "", buildProfile: "", timedOut: false };
+  return { status: null, code: "", rawMessage: "", buildProfile: "", timedOut: false, networkFailure: false };
 }
 
 function inferKind(meta: ErrorMeta): UiErrorKind {
-  const haystack = `${meta.code} ${meta.rawMessage}`.toLowerCase();
-  // Account-state codes must be checked before the bare 401 status. The middleware
-  // returns 401 for an authenticated-but-unprovisioned session while deliberately
-  // preserving the session cookies, so classifying on status alone would tell the
-  // user to sign in again for a session that is still valid.
-  if (/account_bootstrap_disabled|account_provisioning_required|no account memberships/.test(haystack)) {
-    return "account_provisioning";
-  }
-  if (/account_context_unavailable|could not load authenticated account context/.test(haystack)) {
-    return "account_context";
-  }
-  if (/admin_required|admin session required/.test(haystack)) return "admin_required";
-  if (meta.status === 401 || /session_expired|session_required|sign in required|authenticated app session required/.test(haystack)) {
-    return "session_required";
-  }
-  if (meta.status === 403 || /outside the authenticated scope|not allowlisted|account_access_denied/.test(haystack)) {
-    return "account_access";
-  }
-  if (/cpar_not_ready|not ready|no serving snapshot|no published/.test(haystack)) return "not_ready";
+  // Structured account-state codes win over status. In particular, middleware may
+  // return 401 for a valid but unprovisioned session whose cookies remain intact.
+  const codedKind = ERROR_KIND_BY_CODE[meta.code];
+  if (codedKind) return codedKind;
+  if (meta.status === 401) return "session_required";
+  if (meta.status === 403) return "account_access";
   if (meta.status === 404) return "not_found";
   if (meta.status === 400 || meta.status === 409 || meta.status === 422) return "invalid_request";
   if (meta.status === 429) return "rate_limited";
   if (meta.timedOut || meta.status === 408 || meta.status === 504) return "timeout";
-  if (meta.status === 502 || meta.status === 503 || /authority_unavailable|upstream_unavailable|service unavailable|network/.test(haystack)) {
+  if (meta.networkFailure || meta.status === 502 || meta.status === 503) {
     return "service_unavailable";
   }
   return "unexpected";
@@ -137,35 +141,16 @@ function accountLabel(context: UiErrorContext): string {
       return "this shared account";
     case "system":
       return "this system account";
-    case "admin":
-      return "your admin workspace";
     default:
       return "this account";
   }
 }
 
-function safeValidationMessage(rawMessage: string): string | null {
-  const clean = rawMessage.replace(/\s+/g, " ").trim();
-  if (!clean || clean.length > 240) return null;
-  if (/traceback|exception|sql|postgres|sqlite|neon not available/i.test(clean)) return null;
-  // Never echo identifiers or filesystem/network locations back to the user: the
-  // keyword allowlist below is broad enough that an upstream message mentioning an
-  // account id or an internal path would otherwise render verbatim.
-  if (/(^|[\s"'(])\/\S/.test(clean)) return null;
-  // Match generated identifier *values* (acct_7f3a91c2), not the literal field names
-  // that legitimately appear in validation copy ("Each row requires account_id.").
-  if (/\b(?:acct|acc|account|user|org|sub)_(?=[a-z0-9-]*\d)[a-z0-9-]{6,}/i.test(clean)) return null;
-  if (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(clean)) return null;
-  if (/[0-9a-f]{16,}/i.test(clean)) return null;
-  if (!/account|quantity|ticker|ric|row|csv|scenario|security|position|select|provide|required|duplicate|maximum|max\b/i.test(clean)) {
-    return null;
-  }
-  return clean;
-}
-
 function sanitizeDiagnostic(value: string): string {
   return value
     .replace(/(postgres(?:ql)?:\/\/)[^@\s]+@/gi, "$1[redacted]@")
+    .replace(/(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+/gi, "$1[redacted]")
+    .replace(/(bearer\s+)[A-Za-z0-9._~-]{10,}/gi, "$1[redacted]")
     .replace(/((?:authorization|token|password|secret|api[_-]?key)\s*[:=]\s*)[^\s,;]+/gi, "$1[redacted]")
     .replace(/\beyJ[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]{10,}){1,2}\b/g, "[redacted token]");
 }
@@ -184,7 +169,6 @@ export function accountTypeFromSession(
   session: AppSessionPayload | null | undefined,
   context: AppAuthContextPayload | null | undefined,
 ): UiAccountType {
-  if (context?.is_admin || session?.isAdmin) return "admin";
   if (session?.authProvider === "shared" || context?.auth_provider === "shared") return "shared";
   if (session?.authProvider === "neon" || context?.auth_provider === "neon") return "personal";
   return "unknown";
@@ -198,8 +182,6 @@ export function accountTypeLabel(accountType: UiAccountType | null | undefined):
       return "Shared";
     case "system":
       return "System";
-    case "admin":
-      return "Admin";
     default:
       return "Account";
   }
@@ -220,7 +202,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         title: "Sign in again",
         message: `Your Ceiora session ended before ${surface} could ${operation === "read" ? "load" : "finish"}. Sign in again to continue; no account access was changed.`,
         action: "sign_in",
-        actionLabel: "Return to login",
         diagnostic,
       };
     case "account_provisioning": {
@@ -235,8 +216,7 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
           : context.authProvider === "neon"
           ? `Your identity is valid, but Ceiora has not finished creating your personal portfolio. Try again shortly${context.isAdmin ? " or review account provisioning" : ""}.`
           : `Your sign-in is valid, but no portfolio is assigned to this account yet. Ask the account owner or operator to finish setup.`,
-        action: bootstrapDisabled ? "contact_operator" : "retry",
-        actionLabel: bootstrapDisabled ? null : "Try again",
+        action: bootstrapDisabled ? "none" : "retry",
         diagnostic,
       };
     }
@@ -246,7 +226,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         title: "Account context unavailable",
         message: `Ceiora could not confirm which portfolio belongs to this session, so ${surface} was withheld. Your holdings were not changed.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
     case "admin_required":
@@ -255,7 +234,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         title: "Admin access required",
         message: `${surface} is a maintenance surface and is not available to personal or shared accounts. Your portfolio access is unaffected.`,
         action: "none",
-        actionLabel: null,
         diagnostic,
       };
     case "account_access": {
@@ -271,8 +249,7 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         kind,
         title: "Account access unavailable",
         message,
-        action: context.isAdmin ? "change_account" : accountType === "shared" ? "contact_owner" : "change_account",
-        actionLabel: null,
+        action: "none",
         diagnostic,
       };
     }
@@ -280,10 +257,8 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
       return {
         kind,
         title: "Check this request",
-        message: safeValidationMessage(meta.rawMessage)
-          || `Ceiora could not use the submitted ${surface} request. Review the selected account and entered values, then try again.`,
+        message: `Ceiora could not use the submitted ${surface} request. Review the selected account and entered values, then try again.`,
         action: "none",
-        actionLabel: null,
         diagnostic,
       };
     case "not_found":
@@ -291,8 +266,7 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         kind,
         title: "Requested data not found",
         message: `${surface} is not available for ${account}. It may not be included in the active model package or may no longer exist.`,
-        action: "change_account",
-        actionLabel: null,
+        action: "none",
         diagnostic,
       };
     case "not_ready":
@@ -301,7 +275,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         title: "Model data not ready",
         message: `${surface} has not been published for ${account} yet. Existing holdings are unchanged${context.isAdmin ? "; publish the required model package, then retry" : "; try again after the next model update"}.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
     case "rate_limited":
@@ -310,7 +283,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
         title: "Too many requests",
         message: `${surface} is temporarily paused. Wait a moment before trying again.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
     case "timeout":
@@ -321,7 +293,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
           ? `Ceiora did not receive confirmation that the ${surface} change finished. Review current holdings before retrying so the change is not applied twice.`
           : `${surface} took too long to respond. No account data was changed; try again when the connection is stable.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
     case "service_unavailable":
@@ -332,7 +303,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
           ? `Ceiora could not confirm that the change to ${account} finished. Review current holdings before retrying; do not assume the change was saved.`
           : `Ceiora could not load ${surface} for ${account}. Your holdings are unchanged; try again when the data service is available.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
     default:
@@ -343,7 +313,6 @@ export function describeUiError(error: unknown, context: UiErrorContext = {}): U
           ? `Ceiora could not confirm that the ${surface} change finished. Review current holdings before trying again.`
           : `${surface} could not be loaded. Your holdings are unchanged; try again.`,
         action: "retry",
-        actionLabel: "Try again",
         diagnostic,
       };
   }
@@ -353,6 +322,38 @@ export function uiErrorMessage(error: unknown, context: UiErrorContext = {}): st
   return describeUiError(error, context).message;
 }
 
-export function validationUiMessage(value: unknown, fallback: string): string {
-  return safeValidationMessage(cleanText(value)) || fallback;
+export function rejectionReasonUiMessage(reasonCode: unknown): string {
+  switch (cleanText(reasonCode).toLowerCase()) {
+    case "invalid_account_id":
+      return "Select an available account.";
+    case "missing_identifier":
+      return "Add a ticker or RIC.";
+    case "invalid_quantity":
+    case "zero_quantity":
+      return "Enter a numeric, non-zero quantity.";
+    case "duplicate_row_in_file":
+    case "duplicate_resolved_instrument":
+      return "Remove the duplicate security row.";
+    case "unknown_ric":
+    case "unknown_ticker":
+      return "Choose a security available in the active registry.";
+    case "identifier_mismatch":
+      return "Use a ticker and RIC that identify the same security.";
+    default:
+      return "Review the account, security, and quantity.";
+  }
+}
+
+export function whatIfApplyUiError(
+  response: {
+    status?: unknown;
+    rejected_rows?: unknown;
+    rejected?: Array<{ reason_code?: unknown }>;
+  },
+  fallback: string,
+): string | null {
+  const rejectedCount = Number(response.rejected_rows || 0);
+  if (cleanText(response.status).toLowerCase() === "ok" && rejectedCount === 0) return null;
+  const guidance = rejectionReasonUiMessage(response.rejected?.[0]?.reason_code);
+  return response.rejected?.length || rejectedCount > 0 ? `${fallback} ${guidance}` : fallback;
 }

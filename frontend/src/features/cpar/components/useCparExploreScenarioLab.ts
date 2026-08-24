@@ -8,7 +8,7 @@ import { applyPortfolioWhatIf, useHoldingsAccounts, useHoldingsPositions } from 
 import { cparApiPath } from "@/lib/cparApi";
 import { holdingsApiPath } from "@/lib/holdingsApi";
 import { canNavigateCparSearchResult } from "@/lib/cparTruth";
-import { accountTypeFromSession, uiErrorMessage } from "@/lib/uiErrors";
+import { accountTypeFromSession, uiErrorMessage, whatIfApplyUiError } from "@/lib/uiErrors";
 import type { CparExploreWhatIfData, CparSearchItem } from "@/lib/types/cpar";
 import {
   formatScenarioCount,
@@ -40,7 +40,7 @@ export function useCparExploreScenarioLab({
   searchSettled,
   onPreviewInstrument,
 }: UseCparExploreScenarioLabArgs) {
-  const { authenticated, session, context } = useAuthSession();
+  const { session, context } = useAuthSession();
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
 
@@ -116,11 +116,10 @@ export function useCparExploreScenarioLab({
       operation,
       accountType: targetAccount?.account_type ?? accountTypeFromSession(session, context),
       accountName: targetAccount?.account_name,
-      authenticated,
       authProvider: session?.authProvider,
       isAdmin: Boolean(context?.is_admin || session?.isAdmin),
     });
-  }, [accountId, accountOptions, authenticated, context, scenarioRows, session]);
+  }, [accountId, accountOptions, context, scenarioRows, session]);
 
   const currentModeFactorOrder = useMemo(() => {
     const currentFactors = previewData?.current.display_exposure_modes?.[mode]
@@ -384,10 +383,15 @@ export function useCparExploreScenarioLab({
     }
     try {
       setBusy(true);
-      await applyPortfolioWhatIf({
+      const out = await applyPortfolioWhatIf({
         scenario_rows: payloadRows,
         default_source: "cpar_explore",
       });
+      const applyError = whatIfApplyUiError(out, "cPAR what-if changes were rejected.");
+      if (applyError) {
+        setErrorMessage(applyError);
+        return;
+      }
       await Promise.all([
         mutate(holdingsApiPath.holdingsAccounts()),
         mutate(holdingsApiPath.holdingsPositions(null)),

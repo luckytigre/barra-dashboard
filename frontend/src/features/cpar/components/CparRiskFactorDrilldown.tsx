@@ -11,8 +11,8 @@ import {
   formatCparMarketValueThousands,
   formatCparNumber,
   formatCparPercent,
-  readCparError,
 } from "@/lib/cparTruth";
+import { describeUiError } from "@/lib/uiErrors";
 import type { CparFactorChartRow, CparRiskExposureMode } from "@/lib/types/cpar";
 
 const COLLAPSED_ROWS = 8;
@@ -37,7 +37,7 @@ export default function CparRiskFactorDrilldown({
     error: historyError,
     isLoading: historyLoading,
   } = useCparFactorHistory(factor.factor_id, 5, cparFactorHistoryMode);
-  const historyState = historyError ? readCparError(historyError) : null;
+  const historyErrorKind = historyError ? describeUiError(historyError).kind : null;
 
   const isSensitivity = mode === "sensitivity";
   const isRiskContribution = mode === "risk_contribution";
@@ -214,9 +214,9 @@ export default function CparRiskFactorDrilldown({
                 ? "Loading 5Y daily market-adjusted history..."
                 : "Loading 5Y daily residual history..."}
           </div>
-        ) : historyState ? (
+        ) : historyError ? (
           <div className="detail-history-empty">
-            {historyState.kind === "not_ready"
+            {historyErrorKind === "not_ready"
               ? `${isMarketFactor ? "Daily" : usesMarketAdjustedHistory ? "Daily market-adjusted" : "Daily residual"} cPAR factor returns are not ready for ${factor.label} yet.`
               : `5Y daily ${isMarketFactor ? "factor" : usesMarketAdjustedHistory ? "market-adjusted factor" : "residual factor"}-return history is temporarily unavailable for ${factor.label}.`}
           </div>

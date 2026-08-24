@@ -8,8 +8,8 @@ import { useCparPositionHedge } from "@/hooks/useCparApi";
 import {
   describeCparHedgeStatus,
   formatCparPercent,
-  readCparError,
 } from "@/lib/cparTruth";
+import { describeUiError } from "@/lib/uiErrors";
 import type { CparPackageMeta, CparPortfolioPositionRow, CparPositionHedgePackage } from "@/lib/types/cpar";
 
 function formatMoney(value: number | null | undefined): string {
@@ -113,7 +113,7 @@ export default function CparPositionHedgePopover({
       && (data.package_run_id !== packageIdentity.package_run_id
         || data.package_date !== packageIdentity.package_date),
   );
-  const errorState = error ? readCparError(error) : null;
+  const errorKind = error ? describeUiError(error).kind : null;
 
   useEffect(() => {
     setMounted(true);
@@ -179,11 +179,11 @@ export default function CparPositionHedgePopover({
 
       {isLoading && !data ? <CparInlineLoadingState message="Loading row hedge packages..." /> : null}
 
-      {errorState ? (
+      {error ? (
         <InlineApiError
           error={error}
           surface={`${row.ticker || row.ric} hedge package`}
-          className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}
+          className={`cpar-inline-message ${errorKind === "not_found" ? "warning" : "error"}`}
         />
       ) : null}
 

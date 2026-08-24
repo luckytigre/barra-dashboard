@@ -9,9 +9,8 @@ import { useCparPortfolioHedgeRecommendation } from "@/hooks/useCparApi";
 import { useHoldingsAccounts } from "@/hooks/useHoldingsApi";
 import {
   normalizeCparPortfolioHedgeRecommendationData,
-  readCparError,
 } from "@/lib/cparTruth";
-import { accountTypeLabel } from "@/lib/uiErrors";
+import { accountTypeLabel, describeUiError } from "@/lib/uiErrors";
 
 const ALL_SCOPE = "__all__";
 
@@ -23,7 +22,7 @@ function CparHedgeWorkspaceInner() {
   const accountId = scopeKind === "account" ? selectedScope : null;
   const { data, error, isLoading } = useCparPortfolioHedgeRecommendation(scopeKind, accountId, true);
   const normalized = useMemo(() => normalizeCparPortfolioHedgeRecommendationData(data), [data]);
-  const errorState = error ? readCparError(error) : null;
+  const errorKind = error ? describeUiError(error).kind : null;
 
   useEffect(() => {
     if (selectedScope === ALL_SCOPE) return;
@@ -61,14 +60,14 @@ function CparHedgeWorkspaceInner() {
         </div>
       </section>
 
-      {errorState ? (
+      {error ? (
         <section className="chart-card" data-testid="cpar-hedge-error">
           <h3>Hedge Workspace</h3>
           <InlineApiError
             error={error}
             surface="cPAR hedge workspace"
             accountName={accountOptions.find((account) => account.account_id === accountId)?.account_name}
-            className={`cpar-inline-message ${errorState.kind === "missing" ? "warning" : "error"}`}
+            className={`cpar-inline-message ${errorKind === "not_found" ? "warning" : "error"}`}
           />
         </section>
       ) : normalized ? (

@@ -8,7 +8,6 @@ import { useCparSearch } from "@/hooks/useCparApi";
 import {
   canNavigateCparSearchResult,
   describeCparFitStatus,
-  readCparError,
 } from "@/lib/cparTruth";
 import type { CparSearchItem } from "@/lib/types/cpar";
 
@@ -71,7 +70,6 @@ export default function CparPortfolioWhatIfBuilder({
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 220);
 
   const { data: searchData, error: searchError, isLoading: searchLoading } = useCparSearch(debouncedSearchQuery, 8, "typeahead");
-  const searchState = searchError ? readCparError(searchError) : null;
   const searchResults = searchData?.results ?? [];
   const selectableCount = useMemo(
     () => searchResults.filter((item) => canNavigateCparSearchResult(item)).length,
@@ -339,7 +337,7 @@ export default function CparPortfolioWhatIfBuilder({
           </div>
         ) : null}
 
-        {searchQuery.trim().length > 0 && searchState ? (
+        {searchQuery.trim().length > 0 && searchError ? (
           <InlineApiError
             error={searchError}
             surface="cPAR scenario search"
@@ -347,9 +345,9 @@ export default function CparPortfolioWhatIfBuilder({
           />
         ) : searchQuery.trim().length > 0 && searchLoading && !searchData ? (
           <div className="whatif-builder-feedback">Searching the active cPAR package…</div>
-        ) : searchQuery.trim().length > 0 && searchResults.length === 0 && !searchState ? (
+        ) : searchQuery.trim().length > 0 && searchResults.length === 0 && !searchError ? (
           <div className="whatif-builder-feedback">No active-package results matched this search.</div>
-        ) : searchQuery.trim().length > 0 && searchResults.length > 0 && selectableCount === 0 && !searchState ? (
+        ) : searchQuery.trim().length > 0 && searchResults.length > 0 && selectableCount === 0 && !searchError ? (
           <div className="whatif-builder-feedback">Active-package matches found, but ticker is required to stage rows.</div>
         ) : null}
 

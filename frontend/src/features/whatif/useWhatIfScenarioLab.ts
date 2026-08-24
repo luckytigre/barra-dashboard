@@ -15,7 +15,7 @@ import type {
   WhatIfPreviewData,
 } from "@/lib/types/cuse4";
 import { factorTier } from "@/lib/factorLabels";
-import { accountTypeFromSession, uiErrorMessage, validationUiMessage } from "@/lib/uiErrors";
+import { accountTypeFromSession, uiErrorMessage, whatIfApplyUiError } from "@/lib/uiErrors";
 import {
   buildScenarioPayloadRows,
   formatScenarioCount,
@@ -47,7 +47,7 @@ export function useWhatIfScenarioLab({
   onSelectTicker,
   onPreviewTicker,
 }: UseWhatIfScenarioLabArgs) {
-  const { authenticated, session, context } = useAuthSession();
+  const { session, context } = useAuthSession();
   const { data: accountsData } = useHoldingsAccounts();
   const { data: holdingsData } = useHoldingsPositions(null);
 
@@ -236,11 +236,10 @@ export function useWhatIfScenarioLab({
       operation,
       accountType: targetAccount?.account_type ?? accountTypeFromSession(session, context),
       accountName: targetAccount?.account_name,
-      authenticated,
       authProvider: session?.authProvider,
       isAdmin: Boolean(context?.is_admin || session?.isAdmin),
     });
-  }, [accountId, accountOptions, authenticated, context, scenarioRows, session]);
+  }, [accountId, accountOptions, context, scenarioRows, session]);
 
   const currentModeFactorOrder = useMemo(() => {
     const currentFactors = previewData?.current.exposure_modes[mode] ?? [];
@@ -419,31 +418,18 @@ export function useWhatIfScenarioLab({
         scenario_rows: payload.rows,
         default_source: "what_if",
       });
-      if (out.status !== "ok") {
-        const rejected = out.rejected?.[0];
-        const warning = out.warnings?.[0];
-        setErrorMessage(
-          validationUiMessage(
-            rejected?.message || warning,
-            "What-if changes were rejected. Review the selected account, securities, and quantities before trying again.",
-          ),
-        );
-        return;
-      }
-      if (out.rejected_rows > 0) {
-        const rejected = out.rejected?.[0];
-        setErrorMessage(
-          validationUiMessage(
-            rejected?.message,
-            "One or more scenario rows were rejected. Review the selected accounts, securities, and quantities.",
-          ),
-        );
+      const applyError = whatIfApplyUiError(
+        out,
+        "What-if changes were rejected.",
+      );
+      if (applyError) {
+        setErrorMessage(applyError);
         return;
       }
 
       const appliedScenarioCount = payload.rows.length;
       const warningText = out.warnings?.length
-        ? validationUiMessage(out.warnings[0], "Some rows were applied with warnings; review the updated holdings.")
+        ? "Some rows were applied with warnings; review the updated holdings."
         : "";
 
       await Promise.all([
